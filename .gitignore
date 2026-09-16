@@ -25,7 +25,6 @@ DerivedData
 ios/Brand.generated.xcconfig
 # Active-brand expo-updates project URL + channel — rewritten per brand by
 # write-brand-expo-plist.cjs; ships House's values until prepare-xcode.sh runs.
-ios/SymplyEcosystem/Supporting/Expo.plist
 
 # Android/IntelliJ
 #

@@ -4019,7 +4019,7 @@
 					"-F$(SRCROOT)/linkstubs",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE -Xfrontend -disable-autolink-framework -Xfrontend SwiftUICore -Xfrontend -disable-autolink-framework -Xfrontend UIUtilities";
-				PRODUCT_BUNDLE_IDENTIFIER = com.symply.house;
+				PRODUCT_BUNDLE_IDENTIFIER = com.symply.budget;
 				PRODUCT_NAME = SymplyEcosystem;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OBJC_BRIDGING_HEADER = "SymplyEcosystem/SymplyEcosystem-Bridging-Header.h";
@@ -4587,7 +4587,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.symply.house.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.symply.budget.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
@@ -4639,7 +4639,7 @@
 				MARKETING_VERSION = "$(SYMPLY_MARKETING_VERSION)";
 				MTL_FAST_MATH = YES;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.symply.house.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.symply.budget.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;

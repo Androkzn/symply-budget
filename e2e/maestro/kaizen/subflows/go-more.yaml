@@ -1,0 +1,9 @@
+appId: com.symply.kaizen
+---
+- tapOn:
+    id: 'tab-settings'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-more-screen'
+    timeout: 20000

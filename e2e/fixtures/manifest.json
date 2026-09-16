@@ -1,0 +1,330 @@
+{
+  "$comment": "Canonical test-document manifest. Single source of truth for real upload fixtures. Binaries live in resourses/testing/ (NOT copied into git); `source` is the path relative to repo root. `name` is the sanitized filename tests/pickers/seed use (spaces, double extensions and the .png-that-is-JPEG are corrected). Consumed by e2e/fixtures/index.js (Jest/Vitest/node:test), scripts/e2e/seed-fixtures.sh, and the backend shell integration scripts.",
+  "fixtures": [
+    {
+      "key": "house-inspection-report",
+      "app": "house",
+      "source": "resourses/testing/House app - Inspection Report 1.pdf.pdf",
+      "name": "inspection-report.pdf",
+      "mime": "application/pdf",
+      "kind": "document",
+      "targets": [
+        "reports-upload",
+        "onboarding-upload-report",
+        "lambda-inspection"
+      ]
+    },
+    {
+      "key": "house-bc-assessment",
+      "app": "house",
+      "source": "resourses/testing/House app - BC Assessment 1.pdf",
+      "name": "bc-assessment.pdf",
+      "mime": "application/pdf",
+      "kind": "document",
+      "targets": [
+        "property-assessment"
+      ]
+    },
+    {
+      "key": "house-bc-assessment-2",
+      "app": "house",
+      "source": "resourses/testing/House app - BC Assesment 2.pdf",
+      "name": "bc-assessment-2.pdf",
+      "mime": "application/pdf",
+      "kind": "document",
+      "targets": [
+        "property-assessment"
+      ]
+    },
+    {
+      "key": "house-utility-bc-hydro",
+      "app": "house",
+      "source": "resourses/testing/House app - BC Hydro bill 1.pdf",
+      "name": "bc-hydro-bill.pdf",
+      "mime": "application/pdf",
+      "kind": "document",
+      "targets": [
+        "utility-bill"
+      ]
+    },
+    {
+      "key": "house-utility-fortis",
+      "app": "house",
+      "source": "resourses/testing/House app - Fortis BC bill 1.pdf.pdf",
+      "name": "fortis-bill.pdf",
+      "mime": "application/pdf",
+      "kind": "document",
+      "targets": [
+        "utility-bill"
+      ]
+    },
+    {
+      "key": "house-utility-surrey",
+      "app": "house",
+      "source": "resourses/testing/House app - Utility Syrrey bill 1.pdf",
+      "name": "surrey-utility-bill.pdf",
+      "mime": "application/pdf",
+      "kind": "document",
+      "targets": [
+        "utility-bill",
+        "property-tax"
+      ]
+    },
+    {
+      "key": "house-floor-plan-image",
+      "app": "house",
+      "source": "resourses/testing/House app - Folor plan 1.jpeg",
+      "name": "floor-plan.jpeg",
+      "mime": "image/jpeg",
+      "kind": "image",
+      "targets": [
+        "floor-plan-upload",
+        "garden-plan-upload"
+      ]
+    },
+    {
+      "key": "house-floor-plan-pdf",
+      "app": "house",
+      "source": "resourses/testing/House app - Folor plan 2.pdf",
+      "name": "floor-plan.pdf",
+      "mime": "application/pdf",
+      "kind": "document",
+      "targets": [
+        "floor-plan-upload"
+      ]
+    },
+    {
+      "key": "budget-receipt",
+      "app": "budget",
+      "source": "resourses/testing/Budget app - Receipt 2.jpg",
+      "name": "receipt.jpg",
+      "mime": "image/jpeg",
+      "kind": "image",
+      "targets": [
+        "budget-receipt-scan",
+        "budget-item-ai",
+        "chat-attach"
+      ]
+    },
+    {
+      "key": "budget-receipt-2",
+      "app": "budget",
+      "source": "resourses/testing/Budget app - Receipt 3.jpg",
+      "name": "receipt-2.jpg",
+      "mime": "image/jpeg",
+      "kind": "image",
+      "targets": [
+        "budget-receipt-scan"
+      ]
+    },
+    {
+      "key": "budget-receipt-3",
+      "app": "budget",
+      "source": "resourses/testing/Budget app - Receip 1.png",
+      "name": "receipt-3.jpg",
+      "mime": "image/jpeg",
+      "kind": "image",
+      "$note": "Source has a .png extension but the bytes are JPEG (verified via file(1)); normalized to .jpg / image/jpeg so picker type filters and simctl match.",
+      "targets": [
+        "budget-receipt-scan"
+      ]
+    },
+    {
+      "key": "budget-receipt-heic",
+      "app": "budget",
+      "source": "resourses/testing/Budget app - Receipt 3.HEIC",
+      "name": "receipt-3.heic",
+      "mime": "image/heic",
+      "kind": "image",
+      "$note": "Same BC Liquor receipt as budget-receipt-2, original HEIC. Exercises client long-edge 1568 + JPEG 0.8 before BYOK.",
+      "targets": [
+        "budget-receipt-scan"
+      ]
+    },
+    {
+      "key": "budget-receipt-file",
+      "app": "budget",
+      "source": "resourses/testing/Budget app - Receipt 2.jpg",
+      "name": "receipt.jpg",
+      "mime": "image/jpeg",
+      "kind": "document",
+      "$note": "Same Costco JPEG as budget-receipt, seeded into Files/SymplyE2E so the quality suite can pick by filename.",
+      "targets": [
+        "budget-receipt-scan"
+      ]
+    },
+    {
+      "key": "budget-receipt-2-file",
+      "app": "budget",
+      "source": "resourses/testing/Budget app - Receipt 3.jpg",
+      "name": "receipt-2.jpg",
+      "mime": "image/jpeg",
+      "kind": "document",
+      "$note": "Same BCL JPEG as budget-receipt-2, seeded into Files/SymplyE2E.",
+      "targets": [
+        "budget-receipt-scan"
+      ]
+    },
+    {
+      "key": "budget-receipt-3-file",
+      "app": "budget",
+      "source": "resourses/testing/Budget app - Receip 1.png",
+      "name": "receipt-3.jpg",
+      "mime": "image/jpeg",
+      "kind": "document",
+      "$note": "Same Superstore JPEG as budget-receipt-3, seeded into Files/SymplyE2E.",
+      "targets": [
+        "budget-receipt-scan"
+      ]
+    },
+    {
+      "key": "budget-monthly-expenses",
+      "app": "budget",
+      "source": "resourses/testing/Budget app - Monthly Expences.jpg",
+      "name": "monthly-expenses.jpg",
+      "mime": "image/jpeg",
+      "kind": "image",
+      "targets": [
+        "budget-item-ai",
+        "savings-import"
+      ]
+    },
+    {
+      "key": "budget-savings-statement",
+      "app": "budget",
+      "source": "resourses/testing/Budget app - Savings.jpg",
+      "name": "savings-statement.jpg",
+      "mime": "image/jpeg",
+      "kind": "image",
+      "targets": [
+        "savings-import",
+        "pension-import"
+      ]
+    },
+    {
+      "key": "kaizen-resume",
+      "app": "kaizen",
+      "source": "resourses/testing/Kaizen app - Resume.pdf",
+      "name": "resume.pdf",
+      "mime": "application/pdf",
+      "kind": "document",
+      "targets": [
+        "kaizen-resume-review"
+      ]
+    },
+    {
+      "key": "kaizen-book",
+      "app": "kaizen",
+      "source": "resourses/testing/Kaizen app - Book for reading.pdf",
+      "name": "book.pdf",
+      "mime": "application/pdf",
+      "kind": "document",
+      "targets": [
+        "kaizen-book-upload"
+      ]
+    },
+    {
+      "key": "kaizen-questions-technical",
+      "app": "kaizen",
+      "source": "resourses/testing/Kaizen app - Technical-Questions.txt",
+      "name": "technical-questions.txt",
+      "mime": "text/plain",
+      "kind": "document",
+      "targets": [
+        "kaizen-question-import"
+      ]
+    },
+    {
+      "key": "kaizen-questions-behavioral",
+      "app": "kaizen",
+      "source": "resourses/testing/Kaizen app - Behavioral-Questions.txt",
+      "name": "behavioral-questions.txt",
+      "mime": "text/plain",
+      "kind": "document",
+      "targets": [
+        "kaizen-question-import"
+      ]
+    },
+    {
+      "key": "kaizen-transcript",
+      "app": "kaizen",
+      "source": "resourses/testing/Kaizen app - Transcript 1.txt",
+      "name": "transcript.txt",
+      "mime": "text/plain",
+      "kind": "document",
+      "targets": [
+        "kaizen-knowledge-import"
+      ]
+    },
+    {
+      "key": "mortgage-statement",
+      "app": "budget",
+      "source": "resourses/testing/Budge- Mortgage statement.pdf",
+      "name": "mortgage-statement.pdf",
+      "mime": "application/pdf",
+      "kind": "document",
+      "targets": [
+        "mortgage-statement-scan",
+        "mortgage-statement-extract"
+      ]
+    },
+    {
+      "key": "budget-us-receipt-propane",
+      "app": "budget",
+      "source": "resourses/testing/US-recept-3.HEIC",
+      "name": "us-receipt-propane.heic",
+      "mime": "image/heic",
+      "kind": "image",
+      "$note": "Kendall Market, Maple Falls WA, 2026-09-05. ONE item (Propane $5.98) + printed $0.54 tax = $6.52. Prints a bare \"$\" and no currency code, so the US address is the only evidence it is USD \u2014 the case budget-receipt-foreign-currency.yaml drives. Smallest, most legible US receipt: deterministic assertions.",
+      "targets": [
+        "budget-receipt-foreign-currency"
+      ]
+    },
+    {
+      "key": "budget-us-receipt-fuel",
+      "app": "budget",
+      "source": "resourses/testing/US-recept-1.HEIC",
+      "name": "us-receipt-fuel.heic",
+      "mime": "image/heic",
+      "kind": "image",
+      "$note": "Kendall Market fuel pump, Maple Falls WA. Supreme 10.068 gal @ $6.099 = $61.40, no tax line. A big single-line US total \u2014 at par it understates a CAD budget by ~CA$23.",
+      "targets": [
+        "budget-receipt-foreign-currency"
+      ]
+    },
+    {
+      "key": "budget-us-receipt-traderjoes",
+      "app": "budget",
+      "source": "resourses/testing/US-recept.HEIC",
+      "name": "us-receipt-traderjoes.heic",
+      "mime": "image/heic",
+      "kind": "image",
+      "$note": "Trader Joe's, Bellingham WA. 46 items, $165.60 total, $4.18 tax @ 9.2%. The rich multi-item US case \u2014 exercises per-line conversion across a long receipt.",
+      "targets": [
+        "budget-receipt-foreign-currency"
+      ]
+    },
+    {
+      "key": "budget-us-receipt-cardslip",
+      "app": "budget",
+      "source": "resourses/testing/US-recept-2.HEIC",
+      "name": "us-receipt-cardslip.heic",
+      "mime": "image/heic",
+      "kind": "image",
+      "$note": "Maple Fuels Wash-A-Ton, Maple Falls WA. A card slip with a $32.24 total and NO line items \u2014 the receipt a scan legitimately reads 0 products from. Kept as a negative fixture; not used by the currency flow, which needs items to convert.",
+      "targets": []
+    },
+    {
+      "key": "budget-us-receipt-propane-file",
+      "app": "budget",
+      "source": "resourses/testing/US-recept-3.jpg",
+      "name": "us-receipt-propane.jpg",
+      "mime": "image/jpeg",
+      "kind": "document",
+      "$note": "The propane receipt as a DOCUMENT, so budget-receipt-foreign-currency can pick it by exact filename from Files/SymplyE2E. The Photos route needs a single-asset library to make PHOTO_INDEX meaningful, which the standard seed-fixtures.sh run does not provide; picking by name is index-free and survives any seeding. JPEG rather than the HEIC original because the scanner's document picker filters to pdf/jpeg/png/webp \u2014 the HEIC transcode path stays covered by budget-receipt-heic.",
+      "targets": [
+        "budget-receipt-foreign-currency"
+      ]
+    }
+  ]
+}

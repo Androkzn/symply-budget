@@ -1,0 +1,18 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Assert the daily note field retains persisted text (MMKV round-trip).
+# Anchored through focus-health-home rather than a bare DOWN scroll: the bare
+# form defaults to `visibilityPercentage: 100`, and at speed 40 a single step can
+# carry the field past the fully-visible window without a sampled frame seeing
+# it — which is why every one of these timed out on a field plainly on screen.
+- runFlow:
+    file: focus-health-home.yaml
+    env:
+      FOCUS_ID: health-note-input
+      HOME_ANCHOR: bottom
+- extendedWaitUntil:
+    visible: ${NOTE_EXPECTED}
+    timeout: 20000

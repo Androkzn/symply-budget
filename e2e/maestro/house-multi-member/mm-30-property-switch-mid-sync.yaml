@@ -1,0 +1,177 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - feature:multi-property
+  - mutation
+# Matrix: HOUSE-MM-030 — HOUSE ADDITION (plan §12: "property switch mid-sync").
+# Runs on BOTH devices AT THE SAME TIME, in two different roles.
+#
+# WHAT THIS PROVES THAT NO BUDGET FLOW CAN
+# ----------------------------------------
+# H5 turned one module-level engine into `Map<householdId, EngineState>`, and
+# the design decision the plan says it did not anticipate is the dangerous one:
+# the OpLog projection handler is created per property, because a single handler
+# reading a module-level engine would merge a background property's incoming ops
+# into whichever ledger happened to be active — "the exact cross-household bleed
+# this stage exists to prevent, and invisible until two properties diverged"
+# (plan §7.1). Unit tests cover the write path. What they cannot cover is a
+# REMOTE op arriving while the member is looking at a different property, which
+# is precisely what this flow arranges:
+#
+#   role=writer (B)   creates ${MM_TITLE} in the shared household and keeps
+#                     pushing, so ops are genuinely in flight;
+#   role=switcher (A) switches to ${MM_PROPERTY_B} WHILE that is happening,
+#                     asserts the peer's row is NOT there (no bleed), syncs from
+#                     inside the other property (fan-out keeps running), then
+#                     switches back and asserts the row DID land.
+#
+# A projection that ignored the active household would show the peer's task
+# inside ${MM_PROPERTY_B} — this flow fails there rather than at the end.
+#
+# NO testIDs EXIST FOR THE SWITCHER. `PropertySwitcher.tsx` has neither testID
+# nor accessibilityLabel anywhere in its 507 lines, so this drives it by the
+# text it renders: the trigger shows the active property's name, and the modal
+# shows "YOUR PROPERTIES" over a list of property names. Both are real, both
+# were read off the component — and both are why that component should get
+# testIDs before this phase is relied on in CI.
+#
+# env: MM_ROLE          switcher | writer
+#      MM_PROPERTY_A    the SHARED household's display name (the one the peer
+#                       enrolled into) — scraped by the runner from the
+#                       `[E2E-INVITE] … household=<name>` marker
+#      MM_PROPERTY_B    the second, suite-owned property (see mm-30a)
+#      MM_TITLE         the task the writer creates in the shared household
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+
+# ---------------------------------------------------------------- writer (B)
+- runFlow:
+    when:
+      true: ${MM_ROLE == 'writer'}
+    commands:
+      - runFlow: mm-go-tasks.yaml
+      - tapOn:
+          id: 'tasks-add-fab'
+      - extendedWaitUntil:
+          visible:
+            id: 'add-task-sheet'
+          timeout: 20000
+      - runFlow:
+          when:
+            visible: 'Personal \(only me\)'
+          commands:
+            - tapOn:
+                id: 'add-task-personal-toggle'
+            - waitForAnimationToEnd:
+                timeout: 1500
+      - tapOn:
+          id: 'add-task-input'
+      - inputText: ${MM_TITLE}
+      - hideKeyboard:
+          optional: true
+      - runFlow: mm-relaunch-if-backgrounded.yaml
+      - tapOn:
+          id: 'add-task-submit'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'add-task-sheet'
+          timeout: 25000
+      - runFlow: mm-go-tasks.yaml
+      - assertVisible: '.*${MM_TITLE}.*'
+      # Keep pushing for the whole window in which A is switching, so the op is
+      # genuinely in flight rather than already settled before A moves.
+      - repeat:
+          times: 12
+          commands:
+            - runFlow: mm-sync-pulse.yaml
+            - runFlow: mm-dismiss-stale-alerts.yaml
+      - assertVisible: '.*${MM_TITLE}.*'
+
+# -------------------------------------------------------------- switcher (A)
+- runFlow:
+    when:
+      true: ${MM_ROLE == 'switcher'}
+    commands:
+      - runFlow: mm-go-tasks.yaml
+      # START FROM A KNOWN PROPERTY. mm-30a may have left this device inside
+      # the property it just created — House selects a newly added property in
+      # some paths — and this flow's first act is to tap the header by
+      # ${MM_PROPERTY_A}'s name, which would then not be there. Recover rather
+      # than fail on a precondition the previous step set up.
+      - runFlow:
+          when:
+            visible: '.*${MM_PROPERTY_B}.*'
+            notVisible: '.*${MM_PROPERTY_A}.*'
+          commands:
+            - tapOn:
+                text: '.*${MM_PROPERTY_B}.*'
+            - extendedWaitUntil:
+                visible: 'YOUR PROPERTIES'
+                timeout: 15000
+                optional: true
+            - tapOn:
+                text: '.*${MM_PROPERTY_A}.*'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 4000
+            - runFlow: mm-go-tasks.yaml
+      # Open the switcher from the header. The trigger's label IS the active
+      # property's name, which is why the runner has to know it.
+      - extendedWaitUntil:
+          visible: '.*${MM_PROPERTY_A}.*'
+          timeout: 30000
+      - tapOn:
+          text: '.*${MM_PROPERTY_A}.*'
+      - extendedWaitUntil:
+          visible: 'YOUR PROPERTIES'
+          timeout: 15000
+      - tapOn:
+          text: '.*${MM_PROPERTY_B}.*'
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - runFlow: mm-go-tasks.yaml
+      # THE BLEED CHECK. We are inside another property while the peer is
+      # writing into the shared one. Their row must not appear here — not now,
+      # and not after a sync from this context either.
+      - assertNotVisible: '.*${MM_TITLE}.*'
+      - repeat:
+          times: 8
+          commands:
+            - runFlow: mm-sync-pulse.yaml
+            - runFlow: mm-dismiss-stale-alerts.yaml
+      - runFlow: mm-go-tasks.yaml
+      - assertNotVisible: '.*${MM_TITLE}.*'
+      # Switch back. The trigger now reads ${MM_PROPERTY_B}.
+      - extendedWaitUntil:
+          visible: '.*${MM_PROPERTY_B}.*'
+          timeout: 20000
+      - tapOn:
+          text: '.*${MM_PROPERTY_B}.*'
+      - extendedWaitUntil:
+          visible: 'YOUR PROPERTIES'
+          timeout: 15000
+      - tapOn:
+          text: '.*${MM_PROPERTY_A}.*'
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - runFlow: mm-go-tasks.yaml
+      # …and the op that was in flight during the switch is here. Nothing was
+      # dropped by the fan-out while this device was looking elsewhere.
+      - repeat:
+          times: 20
+          commands:
+            - runFlow:
+                when:
+                  notVisible: '.*${MM_TITLE}.*'
+                commands:
+                  - runFlow: mm-sync-pulse.yaml
+                  - runFlow: mm-dismiss-stale-alerts.yaml
+                  - runFlow: mm-relaunch-if-backgrounded.yaml
+                  - runFlow: mm-go-tasks.yaml
+      - extendedWaitUntil:
+          visible: '.*${MM_TITLE}.*'
+          timeout: 30000
+      - assertVisible: '.*${MM_TITLE}.*'

@@ -1,0 +1,35 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Clear the BYOK modal before anything looks for a screen behind it.
+#
+# "Drawing a schematic for you needs an AI provider" is raised by the AI CTAs
+# (`ai-schematic-cta` and friends) whenever the device has no provider key —
+# which is every E2E device, since BYOK keys live in the Keychain and no suite
+# installs one. Its buttons are "Add AI provider" and "Maybe later"; there is no
+# OK, so the `tapOn: 'OK'` dismissals scattered around the suite match nothing
+# and the modal simply stays up.
+#
+# It has to be cleared HERE, at the top of the launch subflow, rather than in
+# `dismiss-home-project-alert`. `launch-logged-in` is a SOFT launch — it
+# deliberately avoids `stopApp` so the Expo Dev Client keeps its Metro session —
+# so a modal raised by one flow is still on screen for the next one, covering
+# `home-screen` before any home-projects-specific dismissal gets a chance to run.
+# Observed 2026-08-29: four flows (`surface-budget`, `hub`, `photos`, `smoke`)
+# failed in the batched run on assertions for `home-screen`,
+# `home-projects-list-screen` and `home-projects-create` — every one of them a
+# screen that was rendering perfectly behind this dialog.
+#
+# "Maybe later", never "Add AI provider": the latter navigates to the key screen
+# and would strand the flow somewhere else entirely.
+- runFlow:
+    when:
+      visible: '.*Maybe later.*'
+    commands:
+      - tapOn:
+          text: '.*Maybe later.*'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 3000

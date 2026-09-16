@@ -1,0 +1,138 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:dashboard
+  - feature:ai
+  - readonly
+  - regression
+# Matrix: BUDGET-DASH-041 — Home → Insights card generates on-device (BYOK)
+#
+# Regression guard for the bug shipped 2026-08-22: on local-first Budget the
+# ledger never reaches D1, so `localBudgetApi.getInsights` was a stub that threw
+# `BudgetLocalUnsupportedError` unconditionally — and the dashboard rendered that
+# as "Insights need a connection · Monthly AI insights are not available
+# offline". An ONLINE member with connected AI providers got that modal on every
+# Refresh. Insights now generate on the device through the member's own provider
+# key (src/features/budget/local/ai/localInsights.ts).
+#
+# The old flow (budget-dashboard-controls.yaml) tapped Refresh and asserted
+# NOTHING about what came back, which is exactly how this shipped — and it left
+# the resulting alert sitting on the dashboard for whatever ran next.
+#
+# What is deterministic here, with or without a key on this device:
+#   - the offline copy must NEVER appear while the device is online;
+#   - the card resolves to a real state (a summary, or the empty placeholder);
+#   - any alert is dismissed before the flow ends, so nothing leaks forward.
+# Whether the summary itself renders depends on a real key being in this
+# device's Keychain, so that branch is guarded rather than asserted flat.
+---
+- runFlow: ../subflows/budget-offline-off.yaml
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-dismiss-welcome-if-needed.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-dashboard'
+    timeout: 60000
+
+# The Insights card sits below the category list — scroll it into view. Don't
+# demand full visibility: the small "Refresh" control never reaches 100%.
+- scrollUntilVisible:
+    element:
+      id: 'budget-insights-card'
+    direction: DOWN
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 800
+    timeout: 20000
+- assertVisible:
+    id: 'budget-insights-refresh'
+
+- tapOn:
+    id: 'budget-insights-refresh'
+# Generation runs against a real provider — give it room, but don't fail the
+# flow on a slow model: the assertions below cover every resolved state.
+- extendedWaitUntil:
+    notVisible: 'Generating insights…'
+    timeout: 60000
+    optional: true
+
+# THE GUARD. Online, with providers connected, neither the old title nor the old
+# body may ever be on screen. These two assertions are what the shipped bug
+# would have failed.
+- assertNotVisible: 'Insights need a connection'
+- assertNotVisible: '.*not available offline.*'
+
+# A no-key device is a legitimate outcome — but it must say so accurately, and
+# the modal must not be left behind for the next flow (the alert in the
+# 2026-08-22 report sat on the dashboard across flows for exactly this reason).
+- runFlow:
+    when:
+      visible: 'Insights need your AI key'
+    commands:
+      - assertVisible: '.*Settings → AI Providers.*'
+      - tapOn: 'OK'
+      - extendedWaitUntil:
+          notVisible: 'Insights need your AI key'
+          timeout: 10000
+
+# Any other failure alert (provider rejected the key, model retired, network
+# dropped mid-call) is also dismissed rather than left on screen. It names the
+# real reason now instead of blaming the connection.
+- runFlow:
+    when:
+      visible: 'Insights unavailable'
+    commands:
+      - tapOn: 'OK'
+      - extendedWaitUntil:
+          notVisible: 'Insights unavailable'
+          timeout: 10000
+
+# Dismissing the alert can leave Maestro looking at SpringBoard on iOS 26 (the
+# dev client backgrounds; observed on the first run of this flow, 2026-08-22 —
+# every assertion above had already passed). Foreground it before asserting on
+# the card, or the next assert fails on a hierarchy the app is not in.
+- runFlow: ../subflows/budget-relaunch-if-backgrounded.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-insights-card'
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'budget-insights-card'
+          direction: DOWN
+          visibilityPercentage: 10
+          waitToSettleTimeoutMs: 800
+          timeout: 20000
+
+# The card resolved to one of its two real states — never a blank body.
+- assertVisible:
+    id: 'budget-insights-card'
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-insights-summary'
+    commands:
+      - assertVisible:
+          id: 'budget-insights-empty'
+
+# Insights are generated ON DEVICE now: the backend's /budget/insights endpoint
+# must not be called at all on local-first. This is the wiring half of the fix —
+# without it, a regression that quietly re-routed the card back to D1 would still
+# render a summary and pass every assertion above.
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: GET
+      E2E_VERIFY_PATH: /budget/insights
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000

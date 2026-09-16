@@ -1,0 +1,7 @@
+appId: ${APP_ID}
+tags:
+  - util
+---
+# Composite: clear observability buffers, then tag the active matrix row.
+- runFlow: e2e-clear-log.yaml
+- runFlow: e2e-tag-matrix.yaml

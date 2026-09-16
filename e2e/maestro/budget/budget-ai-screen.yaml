@@ -1,0 +1,54 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:plan
+  - readonly
+  - regression
+# Matrix: BUDGET-plan (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-go-planning.yaml
+# "Add with AI" lives in the header "+" sheet now — no scrolling the list to
+# reach it, and no chance of the tab bar swallowing the tap.
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-with-ai'
+    retryTapIfNoChange: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-item-ai'
+    commands:
+      - openLink: simplebudget:///?screen=BudgetItemAI
+      - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-ai'
+    timeout: 45000
+- assertVisible: 'Add with AI'
+- assertVisible:
+    id: 'budget-item-ai-input'
+- assertVisible:
+    id: 'budget-item-ai-generate'
+- assertVisible:
+    id: 'budget-item-ai-gallery'
+- assertVisible:
+    id: 'budget-item-ai-file'
+- assertVisible:
+    id: 'budget-item-ai-drive'
+- tapOn:
+    id: 'budget-item-ai-input'
+- inputText: 'Netflix subscription $16 monthly'
+- runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+# Close via the ScreenHeader back button (real id: nav-back-button). It lives in
+# the fixed header above the keyboard, so no flaky hideKeyboard is needed. The
+# old `budget-item-ai-cancel` id is a phantom the source never renders.
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-planned-spendings'
+    timeout: 15000

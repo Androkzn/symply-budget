@@ -1,0 +1,20 @@
+appId: com.symply.kaizen
+---
+# Skill detail — deep-linked without a skillId shows the unavailable state.
+# (With a real skill: mastery bar + Run assessment / Learning plan / activate /
+# pause / backlog training rows.)
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/skill
+- extendedWaitUntil:
+    visible: 'Skill'
+    timeout: 20000
+- assertVisible: 'Choose an assessable skill to continue.'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

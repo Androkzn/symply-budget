@@ -1,0 +1,89 @@
+appId: com.symply.language
+tags:
+  - app:language
+  - feature:more
+  - readonly
+  - regression
+  - smoke
+# Matrix: LANGUAGE-more (see documents/engineering/testing/matrices/)
+---
+# More / settings: each row, plus the destructive confirm dialogs (Reset, Sign out).
+# Nav rows router.push; Reset fires POST /user/reset (languageProfileApi.resetLearningData)
+# ONLY after the alert is confirmed — this flow Cancels both destructive alerts so it is
+# non-mutating and keeps the session signed in. Rows lack testIDs (audit gap) — by copy.
+# TODO(testIDs): add testIDs to the 6 SettingItem rows.
+- runFlow: subflows/launch-language.yaml
+- runFlow: subflows/go-more.yaml
+- assertVisible:
+    id: 'language-more-screen'
+- scrollUntilVisible:
+    element:
+      id: 'language-more-profile'
+    direction: DOWN
+    timeout: 20000
+# Section headers + all rows present.
+- assertVisible: 'ACCOUNT'
+- assertVisible:
+    id: 'language-more-profile'
+- assertVisible:
+    id: 'language-more-notifications'
+- assertVisible:
+    id: 'language-more-sign-out'
+- scrollUntilVisible:
+    element:
+      id: 'language-more-ai-assistance'
+    direction: DOWN
+    timeout: 20000
+- assertVisible: 'AI'
+- assertVisible:
+    id: 'language-more-ai-assistance'
+- runFlow: subflows/scroll-more-data.yaml
+- assertVisible:
+    id: 'language-more-data-section'
+- assertVisible:
+    id: 'language-more-reset-learning'
+# Profile row → navigates → back.
+- tapOn:
+    id: 'language-more-profile'
+- waitForAnimationToEnd:
+    timeout: 6000
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- runFlow: subflows/go-more.yaml
+# AI entry (LANG-MORE-009) — the single shared "AI assistance" row → /ai-access
+# hub, identical across every brand (see @components/ai/useAIAccessEntry).
+- tapOn:
+    id: 'language-more-ai-assistance'
+- waitForAnimationToEnd:
+    timeout: 6000
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- runFlow: subflows/go-more.yaml
+# Reset alert documents local/server divergence (LANG-MORE-024) — Cancel only.
+- tapOn:
+    id: 'language-more-reset-learning'
+- assertVisible: 'This permanently deletes your assessment, plan, vocabulary, and tutor history. Your account stays. This cannot be undone.'
+- tapOn: 'Cancel'
+# Notifications row → navigates → back.
+- tapOn:
+    id: 'language-more-notifications'
+- waitForAnimationToEnd:
+    timeout: 6000
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- runFlow: subflows/go-more.yaml
+# Reset learning data → confirm alert → Cancel (do NOT wipe the donor account).
+- tapOn:
+    id: 'language-more-reset-learning'
+- assertVisible: 'This permanently deletes your assessment, plan, vocabulary, and tutor history. Your account stays. This cannot be undone.'
+- tapOn: 'Cancel'
+# Sign out → confirm alert → Cancel (stay authenticated for the rest of the suite).
+- tapOn:
+    id: 'language-more-sign-out'
+- assertVisible: 'Are you sure you want to sign out?'
+- tapOn: 'Cancel'
+- assertVisible:
+    id: 'language-more-screen'

@@ -1,0 +1,53 @@
+# NBR-004 — the crosshair picker, which is the feature's centre of gravity.
+#
+# Asserts the three things that make it usable and would each fail silently:
+#
+#  - the crosshair is present and the map is behind it (a `pointerEvents` slip
+#    makes the pin swallow the pan and the map becomes immovable);
+#  - the address line resolves to SOMETHING — either a real address or the
+#    explicit "no address here" copy. A spinner that never resolves is the
+#    failure this catches;
+#  - confirming lands on the form with the position already set, which is the
+#    whole point of coming this way.
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:neighbours
+  - regression
+# Matrix: HOUSE-NBR-005, HOUSE-NBR-006
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-neighbours.yaml
+- tapOn:
+    id: 'neighbours-add-fab'
+- tapOn:
+    id: 'neighbours-add-map'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-pick-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'neighbour-pick-crosshair'
+- assertVisible:
+    id: 'neighbour-pick-map'
+# Give the debounced reverse geocode its 500ms plus a generous margin: the
+# assertion is that the line RESOLVES, not that it resolves fast.
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-pick-address'
+    timeout: 20000
+- assertVisible:
+    id: 'neighbour-pick-confirm'
+- tapOn:
+    id: 'neighbour-pick-confirm'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-form-screen'
+    timeout: 20000
+# Arriving from the picker means the position is already set — the form must say
+# so rather than still asking for it.
+# Regex, because the row is one accessible button whose label states the whole
+# thing — "Position set, 38.57700, -121.49490. Change the position on the map".
+# That is deliberate: labelling the row hides its children from VoiceOver, so
+# the coordinates have to live in the label or be announced nowhere.
+- assertVisible: '.*Position set.*'

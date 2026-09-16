@@ -1,0 +1,58 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:onboarding
+  - readonly
+  - regression
+# Matrix: HOUSE-onboarding (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-onboarding.yaml
+- runFlow: ../subflows/skip-onboarding-if-onboarded.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-get-started'
+    commands:
+      - runFlow:
+          when:
+            visible: 'Skip & Finish Setup'
+          commands:
+            # Real-upload path (guarded on the upload button + a created home).
+            - runFlow:
+                when:
+                  visible: 'Upload Floor Plan'
+                commands:
+                  - tapOn: 'Upload Floor Plan'
+                  # handleUpload alerts "Please create a home first" and bails when no
+                  # household exists yet — only drive the picker when that didn't fire.
+                  - runFlow:
+                      when:
+                        notVisible: 'Please create a home first'
+                      commands:
+                        - runFlow: ../subflows/pick-photo-from-library.yaml
+                        # On success completeOnboarding() drops into the main app Home.
+                        - extendedWaitUntil:
+                            visible:
+                              id: 'home-up-next-section'
+                            timeout: 90000
+                            optional: true
+                        # Dismiss the "Floor Plan Uploaded!" success alert if shown.
+                        - tapOn:
+                            text: 'Get Started'
+                            optional: true
+                  - runFlow:
+                      when:
+                        visible: 'Please create a home first'
+                      commands:
+                        - tapOn: 'OK'
+            # Deterministic fallback: Skip completes onboarding if still on the screen.
+            - runFlow:
+                when:
+                  visible: 'Skip & Finish Setup'
+                commands:
+                  - tapOn: 'Skip & Finish Setup'
+            # Onboarding complete → main app Home.
+            - extendedWaitUntil:
+                visible:
+                  id: 'home-up-next-section'
+                timeout: 90000

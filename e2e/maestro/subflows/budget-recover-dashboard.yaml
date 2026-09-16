@@ -1,0 +1,185 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Lightweight recovery when a prior flow left chat, settings stack, or login.
+- runFlow: budget-dismiss-welcome-if-needed.yaml
+- runFlow: budget-offline-off.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'budget-screen'
+    commands: []
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-screen'
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'chat-room-settings-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible:
+              id: 'chat-room-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible:
+              id: 'chat-rooms-screen'
+          commands:
+            - openLink: simplebudget:///
+            - runFlow: connect-budget-metro.yaml
+            - runFlow: budget-dismiss-expo-dev-chrome.yaml
+            - waitForAnimationToEnd:
+                timeout: 5000
+      # A leftover MODAL alert from an aborted run wedges everything after it:
+      # it sits above the whole app, so `budget-screen` can never become visible
+      # and every launch/recovery loop spins until a watchdog kills the flow
+      # (observed 2026-08-11 — device B parked behind "Sync finished (or queued
+      # while offline)" for 20+ minutes across two runs). These are the app's own
+      # informational alerts, all single-button; dismiss them BY NAME rather than
+      # blanket-tapping OK, so a real confirmation dialog is never auto-accepted.
+      - runFlow:
+          when:
+            visible: 'Sync finished'
+          commands:
+            - tapOn:
+                text: 'OK'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 1500
+      - runFlow:
+          when:
+            visible: 'Device approved'
+          commands:
+            - tapOn:
+                text: 'OK'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 1500
+      - runFlow:
+          when:
+            visible: 'Invite created'
+          commands:
+            - tapOn:
+                text: 'OK'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 1500
+      - runFlow:
+          when:
+            visible: '.*Request sent.*'
+          commands:
+            - tapOn:
+                text: 'OK'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 1500
+      # Budget Settings is a PUSHED screen, and it had no branch here — so a flow
+      # that ended on it fell through to the generic tail, whose blind back-taps
+      # do not reliably pop it on iOS 26. The recovery then span silently until
+      # maestro-flow-run's 420s no-output watchdog killed the run, scoring a
+      # fully-passing flow as a failure (chased 2026-08-10 on the two-member
+      # chat stages, every one of which ends on this screen).
+      - runFlow:
+          when:
+            visible:
+              id: 'budget-settings-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2500
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-settings-screen'
+                commands:
+                  - openLink: simplebudget:///
+                  - runFlow: connect-budget-metro.yaml
+                  - runFlow: budget-dismiss-expo-dev-chrome.yaml
+                  - waitForAnimationToEnd:
+                      timeout: 5000
+      - runFlow:
+          when:
+            visible:
+              id: 'auth-sign-in-email'
+          commands:
+            - openLink: ${E2E_LOGIN_URL}
+            - runFlow: connect-budget-metro.yaml
+            - repeat:
+                times: 4
+                commands:
+                  - runFlow:
+                      when:
+                        visible: 'Open'
+                      commands:
+                        - tapOn: 'Open'
+                        - waitForAnimationToEnd:
+                            timeout: 2000
+            - runFlow: budget-dismiss-expo-dev-chrome.yaml
+            - runFlow: budget-login-email-if-needed.yaml
+      - runFlow:
+          when:
+            visible: 'Unmatched Route'
+          commands:
+            - tapOn:
+                text: 'Go back'
+                optional: true
+            - openLink: simplebudget:///
+            - runFlow: connect-budget-metro.yaml
+            - runFlow: budget-dismiss-expo-dev-chrome.yaml
+            - waitForAnimationToEnd:
+                timeout: 5000
+      - repeat:
+          times: 3
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 1500
+      - openLink: simplebudget:///
+      - runFlow: connect-budget-metro.yaml
+      - runFlow: budget-dismiss-expo-dev-chrome.yaml
+      - tapOn:
+          id: 'tab-index'
+          optional: true
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-screen'
+          commands:
+            - openLink: ${E2E_LOGIN_URL}
+            - runFlow: connect-budget-metro.yaml
+            - runFlow: budget-dismiss-expo-dev-chrome.yaml
+            - runFlow: budget-login-email-if-needed.yaml
+      - repeat:
+          times: 18
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'budget-screen'
+                commands:
+                  - runFlow: budget-dismiss-expo-dev-chrome.yaml
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'budget-screen'
+                      timeout: 5000
+                      optional: true

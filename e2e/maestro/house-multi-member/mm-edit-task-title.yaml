@@ -1,0 +1,103 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:multi-member
+---
+# Rename a task through the real edit form.
+#
+# env: MM_OPEN_TITLE (substring identifying the row to open)
+#      MM_NEW_TITLE   (its new full title)
+#
+# WHY THE TITLE IS THE FIELD UNDER TEST. Budget's suite edits an amount, because
+# a spending has one. A House task has no numeric field at all
+# (`TaskFormBody.tsx` has no amount/cost/value input), so the title is the
+# natural per-field edit: it is the only property that renders on the list row,
+# which is what makes a peer's edit assertable without opening anything.
+#
+# Every title in this suite is `<anchor> <token>`, so renaming changes the token
+# while the anchor keeps identifying the same row across phases 2→5.
+#
+# TAP THE ROW, don't fish for a swipe action: House tasks have no swipe tray at
+# all (`NativeSwipeable` is imported only by three Budget views), and the row's
+# own onPress opens the detail modal.
+- runFlow: mm-go-tasks.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_OPEN_TITLE}.*'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: '.*${MM_OPEN_TITLE}.*'
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- tapOn:
+    text: '.*${MM_OPEN_TITLE}.*'
+- waitForAnimationToEnd:
+    timeout: 1500
+- extendedWaitUntil:
+    visible:
+      id: 'task-detail-screen'
+    timeout: 25000
+- tapOn:
+    id: 'task-detail-edit'
+- extendedWaitUntil:
+    visible:
+      id: 'task-form-title'
+    timeout: 25000
+- tapOn:
+    id: 'task-form-title'
+    retryTapIfNoChange: true
+# Clear first — inputText APPENDS, and a partial value from a previous attempt
+# would leave a title that matches neither the old anchor nor the new token.
+- eraseText: 140
+- inputText: ${MM_NEW_TITLE}
+# Single-line TextInput (TaskFormBody.tsx:476-483, no `multiline`), so Enter
+# closes the keyboard instead of inserting a newline. Value reaches state via
+# onChangeText, so no blur is needed to make Save live — unlike Budget's cost
+# field, which gates isDirty on onEndEditing.
+- pressKey: Enter
+- waitForAnimationToEnd:
+    timeout: 1500
+- scrollUntilVisible:
+    element:
+      id: 'schedule-task-save'
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: 'schedule-task-save'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2500
+# Header Save is the same action rendered in the nav bar; it is the reachable
+# one when the form is long enough that the footer button stays below the fold.
+- runFlow:
+    when:
+      visible:
+        id: 'task-form-title'
+    commands:
+      - tapOn:
+          id: 'schedule-task-save-header'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2500
+- runFlow: mm-dismiss-dev-chrome.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'task-form-title'
+    timeout: 25000
+# TaskDetailScreen is a native modal closed by its own button, NOT
+# nav-back-button (see the structure note in tasks/task-detail-mutations.yaml).
+- runFlow:
+    when:
+      visible:
+        id: 'task-detail-screen'
+    commands:
+      - tapOn:
+          id: 'task-detail-close'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2000

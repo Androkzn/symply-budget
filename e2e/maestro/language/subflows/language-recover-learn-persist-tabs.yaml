@@ -1,0 +1,16 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# Like language-recover-learn but keeps customized tab bar (shell-customize-tabs persistence).
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- runFlow: connect-language-metro.yaml
+- runFlow: language-dismiss-expo-dev-chrome.yaml
+- runFlow: language-login-if-needed.yaml
+- runFlow: go-learn.yaml

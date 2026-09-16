@@ -1,0 +1,3 @@
+PASS [Budget-C] budget-prime-session
+PASS [Budget-C] budget-savings-projection
+PASS [Budget-C] budget-spend-select-sticky

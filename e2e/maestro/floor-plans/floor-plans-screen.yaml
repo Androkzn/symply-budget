@@ -1,0 +1,63 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:floorplan
+  - readonly
+  - regression
+# Matrix: HOUSE-FP-004…005, 013…014, 019…021 — list/load scroll and add entry.
+# FP-006 calibrate deferred; FP-007…012 mutations → floor-plans-mutations.yaml.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-house-settings.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-floor-plans'
+    direction: DOWN
+    timeout: 15000
+# This row sits near the bottom of the list, right above the fixed tab bar.
+# Tapping immediately after scrollUntilVisible can compute the tap point before
+# scroll momentum settles, landing on the tab bar underneath instead of the row
+# (root-caused in floor-plans-mutations.yaml:24-30). Let it settle first.
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    id: 'settings-row-floor-plans'
+- extendedWaitUntil:
+    visible:
+      id: 'floor-plans-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'floor-plans-add-button'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: floor-plans-screen-scroll-end
+- tapOn:
+    id: 'floor-plans-add-button'
+- extendedWaitUntil:
+    visible:
+      id: 'floor-plan-source-file'
+    timeout: 15000
+    optional: true
+# Back out of the upload screen and land on the list again. `floor-plan-source-file`
+# lives on FloorPlanUploadScreen (a pushed screen, not a sheet), so ONE back
+# returns to floor-plans-screen — and the second `optional: true` tap then pops
+# floor-plans-screen off too, because `optional` means "don't fail when absent",
+# never "tap only if needed", and `nav-back-button` is present on the list
+# screen as well. Guard each hop on not already being on the list.
+- runFlow:
+    when:
+      notVisible:
+        id: 'floor-plans-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'floor-plans-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true

@@ -1,0 +1,98 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: BUDGET-LF-005 — creating a spent entry must NOT POST financial D1 CRUD
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-005
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- openLink: simplebudget://e2e-clear-log
+- waitForAnimationToEnd:
+    timeout: 500
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: 'E2E LF No D1'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: '3'
+# Blur cost so onEndEditing syncs RN state before save (New Arch / Maestro).
+- tapOn:
+    id: 'budget-item-title'
+- waitForAnimationToEnd:
+    timeout: 800
+- tapOn:
+    id: 'budget-item-form-save-header'
+- waitForAnimationToEnd:
+    timeout: 2500
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# Form text alone is a false positive — wait until the modal is gone and the
+# row is on the spendings list (also uncovers e2e-verify-badge under the modal).
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-item-form'
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- extendedWaitUntil:
+    visible: '.*E2E LF No D1.*'
+    timeout: 15000
+# Local ledger must not hit financial D1 write endpoints.
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /budget/expenses
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 10000
+- runFlow:
+    when:
+      visible:
+        text: '.*E2E LF No D1.*'
+    commands:
+      - swipe:
+          start: '92%, 55%'
+          end: '8%, 55%'
+          duration: 800
+      - waitForAnimationToEnd:
+          timeout: 2000
+- runFlow:
+    when:
+      visible:
+        id: 'budget-delete-spent'
+    commands:
+      - tapOn:
+          id: 'budget-delete-spent'
+      - tapOn: 'Delete'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

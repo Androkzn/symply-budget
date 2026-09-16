@@ -1,0 +1,338 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - mutation
+  - regression
+# Matrix: BUDGET-SAVE-027 / BUDGET-SAVE-069 (copy-entry modal + quick shifts)
+#         and the Income tab's "Copy from month" sheet (CopyMonthIncomeModal).
+#
+# The two COPY surfaces on Savings → Income, neither of which had ever been
+# driven on a device:
+#
+#   1. Per-entry copy — swipe a row → "Copy" → `CopyEntryModal` → "Next month"
+#      quick shift → confirm. Proves the copy is written into the TARGET month
+#      (the flow steps the month header forward to find it) and not silently
+#      into the current one. `CopyEntryModal.test.tsx` covers the date maths;
+#      only a device run covers the write + the month the row lands in.
+#
+#   2. Whole-month copy — "Copy" in the CTA row → `CopyMonthIncomeModal`. Its
+#      month field, nested month/year WHEELS and per-entry tick list are driven
+#      here, then the sheet is CANCELLED on purpose: confirming would duplicate
+#      every ticked income row of the source month into the current one, which
+#      is not a mess an E2E flow gets to leave in a shared household. The
+#      commit path is unit-covered.
+#
+#      The tick list, "Select all" and the selected-count line only exist when
+#      the source month actually holds income, which depends on what the shared
+#      account has in the previous month on the day of the run — so those steps
+#      are `optional`. The month field, the wheels and Cancel are unconditional
+#      and are what this flow really pins down.
+#
+# `refund` is the source throughout so cleanup can be scoped to
+# `savings-income-source-refund` and cannot touch real payroll/rental income.
+#
+# MUTATING but self-cleaning and re-entrant — the drain runs in BOTH months.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget
+      E2E_MATRIX_ROW: BUDGET-SAVE-027
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-income'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 20000
+
+# --- Pre-clean the CURRENT month (the target month is drained at the end of
+# the flow, after the month header has been stepped back).
+- runFlow:
+    file: ../subflows/budget-savings-drain-income-source.yaml
+    env:
+      E2E_INCOME_SOURCE: refund
+
+# ======================= a row to copy =========================
+# DRIVE THE SUB-TAB BY DEEP LINK, not by tapping the segmented control.
+# `PensionView` already documents why (see its header comment): "the in-screen
+# segmented sub-tab tap can be dropped on iOS-26 New-Arch". Confirmed on
+# Savings 2026-08-25 — three consecutive runs tapped `filter-tab-income` (the
+# last two unconditionally, with no guard to skip) and the app stayed on
+# OVERVIEW every time, so the Income screen never mounted and the flow failed
+# later on `savings-entry-form` as though the form were broken.
+#
+# A `when: notVisible: savings-income` guard does not help either: the Savings
+# screen keeps the other tabs' content in the hierarchy, so `savings-income`
+# reads as present even while Overview is selected.
+- openLink: simplebudget://e2e-savings-set-tab?tab=income
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'savings-add-income'
+    timeout: 20000
+# Rewind to the Add button before tapping it. "Add / Copy / Import (AI)" sits
+# at the TOP of the Income tab, above the entries list, so once the list has
+# been scrolled it is off screen and the tap silently misses — the form never
+# opens and it surfaces later as "savings-entry-form is visible" being false
+# (2026-08-26: screenshot shows the Income tab correctly selected with the
+# entries list scrolled past the button row entirely).
+- scrollUntilVisible:
+    element:
+      id: 'savings-add-income'
+    direction: UP
+    timeout: 15000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-add-income'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-form'
+    timeout: 20000
+- tapOn:
+    id: 'savings-entry-amount'
+- inputText: '77'
+# Assert what the field actually holds, the moment it is typed and while it is
+# still on screen. `inputText` can drop or duplicate characters, and the money
+# figure is what every later assertion in this flow is pegged to — catching a
+# bad value here names the cause instead of surfacing three steps later as a
+# mysterious "row not found".
+- assertVisible:
+    id: 'savings-entry-amount'
+    text: '77'
+- hideKeyboard:
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-source-refund'
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+- tapOn:
+    id: 'savings-entry-source-refund'
+- tapOn:
+    id: 'savings-entry-form-save-header'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 25000
+# Rewind to the top before searching. Saving/returning leaves the income list
+# wherever it was scrolled, which can be BELOW the target row — and a DOWN-only
+# search can never come back up to it, so the row reads as "No visible element
+# found" even though it saved correctly (2026-08-25, Budget-C, right after the
+# sub-tab deep link got the flow this far).
+- scrollUntilVisible:
+    element:
+      id: 'savings-add-income'
+    direction: UP
+    timeout: 15000
+    visibilityPercentage: 40
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'savings-income-source-refund'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 5
+    centerElement: true
+- assertVisible: '.*\$77.*'
+
+# ==================== 1. per-entry copy ========================
+- swipe:
+    direction: LEFT
+    element:
+      id: 'savings-income-source-refund'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income-copy'
+    timeout: 15000
+- tapOn:
+    id: 'savings-income-copy'
+- extendedWaitUntil:
+    visible:
+      id: 'copy-entry-confirm'
+    timeout: 15000
+- assertVisible: 'Copy income'
+# The sheet opens seeded with the SOURCE date, and the three quick shifts are
+# offsets from it — so the target label must change when one is tapped.
+- assertVisible:
+    id: 'copy-entry-target-label'
+- assertVisible:
+    id: 'copy-entry-quick-prev-month'
+- assertVisible:
+    id: 'copy-entry-quick-next-day'
+- assertVisible:
+    id: 'copy-entry-quick-next-month'
+- assertVisible:
+    id: 'copy-entry-date-picker'
+- tapOn:
+    id: 'copy-entry-quick-next-month'
+# PROVE THE QUICK SHIFT TOOK before confirming. `copy-entry-target-label`
+# renders `formatLong(target)` ("Sat, Sep 26, 2026"), and tapping "Next month"
+# sets target = source + 1 month. If that tap is DROPPED — the same iOS-26
+# New-Arch behaviour that drops the segmented sub-tab taps — `target` silently
+# stays on the SOURCE date, so `handleCopyTo` writes the copy into the CURRENT
+# month and the later "is it in next month?" assertion fails as though the copy
+# were broken. The chip exposes no selected state, so the label is the only
+# assertable proof, exactly like `loan-rate-pct` standing in for the 0%-APR chip.
+#
+# The expected month is COMPUTED, never hardcoded. The entry is created today
+# with the default date, so "next month" is whatever today + 1 month is — a
+# literal month name silently rots the moment the calendar rolls over. It did:
+# this assertion shipped as '.*Sep.*' on 2026-08-26 (valid while the source was
+# dated August) and was already wrong by 2026-09-02, when next-month became
+# October. That would have failed as a fake copy bug on a flow whose whole job
+# is detecting a real one.
+- evalScript: "${output.nextMonth = new Date(new Date().setMonth(new Date().getMonth() + 1)).toLocaleString('en-US', {month: 'short'})}"
+- assertVisible:
+    id: 'copy-entry-target-label'
+    text: '.*${output.nextMonth}.*'
+- tapOn:
+    id: 'copy-entry-confirm'
+# The sheet closes on success; the list re-reads the CURRENT month, which the
+# copy did not land in.
+- extendedWaitUntil:
+    notVisible:
+      id: 'copy-entry-confirm'
+    timeout: 25000
+
+# --- The copy is in NEXT month, not this one. `savings-month-next` steps
+# forward (SavingsView passes n=-1 to shiftMonth, which subtracts).
+- scrollUntilVisible:
+    element:
+      id: 'savings-month-next'
+    direction: UP
+    timeout: 10000
+    optional: true
+    centerElement: true
+- tapOn:
+    id: 'savings-month-next'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 25000
+# Rewind to the top before searching. Saving/returning leaves the income list
+# wherever it was scrolled, which can be BELOW the target row — and a DOWN-only
+# search can never come back up to it, so the row reads as "No visible element
+# found" even though it saved correctly (2026-08-25, Budget-C, right after the
+# sub-tab deep link got the flow this far).
+- scrollUntilVisible:
+    element:
+      id: 'savings-add-income'
+    direction: UP
+    timeout: 15000
+    visibilityPercentage: 40
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'savings-income-source-refund'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 5
+    centerElement: true
+- assertVisible: '.*\$77.*'
+
+# --- Clean the target month, then step back.
+- runFlow:
+    file: ../subflows/budget-savings-drain-income-source.yaml
+    env:
+      E2E_INCOME_SOURCE: refund
+- scrollUntilVisible:
+    element:
+      id: 'savings-month-prev'
+    direction: UP
+    timeout: 10000
+    optional: true
+    centerElement: true
+- tapOn:
+    id: 'savings-month-prev'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 25000
+
+# =================== 2. whole-month copy sheet =================
+- scrollUntilVisible:
+    element:
+      id: 'savings-income-copy-month'
+    direction: UP
+    timeout: 10000
+    optional: true
+    centerElement: true
+- tapOn:
+    id: 'savings-income-copy-month'
+- extendedWaitUntil:
+    visible:
+      id: 'copy-month-income-cancel'
+    timeout: 20000
+- assertVisible: 'Copy income'
+# The month field carries the source month and opens the wheels. It is present
+# whether or not that month holds any income, so it is the flow's real anchor.
+- assertVisible:
+    id: 'copy-month-income-month-field'
+- assertVisible:
+    id: 'copy-month-income-confirm'
+# Month/year wheels, nested inside this sheet's own Modal. The values are not
+# spun: `@react-native-picker/picker` is a native UIPickerView on iOS and
+# Maestro cannot address its rows — opening and dismissing it is what proves
+# the wiring. `MonthPickerSheet.test.tsx` covers the range/clamp maths.
+- tapOn:
+    id: 'copy-month-income-month-field'
+- extendedWaitUntil:
+    visible:
+      id: 'copy-month-income-picker-done'
+    timeout: 20000
+- tapOn:
+    id: 'copy-month-income-picker-cancel'
+- extendedWaitUntil:
+    notVisible:
+      id: 'copy-month-income-picker-done'
+    timeout: 15000
+# Per-entry ticks — only rendered when the source month holds income (see the
+# header note), hence optional. "Select all" round-trips every tick off and on.
+- assertVisible:
+    id: 'copy-month-income-preview'
+    optional: true
+- tapOn:
+    id: 'copy-month-income-select-all'
+    optional: true
+- tapOn:
+    id: 'copy-month-income-select-all'
+    optional: true
+# Cancel — deliberately: see the header note. Confirming would duplicate a real
+# month of income into the current one.
+- tapOn:
+    id: 'copy-month-income-cancel'
+- extendedWaitUntil:
+    notVisible:
+      id: 'copy-month-income-cancel'
+    timeout: 15000
+- assertVisible:
+    id: 'savings-income'
+
+# --- Final sweep: no refund rows survive in the month the flow started in.
+- runFlow:
+    file: ../subflows/budget-savings-drain-income-source.yaml
+    env:
+      E2E_INCOME_SOURCE: refund
+- scrollUntilVisible:
+    element:
+      id: 'savings-income-source-refund'
+    direction: DOWN
+    timeout: 10000
+    visibilityPercentage: 5
+    optional: true
+    centerElement: true
+- assertNotVisible:
+    id: 'savings-income-source-refund'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

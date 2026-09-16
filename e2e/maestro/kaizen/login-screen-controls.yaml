@@ -1,0 +1,30 @@
+appId: com.symply.kaizen
+tags:
+  - destructive
+  - app:kaizen
+---
+# Kaizen LoginScreen chrome. clearState alone leaves Keychain JWTs → Welcome;
+# clearKeychain forces a true signed-out Login surface (no biometric CTA).
+- launchApp:
+    clearState: true
+    clearKeychain: true
+    permissions:
+      all: allow
+      faceid: allow
+- runFlow: subflows/dismiss-welcome-if-needed.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'auth-sign-in-email'
+    timeout: 120000
+- assertVisible: 'Focus. Practice. Progress.'
+- assertVisible:
+    id: 'auth-sign-in-email'
+- tapOn:
+    id: 'auth-sign-in-email'
+- assertVisible:
+    id: 'auth-email-input'
+- assertVisible:
+    id: 'auth-password-input'
+- assertVisible:
+    id: 'auth-sign-in-submit'
+- assertVisible: 'Sign Up'

@@ -1,0 +1,80 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:settings
+  - regression
+# Matrix: BUDGET-CORNER-017 — offline money-mutation sweep (representative paths)
+# Safety net: a non-optional assertion failing anywhere after budget-offline-on
+# below aborts the rest of this flow, skipping the budget-offline-off cleanup
+# call near the bottom — leaving the device offline for every flow that runs
+# after this one for the rest of the suite (observed: cascaded into a dozen+
+# unrelated flows on Android, where setAirplaneMode has real effect). This
+# `onFlowComplete` hook runs regardless of pass/fail, so it always restores
+# connectivity even when the flow body never reaches its own cleanup step.
+onFlowComplete:
+  - runFlow: ../subflows/budget-offline-off.yaml
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-offline-on.yaml
+# Item form save
+- runFlow: ../subflows/budget-go-planning.yaml
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-planned'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: 'E2E Offline Sweep'
+- tapOn:
+    id: 'budget-item-form-save-header'
+    optional: true
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+# Household create — still a valid offline step under BR-016, for a narrower
+# reason than before. Creating no longer touches the network at all (the engine
+# mints the household on device), so airplane mode can only prove the CLIENT-side
+# guard still fires: save with an empty name → `Alert.alert('Name required', …)`,
+# no household created, nothing written. Deliberately no name is typed here —
+# this sweep must not leave a household behind on the device, which a successful
+# create now would.
+#
+# The sheet wait is new and non-optional: every step after it is `optional`, so a
+# FAB tap that didn't register used to make this whole section a silent no-op
+# that still scored as covered.
+- runFlow: ../subflows/budget-go-households.yaml
+- tapOn:
+    id: 'fab-add-household'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'household-name-input'
+    timeout: 20000
+- tapOn:
+    id: 'household-save-btn'
+    optional: true
+# Create was tapped without entering a name → native "Name required" alert.
+# Dismiss it so the Cancel / nav-back recovery below can proceed.
+- tapOn:
+    text: 'OK'
+    optional: true
+- tapOn:
+    text: 'Cancel'
+    optional: true
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- runFlow: ../subflows/budget-offline-off.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- assertVisible:
+    id: 'budget-screen'

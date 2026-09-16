@@ -1,0 +1,59 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - maintenance
+# MAINTENANCE FLOW — not part of the regression suite. Run it by name when the
+# Monthly Payments list has accumulated test residue.
+#
+# Every mutating savings flow creates rows named "<Something> Test Item" and
+# deletes them in a cleanup block that ONLY runs when the flow passes. Each
+# failed run therefore leaves its rows behind and they pile up: on 2026-08-25
+# the list held four "Renewal Test Item", three "Months Chart Test Item" and
+# two "Loan Chart Test Item" rows.
+#
+# That residue breaks later runs on its own:
+#  - Flows tap rows BY NAME. With duplicates Maestro takes the FIRST match — a
+#    row from an older run, not the one just created — so a detail sheet opens
+#    on the wrong item or not at all.
+#  - Per-flow cleanup drains are bounded (`repeat: times: N`). A backlog deeper
+#    than the bound can never clear itself, so it is self-sustaining.
+#
+# PURGES VIA DEEP LINK, NOT THE UI. The first version of this flow drained the
+# list by tapping rows, and it could not finish: Maestro's visibility is
+# VIEWPORT based, so it only ever reached rows it could bring on screen at
+# >=60%. Across 120 iterations it deleted 18 rows and then reported "nothing
+# visible" while rows still existed (2026-08-25, Budget-C, three passes).
+# `e2e-budget-purge-test-payments` deletes by ID through the API from inside the
+# already-authenticated app, so no scrolling is involved at all. It matches only
+# /Test Item/i, so genuine payments on this shared account are untouched.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- openLink: simplebudget://e2e-budget-purge-test-payments
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# The handler is fire-and-forget and deletes serially, so give it room.
+- waitForAnimationToEnd:
+    timeout: 10000
+- runFlow: ../subflows/budget-recover-dashboard.yaml
+
+# Prove it on the LIST, not just from the log: land on Monthly Payments and
+# assert no test row is on screen.
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-monthly'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-monthly-add'
+    timeout: 15000
+- tapOn:
+    id: 'savings-monthly-add'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 15000
+- assertNotVisible: '.*Test Item.*'
+- tapOn:
+    id: 'nav-back-button'
+    optional: true

@@ -1,0 +1,40 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:mira
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-mira (see documents/engineering/testing/matrices/)
+---
+# AihousekeeperChatScreen overflow (⋯) menu → Approvals / Settings / Clear chat.
+# Opens the ActionSheet, asserts the options, then navigates into Approvals to prove the
+# router.push('/aihousekeeper-approvals') wiring, and returns.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-mira-tab.yaml
+- assertVisible:
+    id: 'mira-chat-screen'
+- tapOn:
+    id: 'mira-chat-overflow-menu'
+- extendedWaitUntil:
+    visible: 'Approvals'
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Approvals'
+    commands:
+      - assertVisible: 'Settings'
+      - tapOn: 'Approvals'
+      # Approvals screen header is "<persona> approvals".
+      - extendedWaitUntil:
+          visible: 'approvals'
+          timeout: 20000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'

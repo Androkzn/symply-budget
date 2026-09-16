@@ -1,0 +1,110 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:utilities
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-UTIL-ISO-001 (Utilities is reachable on House, Budget-independent)
+---
+# WHAT THIS PROVES
+# ----------------
+# `simplehouse://utilities` lands on the Utilities dashboard on the House brand,
+# and every quick action on it is present. This is a HARD assert with no
+# redirect branch — that is the entire point of the flow.
+#
+# WHY THAT MATTERS
+# ----------------
+# Until 2026-08-26 this deep link redirected to Home on every House build.
+# `app/(tabs)/utilities.tsx` gated on `isBudgetOff() || isMinimalBudget()`, and
+# `brands/symply-house/brand.cjs` ships `budget: 'minimal'` — so the condition
+# was true on every launch and `UtilitiesNavigator` never mounted. All ten
+# screens were unreachable.
+#
+# The mirror image was true server-side: the Worker has ALWAYS listed
+# `/households/:householdId/utilities` in `gateHomeApiPaths` (House-domain,
+# `homeApi` capability), so the only brand that could reach Utilities in the
+# client — full-budget Budget — was 404'd by the backend, while House, the only
+# brand the backend would serve, redirected it away. Client and server disagreed
+# in both directions, and `utilitiesGate.contract.test.ts` pinned that pair as a
+# known open defect.
+#
+# Utilities is now a self-contained House feature module with its own brand
+# capability (`@features/utilities/gate`), and Budget mounts none of it. Six of
+# the eight pre-existing flows in this directory were written defensively around
+# the redirect; this one asserts the resolved state positively, so a regression
+# that re-couples Utilities to budget mode fails HERE rather than silently
+# reverting to a green "correctly unreachable" result.
+#
+# The Jest half is `src/features/utilities/__tests__/utilitiesIsolation.contract.test.ts`.
+#
+# ISOLATION: read-only. Opens the dashboard, taps into Analytics, comes back,
+# and parks on Home. Creates nothing, so it neither inherits nor leaves state.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-UTIL-ISO-001
+
+- runFlow: ../subflows/open-utilities.yaml
+
+# HARD, not optional, and not wrapped in a `when:` guard. If Utilities ever
+# redirects to Home again, this is the line that goes red.
+- extendedWaitUntil:
+    visible:
+      id: 'utilities-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'utilities-screen'
+- assertVisible: 'Utilities'
+
+# Proving we are on the real dashboard and not a spinner: all four states of
+# this screen render testID `utilities-screen` (loading, error, empty, loaded),
+# so asserting that id alone passes vacuously against a loading indicator.
+# The quick actions only exist on the loaded branch.
+- assertVisible:
+    id: 'utilities-action-scan-bill'
+- assertVisible:
+    id: 'utilities-action-view-bills'
+- assertVisible:
+    id: 'utilities-action-analytics'
+- assertVisible: 'Quick actions'
+
+# The Property Tax action is `disabled={!isGva}`, so assert presence only —
+# tapping it is not part of this flow's contract.
+- assertVisible:
+    id: 'utilities-action-property-tax'
+
+# The dashboard must scroll to its sentinel; a section that cannot be reached
+# is a section a member does not have.
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      APP_ID: com.symply.house
+      SCROLL_END_ID: utilities-screen-scroll-end
+
+# One level deeper, to prove the stack itself mounts and not just the root.
+- tapOn:
+    id: 'utilities-action-analytics'
+- extendedWaitUntil:
+    visible:
+      id: 'utilities-charts-screen'
+    timeout: 20000
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'utilities-screen'
+    timeout: 15000
+
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

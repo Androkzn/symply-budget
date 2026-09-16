@@ -1,0 +1,558 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - mutation
+  - regression
+# Matrix: BUDGET-savings (see documents/engineering/testing/matrices/)
+# Savings monthly → Recurring Payments manager (SavingsRecurringPaymentsScreen).
+# Part 1 is non-mutating: opens the manager, opens the add-payment form, asserts
+# its fields, then cancels out. Part 2 (BUDGET-SAVE-120) is MUTATING but
+# self-cleaning, matching budget-savings-renewal-reminder.yaml's pattern: creates
+# a plain payment and a 0%-loan payment, opens each from the Monthly tab's
+# quick-view sheet to assert the months chart / loan insights charts, then
+# deletes both.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/budget-purge-test-payments.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget
+      E2E_MATRIX_ROW: BUDGET-SAV-RECURRING
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-monthly'
+- runFlow:
+    file: ../subflows/budget-savings-force-subtab.yaml
+    env:
+      E2E_SUBTAB: monthly
+- extendedWaitUntil:
+    visible:
+      id: 'savings-monthly-add'
+    timeout: 15000
+# `savings-payment-detail-left` is the sheet's CLOSE button, so the Monthly tab
+# underneath needs a moment to come back — tapping "Manage" immediately failed
+# with the CTA not in the hierarchy at all (2026-08-24, Budget-C). Wait for the
+# tab, then scroll the CTA into reach before tapping it.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-monthly'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'savings-monthly-add'
+    direction: UP
+    timeout: 20000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-monthly-add'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 15000
+- assertVisible:
+    id: 'savings-recurring-add'
+- tapOn:
+    id: 'savings-recurring-add'
+# "+" opens an ADD MENU (manual / AI import) since the "streamline payment
+# addition" refactor — it no longer opens the form directly.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-add-manual'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-add-manual'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-label'
+    timeout: 45000
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'savings-recurring-form-label'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-label'
+    timeout: 30000
+- assertVisible:
+    id: 'savings-recurring-form-amount'
+- tapOn:
+    id: 'savings-recurring-form-cancel'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-add'
+    timeout: 15000
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+
+# --- BUDGET-SAVE-120: months chart (non-loan) + loan insights charts ---
+
+# Item 1: a plain payment — Monthly tab's quick-view sheet should show the
+# months-active chart (RecurringPaymentMonthsChart), not the loan section.
+# `savings-payment-detail-left` is the sheet's CLOSE button, so the Monthly tab
+# underneath needs a moment to come back — tapping "Manage" immediately failed
+# with the CTA not in the hierarchy at all (2026-08-24, Budget-C). Wait for the
+# tab, then scroll the CTA into reach before tapping it.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-monthly'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'savings-monthly-add'
+    direction: UP
+    timeout: 20000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-monthly-add'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-add'
+# Android: the Expo dev-client menu has been observed popping open around
+# this point (cause not fully pinned down), covering the form. Clear it
+# before waiting on the form's own content.
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# Same ADD MENU step as the other add sites in this flow — "+" opens the
+# manual / AI-import menu, not the form.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-add-manual'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-add-manual'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-label'
+    timeout: 30000
+- tapOn:
+    id: 'savings-recurring-form-label'
+- inputText: 'Months Chart Test Item'
+- tapOn:
+    id: 'savings-recurring-form-amount'
+- inputText: '40'
+# Same keypad trap as the other save sites in this flow: `hideKeyboard` leaves
+# the numeric pad up and the Save tap lands on it, so the form never closes and
+# the next selector times out instead.
+- runFlow: ../subflows/budget-dismiss-keypad.yaml
+# This item is NOT a loan, but Group defaults to "Loans & Debt" (intentional —
+# see EMPTY_FORM and the unit test "Group defaults to Loans & Debt"), which
+# mounts the loan section with tracking already ON. Saving then demands a
+# principal and raises the native alert "Loan details — Missing principal";
+# Maestro cannot see native alerts, so the form stays open and the run fails on
+# the NEXT selector instead (observed 2026-08-24, Budget-C). Turn tracking off
+# the way a member would. Scroll first: the switch renders below these fields,
+# so a bare `when: visible` guard silently skips.
+- scrollUntilVisible:
+    element:
+      id: 'loan-tracking-switch'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'loan-tracking-switch'
+    commands:
+      - tapOn:
+          id: 'loan-tracking-switch'
+      - assertNotVisible:
+          id: 'loan-principal'
+- scrollUntilVisible:
+    element:
+      id: 'savings-recurring-form-save'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+    visibilityPercentage: 60
+    optional: true
+- tapOn:
+    id: 'savings-recurring-form-save'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 20000
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+# The new row lands in a household carrying ~$10k of real payments, so it sorts
+# well below the fold — waiting on it without scrolling could never succeed
+# (2026-08-24, Budget-C: the save had worked, only this lookup failed). Scroll
+# to it, and require it genuinely on screen so the tap that follows lands.
+- scrollUntilVisible:
+    element: '.*Months Chart Test Item.*'
+    direction: DOWN
+    timeout: 25000
+    centerElement: true
+    visibilityPercentage: 60
+- extendedWaitUntil:
+    visible: '.*Months Chart Test Item.*'
+    timeout: 15000
+- tapOn: '.*Months Chart Test Item.*'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-payment-detail-sheet'
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: 'savings-months-chart'
+    timeout: 15000
+- assertNotVisible:
+    id: 'savings-loan-insights'
+- tapOn:
+    id: 'savings-payment-detail-left'
+
+# Item 2: a 0%-tracked-loan payment — the sheet should show LoanPaymentInsights
+# (stat tiles + "where payments go" chart) but OMIT the cumulative-interest
+# chart, since a 0% loan has zero interest by definition.
+# `savings-payment-detail-left` is the sheet's CLOSE button, so the Monthly tab
+# underneath needs a moment to come back — tapping "Manage" immediately failed
+# with the CTA not in the hierarchy at all (2026-08-24, Budget-C). Wait for the
+# tab, then scroll the CTA into reach before tapping it.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-monthly'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'savings-monthly-add'
+    direction: UP
+    timeout: 20000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-monthly-add'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-add'
+# "+" opens an ADD MENU (manual / AI import) since the "streamline payment
+# addition" refactor — it no longer opens the form directly.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-add-manual'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-add-manual'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-label'
+    timeout: 30000
+# GROUP FIRST, before any text entry. Group is the TOP field of this form, and
+# the previous order — label, amount, then group — could not work: typing raises
+# the numeric keypad, the keypad-dismiss drag scrolls the content UP, and Group
+# ends up above the fold. Scrolling back up to it is not an option either: the
+# form is an iOS `pageSheet`, where an upward drag is pull-to-dismiss and closes
+# it outright (the same trap that broke monthly-crud). Selecting the group while
+# the form is still freshly opened at the top avoids the keypad entirely
+# (2026-08-24, Budget-C: screenshot showed the keypad up and Group scrolled off
+# the top, with the picker never opening).
+- tapOn:
+    id: 'savings-recurring-form-group'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-group-none'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'savings-recurring-group-Loans & Debt'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-recurring-group-Loans & Debt'
+# Name and amount go in AFTER the group is set — see the note above: doing them
+# first put the keypad up and pushed Group off the top of the sheet.
+- tapOn:
+    id: 'savings-recurring-form-label'
+- inputText: 'Loan Chart Test Item'
+- tapOn:
+    id: 'savings-recurring-form-amount'
+- inputText: '50'
+- runFlow: ../subflows/budget-dismiss-keypad.yaml
+# The loan section mounts BELOW the standard fields once the group is set, so
+# `loan-principal` starts off screen — waiting on it without scrolling could
+# never succeed (2026-08-24, Budget-C, once the group-picker fix let the flow
+# get this far). Scrolling DOWN is safe here; only an upward drag would
+# pull-to-dismiss this pageSheet.
+- scrollUntilVisible:
+    element:
+      id: 'loan-principal'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+    visibilityPercentage: 60
+- extendedWaitUntil:
+    visible:
+      id: 'loan-principal'
+    timeout: 15000
+# Give the loan an interest rate. `validateLoanFields` rejects a blank rate on a
+# 'fixed' loan with the native alert "Missing rate: Enter an interest rate, or
+# switch to 0% APR", which Maestro cannot see, so the form silently stays open
+# and the run dies later on `savings-recurring-payments` (screenshots at BOTH
+# the 2026-08-25 failures show exactly this alert).
+#
+# TYPE a rate rather than tapping the 0%-APR chip. Two earlier attempts drove
+# `loan-rate-type-zero` and both still hit "Missing rate": the chip exposes no
+# selected state (`LoanFieldsForm` sets no `selected`/accessibility state on it),
+# so a tap that misses is UNASSERTABLE — there is nothing to check afterwards
+# and the miss only surfaces ~300 steps later as a bogus timeout. `loan-rate-pct`
+# renders only while `rateType === 'fixed'` (the default), so its presence
+# doubles as proof of the rate type, and the typed value asserts like the
+# principal and term below. This also exercises the ordinary fixed-rate loan
+# rather than the 0% edge case.
+- scrollUntilVisible:
+    element:
+      id: 'loan-rate-pct'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+    visibilityPercentage: 60
+- tapOn:
+    id: 'loan-rate-pct'
+- inputText: '5'
+- assertVisible:
+    id: 'loan-rate-pct'
+    text: '.*5.*'
+- runFlow: ../subflows/budget-dismiss-keypad.yaml
+- scrollUntilVisible:
+    element:
+      id: 'loan-principal'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: 'loan-principal'
+- inputText: '600'
+# Confirm the figure actually landed in THIS field before moving on — a silent
+# miss here is what produces the "Missing principal" alert on save.
+- assertVisible:
+    id: 'loan-principal'
+    text: '.*600.*'
+- runFlow: ../subflows/budget-dismiss-keypad.yaml
+- scrollUntilVisible:
+    element:
+      id: 'loan-term-months'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: 'loan-term-months'
+- inputText: '12'
+# Same reasoning as the principal assert above: `validateLoanFields` rejects a
+# blank term with the native alert "Missing term", which Maestro cannot see —
+# the form simply stays open and the failure surfaces as
+# "savings-recurring-payments never appeared". Catch it HERE instead.
+- assertVisible:
+    id: 'loan-term-months'
+    text: '.*12.*'
+- runFlow: ../subflows/budget-dismiss-keypad.yaml
+# `visibilityPercentage` forces this scroll to actually MOVE. Without it the
+# scroll short-circuits (Maestro counts the button as visible while it sits in
+# the hierarchy), so no drag happens, the numeric keypad from the term field
+# stays up, and the Save tap lands on the keypad — the form never closes and it
+# surfaces as "savings-recurring-payments never appeared". Every loan field was
+# verified correct by then (principal 600 and term 12 both assert), so the tap
+# was the only thing left that could fail (2026-08-25, Budget-C).
+- scrollUntilVisible:
+    element:
+      id: 'savings-recurring-form-save'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+    visibilityPercentage: 60
+    optional: true
+- tapOn:
+    id: 'savings-recurring-form-save'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 20000
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+# Same below-the-fold lookup as "Months Chart Test Item" above — scroll to the
+# row before waiting on it, or the tap that follows lands on empty space.
+- scrollUntilVisible:
+    element: '.*Loan Chart Test Item.*'
+    direction: DOWN
+    timeout: 25000
+    centerElement: true
+    visibilityPercentage: 60
+- extendedWaitUntil:
+    visible: '.*Loan Chart Test Item.*'
+    timeout: 15000
+- tapOn: '.*Loan Chart Test Item.*'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-payment-detail-sheet'
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: 'savings-loan-insights'
+    timeout: 15000
+- assertVisible:
+    id: 'savings-loan-stat-tiles'
+# The "Where your payments go" card renders BELOW the stat tiles, so it starts
+# off screen inside the detail sheet. Waiting on it could never succeed —
+# Maestro's `visible` is VIEWPORT based, so an element that exists but sits
+# below the fold reads exactly like one that never rendered (2026-08-25: the
+# screenshot at the failure shows the sheet open and correct, with the loan
+# card cut off at the bottom edge). It is also gated on `chartsLoading`, so the
+# scroll is what gives the charts time to resolve as well.
+- scrollUntilVisible:
+    element:
+      id: 'savings-loan-chart-payments-go'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+    visibilityPercentage: 60
+- assertVisible:
+    id: 'savings-loan-chart-payments-go'
+# This item is now a FIXED-rate loan (5% APR, typed above), so the cumulative-
+# interest chart SHOULD render: `showCumulativeChart = !isZeroApr &&
+# dated.length > 0` (LoanPaymentInsights.tsx). It used to be asserted absent
+# because the flow drove the 0%-APR chip — that chip turned out to be
+# unassertable (no selected state), which is why the rate is typed instead.
+#
+# The 0%-APR branch has not lost coverage: LoanPaymentInsights.test.tsx
+# ("skips the cumulative-interest chart for a 0% APR loan, but keeps the
+# payments-go chart") asserts it against the RENDER TREE, which is stronger
+# than a viewport-based assertNotVisible could ever be here — an off-screen
+# chart and an unrendered one look identical to Maestro.
+- scrollUntilVisible:
+    element:
+      id: 'savings-loan-chart-cumulative'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+    visibilityPercentage: 60
+- assertVisible:
+    id: 'savings-loan-chart-cumulative'
+- tapOn:
+    id: 'savings-payment-detail-left'
+
+# Cleanup — delete both test items (loan cascades via ON DELETE CASCADE).
+# `savings-payment-detail-left` is the sheet's CLOSE button, so the Monthly tab
+# underneath needs a moment to come back — tapping "Manage" immediately failed
+# with the CTA not in the hierarchy at all (2026-08-24, Budget-C). Wait for the
+# tab, then scroll the CTA into reach before tapping it.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-monthly'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'savings-monthly-add'
+    direction: UP
+    timeout: 20000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-monthly-add'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 15000
+# `visibilityPercentage` is load-bearing here. Without it the scroll can stop
+# with the row only partly on screen, UNDER the floating tab bar — the tap then
+# lands on the tab bar instead of the row and the app navigates away. That is
+# what happened on 2026-08-25: the screenshot at the failure shows the SPENDING
+# tab, not the payments list, and every later step failed against the wrong
+# screen.
+- scrollUntilVisible:
+    element: '.*Months Chart Test Item.*'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+    visibilityPercentage: 60
+    optional: true
+- tapOn: '.*Months Chart Test Item.*'
+# Delete is the LAST control of a long form, so it starts below the fold and a
+# bare `visible` wait could never succeed (Maestro's visibility is VIEWPORT
+# based). Scroll to it instead. No `centerElement`: an element at the very end
+# of a scroll view can never BE centred, so the scroll would burn its timeout.
+- scrollUntilVisible:
+    element:
+      id: 'savings-recurring-form-delete'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-delete'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-form-delete'
+- extendedWaitUntil:
+    visible: 'Delete'
+    timeout: 10000
+- tapOn: 'Delete'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 20000
+- assertNotVisible: '.*Months Chart Test Item.*'
+# `visibilityPercentage` is load-bearing here. Without it the scroll can stop
+# with the row only partly on screen, UNDER the floating tab bar — the tap then
+# lands on the tab bar instead of the row and the app navigates away. That is
+# what happened on 2026-08-25: the screenshot at the failure shows the SPENDING
+# tab, not the payments list, and every later step failed against the wrong
+# screen.
+- scrollUntilVisible:
+    element: '.*Loan Chart Test Item.*'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+    visibilityPercentage: 60
+    optional: true
+- tapOn: '.*Loan Chart Test Item.*'
+# Delete is the LAST control of a long form, so it starts below the fold and a
+# bare `visible` wait could never succeed (Maestro's visibility is VIEWPORT
+# based). Scroll to it instead. No `centerElement`: an element at the very end
+# of a scroll view can never BE centred, so the scroll would burn its timeout.
+- scrollUntilVisible:
+    element:
+      id: 'savings-recurring-form-delete'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-delete'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-form-delete'
+- extendedWaitUntil:
+    visible: 'Delete'
+    timeout: 10000
+- tapOn: 'Delete'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 20000
+- assertNotVisible: '.*Loan Chart Test Item.*'
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

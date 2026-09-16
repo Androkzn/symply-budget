@@ -1,0 +1,44 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+  - feature:local-first
+  - feature:two-device
+---
+# One convergence pass. This suite's substitute for Budget's sync pulse.
+#
+# WHY THIS IS NOT A SYNC CONTROL. Budget forces a sync with a deep link
+# (`{scheme}://e2e-budget-sync` — it used to tap the `budget-sync-status` banner,
+# removed 2026-08-16), and Health has no equivalent hook. Health has no sync
+# affordance at
+# all — there is no `health-sync-status`, no `lf-sync-now`, nothing. Grepped
+# 2026-08-14 across `src/features/health/**`: the only `*sync*` testIDs in the
+# brand are HealthKit import progress (`health-setting-apple-health-sync-progress`,
+# `health-home-healthkit-sync-progress`, `health-weight-healthkit-sync-progress`),
+# which is a different subsystem. House's `lf-sync-now` lives in
+# `src/components/house-v2/HouseSyncStatusCard.tsx` and no Health screen imports
+# it. Inventing a tap on an id that does not exist would make every poll loop a
+# silent no-op that still passes.
+#
+# So the nudge is a real background → foreground cycle instead. That is the
+# lifecycle edge the client actually hangs its convergence off:
+# `ensureHealthLocalSession` re-opens on foreground and runs its own pull, and
+# `handleHealthSyncWakeNotification` is delivered on the same transition. It is
+# also what a person does between two devices, so it is not a harness-only path.
+#
+# WHEN He3 LANDS A SYNC AFFORDANCE, add the tap here and nowhere else — every
+# poll loop in this suite calls this file.
+- runFlow: td-dismiss-chrome.yaml
+- runFlow: td-dismiss-stale-alerts.yaml
+- pressKey: Home
+- waitForAnimationToEnd:
+    timeout: 2500
+- launchApp:
+    permissions:
+      all: allow
+      faceid: allow
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow: td-connect-metro.yaml
+- runFlow: td-dismiss-chrome.yaml
+- runFlow: td-dismiss-stale-alerts.yaml

@@ -1,0 +1,165 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:contractors
+  - mutation
+  - regression
+# Matrix: HOUSE-LABOR-015–025,027–036 (projects, quotes, checklists)
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-LABOR-015
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-contractors.yaml
+# Projects list + detail (HOUSE-LABOR-015,016).
+- tapOn:
+    id: 'contractors-tab-projects'
+- tapOn:
+    id: 'contractors-fab-project'
+- extendedWaitUntil:
+    visible: 'Projects'
+    timeout: 15000
+- runFlow:
+    when:
+      visible: 'Create Project'
+    commands:
+      - tapOn: 'Create Project'
+      - extendedWaitUntil:
+          visible: 'New Project'
+          timeout: 15000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+- runFlow:
+    when:
+      visible:
+        id: 'contractors-project-row'
+    commands:
+      - tapOn:
+          id: 'contractors-project-row'
+      # WRONG LITERAL FIXED: ProjectDetailScreen's header title is 'Project'
+      # (ProjectDetailScreen.tsx:406), not 'Project Details'. Maestro matches the
+      # WHOLE string, so this wait always burned its full 20s and never confirmed
+      # the screen had actually loaded before the 'Mark Paid' gate below.
+      - extendedWaitUntil:
+          visible: 'Project'
+          timeout: 20000
+          optional: true
+      - runFlow:
+          when:
+            visible: 'Mark Paid'
+          commands:
+            - tapOn: 'Mark Paid'
+            - extendedWaitUntil:
+                visible: 'Cancel'
+                timeout: 10000
+                optional: true
+            - tapOn: 'Cancel'
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+# Quotes tab + request flow (HOUSE-LABOR-027–034).
+- tapOn:
+    id: 'contractors-tab-quotes'
+- tapOn:
+    id: 'contractors-fab-quote'
+- extendedWaitUntil:
+    visible: 'Request Quote'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+- runFlow:
+    when:
+      visible:
+        id: 'contractors-quote-row'
+    commands:
+      - tapOn:
+          id: 'contractors-quote-row'
+      # WRONG LITERAL FIXED: QuoteDetailScreen's header title is 'Quote'
+      # (QuoteDetailScreen.tsx:336), not 'Quote Details' — same whole-string
+      # mismatch as the project leg above.
+      - extendedWaitUntil:
+          visible: 'Quote'
+          timeout: 20000
+          optional: true
+      - runFlow:
+          when:
+            visible: 'Mark Received'
+          commands:
+            - tapOn: 'Mark Received'
+            - waitForAnimationToEnd:
+                timeout: 3000
+      - runFlow:
+          when:
+            visible: 'Decline'
+          commands:
+            - tapOn: 'Decline'
+            - extendedWaitUntil:
+                visible: 'Cancel'
+                timeout: 10000
+                optional: true
+            - tapOn: 'Cancel'
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+# Full quotes screen with compare affordance.
+- openLink: simplehouse://contractors?screen=Quotes
+- extendedWaitUntil:
+    visible: 'Quotes'
+    timeout: 20000
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+# Checklists editor entry (HOUSE-LABOR-035,036).
+- openLink: simplehouse://contractors?screen=Checklists
+- extendedWaitUntil:
+    visible: 'Checklists'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+- assertVisible:
+    id: 'contractors-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

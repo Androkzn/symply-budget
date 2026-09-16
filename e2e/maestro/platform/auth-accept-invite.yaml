@@ -1,0 +1,39 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - mutation
+  - regression
+# Matrix: PLAT-AUTH-033 — in-app invitation accept (notification alert path).
+---
+- runFlow: subflows/launch-platform.yaml
+- runFlow: ../subflows/open-notifications.yaml
+- assertVisible:
+    id: 'notifications-screen'
+- runFlow:
+    when:
+      visible: 'Join Property'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: PLAT-AUTH-033
+      - tapOn: 'Join Property'
+      - extendedWaitUntil:
+          visible: 'Accept'
+          timeout: 10000
+      - tapOn: 'Accept'
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+          env:
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /invitations/
+            E2E_VERIFY_STATUS: '200'
+- runFlow:
+    when:
+      notVisible: 'Join Property'
+    commands:
+      - assertVisible:
+          id: 'notifications-screen'

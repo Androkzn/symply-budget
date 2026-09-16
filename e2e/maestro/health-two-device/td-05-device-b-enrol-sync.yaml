@@ -1,0 +1,60 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+# Matrix: HEALTH-TD-005 — device B syncs until the household key lands.
+#
+# Approval is not enrolment. B holds a claim the Worker has now blessed, but it
+# cannot read a single op until the household key reaches it and the mailbox
+# bootstrap runs (He4 / He8). Every later flow in this suite polls for a peer's
+# row; without this gate the first of them would poll a device that was never
+# going to converge, and would report "the row never arrived" rather than "this
+# device never joined".
+#
+# The pending banner disappearing IS the signal — `pendingWrites` is rendered for
+# exactly as long as writes are parked (HEALTH_ENROLMENT_COPY.pendingWrites).
+---
+- runFlow: td-launch.yaml
+- runFlow: ../health/subflows/go-more.yaml
+- scrollUntilVisible:
+    element:
+      id: 'health-setting-other-device'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 10
+- tapOn:
+    id: 'health-setting-other-device'
+- extendedWaitUntil:
+    visible:
+      id: 'health-other-device-screen'
+    timeout: 30000
+- repeat:
+    times: 20
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'health-other-device-pending'
+          commands:
+            - runFlow: td-sync-nudge.yaml
+            - runFlow: ../health/subflows/go-more.yaml
+            - scrollUntilVisible:
+                element:
+                  id: 'health-setting-other-device'
+                direction: DOWN
+                timeout: 20000
+                visibilityPercentage: 10
+                optional: true
+            - tapOn:
+                id: 'health-setting-other-device'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 4000
+- extendedWaitUntil:
+    notVisible:
+      id: 'health-other-device-pending'
+    timeout: 60000
+- assertNotVisible: 'Waiting for your other device to approve this one\.'
+- assertVisible:
+    id: 'health-other-device-enrolled'

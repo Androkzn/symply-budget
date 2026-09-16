@@ -1,0 +1,1585 @@
+{
+  "schema": 1,
+  "runId": "20260812T221332Z-24118",
+  "generatedAt": "2026-08-12T22:14:55.437Z",
+  "git": {
+    "sha": "8bb49d4897d3ad330b61a351d9fd6eda59874610",
+    "dirty": true
+  },
+  "env": {
+    "node": "v22.15.0",
+    "v8": "12.4.254.21-node.24",
+    "arch": "arm64",
+    "platform": "darwin",
+    "cpu": "Apple M3 Pro",
+    "cores": 12,
+    "loadavg1": 6.27,
+    "heapLimitMb": 8240,
+    "gcAvailable": true
+  },
+  "loadOverridden": true,
+  "scales": [
+    {
+      "years": 1,
+      "adults": 2,
+      "rows": 2437,
+      "ops": 3656
+    },
+    {
+      "years": 3,
+      "adults": 2,
+      "rows": 7135,
+      "ops": 10703
+    },
+    {
+      "years": 5,
+      "adults": 2,
+      "rows": 11833,
+      "ops": 17750
+    },
+    {
+      "years": 10,
+      "adults": 2,
+      "rows": 23578,
+      "ops": 35367
+    }
+  ],
+  "metrics": {
+    "edit|edit.captureLedgerSnapshot|1y/2a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 1.31737499999997,
+      "p50": 1.480165999999997,
+      "p95": 1.7782920000000217,
+      "status": "ok"
+    },
+    "edit|edit.diffLedger|1y/2a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 1.4411249999999995,
+      "p50": 1.6305419999999913,
+      "p95": 2.40270799999999,
+      "status": "ok"
+    },
+    "edit|edit.captureAndDiff|1y/2a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 2.807375000000036,
+      "p50": 3.127291999999983,
+      "p95": 4.324250999999975,
+      "status": "ok"
+    },
+    "edit|edit.delta.bytes|1y/2a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 63,
+      "p50": 63,
+      "p95": 63,
+      "status": "ok"
+    },
+    "edit|edit.serialize.stringifyWithHexOps|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 24.80250000000001,
+      "p50": 25.728417000000036,
+      "p95": 31.96154200000001,
+      "status": "ok"
+    },
+    "edit|edit.utf8Encode|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 4.558667000000014,
+      "p50": 4.643750000000011,
+      "p95": 4.815958000000023,
+      "status": "ok"
+    },
+    "edit|edit.aeadEncrypt|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 60.40487499999995,
+      "p50": 61.20399999999995,
+      "p95": 70.26845800000001,
+      "status": "ok"
+    },
+    "edit|edit.encode.hex|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 231.85449999999992,
+      "p50": 253.996625,
+      "p95": 284.4815,
+      "status": "ok"
+    },
+    "edit|edit.encode.base64|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 117.92974999999979,
+      "p50": 136.281875,
+      "p95": 146.04899999999998,
+      "status": "ok"
+    },
+    "edit|edit.total.today|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 322.2925,
+      "p50": 344.752708,
+      "p95": 391.35525,
+      "status": "ok"
+    },
+    "edit|edit.total.todayWithProjection|1y/2a": {
+      "unit": "ms",
+      "n": 1,
+      "min": 325.09987500000005,
+      "p50": 325.09987500000005,
+      "p95": 325.09987500000005,
+      "status": "ok"
+    },
+    "edit|edit.serialize.json.chars|1y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 4032949,
+      "p50": 4032949,
+      "p95": 4032949,
+      "status": "ok"
+    },
+    "edit|edit.serialize.json.bytes|1y/2a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 4033741,
+      "p50": 4033741,
+      "p95": 4033741,
+      "status": "ok"
+    },
+    "edit|edit.sealed.bytes|1y/2a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 4033769,
+      "p50": 4033769,
+      "p95": 4033769,
+      "status": "ok"
+    },
+    "edit|edit.encode.hex.chars|1y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 8067538,
+      "p50": 8067538,
+      "p95": 8067538,
+      "status": "ok"
+    },
+    "edit|edit.encode.base64.chars|1y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 5378360,
+      "p50": 5378360,
+      "p95": 5378360,
+      "status": "ok"
+    },
+    "edit|edit.amplification.hexCharsPerDeltaByte|1y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 128056.15873015873,
+      "p50": 128056.15873015873,
+      "p95": 128056.15873015873,
+      "status": "ok"
+    },
+    "edit|edit.amplification.base64VsHex|1y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.6666668319380709,
+      "p50": 0.6666668319380709,
+      "p95": 0.6666668319380709,
+      "status": "ok"
+    },
+    "edit|edit.captureLedgerSnapshot|3y/2a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 4.080459000000019,
+      "p50": 4.43912499999999,
+      "p95": 12.506459000000007,
+      "status": "ok"
+    },
+    "edit|edit.diffLedger|3y/2a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 4.65204099999994,
+      "p50": 5.733707999999979,
+      "p95": 12.757041000000072,
+      "status": "ok"
+    },
+    "edit|edit.captureAndDiff|3y/2a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 8.970082999999988,
+      "p50": 10.097624999999994,
+      "p95": 24.28216599999996,
+      "status": "ok"
+    },
+    "edit|edit.delta.bytes|3y/2a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 63,
+      "p50": 63,
+      "p95": 63,
+      "status": "ok"
+    },
+    "edit|edit.serialize.stringifyWithHexOps|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 105.09749999999985,
+      "p50": 116.03937500000029,
+      "p95": 182.38995799999975,
+      "status": "ok"
+    },
+    "edit|edit.utf8Encode|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 13.693665999999666,
+      "p50": 14.225750000000062,
+      "p95": 35.3597920000002,
+      "status": "ok"
+    },
+    "edit|edit.aeadEncrypt|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 175.6057080000005,
+      "p50": 180.55229199999997,
+      "p95": 205.00104099999953,
+      "status": "ok"
+    },
+    "edit|edit.encode.hex|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 706.1929170000003,
+      "p50": 754.4015840000002,
+      "p95": 801.9200410000001,
+      "status": "ok"
+    },
+    "edit|edit.encode.base64|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 412.90962500000023,
+      "p50": 426.868209,
+      "p95": 456.7346670000002,
+      "status": "ok"
+    },
+    "edit|edit.total.today|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 1003.9888339999998,
+      "p50": 1089.714916,
+      "p95": 1177.1523749999997,
+      "status": "ok"
+    },
+    "edit|edit.total.todayWithProjection|3y/2a": {
+      "unit": "ms",
+      "n": 1,
+      "min": 1012.9589169999997,
+      "p50": 1012.9589169999997,
+      "p95": 1012.9589169999997,
+      "status": "ok"
+    },
+    "edit|edit.serialize.json.chars|3y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 11864618,
+      "p50": 11864618,
+      "p95": 11864618,
+      "status": "ok"
+    },
+    "edit|edit.serialize.json.bytes|3y/2a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 11866912,
+      "p50": 11866912,
+      "p95": 11866912,
+      "status": "ok"
+    },
+    "edit|edit.sealed.bytes|3y/2a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 11866940,
+      "p50": 11866940,
+      "p95": 11866940,
+      "status": "ok"
+    },
+    "edit|edit.encode.hex.chars|3y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 23733880,
+      "p50": 23733880,
+      "p95": 23733880,
+      "status": "ok"
+    },
+    "edit|edit.encode.base64.chars|3y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 15822588,
+      "p50": 15822588,
+      "p95": 15822588,
+      "status": "ok"
+    },
+    "edit|edit.amplification.hexCharsPerDeltaByte|3y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 376728.25396825396,
+      "p50": 376728.25396825396,
+      "p95": 376728.25396825396,
+      "status": "ok"
+    },
+    "edit|edit.amplification.base64VsHex|3y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.6666667228451479,
+      "p50": 0.6666667228451479,
+      "p95": 0.6666667228451479,
+      "status": "ok"
+    },
+    "edit|edit.captureLedgerSnapshot|5y/2a": {
+      "unit": "ms",
+      "n": 25,
+      "min": 6.880833999999993,
+      "p50": 7.5755830000000515,
+      "p95": 8.34050000000002,
+      "status": "ok"
+    },
+    "edit|edit.diffLedger|5y/2a": {
+      "unit": "ms",
+      "n": 25,
+      "min": 7.708666999999991,
+      "p50": 9.088416000000052,
+      "p95": 10.645708000000013,
+      "status": "ok"
+    },
+    "edit|edit.captureAndDiff|5y/2a": {
+      "unit": "ms",
+      "n": 25,
+      "min": 15.353749999999877,
+      "p50": 16.217708000000016,
+      "p95": 18.221291000000065,
+      "status": "ok"
+    },
+    "edit|edit.delta.bytes|5y/2a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 63,
+      "p50": 63,
+      "p95": 63,
+      "status": "ok"
+    },
+    "edit|edit.serialize.stringifyWithHexOps|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 181.29020899999978,
+      "p50": 226.49766599999998,
+      "p95": 234.90845800000034,
+      "status": "ok"
+    },
+    "edit|edit.utf8Encode|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 23.124041000000034,
+      "p50": 23.59187499999996,
+      "p95": 27.060249999999996,
+      "status": "ok"
+    },
+    "edit|edit.aeadEncrypt|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 279.5264589999997,
+      "p50": 331.4242079999999,
+      "p95": 346.34925,
+      "status": "ok"
+    },
+    "edit|edit.encode.hex|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 1338.8920419999995,
+      "p50": 1398.0126250000003,
+      "p95": 1405.2766250000002,
+      "status": "ok"
+    },
+    "edit|edit.encode.base64|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 678.4026250000006,
+      "p50": 684.2402500000007,
+      "p95": 770.3377919999998,
+      "status": "ok"
+    },
+    "edit|edit.total.today|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 1881.9533339999998,
+      "p50": 1932.2849579999997,
+      "p95": 2001.715416,
+      "status": "ok"
+    },
+    "edit|edit.total.todayWithProjection|5y/2a": {
+      "unit": "ms",
+      "n": 1,
+      "min": 1897.3070839999996,
+      "p50": 1897.3070839999996,
+      "p95": 1897.3070839999996,
+      "status": "ok"
+    },
+    "edit|edit.serialize.json.chars|5y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 19689812,
+      "p50": 19689812,
+      "p95": 19689812,
+      "status": "ok"
+    },
+    "edit|edit.serialize.json.bytes|5y/2a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 19693550,
+      "p50": 19693550,
+      "p95": 19693550,
+      "status": "ok"
+    },
+    "edit|edit.sealed.bytes|5y/2a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 19693578,
+      "p50": 19693578,
+      "p95": 19693578,
+      "status": "ok"
+    },
+    "edit|edit.encode.hex.chars|5y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 39387156,
+      "p50": 39387156,
+      "p95": 39387156,
+      "status": "ok"
+    },
+    "edit|edit.encode.base64.chars|5y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 26258104,
+      "p50": 26258104,
+      "p95": 26258104,
+      "status": "ok"
+    },
+    "edit|edit.amplification.hexCharsPerDeltaByte|5y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 625192.9523809524,
+      "p50": 625192.9523809524,
+      "p95": 625192.9523809524,
+      "status": "ok"
+    },
+    "edit|edit.amplification.base64VsHex|5y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.6666666666666666,
+      "p50": 0.6666666666666666,
+      "p95": 0.6666666666666666,
+      "status": "ok"
+    },
+    "edit|edit.captureLedgerSnapshot|10y/2a": {
+      "unit": "ms",
+      "n": 15,
+      "min": 13.59029099999998,
+      "p50": 13.973917000000029,
+      "p95": 32.56104200000004,
+      "status": "ok"
+    },
+    "edit|edit.diffLedger|10y/2a": {
+      "unit": "ms",
+      "n": 15,
+      "min": 17.527999999999906,
+      "p50": 18.974833000000103,
+      "p95": 35.85500000000002,
+      "status": "ok"
+    },
+    "edit|edit.captureAndDiff|10y/2a": {
+      "unit": "ms",
+      "n": 15,
+      "min": 32.305291999999895,
+      "p50": 33.075333,
+      "p95": 58.79970800000001,
+      "status": "ok"
+    },
+    "edit|edit.delta.bytes|10y/2a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 63,
+      "p50": 63,
+      "p95": 63,
+      "status": "ok"
+    },
+    "edit|edit.serialize.stringifyWithHexOps|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 462.308541,
+      "p50": 491.93224999999984,
+      "p95": 491.93224999999984,
+      "status": "ok"
+    },
+    "edit|edit.utf8Encode|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 47.08574999999996,
+      "p50": 48.345249999999396,
+      "p95": 48.345249999999396,
+      "status": "ok"
+    },
+    "edit|edit.aeadEncrypt|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 660.7580840000003,
+      "p50": 775.0524170000008,
+      "p95": 775.0524170000008,
+      "status": "ok"
+    },
+    "edit|edit.encode.hex|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 2658.3076249999995,
+      "p50": 2748.229458,
+      "p95": 2748.229458,
+      "status": "ok"
+    },
+    "edit|edit.encode.base64|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 1580.8732500000006,
+      "p50": 1929.890125,
+      "p95": 1929.890125,
+      "status": "ok"
+    },
+    "edit|edit.total.today|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 3828.4599999999996,
+      "p50": 4063.559375,
+      "p95": 4063.559375,
+      "status": "ok"
+    },
+    "edit|edit.total.todayWithProjection|10y/2a": {
+      "unit": "ms",
+      "n": 1,
+      "min": 3860.7652919999996,
+      "p50": 3860.7652919999996,
+      "p95": 3860.7652919999996,
+      "status": "ok"
+    },
+    "edit|edit.serialize.json.chars|10y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 39258796,
+      "p50": 39258796,
+      "p95": 39258796,
+      "status": "ok"
+    },
+    "edit|edit.serialize.json.bytes|10y/2a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 39266216,
+      "p50": 39266216,
+      "p95": 39266216,
+      "status": "ok"
+    },
+    "edit|edit.sealed.bytes|10y/2a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 39266244,
+      "p50": 39266244,
+      "p95": 39266244,
+      "status": "ok"
+    },
+    "edit|edit.encode.hex.chars|10y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 78532488,
+      "p50": 78532488,
+      "p95": 78532488,
+      "status": "ok"
+    },
+    "edit|edit.encode.base64.chars|10y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 52354992,
+      "p50": 52354992,
+      "p95": 52354992,
+      "status": "ok"
+    },
+    "edit|edit.amplification.hexCharsPerDeltaByte|10y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 1246547.4285714286,
+      "p50": 1246547.4285714286,
+      "p95": 1246547.4285714286,
+      "status": "ok"
+    },
+    "edit|edit.amplification.base64VsHex|10y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.6666666666666666,
+      "p50": 0.6666666666666666,
+      "p95": 0.6666666666666666,
+      "status": "ok"
+    },
+    "apply|apply.patch1|1y/2a": {
+      "unit": "ms",
+      "n": 800,
+      "min": 0.0020410000000197215,
+      "p50": 0.01070899999999142,
+      "p95": 0.017291999999997643,
+      "status": "ok"
+    },
+    "apply|apply.patch1.opsPerSec|1y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 93379.40050432358,
+      "p50": 93379.40050432358,
+      "p95": 93379.40050432358,
+      "status": "ok"
+    },
+    "apply|apply.create1|1y/2a": {
+      "unit": "ms",
+      "n": 800,
+      "min": 0.017583999999999378,
+      "p50": 0.023041000000006306,
+      "p95": 0.030875000000008868,
+      "status": "ok"
+    },
+    "apply|apply.create1.opsPerSec|1y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 43400.89405840573,
+      "p50": 43400.89405840573,
+      "p95": 43400.89405840573,
+      "status": "ok"
+    },
+    "apply|apply.bulk200|1y/2a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.12295800000001122,
+      "p50": 0.1313339999999812,
+      "p95": 0.5146249999999952,
+      "status": "ok"
+    },
+    "apply|apply.bulk200.rowsPerSec|1y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 1522834.9094676827,
+      "p50": 1522834.9094676827,
+      "p95": 1522834.9094676827,
+      "status": "ok"
+    },
+    "apply|apply.delete1|1y/2a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.0227079999999944,
+      "p50": 0.025624999999990905,
+      "p95": 0.06512499999999477,
+      "status": "ok"
+    },
+    "apply|apply.delete200.projected|1y/2a": {
+      "unit": "ms",
+      "n": 1,
+      "min": 5.124999999998181,
+      "p50": 5.124999999998181,
+      "p95": 5.124999999998181,
+      "status": "ok"
+    },
+    "apply|apply.patch1|3y/2a": {
+      "unit": "ms",
+      "n": 800,
+      "min": 0.002125000000006594,
+      "p50": 0.027165999999994028,
+      "p95": 0.06595800000002328,
+      "status": "ok"
+    },
+    "apply|apply.patch1.opsPerSec|3y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 36810.71928146285,
+      "p50": 36810.71928146285,
+      "p95": 36810.71928146285,
+      "status": "ok"
+    },
+    "apply|apply.create1|3y/2a": {
+      "unit": "ms",
+      "n": 800,
+      "min": 0.043666999999999234,
+      "p50": 0.05295900000004394,
+      "p95": 0.08087499999999181,
+      "status": "ok"
+    },
+    "apply|apply.create1.opsPerSec|3y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 18882.531769844034,
+      "p50": 18882.531769844034,
+      "p95": 18882.531769844034,
+      "status": "ok"
+    },
+    "apply|apply.bulk200|3y/2a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.28833399999996345,
+      "p50": 0.327165999999977,
+      "p95": 1.634375000000034,
+      "status": "ok"
+    },
+    "apply|apply.bulk200.rowsPerSec|3y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 611310.4662465357,
+      "p50": 611310.4662465357,
+      "p95": 611310.4662465357,
+      "status": "ok"
+    },
+    "apply|apply.delete1|3y/2a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.06454099999996288,
+      "p50": 0.07504199999999628,
+      "p95": 0.2226660000000038,
+      "status": "ok"
+    },
+    "apply|apply.delete200.projected|3y/2a": {
+      "unit": "ms",
+      "n": 1,
+      "min": 15.008399999999256,
+      "p50": 15.008399999999256,
+      "p95": 15.008399999999256,
+      "status": "ok"
+    },
+    "apply|apply.patch1|5y/2a": {
+      "unit": "ms",
+      "n": 400,
+      "min": 0.002583000000015545,
+      "p50": 0.04470799999998576,
+      "p95": 0.1419999999999959,
+      "status": "ok"
+    },
+    "apply|apply.patch1.opsPerSec|5y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 22367.361546039156,
+      "p50": 22367.361546039156,
+      "p95": 22367.361546039156,
+      "status": "ok"
+    },
+    "apply|apply.create1|5y/2a": {
+      "unit": "ms",
+      "n": 400,
+      "min": 0.07270800000003419,
+      "p50": 0.0861250000000382,
+      "p95": 0.13574999999997317,
+      "status": "ok"
+    },
+    "apply|apply.create1.opsPerSec|5y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 11611.030478949857,
+      "p50": 11611.030478949857,
+      "p95": 11611.030478949857,
+      "status": "ok"
+    },
+    "apply|apply.bulk200|5y/2a": {
+      "unit": "ms",
+      "n": 25,
+      "min": 0.4226660000000493,
+      "p50": 0.48533300000002555,
+      "p95": 0.9656669999999963,
+      "status": "ok"
+    },
+    "apply|apply.bulk200.rowsPerSec|5y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 412088.1951154969,
+      "p50": 412088.1951154969,
+      "p95": 412088.1951154969,
+      "status": "ok"
+    },
+    "apply|apply.delete1|5y/2a": {
+      "unit": "ms",
+      "n": 25,
+      "min": 0.10054100000002109,
+      "p50": 0.13041700000002265,
+      "p95": 0.2572499999999991,
+      "status": "ok"
+    },
+    "apply|apply.delete200.projected|5y/2a": {
+      "unit": "ms",
+      "n": 1,
+      "min": 26.08340000000453,
+      "p50": 26.08340000000453,
+      "p95": 26.08340000000453,
+      "status": "ok"
+    },
+    "apply|apply.patch1|10y/2a": {
+      "unit": "ms",
+      "n": 200,
+      "min": 0.0024589999999875545,
+      "p50": 0.0796670000000006,
+      "p95": 0.1565830000000119,
+      "status": "ok"
+    },
+    "apply|apply.patch1.opsPerSec|10y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 12552.248735360845,
+      "p50": 12552.248735360845,
+      "p95": 12552.248735360845,
+      "status": "ok"
+    },
+    "apply|apply.create1|10y/2a": {
+      "unit": "ms",
+      "n": 200,
+      "min": 0.1672919999999749,
+      "p50": 0.2055000000000291,
+      "p95": 0.6478749999999991,
+      "status": "ok"
+    },
+    "apply|apply.create1.opsPerSec|10y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 4866.180048661111,
+      "p50": 4866.180048661111,
+      "p95": 4866.180048661111,
+      "status": "ok"
+    },
+    "apply|apply.bulk200|10y/2a": {
+      "unit": "ms",
+      "n": 15,
+      "min": 0.9727500000000191,
+      "p50": 1.4918749999999932,
+      "p95": 3.787083999999993,
+      "status": "ok"
+    },
+    "apply|apply.bulk200.rowsPerSec|10y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 134059.4888981992,
+      "p50": 134059.4888981992,
+      "p95": 134059.4888981992,
+      "status": "ok"
+    },
+    "apply|apply.delete1|10y/2a": {
+      "unit": "ms",
+      "n": 15,
+      "min": 0.32954200000000355,
+      "p50": 0.6673339999999826,
+      "p95": 16.526583000000016,
+      "status": "ok"
+    },
+    "apply|apply.delete200.projected|10y/2a": {
+      "unit": "ms",
+      "n": 1,
+      "min": 133.4667999999965,
+      "p50": 133.4667999999965,
+      "p95": 133.4667999999965,
+      "status": "ok"
+    },
+    "coldopen|coldopen.snapshot.chars|1y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 8067618,
+      "p50": 8067618,
+      "p95": 8067618,
+      "status": "ok"
+    },
+    "coldopen|coldopen.hexToBytes|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 12.780250000000024,
+      "p50": 13.103999999999814,
+      "p95": 17.641208000000006,
+      "status": "ok"
+    },
+    "coldopen|coldopen.aeadDecrypt|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 58.82691599999998,
+      "p50": 60.160749999999894,
+      "p95": 61.652000000000044,
+      "status": "ok"
+    },
+    "coldopen|coldopen.utf8Decode|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 2.1710420000001704,
+      "p50": 2.2757080000001224,
+      "p95": 2.480250000000069,
+      "status": "ok"
+    },
+    "coldopen|coldopen.jsonParse.probe|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 5.148250000000189,
+      "p50": 5.236791999999923,
+      "p95": 5.364166999999952,
+      "status": "ok"
+    },
+    "coldopen|coldopen.jsonParse.full|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 5.05987499999992,
+      "p50": 5.084708999999975,
+      "p95": 5.277499999999691,
+      "status": "ok"
+    },
+    "coldopen|coldopen.reviveOps|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 5.410000000000082,
+      "p50": 5.526416000000154,
+      "p95": 6.086000000000013,
+      "status": "ok"
+    },
+    "coldopen|coldopen.normalizeLedger|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 0.00987499999996544,
+      "p50": 0.011124999999992724,
+      "p95": 0.08195799999998599,
+      "status": "ok"
+    },
+    "coldopen|coldopen.repersist|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 321.3185,
+      "p50": 336.84816599999976,
+      "p95": 370.32462499999997,
+      "status": "ok"
+    },
+    "coldopen|coldopen.total|1y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 419.08004099999994,
+      "p50": 429.17933300000004,
+      "p95": 461.8468750000002,
+      "status": "ok"
+    },
+    "coldopen|coldopen.wastedShare|1y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.779008108381855,
+      "p50": 0.779008108381855,
+      "p95": 0.779008108381855,
+      "status": "ok"
+    },
+    "coldopen|coldopen.snapshot.chars|3y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 23733952,
+      "p50": 23733952,
+      "p95": 23733952,
+      "status": "ok"
+    },
+    "coldopen|coldopen.hexToBytes|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 37.34883300000001,
+      "p50": 38.35120800000004,
+      "p95": 50.98250000000007,
+      "status": "ok"
+    },
+    "coldopen|coldopen.aeadDecrypt|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 164.62462499999947,
+      "p50": 170.54491700000017,
+      "p95": 179.83137499999998,
+      "status": "ok"
+    },
+    "coldopen|coldopen.utf8Decode|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 6.5493749999996,
+      "p50": 6.662041000000045,
+      "p95": 6.835000000000036,
+      "status": "ok"
+    },
+    "coldopen|coldopen.jsonParse.probe|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 15.237249999999904,
+      "p50": 15.493083000000297,
+      "p95": 15.79241600000023,
+      "status": "ok"
+    },
+    "coldopen|coldopen.jsonParse.full|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 18.4561249999997,
+      "p50": 18.75841700000001,
+      "p95": 19.03008299999965,
+      "status": "ok"
+    },
+    "coldopen|coldopen.reviveOps|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 14.439041999999972,
+      "p50": 15.846125000000029,
+      "p95": 16.894208000000162,
+      "status": "ok"
+    },
+    "coldopen|coldopen.normalizeLedger|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 0.0126669999999649,
+      "p50": 0.013042000000041298,
+      "p95": 0.11066700000014862,
+      "status": "ok"
+    },
+    "coldopen|coldopen.repersist|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 966.3002909999996,
+      "p50": 1060.401,
+      "p95": 1090.8881250000004,
+      "status": "ok"
+    },
+    "coldopen|coldopen.total|3y/2a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 1224.3839579999994,
+      "p50": 1348.3388330000002,
+      "p95": 1362.1384159999998,
+      "status": "ok"
+    },
+    "coldopen|coldopen.wastedShare|3y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.8016582825891614,
+      "p50": 0.8016582825891614,
+      "p95": 0.8016582825891614,
+      "status": "ok"
+    },
+    "coldopen|coldopen.snapshot.chars|5y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 39387206,
+      "p50": 39387206,
+      "p95": 39387206,
+      "status": "ok"
+    },
+    "coldopen|coldopen.hexToBytes|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 64.7256669999997,
+      "p50": 64.83337500000016,
+      "p95": 82.98174999999992,
+      "status": "ok"
+    },
+    "coldopen|coldopen.aeadDecrypt|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 271.8274580000002,
+      "p50": 277.6261250000007,
+      "p95": 287.93462499999987,
+      "status": "ok"
+    },
+    "coldopen|coldopen.utf8Decode|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 10.793041999999332,
+      "p50": 10.816499999999905,
+      "p95": 10.931625000000167,
+      "status": "ok"
+    },
+    "coldopen|coldopen.jsonParse.probe|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 28.271250000000236,
+      "p50": 28.538041000000703,
+      "p95": 30.020833999999923,
+      "status": "ok"
+    },
+    "coldopen|coldopen.jsonParse.full|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 28.336291999999958,
+      "p50": 28.882125000000087,
+      "p95": 29.548999999999978,
+      "status": "ok"
+    },
+    "coldopen|coldopen.reviveOps|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 21.29283299999952,
+      "p50": 23.102290999999695,
+      "p95": 23.22162499999922,
+      "status": "ok"
+    },
+    "coldopen|coldopen.normalizeLedger|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 0.015334000000621018,
+      "p50": 0.0157920000001468,
+      "p95": 0.09158400000023903,
+      "status": "ok"
+    },
+    "coldopen|coldopen.repersist|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 1786.2007909999998,
+      "p50": 1852.5894159999998,
+      "p95": 1853.488958,
+      "status": "ok"
+    },
+    "coldopen|coldopen.total|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 2231.627916,
+      "p50": 2287.05825,
+      "p95": 2297.400167,
+      "status": "ok"
+    },
+    "coldopen|coldopen.wastedShare|5y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.8130710446803714,
+      "p50": 0.8130710446803714,
+      "p95": 0.8130710446803714,
+      "status": "ok"
+    },
+    "coldopen|coldopen.snapshot.chars|10y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 78532518,
+      "p50": 78532518,
+      "p95": 78532518,
+      "status": "ok"
+    },
+    "coldopen|coldopen.hexToBytes|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 124.29216699999961,
+      "p50": 157.38304100000005,
+      "p95": 157.38304100000005,
+      "status": "ok"
+    },
+    "coldopen|coldopen.aeadDecrypt|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 563.0004589999999,
+      "p50": 570.8462909999998,
+      "p95": 570.8462909999998,
+      "status": "ok"
+    },
+    "coldopen|coldopen.utf8Decode|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 22.192958999999973,
+      "p50": 22.77508300000045,
+      "p95": 22.77508300000045,
+      "status": "ok"
+    },
+    "coldopen|coldopen.jsonParse.probe|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 81.29891700000007,
+      "p50": 96.78583299999991,
+      "p95": 96.78583299999991,
+      "status": "ok"
+    },
+    "coldopen|coldopen.jsonParse.full|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 54.726957999999286,
+      "p50": 58.0017080000016,
+      "p95": 58.0017080000016,
+      "status": "ok"
+    },
+    "coldopen|coldopen.reviveOps|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 45.62554199999977,
+      "p50": 47.818208000000595,
+      "p95": 47.818208000000595,
+      "status": "ok"
+    },
+    "coldopen|coldopen.normalizeLedger|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 0.018874999999752617,
+      "p50": 0.07391699999971024,
+      "p95": 0.07391699999971024,
+      "status": "ok"
+    },
+    "coldopen|coldopen.repersist|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 3504.4383749999997,
+      "p50": 3568.56675,
+      "p95": 3568.56675,
+      "status": "ok"
+    },
+    "coldopen|coldopen.total|10y/2a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 4431.514958,
+      "p50": 4486.330125,
+      "p95": 4486.330125,
+      "status": "ok"
+    },
+    "coldopen|coldopen.wastedShare|10y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.8091448017177154,
+      "p50": 0.8091448017177154,
+      "p95": 0.8091448017177154,
+      "status": "ok"
+    },
+    "batchcap|batchcap.maxOpsUnderCap|1y/2a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 546,
+      "p50": 546,
+      "p95": 546,
+      "status": "ok"
+    },
+    "batchcap|batchcap.b64AtMax|1y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 511340,
+      "p50": 511340,
+      "p95": 511340,
+      "status": "ok"
+    },
+    "batchcap|batchcap.ciphertextB64PerOp|1y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 936.5201465201466,
+      "p50": 936.5201465201466,
+      "p95": 936.5201465201466,
+      "status": "ok"
+    },
+    "batchcap|batchcap.bytesPerOp|1y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 702.3882783882784,
+      "p50": 702.3882783882784,
+      "p95": 702.3882783882784,
+      "status": "ok"
+    },
+    "batchcap|batchcap.maxOpsUnderChunkBudget|1y/2a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 535,
+      "p50": 535,
+      "p95": 535,
+      "status": "ok"
+    },
+    "batchcap|batchcap.sealOpBatch.fullLog|1y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 42.999250000000075,
+      "p50": 49.948375000000055,
+      "p95": 53.64924999999994,
+      "status": "ok"
+    },
+    "batchcap|batchcap.b64AtScale|1y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 3430916,
+      "p50": 3430916,
+      "p95": 3430916,
+      "status": "ok"
+    },
+    "batchcap|batchcap.overCapRatioAtScale|1y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 6.7010078125,
+      "p50": 6.7010078125,
+      "p95": 6.7010078125,
+      "status": "ok"
+    },
+    "batchcap|batchcap.chunksForFullLog|1y/2a": {
+      "unit": "count",
+      "n": 1,
+      "min": 7,
+      "p50": 7,
+      "p95": 7,
+      "status": "ok"
+    },
+    "batchcap|batchcap.opsPerDay|1y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 10.016438356164384,
+      "p50": 10.016438356164384,
+      "p95": 10.016438356164384,
+      "status": "ok"
+    },
+    "batchcap|batchcap.daysOfHistoryPerDeposit|1y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 54.510393873085334,
+      "p50": 54.510393873085334,
+      "p95": 54.510393873085334,
+      "status": "ok"
+    },
+    "batchcap|batchcap.maxOpsUnderCap|3y/2a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 546,
+      "p50": 546,
+      "p95": 546,
+      "status": "ok"
+    },
+    "batchcap|batchcap.b64AtMax|3y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 511820,
+      "p50": 511820,
+      "p95": 511820,
+      "status": "ok"
+    },
+    "batchcap|batchcap.ciphertextB64PerOp|3y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 937.3992673992674,
+      "p50": 937.3992673992674,
+      "p95": 937.3992673992674,
+      "status": "ok"
+    },
+    "batchcap|batchcap.bytesPerOp|3y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 703.0494505494505,
+      "p50": 703.0494505494505,
+      "p95": 703.0494505494505,
+      "status": "ok"
+    },
+    "batchcap|batchcap.maxOpsUnderChunkBudget|3y/2a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 535,
+      "p50": 535,
+      "p95": 535,
+      "status": "ok"
+    },
+    "batchcap|batchcap.sealOpBatch.fullLog|3y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 124.2075420000001,
+      "p50": 125.17612499999984,
+      "p95": 138.94966699999998,
+      "status": "ok"
+    },
+    "batchcap|batchcap.b64AtScale|3y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 10060064,
+      "p50": 10060064,
+      "p95": 10060064,
+      "status": "ok"
+    },
+    "batchcap|batchcap.overCapRatioAtScale|3y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 19.6485625,
+      "p50": 19.6485625,
+      "p95": 19.6485625,
+      "status": "ok"
+    },
+    "batchcap|batchcap.chunksForFullLog|3y/2a": {
+      "unit": "count",
+      "n": 1,
+      "min": 21,
+      "p50": 21,
+      "p95": 21,
+      "status": "ok"
+    },
+    "batchcap|batchcap.opsPerDay|3y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 9.774429223744292,
+      "p50": 9.774429223744292,
+      "p95": 9.774429223744292,
+      "status": "ok"
+    },
+    "batchcap|batchcap.daysOfHistoryPerDeposit|3y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 55.860039241334206,
+      "p50": 55.860039241334206,
+      "p95": 55.860039241334206,
+      "status": "ok"
+    },
+    "batchcap|batchcap.maxOpsUnderCap|5y/2a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 546,
+      "p50": 546,
+      "p95": 546,
+      "status": "ok"
+    },
+    "batchcap|batchcap.b64AtMax|5y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 511820,
+      "p50": 511820,
+      "p95": 511820,
+      "status": "ok"
+    },
+    "batchcap|batchcap.ciphertextB64PerOp|5y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 937.3992673992674,
+      "p50": 937.3992673992674,
+      "p95": 937.3992673992674,
+      "status": "ok"
+    },
+    "batchcap|batchcap.bytesPerOp|5y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 703.0494505494505,
+      "p50": 703.0494505494505,
+      "p95": 703.0494505494505,
+      "status": "ok"
+    },
+    "batchcap|batchcap.maxOpsUnderChunkBudget|5y/2a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 535,
+      "p50": 535,
+      "p95": 535,
+      "status": "ok"
+    },
+    "batchcap|batchcap.sealOpBatch.fullLog|5y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 204.37870900000007,
+      "p50": 207.73745800000006,
+      "p95": 232.53329200000007,
+      "status": "ok"
+    },
+    "batchcap|batchcap.b64AtScale|5y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 16693884,
+      "p50": 16693884,
+      "p95": 16693884,
+      "status": "ok"
+    },
+    "batchcap|batchcap.overCapRatioAtScale|5y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 32.6052421875,
+      "p50": 32.6052421875,
+      "p95": 32.6052421875,
+      "status": "ok"
+    },
+    "batchcap|batchcap.chunksForFullLog|5y/2a": {
+      "unit": "count",
+      "n": 1,
+      "min": 34,
+      "p50": 34,
+      "p95": 34,
+      "status": "ok"
+    },
+    "batchcap|batchcap.opsPerDay|5y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 9.726027397260275,
+      "p50": 9.726027397260275,
+      "p95": 9.726027397260275,
+      "status": "ok"
+    },
+    "batchcap|batchcap.daysOfHistoryPerDeposit|5y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 56.13802816901408,
+      "p50": 56.13802816901408,
+      "p95": 56.13802816901408,
+      "status": "ok"
+    },
+    "batchcap|batchcap.maxOpsUnderCap|10y/2a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 546,
+      "p50": 546,
+      "p95": 546,
+      "status": "ok"
+    },
+    "batchcap|batchcap.b64AtMax|10y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 511820,
+      "p50": 511820,
+      "p95": 511820,
+      "status": "ok"
+    },
+    "batchcap|batchcap.ciphertextB64PerOp|10y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 937.3992673992674,
+      "p50": 937.3992673992674,
+      "p95": 937.3992673992674,
+      "status": "ok"
+    },
+    "batchcap|batchcap.bytesPerOp|10y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 703.0494505494505,
+      "p50": 703.0494505494505,
+      "p95": 703.0494505494505,
+      "status": "ok"
+    },
+    "batchcap|batchcap.maxOpsUnderChunkBudget|10y/2a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 535,
+      "p50": 535,
+      "p95": 535,
+      "status": "ok"
+    },
+    "batchcap|batchcap.sealOpBatch.fullLog|10y/2a": {
+      "unit": "ms",
+      "n": 3,
+      "min": 439.1782079999998,
+      "p50": 447.1713749999999,
+      "p95": 519.381375,
+      "status": "ok"
+    },
+    "batchcap|batchcap.b64AtScale|10y/2a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 33280344,
+      "p50": 33280344,
+      "p95": 33280344,
+      "status": "ok"
+    },
+    "batchcap|batchcap.overCapRatioAtScale|10y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 65.000671875,
+      "p50": 65.000671875,
+      "p95": 65.000671875,
+      "status": "ok"
+    },
+    "batchcap|batchcap.chunksForFullLog|10y/2a": {
+      "unit": "count",
+      "n": 1,
+      "min": 67,
+      "p50": 67,
+      "p95": 67,
+      "status": "ok"
+    },
+    "batchcap|batchcap.opsPerDay|10y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 9.689589041095891,
+      "p50": 9.689589041095891,
+      "p95": 9.689589041095891,
+      "status": "ok"
+    },
+    "batchcap|batchcap.daysOfHistoryPerDeposit|10y/2a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 56.34913902790737,
+      "p50": 56.34913902790737,
+      "p95": 56.34913902790737,
+      "status": "ok"
+    }
+  }
+}

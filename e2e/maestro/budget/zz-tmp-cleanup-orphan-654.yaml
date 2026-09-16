@@ -1,0 +1,89 @@
+appId: com.symply.budget
+tags:
+  - util
+  # Brand tag as well as `util`: it drives com.symply.budget, and the suite
+  # guard requires every flow on disk to declare which app it belongs to.
+  # `util` is what keeps it out of a run; `app:budget` is what makes it
+  # attributable while it waits to be deleted.
+  - app:budget
+# TEMPORARY, one-off. Deletes the orphaned "$654" income row left in the shared
+# E2E household on 2026-08-22 by a run of budget-savings-income-crud.yaml that
+# was killed by the SavingsEntryForm `sourceTypeRef` bug — the bug rewrote the
+# entry's source from `freelance` to `payroll` mid-flow, so the flow's own
+# source-scoped cleanup could no longer find it.
+#
+# Tagged `util` so it can never join a suite run, and deleted from the repo once
+# it has done its job. It addresses the row by AMOUNT because that orphan is a
+# payroll row now, and draining payroll by source would delete real income.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-income'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 20000
+- repeat:
+    times: 3
+    commands:
+      - scrollUntilVisible:
+          element: '.*\$654.*'
+          direction: DOWN
+          timeout: 12000
+          visibilityPercentage: 5
+          centerElement: true
+          optional: true
+      - runFlow:
+          when:
+            visible: '.*\$654.*'
+          commands:
+            - tapOn: '.*\$654.*'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-entry-form'
+                timeout: 20000
+            - scrollUntilVisible:
+                element:
+                  id: 'savings-entry-form-delete'
+                direction: DOWN
+                timeout: 12000
+                visibilityPercentage: 5
+                centerElement: true
+                optional: true
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'savings-entry-form-delete'
+                commands:
+                  - swipe:
+                      start: 50%, 78%
+                      end: 50%, 28%
+                      duration: 800
+                  - swipe:
+                      start: 50%, 78%
+                      end: 50%, 28%
+                      duration: 800
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-entry-form-delete'
+                timeout: 15000
+            - tapOn:
+                id: 'savings-entry-form-delete'
+            - extendedWaitUntil:
+                visible: 'Delete entry'
+                timeout: 10000
+            - tapOn: '^Delete$'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-income'
+                timeout: 20000
+- scrollUntilVisible:
+    element: '.*\$654.*'
+    direction: DOWN
+    timeout: 12000
+    visibilityPercentage: 5
+    centerElement: true
+    optional: true
+- assertNotVisible: '.*\$654.*'

@@ -1,0 +1,64 @@
+appId: com.symply.kaizen
+tags:
+  - destructive
+  - app:kaizen
+---
+# Face ID enroll → Log out → biometric CTA → Face ID → Today.
+# Requires: npm run test:e2e:biometric (Face ID enroll + auto-match loop).
+# Fresh Keychain so we do not inherit a prior "Not Now" / half session.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+    permissions:
+      all: allow
+      faceid: allow
+- runFlow: subflows/kaizen-login-if-needed.yaml
+- runFlow: subflows/kaizen-setup-if-needed.yaml
+- runFlow: subflows/dismiss-welcome-if-needed.yaml
+- runFlow: subflows/enable-biometric-if-needed.yaml
+- runFlow: subflows/dismiss-biometric-prompt-if-needed.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-today-screen'
+    timeout: 120000
+# Ensure enrollment if the post-login sheet was skipped.
+- openLink: kaizen:///kaizen/settings
+- extendedWaitUntil:
+    visible: 'Control how Kaizen supports you.'
+    timeout: 25000
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-biometric'
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Enable for faster login'
+    commands:
+      - tapOn:
+          id: 'settings-toggle-biometric'
+      - waitForAnimationToEnd:
+          timeout: 12000
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-settings-logout'
+    timeout: 30000
+- tapOn:
+    id: 'kaizen-settings-logout'
+- extendedWaitUntil:
+    visible:
+      id: 'auth-sign-in-email'
+    timeout: 90000
+- assertVisible:
+    id: 'auth-biometric-login'
+- tapOn:
+    id: 'auth-biometric-login'
+- waitForAnimationToEnd:
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-today-screen'
+    timeout: 120000
+- assertNotVisible:
+    id: 'auth-sign-in-email'

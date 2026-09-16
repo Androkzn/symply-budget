@@ -1,0 +1,21 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:platform
+  - readonly
+  - regression
+# Matrix: PLAT-NOTIF-014
+---
+- runFlow: subflows/launch-platform.yaml
+- runFlow: ../subflows/go-house-settings.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-notification-settings'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'settings-row-notification-settings'
+- extendedWaitUntil:
+    visible: 'Notification Settings'
+    timeout: 20000
+- assertVisible: 'Push Notifications'

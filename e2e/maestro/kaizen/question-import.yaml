@@ -1,0 +1,20 @@
+appId: com.symply.kaizen
+---
+# Question import — kaizen://import?e2eText= prefills + imports via screen effect.
+- runFlow: subflows/launch-kaizen.yaml
+- openLink: kaizen://import?e2eText=What%20is%20a%20closure%3F
+- extendedWaitUntil:
+    visible: 'Import questions'
+    timeout: 30000
+- assertVisible: 'QUESTION TEXT'
+- extendedWaitUntil:
+    visible:
+      id: kaizen-import-success
+    timeout: 90000
+- assertVisible:
+    id: kaizen-import-success
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

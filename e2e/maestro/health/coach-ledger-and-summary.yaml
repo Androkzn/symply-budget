@@ -1,0 +1,242 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:coach
+  - readonly
+  - regression
+# Matrix: HEALTH-AI-660 … HEALTH-AI-669
+---
+# Coach tab — the two cards that PERSIST: the stored measurement summary and the
+# commit ledger.
+#
+# ── WHY THIS FLOW EXISTS ────────────────────────────────────────────────────
+#
+# `coach-consent-and-turn.yaml` drives the conversation half of this screen and
+# was written before either of these cards existed. Both close a dead end that
+# had been open for two parity phases and that only a DEVICE can prove closed:
+#
+#   * **The summary used to exist only in the response that made it.** The
+#     producer has persisted a row through `POST /ai/body-insights/generate`
+#     since P3 and `GET /health/body-insights/latest` has served it since P2,
+#     with nothing on this side asking. Generating showed prose; leaving the
+#     screen lost it; coming back showed an empty card over a table that already
+#     held the answer. The fix is a hydrate on open — and "it survives leaving
+#     the screen" is exactly the assertion a unit test cannot make, because the
+#     unit test IS the mock that returns it.
+#   * **`WHAT THE COACH HAS LOGGED` is new.** It is the member-facing answer to
+#     "what did this thing do on my behalf", built on `GET /ai/coach/operations`
+#     and `…/:operationId`, neither of which had any caller at all before.
+#
+# ── NON-MUTATING, AND DELIBERATELY SO ───────────────────────────────────────
+#
+# Nothing here writes. It does not send a turn, does not confirm a proposal, and
+# does not clear the transcript — `coach-consent-and-turn.yaml` owns all three
+# and tears them down itself. Generating a summary is the one server call this
+# flow makes, and it is idempotent BY DESIGN: the producer reuses the existing
+# row for the day rather than accumulating (that is `HEALTH-AI-175`, and
+# `HEALTH-AI-587` proves it through the reader). So this flow needs no teardown
+# and can sit anywhere in the order.
+#
+# ── WHAT BRANCHES, AND WHY ──────────────────────────────────────────────────
+#
+# The ledger is EMPTY on an account that has never confirmed a coach suggestion
+# and non-empty on one that has, and the shared fleet account may be in either
+# state depending on what ran before. Both are legitimate, so the card is
+# asserted as "one of the two honest shapes" rather than as a fixed one — the
+# same two-branch treatment `cycle-log-and-predict.yaml` gives
+# `last_period_start`. What is asserted UNCONDITIONALLY is that the card is
+# there and states the rule that makes it trustworthy: nothing reaches it
+# without a tap.
+#
+# The summary likewise depends on whether any body measurement has ever been
+# logged on this account. `health-coach-body-message` is the honest answer when
+# none has, and it is asserted in that branch rather than skipped.
+#
+# CONSENT is a precondition this flow cannot create safely — granting is a
+# one-way door on this screen (no revoke affordance; see the matrix Flagged
+# section and `coach.posture.test.tsx`). It therefore only drives the generate
+# button when the gate is already gone, exactly as the sibling flow does.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-AI-660
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-coach.yaml
+
+      # --- The ledger card is always present (HEALTH-AI-660) --------------
+      # Present in EVERY state, including the empty one — a card that appeared
+      # only once there was something in it would leave a member who has never
+      # confirmed anything with no way to learn the rule below.
+      - scrollUntilVisible:
+          element:
+            id: 'health-coach-operations'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'WHAT THE COACH HAS LOGGED'
+
+      # --- …and it states the rule that makes it trustworthy (AI-661) -----
+      # This sentence is the whole claim of the feature: the coach cannot write.
+      # Merged-label text must be asserted as the FULL string on iOS 26.
+      - assertVisible:
+          id: 'health-coach-operations-scope'
+      - assertVisible: 'Every row here is something you confirmed. The coach cannot save anything on its own, so nothing reaches this list without your tap.'
+
+      # --- Empty vs populated, both honest (HEALTH-AI-662) ----------------
+      # An account that has never confirmed a suggestion says so in words rather
+      # than showing a blank card.
+      - runFlow:
+          when:
+            visible:
+              id: 'health-coach-operations-empty'
+          commands:
+            - assertVisible: 'Nothing yet. When you confirm one of the coach''s suggestions it will be listed here.'
+
+      # --- A receipt opens and closes (HEALTH-AI-663) ---------------------
+      # Only reachable on an account that HAS confirmed something. The row's own
+      # toggle id carries its operation id, so the generic `health-coach-operation-toggle-.*`
+      # selector is what a flow can address without knowing it.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-coach-operations-empty'
+          commands:
+            - tapOn:
+                id: 'health-coach-operation-toggle-.*'
+            # `GET /ai/coach/operations/:operationId` is a live call, so the
+            # panel is waited for rather than asserted in the same frame.
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-coach-operation-receipt'
+                timeout: 30000
+            # It resolves to a receipt OR to the honest "could not be loaded" —
+            # never to a spinner that stays. Both are asserted as the pair.
+            - extendedWaitUntil:
+                notVisible: 'Loading…'
+                timeout: 30000
+            # --- …and closing it collapses (HEALTH-AI-664) ----------------
+            # Without this a panel that opens and cannot be dismissed would pass
+            # every "it opened" assertion.
+            - tapOn:
+                id: 'health-coach-operation-toggle-.*'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'health-coach-operation-receipt'
+                timeout: 20000
+
+      # --- The measurement card states its scope, always (HEALTH-AI-665) --
+      - scrollUntilVisible:
+          element:
+            id: 'health-coach-body-generate'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'WHAT YOUR MEASUREMENTS SHOW'
+      - assertVisible:
+          id: 'health-coach-body-scope'
+
+      # --- Generate, then LEAVE and COME BACK (HEALTH-AI-666…668) ---------
+      # The regression this flow exists for. Only driven when consent is already
+      # in place — the gate is a one-way door this flow will not walk through.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-coach-consent-card'
+          commands:
+            # `generateBodyInsight` (healthCoachStorage.ts) →
+            # POST /health/ai/body-insights/generate. Idempotent upsert per
+            # the file header, but still a real write — verified below.
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+            - tapOn:
+                id: 'health-coach-body-generate'
+            # A real model call on a real body of measurements. Either
+            # observations or an explanatory message must come back;
+            # silence would mean the button did nothing.
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-coach-body-observations'
+                timeout: 120000
+                optional: true
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-coach-body-observations'
+                commands:
+                  # No measurements on this account — the honest answer, and the
+                  # one that tells the member what to do rather than that it
+                  # failed. Nothing was persisted, so there is nothing to
+                  # re-open for.
+                  - assertVisible:
+                      id: 'health-coach-body-message'
+            - runFlow:
+                file: ../subflows/e2e-verify-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+                  E2E_VERIFY_METHOD: POST
+                  E2E_VERIFY_PATH: /health/ai/body-insights/generate
+                  E2E_VERIFY_STATUS: '200'
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+
+            # --- The summary SURVIVES leaving the screen (HEALTH-AI-667) --
+            # This is the assertion no unit test can make: the row has to come
+            # back out of `body_comprehensive_insights` on the next open. Before
+            # the hydrate, this card was empty here.
+            - runFlow:
+                when:
+                  visible:
+                    id: 'health-coach-body-observations'
+                commands:
+                  - tapOn:
+                      id: 'tab-index'
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'health-home-screen'
+                      timeout: 30000
+                  - runFlow: subflows/go-health-coach.yaml
+                  - scrollUntilVisible:
+                      element:
+                        id: 'health-coach-body-generate'
+                      direction: DOWN
+                      timeout: 20000
+                      visibilityPercentage: 10
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'health-coach-body-observations'
+                      timeout: 30000
+                  # A HYDRATED summary knows which day it describes; a freshly
+                  # generated one does not print a date at all. The date line is
+                  # therefore the proof this came from the table rather than
+                  # from the response that made it.
+                  - assertVisible:
+                      id: 'health-coach-body-date'
+                  # --- …and the button now offers a REFRESH (AI-668) ------
+                  # `insight === null ? 'Summarise my measurements' : 'Refresh'`
+                  # — the label is the second, independent signal that the card
+                  # hydrated rather than starting empty.
+                  - assertVisible: 'Refresh'
+
+      # --- Back to the Health tab (HEALTH-AI-669) -------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

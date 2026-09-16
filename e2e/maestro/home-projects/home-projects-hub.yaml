@@ -1,0 +1,71 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home-projects
+  - readonly
+  - regression
+# Matrix: HOUSE-HPROJ-012…018 (project hub surfaces beyond create smoke)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-my-home.yaml
+- runFlow: ../subflows/dismiss-home-project-alert.yaml
+# Tap, then WAIT for the destination before asserting anything on it.
+#
+# This was a bare tap followed immediately by a bare `assertVisible`, which
+# races the navigation: My Home is a scrolling list of cards whose heights
+# settle after first paint, so the tap can land on a neighbour, and even a tap
+# that lands needs a moment to push the screen. Either way the assert ran while
+# My Home was still up and reported `home-projects-create` missing — pointing at
+# the Home Projects screen, which was never opened. Same shape and same reason
+# as the guard in `open-home-project-hub.yaml`.
+- repeat:
+    times: 3
+    while:
+      notVisible:
+        id: 'home-projects-list-screen'
+    commands:
+      - tapOn:
+          id: 'my-home-home-projects'
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'home-projects-list-screen'
+          timeout: 10000
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-projects-list-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'home-projects-create'
+- runFlow:
+    when:
+      visible:
+        id: 'home-project-hub-title'
+    commands:
+      - assertVisible:
+          id: 'home-project-hub-title'
+      - scrollUntilVisible:
+          element:
+            id: 'home-project-create-task'
+          direction: DOWN
+          timeout: 15000
+          optional: true
+          # Centre it: the floating tab bar covers the bottom of the viewport and
+          # Maestro measures visibility against the screen, not against what
+          # overlays it, so a "visible" CTA down there can still take the tap on
+          # the tab bar and switch tabs instead.
+          centerElement: true
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'home-projects-create'
+    commands:
+      - tapOn:
+          id: 'home-projects-create'
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true

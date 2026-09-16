@@ -1,0 +1,45 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Open Health widget settings (route `health-widget`, header "Widget").
+#
+# Same shape as `go-health-notifications.yaml`: registered in
+# `ROUTABLE_TAB_SCREENS` but deliberately kept OUT of the brand's `tabs` pool
+# (`app/(tabs)/health-widget.tsx` resolves to `href: null`) because it is a
+# settings page, not a section — invisible to the bottom bar and to
+# "Customize Tabs". The only way in is the More hub's PREFERENCES row.
+- runFlow: go-more.yaml
+# The row sits in PREFERENCES, below ACCOUNT and the tab list — below the fold
+# on a phone. Both directions are probed (a preceding flow may have left the
+# hub scrolled past it) and both are `optional` so a hub that already shows
+# the row does not fail on a no-op scroll.
+- scrollUntilVisible:
+    element:
+      id: 'health-setting-widget'
+    direction: UP
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'health-setting-widget'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- tapOn:
+    id: 'health-setting-widget'
+    retryTapIfNoChange: true
+# Waited on with `extendedWaitUntil` against a control INSIDE the screen: the
+# first paint blocks on `loadWidgetPreferences()`, a network read-through, so
+# the shell can be mounted for a beat before the cards exist.
+- extendedWaitUntil:
+    visible:
+      id: 'health-widget-screen'
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'health-widget-summary'
+    timeout: 30000

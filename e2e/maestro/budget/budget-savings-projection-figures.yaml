@@ -1,0 +1,201 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - regression
+# Savings → Projection: THE HEADLINE FIGURES.
+#
+# Reported 2026-09-09 as "I'm not sure the numbers on Projection are right".
+# Two existing flows cover this tab and neither reads a single headline number:
+#   • `budget-savings-projection.yaml` asserts the hero element is VISIBLE, never
+#     what it says, and checks the chart's month labels;
+#   • `budget-savings-projection-targets.yaml` does prove one figure end to end
+#     (it types a December target and reads it back off the row) but touches
+#     nothing above the month grid.
+#
+# So every number the member actually reads at the TOP of the screen — the
+# projected year-end, "CA$x banked · n months to go · goal CA$y", the best-month
+# callout and the Goal-performance card — was unasserted on a device. The engine
+# behind them is now pinned by `localSavingsProjector.test.ts`; this flow pins
+# that the screen RENDERS them, in the right shape, against the household's own
+# live data.
+#
+# WHY SHAPE AND NOT EXACT VALUES. The figures depend on the shared account's real
+# ledger on the day of the run, so hardcoding "CA$41,866" would rot within a
+# month and fail for reasons that have nothing to do with the code. What is
+# invariant is the SHAPE: a currency-formatted hero, a banked line that names an
+# amount and either the months left or "year complete", a hit-rate line reading
+# "n of m months (p%)". A regression that broke the maths — a NaN, an undefined,
+# a raw cents integer, a missing clause — breaks the shape, and that is what
+# these assertions catch. Exact arithmetic is unit-tested, where it belongs.
+#
+# READ-ONLY. This flow writes nothing and needs no cleanup, so it is safe to run
+# against the shared household in any order.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget
+      E2E_MATRIX_ROW: BUDGET-SAVE-103
+- runFlow: ../subflows/go-budget-savings.yaml
+
+# The month the previous flow left selected is inherited (savingsStore persists
+# nothing but is never torn down between flows), and every figure below is
+# year-scoped — so snap back to today before reading any of them.
+- openLink: simplebudget://e2e-savings-reset-month
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+
+# Drive the sub-tab by deep link — the segmented control tap is dropped on
+# iOS-26 New Arch (see the note in budget-savings-income-copy.yaml).
+- openLink: simplebudget://e2e-savings-set-tab?tab=projection
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-projection-loading'
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'savings-projection'
+    timeout: 30000
+
+# ==================== the year-end hero ====================
+# A household with no ledger at all renders the empty state instead, and there
+# is nothing to assert there — so everything below hangs off the real tab.
+- runFlow:
+    when:
+      visible:
+        id: 'savings-projection'
+      notVisible:
+        id: 'savings-projection-empty'
+    commands:
+      # The figure itself, not merely its box. Must be currency-formatted:
+      # a "CA$" prefix, grouped digits, optionally negative. This is what a
+      # NaN, an `undefined`, or a raw cents integer would fail.
+      - assertVisible:
+          id: 'savings-projection-year-end'
+          text: '-?CA\$[0-9,]+'
+
+      # "CA$20,866 banked · 3 months to go · goal CA$30,000".
+      # Three independent figures read as one sentence; assert each clause.
+      - assertVisible:
+          id: 'savings-projection-banked'
+          text: '.*banked.*'
+      - assertVisible:
+          id: 'savings-projection-banked'
+          text: '.*-?CA\$[0-9,]+ banked.*'
+      # Either months remain or the year is over — never neither, never both.
+      - assertVisible:
+          id: 'savings-projection-banked'
+          text: '.*(month to go|months to go|year complete).*'
+
+      # ==================== the best-month callout ====================
+      # "Your best month was July: CA$7,790 (one-off income aside)" — or, with
+      # no completed month yet, the first-goal invitation. Both are headlines;
+      # an empty one means `projectionHeadline` returned nothing renderable.
+      - assertVisible:
+          id: 'savings-projection-headline'
+          text: '.*[A-Za-z].*'
+
+      # ==================== goal performance ====================
+      # The whole card is conditional on at least one graded month, so both legs
+      # are optional — but when the card IS up, its numbers must be well formed.
+      - runFlow:
+          when:
+            visible:
+              id: 'savings-projection-goal-performance'
+          commands:
+            # "You hit your goal in 3 of 8 months (38%) — averaging 43% of target."
+            - assertVisible:
+                id: 'savings-projection-goal-performance'
+                text: '.*[0-9]+ of [0-9]+ month.*'
+            - assertVisible:
+                id: 'savings-projection-goal-performance'
+                text: '.*\([0-9]+%\).*'
+      - runFlow:
+          when:
+            visible:
+              id: 'savings-projection-goal-performance-amount'
+          commands:
+            # "CA$20,866 saved so far this year · CA$9,134 to go" — or, once the
+            # year goal is beaten, "· CA$x past goal". Never a bare number.
+            - assertVisible:
+                id: 'savings-projection-goal-performance-amount'
+                text: '.*-?CA\$[0-9,]+.*'
+            - assertVisible:
+                id: 'savings-projection-goal-performance-amount'
+                text: '.*(to go|past goal).*'
+
+# ==================== the month grid ====================
+# Every month renders either a currency figure or the em-dash placeholder used
+# for a completed month that holds no data. A month showing anything else —
+# "NaN", "undefined", "$NaN" — is the defect this catches.
+- scrollUntilVisible:
+    element:
+      id: 'savings-projection-month-1'
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- assertVisible:
+    id: 'savings-projection-month-1'
+    text: '(-?CA\$[0-9,]+|—)'
+- assertVisible:
+    id: 'savings-projection-month-caption-1'
+    text: '.*[A-Za-z].*'
+
+- scrollUntilVisible:
+    element:
+      id: 'savings-projection-month-6'
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- assertVisible:
+    id: 'savings-projection-month-6'
+    text: '(-?CA\$[0-9,]+|—)'
+# June is the month that reads "-122% of CA$7,000 goal" on the reporting
+# household — a graded month's caption must name the percentage AND the goal it
+# was graded against, including when the month went negative.
+- assertVisible:
+    id: 'savings-projection-month-caption-6'
+    text: '.*[A-Za-z].*'
+
+- scrollUntilVisible:
+    element:
+      id: 'savings-projection-month-12'
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- assertVisible:
+    id: 'savings-projection-month-12'
+    text: '(-?CA\$[0-9,]+|—)'
+- assertVisible:
+    id: 'savings-projection-month-caption-12'
+    text: '.*[A-Za-z].*'
+
+# A graded month names its percentage and the goal behind it. Optional because
+# whether ANY month is graded depends on the household having set targets.
+- runFlow:
+    when:
+      visible: '.*% of CA\$.*'
+    commands:
+      - assertVisible: '.*[0-9]+% of CA\$[0-9,]+ goal.*'
+
+# Leave the section on its default sub-tab for whatever runs next.
+- scrollUntilVisible:
+    element:
+      id: 'filter-tab-overview'
+    direction: UP
+    timeout: 20000
+    centerElement: true
+- tapOn:
+    id: 'filter-tab-overview'
+- assertVisible:
+    id: 'savings-view'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

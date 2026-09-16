@@ -1,0 +1,473 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - mutation
+  - regression
+# Matrix: BUDGET-SAVE-RENEWAL-001 — renewal reminders for Monthly Payments.
+# MUTATING but self-cleaning: creates a "Renewal Test Item" monthly payment,
+# enables renewal tracking with a near-term date, saves, proves the "Renews in
+# N days" pill renders on the row, marks it renewed (date rolls forward), then
+# deletes the payment (cascades the renewal row via ON DELETE CASCADE — no
+# separate renewal cleanup needed).
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/budget-purge-test-payments.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-SAVE-RENEWAL-001
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-monthly'
+- runFlow:
+    file: ../subflows/budget-savings-force-subtab.yaml
+    env:
+      E2E_SUBTAB: monthly
+- extendedWaitUntil:
+    visible:
+      id: 'savings-monthly-add'
+    timeout: 15000
+- tapOn:
+    id: 'savings-monthly-add'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-add'
+# Android: the Expo dev-client menu has been observed popping open around
+# this point (cause not fully pinned down), covering the form. Clear it
+# before waiting on the form's own content.
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# "+" opens an ADD MENU (manual / AI import) since the "streamline payment
+# addition" refactor — it no longer opens the form directly. budget-savings-
+# import already taps its own option here; this flow wants manual entry.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-add-manual'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-add-manual'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-label'
+    timeout: 30000
+- tapOn:
+    id: 'savings-recurring-form-label'
+- inputText: 'Renewal Test Item'
+- tapOn:
+    id: 'savings-recurring-form-amount'
+- inputText: '60'
+# Save is the LAST control and the numeric keypad survives `hideKeyboard`, so a
+# blind tap here lands on the keypad: the form stays open and the failure
+# surfaces one step later as "savings-recurring-payments never appeared"
+# (observed 2026-08-24 on Budget-B). Drag the keypad away, then scroll the
+# button into reach before tapping.
+- runFlow: ../subflows/budget-dismiss-keypad.yaml
+# Group DEFAULTS to "Loans & Debt" (intentional — see EMPTY_FORM and the unit
+# test "Group defaults to Loans & Debt"), which mounts the loan draft section
+# with tracking already ON. Saving then requires a principal and raises the
+# native alert "Loan details — Missing principal", which Maestro cannot see:
+# the form stays open and the run wedges on the NEXT selector instead
+# (observed 2026-08-24, Budget-C). This item is a plain renewal, not a loan, so
+# turn tracking off exactly as a member would. The row is a plain View, so the
+# switch inside it is addressable on its own.
+# Scroll to the switch FIRST. It renders below the form fields, so a bare
+# `when: visible` guard was false and the whole block was skipped — tracking
+# stayed on and the save still raised "Missing principal" (observed 2026-08-24,
+# Budget-C, twice). The scroll is optional so the flow still works if the
+# group default ever changes and no loan section is rendered at all.
+- scrollUntilVisible:
+    element:
+      id: 'loan-tracking-switch'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'loan-tracking-switch'
+    commands:
+      - tapOn:
+          id: 'loan-tracking-switch'
+      # With tracking off the loan fields unmount, so the save below has
+      # nothing to validate.
+      - assertNotVisible:
+          id: 'loan-principal'
+- scrollUntilVisible:
+    element:
+      id: 'savings-recurring-form-save'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-recurring-form-save'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 20000
+# Reopen the just-created item to reach the renewal section (only shown when
+# editing an EXISTING payment — a real recurring_payment_id is required).
+# `visibilityPercentage` + `centerElement` are load-bearing: this household
+# carries ~$10k of real payments, so the new row sorts well below the fold. A
+# ScrollView keeps every row in the hierarchy, so without them the scroll can
+# stop early (or no-op) and the tap lands on empty space — the form never
+# opens and it surfaces 15s later as a missing `renewal-tracking-toggle`.
+- scrollUntilVisible:
+    element: '.*Renewal Test Item.*'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+    visibilityPercentage: 60
+    optional: true
+- tapOn: '.*Renewal Test Item.*'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-label'
+    timeout: 15000
+# The renewal section renders BELOW the months grid, so waiting on
+# `renewal-tracking-toggle` before scrolling could never succeed — the reopen
+# had already worked and the form was open, the section was simply off screen
+# (screenshot at the failure shows the Edit form for "Renewal Test Item" with
+# the toggle nowhere in view, 2026-08-24 Budget-C). Wait on the FORM, then
+# scroll the section into view and assert it there.
+- scrollUntilVisible:
+    element:
+      id: 'renewal-tracking-toggle'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+    visibilityPercentage: 60
+- assertVisible:
+    id: 'renewal-tracking-toggle'
+- scrollUntilVisible:
+    element:
+      id: 'renewal-tracking-switch'
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+    optional: true
+# LET THE SECTION SETTLE FIRST — this is a race, not just an idempotency
+# problem. RenewalReminderSection loads its renewal asynchronously and only then
+# runs `setTracking(r !== null)`. Deciding before that resolves reads
+# tracking=false for a payment that IS tracked (leftovers survive because this
+# flow's cleanup only runs on success), so the tap lands as a turn-OFF — which
+# raises the native confirm "Stop tracking?" that Maestro cannot see, wedging
+# every step after it (2026-08-24, Budget-C, twice).
+- waitForAnimationToEnd:
+    timeout: 5000
+# SCROLL FIRST, then decide. A `when: notVisible` guard cannot answer "is
+# tracking already on?" — Maestro's visibility is VIEWPORT based, so a date row
+# that exists but sits below the fold reads as notVisible exactly like one that
+# was never rendered. That is what happened: the guard fired on an already-
+# tracked payment, the tap became a turn-OFF, and the native "Stop tracking?"
+# confirm appeared (the run log shows this flow tapping ^Cancel$ on it).
+# Scrolling to the row first collapses both cases: if it comes into view,
+# tracking is already on and nothing needs tapping.
+- scrollUntilVisible:
+    element:
+      id: 'renewal-next-date'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+    visibilityPercentage: 60
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'renewal-next-date'
+    commands:
+      # Bring the switch itself on screen before tapping it. The scroll above
+      # hunts `renewal-next-date`, which does NOT render while tracking is off,
+      # so that scroll always exhausts and parks at the BOTTOM of the form —
+      # wherever the switch happens to land is luck, and a tap that misses is
+      # silent.
+      - scrollUntilVisible:
+          element:
+            id: 'renewal-tracking-toggle'
+          direction: UP
+          timeout: 15000
+          centerElement: true
+          visibilityPercentage: 60
+          optional: true
+      - tapOn:
+          id: 'renewal-tracking-switch'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      # Belt and braces: if the state still flipped underneath us, back out of
+      # the confirm rather than deleting the renewal this flow needs.
+      - runFlow:
+          when:
+            visible: '.*Stop tracking.*'
+          commands:
+            - tapOn: '^Cancel$'
+      # PROVE THE TAP TOOK. `renewal-next-date` only renders while tracking is
+      # on (`{tracking && ...}` in RenewalReminderSection), so its appearance is
+      # the switch's state made assertable. Without this the miss is invisible
+      # here and surfaces ~20 steps later as "no renewal pill" on the list, with
+      # a screenshot showing "Track a renewal" simply OFF (2026-08-25, Budget-C,
+      # twice) — the same unassertable-action trap as the 0%-APR rate chip.
+      #
+      # SCROLL to it rather than waiting: turning tracking on renders the date
+      # row BELOW the switch, so it is off screen the instant it appears, and a
+      # bare `visible` wait is viewport based — it fails even when the toggle
+      # worked perfectly (2026-08-25: this assertion's own first version did
+      # exactly that).
+      - scrollUntilVisible:
+          element:
+            id: 'renewal-next-date'
+          direction: DOWN
+          timeout: 15000
+          centerElement: true
+          visibilityPercentage: 60
+# Turning tracking ON reveals the date row BELOW the switch, so it starts off
+# screen — waiting on it before scrolling could never succeed, exactly like the
+# toggle above. Scroll it into view first, then assert and tap.
+- scrollUntilVisible:
+    element:
+      id: 'renewal-next-date'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+    visibilityPercentage: 60
+- assertVisible:
+    id: 'renewal-next-date'
+- tapOn:
+    id: 'renewal-next-date'
+# Clear the default (today + 365 days) and enter a near-term date so the
+# "Renews in N days" pill shows a small, deterministic-enough number to assert
+# a non-empty match against.
+- eraseText
+- inputText: '2099-12-31'
+- hideKeyboard:
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'renewal-save'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: 'renewal-save'
+# Same shape as the toggle and the date row: this button renders below the
+# saved renewal block, so scroll to it rather than waiting blind.
+- scrollUntilVisible:
+    element:
+      id: 'renewal-mark-renewed'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+    visibilityPercentage: 60
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'renewal-mark-renewed'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-form-cancel'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 15000
+# FORCE A REFETCH before looking for the pill. The renewal is written by
+# `renewal-save` (its own API call) while the payments list is already mounted,
+# and the list carries the pill via each item's `renewal_summary` — so a list
+# that does not re-read after the save still shows the row with no pill.
+#
+# That matches the evidence exactly: on 2026-08-25 the row rendered correctly
+# ("Renewal Test Item $60" with its "Aug–Dec 2026" months pill) and ONLY the
+# renewal pill was missing. It also explains why this flow passed before the
+# entry purge landed — leftover items from earlier runs already had renewals
+# persisted, so a freshly loaded list showed their pills; with a clean slate
+# the renewal is created during THIS session and never makes it into the list.
+#
+# Leaving the screen and coming back remounts it and re-reads the payments.
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-monthly'
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: 'savings-monthly-add'
+    direction: UP
+    timeout: 20000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-monthly-add'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 20000
+# The pill renders on the row once a renewal is tracked. The row sits below the
+# fold in this household (~$10k of real payments), and an `optional` scroll
+# without a visibility requirement can stop short or no-op — leaving the pill in
+# the hierarchy but off screen, so the assert right after it fails
+# (2026-08-24, Budget-C, after the toggle/date/mark-renewed fixes landed).
+#
+# REWIND TO THE TOP FIRST. Closing the form leaves the list wherever the edit
+# left it, which is often BELOW the test row, and a DOWN-only search can never
+# come back up to it: the scroll exhausts and the assert fails even though the
+# pill rendered correctly. The 2026-08-25 screenshot shows exactly this — the
+# row's "Aug–Dec 2026" pill clipped at the TOP edge of the viewport while the
+# search ran downward through Utilities.
+- scrollUntilVisible:
+    element:
+      id: 'savings-recurring-total'
+    direction: UP
+    timeout: 15000
+    visibilityPercentage: 40
+    optional: true
+# Scroll to the ROW, not to the pill. The pill is a small nested View inside the
+# row; hunting it directly kept ending in "No visible element found" even with
+# the rewind above, while scrolling to '.*Renewal Test Item.*' is the same
+# lookup this flow already performs successfully twice earlier. Land the row,
+# then assert the pill on it.
+#
+# The pill itself is not in doubt: `renewalPillInfo` returns a label for ANY
+# `status === 'upcoming'` renewal (only the tone changes once inside
+# `reminder_lead_days`), so the 2099 date this flow sets still renders
+# "Renews in N days".
+- scrollUntilVisible:
+    element: '.*Renewal Test Item.*'
+    direction: DOWN
+    timeout: 25000
+    centerElement: true
+    visibilityPercentage: 60
+- assertVisible:
+    id: 'savings-recurring-renewal-pill'
+
+# Cleanup — delete the payment (cascades the renewal + any documents).
+- scrollUntilVisible:
+    element: '.*Renewal Test Item.*'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+    visibilityPercentage: 60
+    optional: true
+- tapOn: '.*Renewal Test Item.*'
+# Delete is the LAST control of a long form, so it starts below the fold —
+# waiting on it without scrolling could never succeed (2026-08-24, Budget-C:
+# the flow reached cleanup and died here). Scroll DOWN to it; never back up,
+# because this form is a pageSheet and an upward drag dismisses it.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-label'
+    timeout: 15000
+# No `centerElement`/`visibilityPercentage` here: "Delete payment" is the LAST
+# element of the form, so it can never BE centred and the scroll just burns its
+# full timeout, ending in "No visible element found:
+# savings-recurring-form-delete" (2026-08-25 — same trap already removed from
+# the residue-purge flow).
+- scrollUntilVisible:
+    element:
+      id: 'savings-recurring-form-delete'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'savings-recurring-form-delete'
+# ANCHOR THIS. The confirm dialog reads "Delete payment / Remove "<name>"? /
+# Cancel | Delete", so a loose '.*Delete.*' matches the dialog TITLE as well as
+# the button — and Maestro takes the FIRST match, the title, which is not
+# tappable. The dialog then just sits there and the delete never happens
+# (2026-08-25: this stalled this flow's cleanup drain and the residue purge).
+# '^Delete$' hits the button only, matching goal-crud and monthly-crud.
+- extendedWaitUntil:
+    visible: '^Delete$'
+    timeout: 10000
+- tapOn: '^Delete$'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 20000
+# DRAIN every "Renewal Test Item", not just the one this run created. The flow
+# is mutating and its cleanup only runs on success, so each earlier failure left
+# one behind — deleting a single row then leaves siblings and the closing
+# assertNotVisible can never hold (2026-08-24, Budget-C: the flow completed the
+# whole renewal lifecycle and died on this last line). Repeat is bounded so a
+# row that refuses to delete fails loudly instead of looping forever.
+# 12, not 6: the run log shows the drain working (tap → form → delete, over and
+# over) but running out of iterations. Roughly ten earlier failures each left a
+# "Renewal Test Item" behind, because this flow's cleanup only runs on success,
+# so the backlog is deeper than the original bound. It is self-limiting — once
+# the backlog clears, a passing run leaves at most one — and still bounded so a
+# row that refuses to delete fails loudly instead of spinning.
+- repeat:
+    times: 12
+    commands:
+      # Rewind to the top of the list BEFORE searching. Deleting a row shifts
+      # every remaining row UP, but the viewport stays deep in the list where
+      # the previous delete left it, so the next "Renewal Test Item" is often
+      # ABOVE the current position. A DOWN-only search can never reach it: the
+      # scroll quietly exhausts (optional), the `visible` guard is false, and
+      # the loop spins without deleting — exactly the observed "deletes the
+      # first row then stops" (2026-08-25, Budget-C).
+      - scrollUntilVisible:
+          element:
+            id: 'savings-recurring-total'
+          direction: UP
+          timeout: 10000
+          visibilityPercentage: 40
+          optional: true
+      - scrollUntilVisible:
+          element: '.*Renewal Test Item.*'
+          direction: DOWN
+          timeout: 12000
+          centerElement: true
+          visibilityPercentage: 60
+          optional: true
+      - runFlow:
+          when:
+            visible: '.*Renewal Test Item.*'
+          commands:
+            - tapOn: '.*Renewal Test Item.*'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-recurring-form-label'
+                timeout: 15000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'savings-recurring-form-label'
+                commands:
+                  # Last element of the form — cannot be centred, so no
+                  # `centerElement`/`visibilityPercentage` (see above).
+                  - scrollUntilVisible:
+                      element:
+                        id: 'savings-recurring-form-delete'
+                      direction: DOWN
+                      timeout: 15000
+                  - tapOn:
+                      id: 'savings-recurring-form-delete'
+                  - extendedWaitUntil:
+                      visible: '^Delete$'
+                      timeout: 10000
+                  - tapOn: '^Delete$'
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'savings-recurring-payments'
+                      timeout: 20000
+                  # Let the list re-render settle before the next iteration
+                  # taps again — a tap landing mid-reflow hits a detached row
+                  # and the form never opens.
+                  - waitForAnimationToEnd:
+                      timeout: 5000
+- assertNotVisible: '.*Renewal Test Item.*'
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

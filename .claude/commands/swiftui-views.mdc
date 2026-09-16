@@ -1,0 +1,97 @@
+---
+description: "SwiftUI view patterns and reusable component library. Apply when creating or modifying views."
+globs: "**/Views/**/*.swift"
+alwaysApply: false
+---
+
+# SwiftUI View Patterns
+
+## Before Creating New Components
+
+Check `step/Views/SharedViews/` for existing components:
+
+**Buttons**: `PrimaryButton`, `SecondaryButton`, `DestructiveTextButton`, `HeaderIconButton`, `VideoControlButton`, `VideoPrimaryButton`, `VideoTextButton`, `VideoActionButton`
+
+**Cards**: `VideoCardView`, `ProgramCardView`, `CoachCardView`, `LiveClassCardView`, `TopPicksCardView`, `ActivityConfirmationCard`, `SmallClassCard`
+
+**Loading**: `AnimatedSpinner` (full screen), `ShimmerModifier` (skeleton), `AnimatedDots` (text/AI), `LoadingIndicator`
+
+**Inputs**: `UnifiedPhoneEmailField`, `ChatInputBar`
+
+**Badges**: `PillarBadge`, `DurationBadge`, `IntensityTag`
+
+**Other**: `CategoryView`, `SubCategoryView`, `MuscleGroupView`, `NoInternetView`, `OfflineBannerView`, `GuestModeOverlay`, `FloatingTabBar`
+
+## Navigation Pattern
+
+```swift
+.navigationBarTitleDisplayMode(.inline)
+.navigationBarBackButtonHidden(true)
+.toolbar {
+    ToolbarItem(placement: .navigationBarLeading) {
+        HeaderIconButton(icon: .back) { dismiss() }
+    }
+}
+```
+
+## Screen States — Every Screen Must Handle
+
+1. **Content** — Normal data display
+2. **Loading** — Shimmer skeletons (lists/grids), `AnimatedSpinner` (full screen), `AnimatedDots` (text/AI)
+3. **Empty** — Icon (64pt, 40% opacity) + title + description + CTA button
+4. **Error** — Use `ErrorService.shared`
+5. **Offline** — `OfflineBannerView` or `NoInternetView`
+
+## Background Modifiers
+
+| Modifier | Usage |
+|---|---|
+| `.appBackground()` | Main app screens (gradient + blurred pillar blobs) |
+| `.sheetBackground()` | Bottom sheets (solid color) |
+| `.background(.ultraThinMaterial)` | Glass effect for elevated surfaces |
+
+## Section Header Hierarchy
+
+| Tier | Token | Style | Usage |
+|---|---|---|---|
+| **Primary** | `title` / `titleSmall` | 20-24pt sentence case | Top-level sections |
+| **Structural** | `overline` | 11pt UPPERCASE `textSecondary` | Sub-section markers in detail views |
+
+Never mix tiers.
+
+## Hero Image (Detail Screens)
+
+Use for `VideoDetailView`, `ProgramDetailView`, `CoachDetailView`, `LiveClassDetailView`:
+- Height: `DesignTokens.HeroImage.height` (320pt)
+- Aspect: 16:9 fill
+- Overlay: 4-stop gradient (black@30% → clear → clear → background@60%)
+- Bottom corners: rounded `DesignTokens.HeroImage.bottomCornerRadius` (20pt)
+
+## Frozen Pane / Section Header
+
+Edge-to-edge structural divider (no corner radius):
+```swift
+VStack(spacing: 0) {
+    Divider().opacity(0.3)
+    HStack {
+        Text("SECTION TITLE")
+            .scaledFont(DesignTokens.Typography.overline)
+            .foregroundColor(Color.AppColors.textSecondary)
+        Spacer()
+    }
+    .padding(.horizontal, DesignTokens.Layout.pageMargin)
+    .padding(.vertical, DesignTokens.Spacing.md)
+    .background(Color.AppColors.chaptersBackground)
+    Divider().opacity(0.3)
+}
+```
+
+## Haptic Feedback
+
+| Action | Feedback |
+|---|---|
+| Primary tap (button, card) | Medium |
+| Secondary tap (cancel, back) | Light |
+| Destructive (delete, logout) | Heavy |
+| Success (completion) | Success |
+| Error (form failure) | Error |

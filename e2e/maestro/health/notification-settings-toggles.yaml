@@ -1,0 +1,303 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:notifications
+  - mutation
+  - regression
+# Matrix: HEALTH-NOTIF-101 … HEALTH-NOTIF-110
+---
+# Health notification settings — the ten activity flags, on a device.
+#
+# WHY THIS FLOW EXISTS
+# --------------------
+# `PUT /health/activity-preferences` shipped in parity P2 with no caller at all;
+# `HealthNotificationSettingsScreen` is the screen that finally owns those ten
+# booleans. Its contract has three parts that only a device can prove:
+#
+#   1. the switch moves OPTIMISTICALLY (`setPrefs` before the request) and the
+#      value SURVIVES leaving and re-entering the screen — i.e. it really was
+#      written, not just painted;
+#   2. each toggle sends ONLY its own flag, so flipping one must not disturb the
+#      other nine (a whole-object PUT from an older build overwriting a newer
+#      build's flag is the exact bug the per-key patch exists to prevent);
+#   3. the two DISCLOSURE sentences are on screen. They are the reason this
+#      screen is honest: nothing on the Worker reads nine of these ten flags,
+#      because the donor features that produce those events (family sharing, the
+#      buddy community) are not part of the port. A settings screen that implies
+#      "turn this off and we stop sending you X" while nothing sends X is a
+#      quiet lie, and the copy is what stops it being one.
+#
+# STATE ASSUMPTIONS
+# -----------------
+# Requires a session (shared fleet account `a.tekhtelev@gmail.com`). The body is
+# wrapped in `runFlow: when: visible: health-home-screen` so a build sitting at
+# the login surface SKIPS instead of hard-failing, matching every other health
+# flow.
+#
+# These flags are ACCOUNT-level and stored server-side, so they are shared with
+# every other flow and every other device signed into the test account. The flow
+# therefore asserts against the DEFAULT set and restores it — see TEARDOWN.
+#
+# `notify_photo_shared` is the flag under test because it defaults ON and is in
+# the middle of the sharing group, so its row is on screen without scrolling
+# once the group is visible. `notify_community_achievement` is the second,
+# chosen because it defaults OFF — the two together prove the write works in
+# both directions rather than only "on → off".
+#
+# TEARDOWN
+# --------
+# The screen ships its own restore path — the "Reset to standard settings" card
+# PUTs all ten flags explicitly. That is the teardown: it is one tap, it is
+# idempotent, and it cannot leave a half-restored account behind the way
+# flipping each switch back individually can if the run dies mid-flow. It is
+# run LAST and its effect is asserted, because a teardown nobody checks is a
+# teardown that silently stops working.
+#
+# iOS-26 HARNESS NOTES
+# --------------------
+# No assertion in this flow depends on scrolling the settings ScrollView
+# (Maestro cannot drive RN New-Arch ScrollViews reliably on iOS 26). The
+# delivery group is first on screen, and the sharing/community groups are
+# reached with `scrollUntilVisible … optional: true`, which degrades to
+# "already visible" rather than failing.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-notifications.yaml
+
+      # --- HEALTH-NOTIF-101: the three donor groups render -----------------
+      # Titles are asserted as the full uppercased string the screen renders,
+      # not as a fragment: RN merges the Typography children into one label, so
+      # a substring match can pass against a different row.
+      - assertVisible:
+          id: 'health-notifications-group-delivery'
+      - assertVisible: 'HOW WE REACH YOU'
+      - assertVisible:
+          id: 'health-notifications-group-sharing'
+
+      # --- HEALTH-NOTIF-102: the delivery switches are the master pair ------
+      # MOVED ABOVE the community scroll below (2026-08-02): this block used to
+      # sit AFTER that scroll and failed outright — the file header's own STATE
+      # ASSUMPTIONS note claims "no assertion in this flow depends on scrolling
+      # … the delivery group is first on screen", but the community scroll a few
+      # steps down pushes delivery (and its disclosure sentence, HEALTH-NOTIF-
+      # 103 below) off the TOP of the screen once it runs. Asserting both here,
+      # before that scroll, is what actually keeps the header's claim true.
+      - assertVisible:
+          id: 'health-notify-receive_push_notifications'
+      - assertVisible:
+          id: 'health-notify-receive_inapp_notifications'
+      - assertVisible: 'Push notifications'
+      - assertVisible: 'In-app notifications'
+
+      # --- HEALTH-NOTIF-103a: the delivery-group disclosure is ON SCREEN ----
+      # Also moved above the community scroll, for the same reason — this
+      # sentence lives in the delivery group, not the sharing one, so it is
+      # only guaranteed visible before that scroll runs.
+      - assertVisible:
+          id: 'health-notifications-disclosure-delivery'
+
+      # --- HEALTH-NOTIF-103b: the sharing-group disclosure is ON SCREEN -----
+      # MOVED ABOVE the community scroll (2026-08-02), same bug class as
+      # HEALTH-NOTIF-102/103a above. `health-notifications-disclosure-sharing`
+      # is rendered as the FIRST child inside the `group-sharing` Card, right
+      # after its title (HealthNotificationSettingsScreen.tsx: title →
+      # disclosure → toggles), so it sits near the TOP of the sharing section
+      # — well before the 6 toggle rows that follow it. The community-scroll
+      # block below has to travel past all 6 of those rows (recipes/updates/
+      # custom foods/videos/photos/milestones) to bring `group-community` into
+      # view, which drags this disclosure off the TOP of the screen. Because
+      # the scroll only ever goes DOWN, once that happens the disclosure can
+      # never be scrolled back INTO view by a DOWN scroll — reproduced 2026-08-
+      # 02, the live run's failure screenshot shows the tail of the sharing
+      # toggles (Workout videos/Progress photos/Milestones) followed straight
+      # by the COMMUNITY group, with the family-sharing disclosure long gone
+      # off-screen above. Asserting it here, before that scroll, keeps this
+      # sentence checkable at all. The scrollUntilVisible below is a no-op
+      # safety net for shorter devices where it isn't already on screen at
+      # this point (mirrors HEALTH-NOTIF-102's structure), not the fix itself.
+      #
+      # These two sentences are the contract, not decoration. Asserted verbatim
+      # so a copy edit that drops the "nothing sends these" clause fails here
+      # rather than shipping a settings screen that over-promises.
+      - scrollUntilVisible:
+          element:
+            id: 'health-notifications-disclosure-sharing'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible: 'Symply Health has no family sharing yet, so nothing sends these today. Your choices are saved to your account and apply as soon as it lands.'
+
+      # The sharing group grew to 6 rows (recipes/updates/custom foods/videos/
+      # photos/milestones), which now pushes COMMUNITY off-screen at this point
+      # — reproduced 2026-08-01, this header's own claim that community is
+      # "reached with scrollUntilVisible" was aspirational, not yet wired here.
+      - scrollUntilVisible:
+          element:
+            id: 'health-notifications-group-community'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-notifications-group-community'
+
+      # --- HEALTH-NOTIF-104: an ON flag can be switched OFF -----------------
+      # `notify_photo_shared` ships ON. Tapping it is a real PUT to the account.
+      # REAL mutation: toggle() -> saveNotificationPreferences() ->
+      # healthApi.saveActivityPreferences() -> PUT /health/activity-preferences,
+      # 200 (HealthNotificationSettingsScreen.tsx, healthSettingsStorage.ts,
+      # src/api/health.ts). Per-key patch — only `notify_photo_shared` is sent.
+      - scrollUntilVisible:
+          element:
+            id: 'health-notify-notify_photo_shared'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-notify-notify_photo_shared'
+          retryTapIfNoChange: true
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/activity-preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- HEALTH-NOTIF-105: an OFF flag can be switched ON -----------------
+      # `notify_community_achievement` ships OFF — the opposite direction, so a
+      # write path that only ever clears a bit cannot pass this flow.
+      # Same REAL mutation as HEALTH-NOTIF-104: PUT /health/activity-preferences,
+      # this time patching `notify_community_achievement` only.
+      - scrollUntilVisible:
+          element:
+            id: 'health-notify-notify_community_achievement'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-notify-notify_community_achievement'
+          retryTapIfNoChange: true
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/activity-preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- HEALTH-NOTIF-106: the choice SURVIVES leaving the screen ---------
+      # The point of the whole flow. An optimistic switch that was never written
+      # looks identical to a written one until you come back: `loadNotification-
+      # Preferences` re-reads through the cache to the Worker on mount, so a
+      # value still present here was persisted to the account.
+      - runFlow: subflows/go-more.yaml
+      - assertVisible:
+          id: 'health-more-screen'
+      - runFlow: subflows/go-health-notifications.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'health-notifications-group-sharing'
+          timeout: 30000
+
+      # --- HEALTH-NOTIF-107 + TEARDOWN: reset restores all ten -------------
+      # Run before leaving, and asserted, because an un-restored account leaks
+      # into every other flow on the shared test user.
+      - scrollUntilVisible:
+          element:
+            id: 'health-notifications-reset'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible: 'Puts all ten switches back the way Symply Health ships them.'
+      # REAL mutation: reset() -> resetNotificationPreferences() ->
+      # healthApi.saveActivityPreferences() -> PUT /health/activity-preferences,
+      # 200 — same route as the two toggles above, this time with all ten
+      # DEFAULT_HEALTH_NOTIFICATION_PREFERENCES flags in the body
+      # (healthSettingsStorage.ts, src/api/health.ts).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-notifications-reset'
+          retryTapIfNoChange: true
+      # The screen reports the outcome in words — never a status code, never a
+      # system error string (see `NOTIFY_PREFS_OFFLINE_MESSAGE`).
+      - extendedWaitUntil:
+          visible:
+            id: 'health-notifications-message'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/activity-preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- HEALTH-NOTIF-108: the reset really landed on the account --------
+      # Re-enter the screen a second time so the assertion is against a fresh
+      # read rather than the in-memory state the reset just set.
+      - runFlow: subflows/go-more.yaml
+      - runFlow: subflows/go-health-notifications.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'health-notifications-group-community'
+          timeout: 30000
+
+      # --- HEALTH-NOTIF-109: the More hub summarises the current state ------
+      # The row subtitle is generated by `describeNotificationPreferences`, so
+      # after the reset it must read the shipped default: push on, and FIVE of
+      # the eight activity alerts enabled — `notify_recipe_updated` and both
+      # `notify_community_*` ship OFF. The number is the cheapest end-to-end
+      # proof that the reset wrote all ten rather than only the ones on screen.
+      - runFlow: subflows/go-more.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'health-setting-notifications'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible: 'Push on · 5 of 8 activity alerts'

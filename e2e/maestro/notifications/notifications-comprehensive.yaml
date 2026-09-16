@@ -1,0 +1,104 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:notifications
+  - mutation
+  - regression
+# Matrix: HOUSE-NOTIF-003,006–016,020,021
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-NOTIF-003
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-notifications.yaml
+- assertVisible:
+    id: 'notifications-screen'
+# Row content + mark read (HOUSE-NOTIF-003,004,016).
+- runFlow:
+    when:
+      visible:
+        id: 'notification-row'
+    commands:
+      - assertVisible:
+          id: 'notification-row'
+      - tapOn:
+          id: 'notification-row'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+            - waitForAnimationToEnd:
+                timeout: 3000
+      # Row tap routes off-list (tasks tab, etc.) — reopen notifications instead of expecting back-stack.
+      - runFlow: ../subflows/open-notifications.yaml
+      - runFlow:
+          when:
+            visible:
+              id: 'notification-row'
+          commands:
+            - tapOn:
+                id: 'notification-row'
+# Mark all read (HOUSE-NOTIF-005 covered in actions; repeat idempotent).
+- runFlow:
+    when:
+      visible: 'Mark all notifications as read'
+    commands:
+      - tapOn: 'Mark all notifications as read'
+      - waitForAnimationToEnd:
+          timeout: 4000
+# Swipe delete cancel (HOUSE-NOTIF-006).
+- runFlow:
+    when:
+      visible:
+        id: 'notification-row'
+    commands:
+      - swipe:
+          start: 90%, 50%
+          end: 10%, 50%
+          duration: 400
+      - runFlow:
+          when:
+            visible: 'Delete'
+          commands:
+            - tapOn: 'Delete'
+            - waitForAnimationToEnd:
+                timeout: 3000
+# Clear all → confirm → cancel (HOUSE-NOTIF-007,014).
+- runFlow:
+    when:
+      visible: 'Clear all notifications'
+    commands:
+      - tapOn: 'Clear all notifications'
+      - extendedWaitUntil:
+          visible: 'Cancel'
+          timeout: 10000
+      - tapOn: 'Cancel'
+# Empty state after manual clear is not forced — assert screen still mounts.
+- runFlow:
+    when:
+      visible:
+        id: 'notifications-empty-state'
+    commands:
+      - assertVisible:
+          id: 'notifications-empty-state'
+# Scroll contract.
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: notifications-screen-scroll-end
+- assertVisible:
+    id: 'notifications-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

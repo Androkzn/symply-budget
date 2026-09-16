@@ -1,0 +1,67 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:ai-access
+  - readonly
+  - regression
+# Matrix: PLAT-AIACC-053
+# Per-provider data-sharing consent gate (Apple App Review Guideline 5.1.2(i)).
+# Verifies the connect screen shows, BEFORE any key is saved: the "what you
+# share" disclosure, that the app does not store submitted personal data, the
+# provider's official policy links, the explicit consent checkbox naming the
+# provider, and — for Gemini only — the free-tier training warning card.
+# See documents/engineering/ai-provider-consent-legal.md.
+---
+- runFlow: subflows/launch-platform.yaml
+
+# ── Gemini: the high-risk provider (free tier trains + human-reviews) ─────────
+- openLink: simplehouse://ai-access/connect?provider=gemini
+- extendedWaitUntil:
+    visible:
+      id: 'ai-access-connect-screen'
+    timeout: 20000
+- assertVisible: 'Connect Google Gemini'
+
+# The data-sharing disclosure + "we don't store it" promise.
+- scrollUntilVisible:
+    element:
+      text: 'What you share with'
+    direction: DOWN
+    timeout: 20000
+- assertVisible: 'does not store your prompts'
+
+# Gemini MUST carry the free-tier training warning card.
+- scrollUntilVisible:
+    element:
+      id: 'ai-free-tier-warning'
+    direction: DOWN
+    timeout: 20000
+
+# The explicit, provider-named consent gate toggles (no key saved).
+- scrollUntilVisible:
+    element:
+      id: 'ai-consent-checkbox'
+    direction: DOWN
+    timeout: 20000
+- assertVisible: 'under my own account and terms'
+- tapOn:
+    id: 'ai-consent-checkbox'
+- assertVisible:
+    id: 'ai-connect-button'
+
+# ── Anthropic: no free-tier warning (the differentiator) ─────────────────────
+- openLink: simplehouse://ai-access/connect?provider=anthropic
+- extendedWaitUntil:
+    visible:
+      id: 'ai-access-connect-screen'
+    timeout: 20000
+- assertVisible: 'Connect Anthropic Claude'
+- scrollUntilVisible:
+    element:
+      id: 'ai-consent-checkbox'
+    direction: DOWN
+    timeout: 20000
+- assertVisible: 'does not use API data to train its models'
+# Anthropic renders NO free-tier warning card (element never mounts).
+- assertNotVisible:
+    id: 'ai-free-tier-warning'

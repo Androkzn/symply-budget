@@ -1,0 +1,39 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:spaces
+  - readonly
+  - regression
+# Matrix: HOUSE-SPACE-* (see documents/engineering/testing/matrices/house.md)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-settings-tab.yaml
+- assertVisible:
+    id: 'settings-screen'
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-spaces'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'more-tab-spaces'
+- extendedWaitUntil:
+    visible:
+      id: 'spaces-management-screen'
+    timeout: 20000
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: spaces-management-screen-scroll-end
+- assertVisible:
+    id: 'spaces-add-button'
+- tapOn:
+    id: 'spaces-add-button'
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn:
+    text: 'Cancel'
+    optional: true
+- tapOn:
+    id: 'nav-back-button'
+    optional: true

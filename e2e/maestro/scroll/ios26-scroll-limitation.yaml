@@ -1,0 +1,16 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:scroll
+  - readonly
+  - regression
+# Matrix: HOUSE-SCROLL-021
+---
+# iOS 26 RN New-Arch scroll limitation — documents N/A when Maestro cannot drive scroll.
+# Attempts a long-list scroll contract; record Pass when manual/idb scroll works, N/A on iOS 26 sim.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-home-tab.yaml
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: home-screen-scroll-end

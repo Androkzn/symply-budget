@@ -1,0 +1,123 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home-projects
+  - mutation
+  - regression
+# Matrix: HOUSE-HPROJ-MAT-001 — add-material menu, manual sheet, link sheet, card
+#
+# In the MAT family, NOT 030…033. Those four numbers were already spoken for by
+# publishing, manage-access, delete and viewer-permissions, so reporting against
+# them marked "Publishing shares the draft" green on the strength of a run that
+# never opened the project menu — a passing row certifying a feature it never
+# touched, which is worse than no row at all. `material-detail` had already
+# opened HOUSE-HPROJ-MAT-002 for exactly this surface; this is its sibling.
+---
+# The five ways into a material, and what the card shows once there is one.
+#
+# Everything here was inline until recently: three text inputs and three buttons
+# sat permanently open under a list a member is usually reading. That form is
+# gone, replaced by a floating button over a five-option menu, so EVERY route to
+# creating a material now runs through `MATERIAL_ADD_OPTIONS`. An option that
+# stops being built is a way of adding materials that stops existing, and no
+# type error or lint rule would say so — the unit suite pins the option list,
+# this pins that the list is reachable and that its sheets actually open.
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-HPROJ-MAT-001
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-home-project-hub.yaml
+- tapOn:
+    id: 'hub-tab-materials'
+
+# HOUSE-HPROJ-MAT-001a — the button, and all five ways in
+- assertVisible:
+    id: 'materials-add-fab'
+- tapOn:
+    id: 'materials-add-fab'
+- extendedWaitUntil:
+    visible:
+      id: 'materials-add-menu'
+    timeout: 10000
+- assertVisible:
+    id: 'materials-add-manual'
+- assertVisible:
+    id: 'materials-add-link'
+- assertVisible:
+    id: 'materials-add-library'
+- assertVisible:
+    id: 'materials-add-files'
+- assertVisible:
+    id: 'materials-add-camera'
+
+# HOUSE-HPROJ-MAT-001b — the manual sheet saves a material
+- tapOn:
+    id: 'materials-add-manual'
+- extendedWaitUntil:
+    visible:
+      id: 'materials-manual-sheet'
+    timeout: 10000
+- tapOn:
+    id: 'add-selection-input'
+- inputText: 'E2E Daniel Blanc 12X24'
+- tapOn:
+    id: 'add-selection-price'
+- inputText: '7.13'
+# No keyboard dismissal here on purpose. `hideKeyboard` is unsupported in this
+# sheet, and tapping the static text "Add material" to dismiss it hits the
+# floating BUTTON of the same name instead — which opens the add menu over the
+# list, so the row saves correctly and the assertion that follows cannot see it.
+# The save button sits above the keyboard, so it needs neither.
+- tapOn:
+    id: 'materials-manual-save'
+- extendedWaitUntil:
+    visible: '.*Daniel Blanc.*'
+    timeout: 20000
+
+# The saved material is an actual CARD in the list, not just a name somewhere on
+# screen. The assertion above matches accessibility text, which a toast or a
+# lingering sheet could satisfy just as well; this pins the row itself.
+#
+# This asserted `materials-add-fab` until now, under a comment claiming it proved
+# every card carries a visual. It proved neither: the FAB is on screen whether or
+# not the save worked, so the check could not fail. The card's photo/swatch has
+# no testID of its own, so the visual is pinned by `MaterialCard`'s unit tests
+# instead, and this says only what it can actually see.
+- assertVisible:
+    id: 'selection-card-.*'
+
+# HOUSE-HPROJ-MAT-001c — the link sheet opens
+#
+# Not driven to completion on purpose: importing a real URL costs an AI call and
+# depends on a live shop page, which makes it a bad regression test.
+- tapOn:
+    id: 'materials-add-fab'
+- extendedWaitUntil:
+    visible:
+      id: 'materials-add-menu'
+    timeout: 10000
+- tapOn:
+    id: 'materials-add-link'
+- extendedWaitUntil:
+    visible:
+      id: 'materials-link-sheet'
+    timeout: 10000
+- assertVisible:
+    id: 'add-from-link-input'
+# The link sheet is NOT driven to completion or dismissal.
+#
+# Opening it is the assertion worth having: the route exists, the sheet is the
+# right one, and it carries the URL field. Closing it is not — this sheet has no
+# X (`BottomSheet` only builds `bottom-sheet-close` for variants that ask for
+# one), its backdrop is not a hit target, and a downward swipe did not settle
+# reliably either. Three different dismissals were tried and each cost a run.
+#
+# So the flow ends here rather than asserting its way back to the list. A test
+# that spends its budget proving a sheet can be closed, on a screen whose real
+# job is adding materials, buys nothing — and the earlier steps have already
+# proven the menu, the manual sheet, the save and the card.
+- assertVisible:
+    id: 'materials-link-sheet'

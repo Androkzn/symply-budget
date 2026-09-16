@@ -1,0 +1,324 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - mutation
+  - regression
+# Matrix: BUDGET-savings (see documents/engineering/testing/matrices/)
+# Monthly Payments — a payment's switches must REFLECT its stored `active`
+# flag, both ways, across a save and a reload.
+#
+# The regression this guards: RN's `Switch` renders `value === true` STRICTLY,
+# while every other consumer of the flag reads plain truthiness (group
+# subtotals skip `!item.active`, row text dims on `!item.active`). A payment
+# whose flag came back from storage as `1` rather than `true` therefore counted
+# toward its subtotal and rendered in full-strength text with its switch drawn
+# OFF — Monthly Payments showed $9,252 of active payments and not one switch
+# on. `Toggle` now coerces (unit cover: src/components/ui/__tests__/Toggle.test.tsx).
+#
+# ADDRESSING NOTE — why the state assertions go through the edit form.
+# Every row's switch shares one testID (`savings-recurring-toggle`), so in a
+# household with real payments neither a tap nor a state assertion on it can
+# name a specific row: a tap lands on the FIRST row and would switch off an
+# unrelated payment. The form's `savings-recurring-form-active` is unique and
+# is the same `Toggle` fed by the same `item.active`, so it is the honest place
+# to assert per-item state. The row switches are additionally invisible to the
+# iOS accessibility hierarchy entirely — see the measured note further down.
+#
+# MUTATING but self-cleaning: creates one payment, drives it off → on, deletes
+# it. Re-entrant — a leftover from an aborted run is removed first.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/budget-purge-test-payments.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-monthly'
+- runFlow:
+    file: ../subflows/budget-savings-force-subtab.yaml
+    env:
+      E2E_SUBTAB: monthly
+- extendedWaitUntil:
+    visible:
+      id: 'savings-monthly-add'
+    timeout: 15000
+- tapOn:
+    id: 'savings-monthly-add'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 15000
+
+# Idempotent start: a previous aborted run can leave the test item behind, and
+# a second copy would make the tap-by-name steps below ambiguous and the final
+# assertNotVisible unsatisfiable. Drain every leftover before creating a new
+# one — repeated, because more than one aborted run can each have left a copy.
+- repeat:
+    times: 4
+    commands:
+      # SCROLL BEFORE CHECKING. The item is created in "Subscriptions", and
+      # groups render alphabetically, so in a populated household it sits well
+      # below the fold. A bare `when: visible` is evaluated against the visible
+      # screen only — at the top of the list it is always false, so the drain
+      # silently did nothing and every aborted run left another copy behind.
+      - scrollUntilVisible:
+          element: '.*Toggle State Test Item.*'
+          direction: DOWN
+          timeout: 10000
+          # centerElement: scrollUntilVisible stops the moment the row is
+          # technically visible, which can leave it UNDER the floating tab bar
+          # — the tap then lands on a tab and the app leaves the screen
+          # (observed: it ended up on Spending). Centring puts the row well
+          # clear of the bar before it is tapped.
+          centerElement: true
+          optional: true
+      - runFlow:
+          when:
+            visible: '.*Toggle State Test Item.*'
+          commands:
+            - tapOn: '.*Toggle State Test Item.*'
+            # "Delete payment" is the last row of a long form — and a leftover
+            # from an aborted run may sit in "Loans & Debt", which adds the
+            # whole loan section above it. Scroll to it rather than assuming
+            # it is on screen.
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-recurring-form-label'
+                timeout: 15000
+            - scrollUntilVisible:
+                element:
+                  id: 'savings-recurring-form-delete'
+                direction: DOWN
+                timeout: 15000
+            - tapOn:
+                id: 'savings-recurring-form-delete'
+            # '^Delete$', not 'Delete': the alert is TITLED "Delete payment",
+            # which an unanchored regex matches first — so the tap lands on the
+            # title, the destructive button is never pressed, and the item
+            # survives the cleanup it was supposed to be removed by.
+            - extendedWaitUntil:
+                visible: '^Delete$'
+                timeout: 10000
+            - tapOn: '^Delete$'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-recurring-payments'
+                timeout: 20000
+
+# --- Create a payment. A new payment is active, so its switch must read ON.
+# "+" opens a small menu (Add manually / Import with AI) — the form is one tap
+# further in. Both of the menu's rows must clear the FLOATING tab bar, which is
+# drawn over this screen: "Import with AI" used to sit entirely inside the
+# bar's band, so every tap on it hit a tab instead of the menu.
+- tapOn:
+    id: 'savings-recurring-add'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-add-import'
+    timeout: 15000
+- assertVisible:
+    id: 'savings-recurring-add-manual'
+- tapOn:
+    id: 'savings-recurring-add-manual'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-label'
+    timeout: 30000
+
+# Pick the group FIRST, while no field has focus.
+#
+# Two reasons, in order. (1) A NEW payment defaults to "Loans & Debt", which
+# mounts the loan-draft section with tracking already ON — saving a plain
+# payment from the defaults is refused with "Loan details: Missing principal"
+# and the form stays open. This flow is about the switches, not loan tracking.
+# (2) The group picker is a BOTTOM sheet and `hideKeyboard` does not reliably
+# dismiss the numeric keypad here: with the keypad up the picker's rows sit
+# behind it, so the row tap lands on a digit key instead (observed: the amount
+# went 42 → 422) and the still-open picker then swallows the Save tap.
+- tapOn:
+    id: 'savings-recurring-form-group'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-group-Subscriptions'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-group-Subscriptions'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-label'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-form-label'
+- inputText: 'Toggle State Test Item'
+- tapOn:
+    id: 'savings-recurring-form-amount'
+- inputText: '42'
+- hideKeyboard:
+    optional: true
+# Save lives in the modal's fixed header, above the keyboard — reachable even
+# when the keypad refused to dismiss.
+- tapOn:
+    id: 'savings-recurring-form-save'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 20000
+
+# NOTE — there is deliberately NO assertion on a row switch here, and it is not
+# an oversight. Each row is a `TouchableOpacity`, which RN marks `accessible`,
+# so the row absorbs its children into one accessibility element: the row's
+# `savings-recurring-toggle` appears NOWHERE in the iOS hierarchy Maestro reads
+# (measured: 0 matches among 148 nodes, while `savings-recurring-item` appears
+# 9 times). No selector can reach it, so any assertion written against it would
+# pass or fail for reasons unrelated to the switch. The form's switches DO
+# report state correctly (measured: form-active `checked: "true" / value: "1"`
+# beside form-essential `"false" / "0"`), so that is where state is asserted.
+# The row rendering itself is pinned by the unit tests instead —
+# src/screens/budget/savings/__tests__/SavingsRecurringPaymentsScreen.test.tsx
+# asserts what the row's Switch actually receives for an active, a legacy-`1`,
+# and an inactive payment.
+
+# --- The stored flag round-trips. Groups are listed alphabetically, so a new
+# "Subscriptions" item sits well below the fold in a populated household.
+- scrollUntilVisible:
+    element: '.*Toggle State Test Item.*'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn: '.*Toggle State Test Item.*'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-active'
+    timeout: 15000
+- assertVisible:
+    id: 'savings-recurring-form-active'
+    checked: true
+
+# Turn it off, save, re-open: the switch must come back OFF.
+- tapOn:
+    id: 'savings-recurring-form-active'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-active'
+      checked: false
+    timeout: 10000
+- tapOn:
+    id: 'savings-recurring-form-save'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 20000
+- scrollUntilVisible:
+    element: '.*Toggle State Test Item.*'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn: '.*Toggle State Test Item.*'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-active'
+    timeout: 15000
+- assertVisible:
+    id: 'savings-recurring-form-active'
+    checked: false
+
+# And back ON, saved and re-read — proving the state was persisted, not painted.
+- tapOn:
+    id: 'savings-recurring-form-active'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-active'
+      checked: true
+    timeout: 10000
+- tapOn:
+    id: 'savings-recurring-form-save'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 20000
+- scrollUntilVisible:
+    element: '.*Toggle State Test Item.*'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn: '.*Toggle State Test Item.*'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-active'
+    timeout: 15000
+- assertVisible:
+    id: 'savings-recurring-form-active'
+    checked: true
+
+# --- Cleanup — delete the test item from the form that is already open.
+- scrollUntilVisible:
+    element:
+      id: 'savings-recurring-form-delete'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-form-delete'
+- extendedWaitUntil:
+    visible: '^Delete$'
+    timeout: 10000
+- tapOn: '^Delete$'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 20000
+# Leave ZERO copies behind. This suite runs against a household with real
+# payments in it, so a test item that survives is somebody's actual data —
+# drain the same way the pre-clean does, scrolling before each check.
+- repeat:
+    times: 3
+    commands:
+      - scrollUntilVisible:
+          element: '.*Toggle State Test Item.*'
+          direction: DOWN
+          timeout: 10000
+          # centerElement: scrollUntilVisible stops the moment the row is
+          # technically visible, which can leave it UNDER the floating tab bar
+          # — the tap then lands on a tab and the app leaves the screen
+          # (observed: it ended up on Spending). Centring puts the row well
+          # clear of the bar before it is tapped.
+          centerElement: true
+          optional: true
+      - runFlow:
+          when:
+            visible: '.*Toggle State Test Item.*'
+          commands:
+            - tapOn: '.*Toggle State Test Item.*'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-recurring-form-label'
+                timeout: 15000
+            - scrollUntilVisible:
+                element:
+                  id: 'savings-recurring-form-delete'
+                direction: DOWN
+                timeout: 15000
+            - tapOn:
+                id: 'savings-recurring-form-delete'
+            - extendedWaitUntil:
+                visible: '^Delete$'
+                timeout: 10000
+            - tapOn: '^Delete$'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-recurring-payments'
+                timeout: 20000
+
+# Final proof the household is clean. Scroll the whole list first: an
+# assertion on "not visible" only sees the current screen, so without the
+# sweep a surviving copy below the fold would pass it.
+- scrollUntilVisible:
+    element: '.*Toggle State Test Item.*'
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+    optional: true
+- assertNotVisible: '.*Toggle State Test Item.*'
+- tapOn:
+    id: 'nav-back-button'
+    optional: true

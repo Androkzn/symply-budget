@@ -1,0 +1,170 @@
+{
+  "expo": {
+    "name": "Symply Budget",
+    "slug": "symply-budget",
+    "scheme": "simplebudget",
+    "version": "1.0.0",
+    "icon": "./src/assets/images/app-icon.png",
+    "ios": {
+      "bundleIdentifier": "com.symply.budget",
+      "buildNumber": "23",
+      "supportsTablet": true,
+      "requireFullScreen": false,
+      "usesAppleSignIn": true,
+      "associatedDomains": [
+        "applinks:simple-budget-api.a-tekhtelev.workers.dev",
+        "applinks:simple-budget-api-staging.a-tekhtelev.workers.dev"
+      ],
+      "infoPlist": {
+        "UIRequiresFullScreen": false,
+        "UIApplicationSupportsIndirectInputEvents": true,
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.144228018802-m12nhses9h3no16lhuob5fra1i5el7tc"
+            ]
+          }
+        ],
+        "NSMicrophoneUsageDescription": "Allow Symply Budget to access your microphone.",
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait"
+        ],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.symply.budget",
+      "googleServicesFile": "./brands/symply-budget/google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/images/app-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "simple-budget-api.a-tekhtelev.workers.dev",
+              "pathPrefix": "/join"
+            },
+            {
+              "scheme": "https",
+              "host": "simple-budget-api.a-tekhtelev.workers.dev",
+              "pathPrefix": "/j"
+            },
+            {
+              "scheme": "https",
+              "host": "simple-budget-api.a-tekhtelev.workers.dev",
+              "pathPrefix": "/invite"
+            },
+            {
+              "scheme": "https",
+              "host": "simple-budget-api-staging.a-tekhtelev.workers.dev",
+              "pathPrefix": "/join"
+            },
+            {
+              "scheme": "https",
+              "host": "simple-budget-api-staging.a-tekhtelev.workers.dev",
+              "pathPrefix": "/j"
+            },
+            {
+              "scheme": "https",
+              "host": "simple-budget-api-staging.a-tekhtelev.workers.dev",
+              "pathPrefix": "/invite"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "plugins": [
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "symply-budget",
+          "organization": "andrei-tekhtelev"
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow $(PRODUCT_NAME) to use Face ID for quick and secure sign-in."
+        }
+      ],
+      "expo-apple-authentication",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan documents and take photos."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./src/assets/images/app-icon.png",
+          "color": "#ffffff",
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
+      [
+        "expo-router",
+        {
+          "origin": "https://simplebudget.app"
+        }
+      ],
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "Symply Budget does not use the camera for voice mode.",
+          "microphonePermission": "Allow Symply Budget to access your microphone."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Symply Budget to access your microphone",
+          "speechRecognitionPermission": "Allow Symply Budget to convert your speech into text when you dictate a task"
+        }
+      ],
+      "expo-web-browser",
+      "expo-localization",
+      "expo-background-task"
+    ],
+    "extra": {
+      "router": {
+        "origin": "https://simplebudget.app"
+      },
+      "eas": {
+        "projectId": "7e6f549f-c8ed-4018-8f20-fc578b812c20",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "SymplyEcosystemWatchApp Watch App",
+                  "bundleIdentifier": "com.symply.budget.watchkitapp"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

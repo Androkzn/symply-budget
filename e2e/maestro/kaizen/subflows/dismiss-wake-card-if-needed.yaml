@@ -1,0 +1,10 @@
+appId: com.symply.kaizen
+---
+# Wake card can push Daily Core below the fold on iPhone; dismiss before Today asserts.
+- runFlow:
+    when:
+      visible: 'Start your day'
+    commands:
+      - tapOn: 'Confirm'
+      - waitForAnimationToEnd:
+          timeout: 5000

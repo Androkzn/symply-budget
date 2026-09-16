@@ -1,0 +1,16 @@
+appId: ${APP_ID}
+tags:
+  - util
+  - app:kaizen
+---
+# Reset a Kaizen ScrollView toward the top before tapping above-the-fold controls.
+- repeat:
+    times: 8
+    commands:
+      - swipe:
+          start: '50%,32%'
+          end: '50%,82%'
+          duration: 280
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 250

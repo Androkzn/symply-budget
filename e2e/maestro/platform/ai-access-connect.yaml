@@ -1,0 +1,33 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:ai-access
+  - readonly
+  - regression
+# Matrix: PLAT-AIACC-043
+# Covers the BYOK Connect-key screen (per-provider): the key input, the dry-run
+# "Test connection" probe, the consent/disclosure copy, and the primary
+# "Connect & validate" CTA. Readonly — no key is entered or submitted.
+---
+- runFlow: subflows/launch-platform.yaml
+- openLink: simplehouse://ai-access/connect?provider=anthropic
+- extendedWaitUntil:
+    visible:
+      id: 'ai-connect-button'
+    timeout: 20000
+# The screen leads with the "how to get a key" guide + the secure key field.
+- assertVisible: 'API key'
+- assertVisible:
+    id: 'ai-test-connection-button'
+# The durable-storage / revoke-at-provider disclosure is part of the consent surface.
+- assertVisible: 'Keychain'
+# CTA is present but gated until a plausible key is entered (readonly: we don't type one).
+- assertVisible:
+    id: 'ai-connect-button'
+# Deep link a second provider to prove the route is provider-parameterised.
+- openLink: simplehouse://ai-access/connect?provider=openai
+- extendedWaitUntil:
+    visible:
+      id: 'ai-connect-button'
+    timeout: 20000
+- assertVisible: 'API key'

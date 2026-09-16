@@ -1,0 +1,157 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:settings
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-settings (see documents/engineering/testing/matrices/)
+---
+# The More tab is the OVERFLOW HUB now, not a settings list.
+#
+# It carries exactly three things: MORE TABS (the tabs that did not fit the
+# bottom bar), CUSTOMIZATION (Customize Tabs + Customization) and INSIGHTS (the
+# AI Insights Dashboard — a read-only view, not a setting). Everything that used
+# to sit below them — ACCOUNT, PREFERENCES, the AI config screens, notifications,
+# data sharing, Symply apps, ABOUT — is behind the header gear on every tab
+# (`/house-settings`) or on Profile.
+#
+# So this flow covers BOTH screens: the hub the tab is, and the hub the gear
+# opens. A single-screen version of it would have gone green while half the
+# settings in the app were unreachable.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-settings-tab.yaml
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- assertVisible:
+    id: 'settings-screen'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: settings-screen-scroll-end
+# Garden is a MORE TABS row, and MORE TABS sits at the very top of the hub.
+#
+# Anchor on the row we are about to assert. An earlier version anchored on
+# `settings-row-household-members` and stopped the moment it became visible —
+# which lands at the top of the viewport ([16,100][818,164]), leaving the whole
+# MORE TABS block scrolled off above it. `more-customize-tabs` was measured at
+# [16,-30][818,42] (negative top) at the 2026-09-01 iPad failure, and
+# TabOverflowSection.tsx renders every `more-tab-*` row ABOVE that card — so the
+# rows were rendered and simply off-screen. Their absence from the view
+# hierarchy is not evidence they do not exist.
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-gardening'
+    direction: UP
+    timeout: 20000
+- assertVisible:
+    id: 'more-tab-gardening'
+# The CUSTOMIZATION group: the tab editor, and House's own Customization screen
+# (home-screen widgets + navigation layout), which is the other half of the same
+# subject and is why it stayed on this tab rather than moving behind the gear.
+- scrollUntilVisible:
+    element:
+      id: 'more-customize-tabs'
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: 'more-customize-tabs'
+- assertVisible:
+    id: 'settings-row-customization'
+# INSIGHTS — read-only, so it belongs on More rather than in the settings hub.
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-ai-insights'
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: 'settings-row-ai-insights'
+# An overflow tab still opens from here.
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-gardening'
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: 'more-tab-gardening'
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plans-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: garden-plans-screen-scroll-end
+
+# ---------------------------------------------------------------------------
+# The settings hub behind the gear.
+# ---------------------------------------------------------------------------
+- runFlow: ../subflows/go-house-settings.yaml
+- assertVisible:
+    id: 'house-settings-screen'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: house-settings-screen-scroll-end
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-floor-plans'
+    direction: UP
+    timeout: 15000
+- assertVisible:
+    id: 'settings-row-floor-plans'
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-appearance'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'settings-row-appearance'
+- extendedWaitUntil:
+    visible:
+      id: 'appearance-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: appearance-screen-scroll-end
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'house-settings-screen'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-floor-plans'
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: 'settings-row-floor-plans'
+- extendedWaitUntil:
+    visible:
+      id: 'floor-plans-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: floor-plans-screen-scroll-end
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'house-settings-screen'
+    timeout: 15000
+
+# ---------------------------------------------------------------------------
+# …and the account rows, which are on Profile.
+# ---------------------------------------------------------------------------
+- runFlow: ../subflows/open-profile.yaml
+- assertVisible:
+    id: 'profile-screen'
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-household-members'
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: 'settings-row-household-members'

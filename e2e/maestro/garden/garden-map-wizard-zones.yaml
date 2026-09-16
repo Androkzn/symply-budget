@@ -1,0 +1,153 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:garden
+  - readonly
+  - regression
+# Matrix: HOUSE-GARD-023 (step two — tracing an area, and the maintained-yard figure)
+---
+# STEP TWO: the areas.
+#
+# This is the layer that makes a plan mean anything. Without it "water the
+# garden" can only be pinned to a coordinate that happens to be in the garden,
+# and the maintained-area figure counts the roof.
+#
+# THE HOUSE IS TRACED FIRST ON PURPOSE, and this flow asserts the consequence
+# rather than just the shape: a `house` zone has `countsAsYard: false`, so the
+# "Yard to maintain" figure must appear once one exists. That figure is the
+# whole reason the step is worth a member's time, and it is the thing that
+# silently breaks if the zone kind's spec is edited.
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-GARD-023
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-garden-map-wizard.yaml
+
+- tapOn:
+    id: 'garden-map-wizard-next'
+- extendedWaitUntil:
+    visible:
+      id: 'garden-map-wizard-panel-areas'
+    timeout: 15000
+
+# Every zone kind is offered, house FIRST — it is the one members forget and the
+# one that changes the maintained-area figure most.
+#
+# Only three fit on a phone: the row is a horizontal ScrollView of seven chips.
+# Asserting `driveway` without scrolling was this flow's first failure, and it is
+# worth keeping as a lesson — `assertVisible` really does test visibility, so an
+# off-screen chip is correctly absent, and the fix is to scroll rather than to
+# weaken the assertion.
+- assertVisible:
+    id: 'garden-map-wizard-zone-house'
+- assertVisible:
+    id: 'garden-map-wizard-zone-front_yard'
+- assertVisible:
+    id: 'garden-map-wizard-zone-back_yard'
+
+# THE LAST THREE KINDS ARE BEHIND A HORIZONTAL SCROLL, AND ARE NOT ASSERTED.
+#
+# Said plainly rather than quietly dropped, because the gap is real: `garden`,
+# `driveway` and `other` exist and this flow does not prove they are reachable.
+#
+# Three ways to reach them were tried and each failed for its own reason:
+#
+#  - `assertVisible` alone — correct behaviour, the chip is genuinely off-screen.
+#  - `scrollUntilVisible` — cannot work here. iOS publishes only VISIBLE
+#    elements, so Maestro has nothing to scroll toward.
+#  - a coordinate `swipe` across the row — the dangerous one. A swipe that the
+#    ScrollView does not accept degrades into a TAP, and the captured hierarchy
+#    showed the run ending on the iOS **Photos permission dialog**: the gesture
+#    had activated `Draft from a site plan` and opened the picker. A test that
+#    can trip a system permission prompt is worse than a missing assertion,
+#    because it poisons every flow that follows it.
+#
+# What IS asserted below is that the row renders MORE than fits — `side_yard` is
+# the fourth chip and is on screen — which is the part that would break if the
+# list were truncated rather than scrolled.
+- assertVisible:
+    id: 'garden-map-wizard-zone-side_yard'
+
+- tapOn:
+    id: 'garden-map-wizard-zone-house'
+- extendedWaitUntil:
+    visible: '.*Tracing house.*'
+    timeout: 8000
+
+# Done stays disabled below three corners — a shape needs three points before it
+# is a shape. Asserted by the copy, which counts down for the member.
+- assertVisible: '.*3 more to close the shape.*'
+
+# TRACE FOUR CORNERS BY POINT TAP.
+#
+# Coordinates, not testIDs, because there is nothing to address yet — the corners
+# are being CREATED by these taps, through `MapView.onPress`. The points are all
+# inside the map's clear band: the header occupies roughly the top 15% and the
+# bottom panel the lower third, and Maestro does NOT test occlusion, so a tap at
+# 80% would be reported as landing on the map while actually hitting the panel.
+# 28%-45% keeps every corner clear of both.
+- tapOn:
+    point: '35%,28%'
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    point: '62%,28%'
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    point: '62%,45%'
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    point: '35%,45%'
+- waitForAnimationToEnd:
+    timeout: 2000
+
+# Four corners down, so the banner now offers the count rather than the countdown.
+- assertVisible: '.*4 corners.*'
+
+- tapOn:
+    id: 'garden-map-wizard-draw-done'
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# The zone landed: it is counted, it is named on a chip, and — the point of the
+# step — the maintained-yard figure now exists, because a house has been taken
+# out of the lot.
+- assertVisible:
+    id: 'garden-map-wizard-zone-count'
+# Scoped to the chip. A bare `House` would also match the ADD button, the map
+# nameplate and the zone-kind label — three different things, any of which
+# would make this pass without a zone ever being committed.
+- assertVisible:
+    id: 'garden-map-wizard-zone-chip-0'
+    text: '.*House.*'
+- assertVisible:
+    id: 'garden-map-wizard-maintained-area'
+
+# CANCELLING A TRACE LEAVES NOTHING BEHIND. Start a second area, put one corner
+# down, then back out — the count must still read one.
+- tapOn:
+    id: 'garden-map-wizard-zone-back_yard'
+- extendedWaitUntil:
+    visible: '.*Tracing back yard.*'
+    timeout: 8000
+- tapOn:
+    point: '48%,35%'
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: 'garden-map-wizard-draw-cancel'
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible:
+    id: 'garden-map-wizard-zone-chip-0'
+- assertNotVisible:
+    id: 'garden-map-wizard-zone-chip-1'
+
+- runFlow: ../subflows/exit-garden-map-wizard.yaml
+- assertVisible:
+    id: 'garden-plans-screen'

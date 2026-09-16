@@ -1,0 +1,52 @@
+---
+description: Agent access — secrets and full FE/BE deploy autonomy
+alwaysApply: true
+---
+
+# Agent access — secrets & deploy
+
+**Mandate:** agents own Symply Ecosystem **E2E** — develop, verify, and deploy FE + BE without handing work back.
+
+**Policy (rapid development):** full autonomy for staging **and** production unless blocked by 2FA or missing credentials.
+
+## Secrets
+
+- Inventory: `documents/ecosystem/SERVICES.md`
+- Before deploy / wrangler / eas / aws / sentry:
+
+```bash
+eval "$(./scripts/secrets/export-env.sh)"
+```
+
+- Never print secret values into chat, commits, or docs.
+- Never commit `.env.local`, `credentials/`, `credentials.json`, `.env.sentry-build-plugin`.
+- Worker runtime secrets → `wrangler secret put` (staging + production).
+
+## Backend
+
+```bash
+cd backend && npm run deploy:fleet
+# House-only: deploy:house:all (deploy:all alias)
+# Language (separate repo path): deploy:language:all
+# schema change → db:migrate:remote for staging AND production (per brand D1)
+```
+
+Dev app → staging API. Prefer `deploy:fleet` for shared Worker changes; `deploy:house:all` when House-only.
+
+**Never `deploy:fleet` from an `<app>-v2` clone.** Only the `main` checkout deploys. Shared Worker / migrations land on `main` (flagged off if unfinished). See `documents/ecosystem/BRANCHING.md`.
+
+## Frontend
+
+- Use brand + profile from `eas.json` (`symply-house-*`, `symply-budget-*`, `symply-kaizen-*`, …).
+- `eas build` / `eas update` / `eas submit` allowed; Apple 2FA may still need the human.
+
+## GitHub
+
+- Repo: `Androkzn/symply-ecosystem` via `gh`.
+- Commit only when the user asks. Merge, never rebase; never `git stash`; never force-push any branch.
+- Land long-running `<app>-v2` with `gh pr merge --merge` (not `--squash`). Canonical: `documents/ecosystem/BRANCHING.md`.
+
+## MCP
+
+- Notion / Figma: `mcp_auth` if `needsAuth`.
+- Atlassian: **not used** — do not authenticate or prompt.

@@ -1,0 +1,20 @@
+appId: com.symply.kaizen
+---
+# Attempt history — deep-linked without a questionId shows the empty state.
+# (With a question: dated past responses with per-attempt scores.)
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/attempt-history
+- extendedWaitUntil:
+    visible: 'Attempt history'
+    timeout: 20000
+- assertVisible: 'Past responses'
+- assertVisible: 'No attempts yet.'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

@@ -1,0 +1,42 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:tasks
+  - mutation
+  - regression
+  - smoke
+# Matrix: HOUSE-tasks (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-TASK-010
+- runFlow: ../subflows/go-home-tab.yaml
+- tapOn:
+    id: 'home-up-next-add-task'
+- extendedWaitUntil:
+    visible:
+      id: 'add-task-sheet'
+    timeout: 15000
+- tapOn:
+    id: 'add-task-input'
+- inputText: 'Return Amazon gift by July 10 assigned to me'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'add-task-submit'
+- extendedWaitUntil:
+    notVisible:
+      id: 'add-task-sheet'
+    timeout: 20000
+- assertVisible:
+    id: 'home-up-next-section'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

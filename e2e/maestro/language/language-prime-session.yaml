@@ -1,0 +1,16 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# One-time session prime: connect Metro + sign in. Destructive flows run separately.
+- launchApp:
+    clearState: true
+- runFlow: subflows/connect-language-metro.yaml
+- runFlow: subflows/language-dismiss-expo-dev-chrome.yaml
+- runFlow: subflows/language-login-if-needed.yaml
+- runFlow: subflows/language-onboarding-if-needed.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'language-learn-screen'
+    timeout: 120000

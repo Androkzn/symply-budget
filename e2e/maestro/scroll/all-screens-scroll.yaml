@@ -1,0 +1,175 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:scroll
+  - readonly
+  - regression
+# Matrix: HOUSE-scroll (see documents/engineering/testing/matrices/)
+---
+# Scroll contract — primary tab + More destinations used in Maestro E2E.
+- runFlow: ../subflows/launch-logged-in.yaml
+
+# Home
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: home-screen-scroll-end
+
+# Tasks
+- runFlow: ../subflows/go-tasks-tab.yaml
+- assertVisible:
+    id: 'tasks-screen'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: tasks-screen-scroll-end
+
+# Chat
+- runFlow: ../subflows/go-chat-tab.yaml
+- assertVisible:
+    id: 'chat-rooms-screen'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: chat-rooms-screen-scroll-end
+
+# Mira
+- runFlow: ../subflows/go-mira-tab.yaml
+- assertVisible:
+    id: 'mira-chat-screen'
+- scrollUntilVisible:
+    element:
+      id: 'mira-chat-send'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+
+# More hub + the settings hub behind the gear + their pushed screens.
+#
+# Two screens, not one: House's More tab is the overflow-tabs hub now
+# (MORE TABS / CUSTOMIZATION / INSIGHTS) and everything Appearance and Floor
+# Plans used to sit beside is on `/house-settings`. Both scroll, so both are
+# covered here.
+- runFlow: ../subflows/go-settings-tab.yaml
+- assertVisible:
+    id: 'settings-screen'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: settings-screen-scroll-end
+
+- runFlow: ../subflows/go-house-settings.yaml
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: house-settings-screen-scroll-end
+
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-appearance'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'settings-row-appearance'
+- extendedWaitUntil:
+    visible:
+      id: 'appearance-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: appearance-screen-scroll-end
+- tapOn:
+    id: 'nav-back-button'
+
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-floor-plans'
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: 'settings-row-floor-plans'
+- extendedWaitUntil:
+    visible:
+      id: 'floor-plans-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: floor-plans-screen-scroll-end
+- tapOn:
+    id: 'nav-back-button'
+
+# Back to the MORE tab: Floor Plans is on the settings hub, and `more-tab-*`
+# rows are on the other screen entirely. UP because Garden sits at the TOP of
+# the More hub, in the MORE TABS block above CUSTOMIZATION and INSIGHTS.
+- runFlow: ../subflows/go-settings-tab.yaml
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-gardening'
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: 'more-tab-gardening'
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plans-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: garden-plans-screen-scroll-end
+- tapOn:
+    id: 'nav-back-button'
+
+# More destinations
+- runFlow: ../subflows/open-contractors.yaml
+- assertVisible:
+    id: 'contractors-screen'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: contractors-screen-scroll-end
+
+- runFlow: ../subflows/open-reports.yaml
+- assertVisible:
+    id: 'reports-screen'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: reports-screen-scroll-end
+
+- runFlow: ../subflows/open-my-home.yaml
+- assertVisible:
+    id: 'my-home-screen'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: my-home-screen-scroll-end
+
+- runFlow: ../subflows/open-utilities.yaml
+- assertVisible:
+    id: 'utilities-screen'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: utilities-screen-scroll-end
+
+- runFlow: ../subflows/open-notifications.yaml
+- assertVisible:
+    id: 'notifications-screen'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: notifications-screen-scroll-end
+
+- runFlow: ../subflows/open-profile.yaml
+- assertVisible:
+    id: 'profile-screen'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: profile-screen-scroll-end

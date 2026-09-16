@@ -1,0 +1,292 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: BUDGET-LF-013 — Scheduled automatic backup (enable → run → disable)
+#
+# Auto-backup is foreground-driven: Argon2 sealing cannot finish inside an iOS
+# background window, so the scheduler runs a catch-up check when the app becomes
+# usable. That makes the whole feature drivable from Maestro — every surface
+# here is in-app UI, no OS sheet.
+#
+# Enabling uses the stored destination (default "This device"), so no picker
+# appears on the toggle. Drive/Dropbox stay assertion-only: both need an OAuth
+# consent screen Maestro cannot complete, and Dropbox is hidden entirely until a
+# brand ships an app key.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-013
+# SYNC & SHARING lives on Profile now, not on Budget Settings.
+- runFlow: ../subflows/budget-open-profile.yaml
+
+# Profile carries ONE backup row instead of the four peer buttons Settings
+# used to stack.
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-backup-link'
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: 'budget-settings-backup-status'
+- tapOn:
+    id: 'budget-settings-backup-link'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-screen'
+    timeout: 15000
+
+# The status card answers "am I safe?" before any control is reachable.
+- assertVisible:
+    id: 'budget-backup-status-card'
+- assertVisible:
+    id: 'budget-backup-status-title'
+
+# --- Enable via the switch (direct manipulation, no modal chain) ---------------
+# Centred: the toggle sits at the RIGHT edge of its row, and the floating chat
+# button hovers over that same corner. Left wherever a scroll happened to stop,
+# the tap coordinates fall inside the FAB and open Chat instead — which is how
+# this flow ended up asserting against a conversation list.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-auto-toggle'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+
+# Start from OFF, whatever the last run left behind.
+#
+# The whole flow below reads the toggle as "enable", so entering with the
+# schedule already on turns it OFF instead and every assertion after it is
+# nonsense. That is not hypothetical: this flow's own cleanup is the last thing
+# it does, so any run killed part-way — by the suite runner's watchdog, or by a
+# peer reclaiming the machine — leaves the switch on for the next one. The
+# schedule rows only render while it is enabled, which makes them the test.
+- runFlow:
+    when:
+      visible:
+        id: 'budget-backup-frequency-row'
+    commands:
+      - tapOn:
+          id: 'budget-backup-auto-toggle'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'budget-backup-frequency-row'
+          timeout: 20000
+      - waitForAnimationToEnd:
+          timeout: 2000
+
+- tapOn:
+    id: 'budget-backup-auto-toggle'
+# The device's one phrase is put in front of the member at enable time — in its
+# own sheet, word by word, with copying left to them rather than done for them.
+# Shown here whether or not this is the call that minted it: switching automation
+# on is the moment they stop being present for their own archives, so it is the
+# moment to show the words those archives will be sealed with.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-recovery-phrase-sheet'
+    timeout: 60000
+- assertVisible:
+    id: 'budget-recovery-phrase-word-1'
+- assertVisible:
+    id: 'budget-recovery-phrase-word-12'
+# Device/Share, not Copy / Save-as-.txt: that row renders only for an app whose
+# descriptor declares no phrase destinations, and Budget's declares three. The
+# two testIDs asserted here until 2026-09-02 were unrenderable in this brand.
+- assertVisible:
+    id: 'budget-recovery-phrase-save-device'
+- assertVisible:
+    id: 'budget-recovery-phrase-share'
+- tapOn:
+    id: 'budget-recovery-phrase-done'
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-recovery-phrase-sheet'
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 2000
+
+# The stored phrase is readable again from its own row — the same sheet, not an
+# alert. The row sits OUTSIDE the automatic group and is reachable with the
+# schedule off, because the same phrase seals manual backups too.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-show-phrase'
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: 'budget-backup-show-phrase'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-recovery-phrase-words'
+    timeout: 15000
+- assertVisible:
+    id: 'budget-recovery-phrase-word-12'
+- tapOn:
+    id: 'budget-recovery-phrase-done'
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-recovery-phrase-sheet'
+    timeout: 10000
+
+# Turning it on reveals the schedule rows — proves the toggle actually stuck.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-frequency-row'
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: 'budget-backup-auto-destination-row'
+
+# --- Cadence is a picker, reachable in one tap from the row -------------------
+- tapOn:
+    id: 'budget-backup-frequency-row'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-frequency-sheet'
+    timeout: 10000
+- assertVisible:
+    id: 'budget-backup-frequency-daily'
+- assertVisible:
+    id: 'budget-backup-frequency-monthly'
+- tapOn:
+    id: 'budget-backup-frequency-weekly'
+- waitForAnimationToEnd:
+    timeout: 2000
+
+# --- Destination picker offers only unattended targets ------------------------
+- tapOn:
+    id: 'budget-backup-auto-destination-row'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-auto-destination-sheet'
+    timeout: 10000
+- assertVisible:
+    id: 'budget-backup-auto-dest-drive'
+- tapOn:
+    id: 'budget-backup-auto-dest-device'
+- waitForAnimationToEnd:
+    timeout: 2000
+
+# --- Run it now (real Argon2 seal, no OS UI) ----------------------------------
+# Centred before tapping, not just scrolled to.
+#
+# "Back up now" is the LAST row of the AUTOMATIC card, and once the screen grew
+# a RECOVERY PHRASE group above that card the row settles behind the floating
+# tab bar. Maestro taps an element's centre, so the tap landed on the tab bar
+# instead and took the app to Spending — after which every remaining step failed
+# looking for a screen that was no longer open, blaming whatever it asked for
+# next rather than the tap that actually went astray.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-run-now'
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+- tapOn:
+    id: 'budget-backup-run-now'
+# A scheduled run reports through the shared task slot — the progress card while
+# it seals, then a toast — never an alert.
+#
+# This waited on `Backup saved…` and then tapped `OK` until 2026-09-02. No
+# scheduled run has shown an alert since backups moved into `backupTaskStore`,
+# and "Backup saved" is the MANUAL toast string, so the step sat out its full
+# 180s in silence and the runner's no-output watchdog killed the flow before it
+# could reach a single assertion. The progress card is what this actually meant:
+# it is rendered for `scheduled` runs too, reading "Automatic backup in progress".
+#
+# Two things are deliberately NOT waited on here, both tried and both wrong:
+#
+#   the progress card appearing — each Maestro poll costs a full hierarchy dump
+#   and a seal can start and finish inside one, so a run that had already
+#   written its archive still failed on "progress is visible";
+#
+#   the toast — `toast-pressable` exists only on a TAPPABLE toast (one built
+#   with an action, like the Drive reconnect prompt). A plain success toast is a
+#   pointer-events-none View with no testID, so that id can never appear here.
+#
+# What is left is durable and still discriminating: the status card. A scheduled
+# run that failed sets `lastStatus: 'failed'` and the card reads "Needs
+# attention" (see deriveBackupHealth), so "Protected" after the run is a real
+# statement about the outcome and not merely about the schedule being on.
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-backup-progress'
+    timeout: 240000
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# The inline archive list is NOT checked here, deliberately.
+#
+# Reaching it means scrolling to the bottom of this screen, and with the
+# schedule on (three extra rows) plus a row per accumulated archive, that is a
+# long run of downward swipes whose gestures start over the floating tab bar —
+# which is a tab, not scenery. Twice it took the app to the Spending tab
+# mid-flow, and every later step then failed looking for a screen that was no
+# longer open. `budget-local-first-backup-destinations` already asserts the list
+# renders inline, from a shorter screen with the schedule off, and duplicating
+# it here bought nothing but that hazard.
+#
+# What this flow is about is the SCHEDULE, and the status card at the top says
+# whether the scheduled run succeeded.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-status-title'
+    direction: UP
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-status-title'
+      text: 'Protected'
+    timeout: 60000
+
+# --- Turn it back off so the run leaves no schedule behind --------------------
+# Scrolled to first: the assertion above leaves the screen at the top, and the
+# toggle now sits below the RECOVERY PHRASE group rather than straight under the
+# status card.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-auto-toggle'
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+- tapOn:
+    id: 'budget-backup-auto-toggle'
+- waitForAnimationToEnd:
+    timeout: 3000
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-backup-frequency-row'
+    timeout: 10000
+# Scrolled back to the top before asserting the card is still there: turning the
+# switch off leaves the screen down at the toggle, and the card lives above the
+# RECOVERY PHRASE group — far enough off-screen now that a bare assertVisible
+# reported it missing when it was simply not in view.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-status-card'
+    direction: UP
+    timeout: 30000
+- assertVisible:
+    id: 'budget-backup-status-card'
+
+# One back, not two: this screen was pushed onto the BUDGET stack by the deep
+# link the Profile row opens, so back lands on the budget root directly —
+# Settings is no longer between them.
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

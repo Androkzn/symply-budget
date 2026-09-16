@@ -1,0 +1,97 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:trends
+  - readonly
+  - regression
+  - needs-admin-feature-seed
+# Matrix: HEALTH-TREND-101 … HEALTH-TREND-104
+---
+# Trends tab — read-only analytics derived from the other tabs' local stores.
+# It has no ingest of its own, so this flow only reads: the range picker, the
+# four summary cards, and the on-device disclosure.
+#
+# The CHARTS the parity rebuild added (weight dashboard, calorie bars, macro
+# split, consistency heatmap) belong to trends-charts.yaml, which seeds the data
+# they need first — this flow deliberately stays read-only.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-TREND-101
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-trends.yaml
+
+      # --- Range picker defaults to 30 days (HEALTH-TREND-102) ------------
+      - assertVisible:
+          id: 'health-trends-range-7'
+      - assertVisible:
+          id: 'health-trends-range-30'
+      - assertVisible:
+          id: 'health-trends-range-90'
+
+      # --- Every summary card renders (HEALTH-TREND-103) ------------------
+      # The three weight tiles are asserted AFTER a scroll, not from the top of
+      # the screen. They used to be the first thing under the range picker; the
+      # parity rebuild put `HealthWeightDashboard` there — a chart, a legend, an
+      # axis note and a trend/change toggle — and pushed the tiles a screen
+      # down, so the bare assertions below started failing on a screen that was
+      # rendering perfectly. That is a stale flow, not a Trends regression.
+      - assertVisible: 'WEIGHT'
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-trends-weight-latest
+            SCROLL_DIR: down
+      - assertVisible:
+          id: 'health-trends-weight-average'
+      - assertVisible:
+          id: 'health-trends-weight-change'
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-trends-nutrition-days
+            SCROLL_DIR: down
+      - assertVisible:
+          id: 'health-trends-nutrition-avg'
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-trends-activity-workouts
+            SCROLL_DIR: down
+      - assertVisible:
+          id: 'health-trends-activity-days'
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-trends-water-goal-days
+            SCROLL_DIR: down
+      - assertVisible:
+          id: 'health-trends-habit-streak'
+
+      # --- The privacy promise holds on the analytics surface too ---------
+      # Wording follows HealthTrendsScreen's footer verbatim; the parity rebuild
+      # reworded it from the P1 "on this device" phrasing.
+      - assertVisible: "Trends are computed from your own entries and no one else's."
+
+      # --- Switching the range re-derives the cards (HEALTH-TREND-104) ----
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-trends-range-7
+            SCROLL_DIR: up
+      - tapOn:
+          id: 'health-trends-range-7'
+      - assertVisible:
+          id: 'health-trends-weight-latest'
+      - tapOn:
+          id: 'health-trends-range-90'
+      - assertVisible:
+          id: 'health-trends-weight-latest'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

@@ -1,0 +1,95 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - bootstrap
+---
+# Lightweight between-flow recovery (no launchApp / Keychain touch).
+# Defensive airplane-mode-off: runs before EVERY flow in the suite, so it's
+# the circuit breaker for any offline-flow (budget-*-offline.yaml) that left
+# the device offline — whether because a non-optional assertion aborted the
+# flow before its own cleanup ran, or from a cause not yet fully understood
+# (observed once: airplane mode reappeared ~15min after a flow's own cleanup
+# had already completed successfully, with no intervening flow touching it).
+# No-op / harmless when already disabled.
+- runFlow: ../subflows/budget-offline-off.yaml
+- runFlow: ../subflows/connect-budget-metro.yaml
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- runFlow: ../subflows/budget-dismiss-welcome-if-needed.yaml
+- runFlow: ../subflows/budget-recover-dashboard.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-screen'
+    commands:
+      - openLink: simplebudget:///
+      - runFlow: ../subflows/connect-budget-metro.yaml
+      - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+      - runFlow: ../subflows/budget-dismiss-welcome-if-needed.yaml
+      - tapOn:
+          id: 'tab-index'
+          retryTapIfNoChange: true
+          optional: true
+      - repeat:
+          times: 18
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'budget-screen'
+                commands:
+                  - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'budget-screen'
+                      timeout: 5000
+                      optional: true
+# Same async-alert race as budget-launch-logged-in.yaml: the notification
+# permission prompt can land at any point during the waits above, so poll +
+# dismiss right before the hard assert instead of a single point-in-time check.
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-screen'
+          commands:
+            - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+            - waitForAnimationToEnd:
+                timeout: 2000
+- assertVisible:
+    id: 'budget-screen'
+
+# House-chat brand-leak guard also applies here (useNotificationHandler's
+# syncBadges() fires on every AppState->active / mount regardless of whether
+# this is a cold launch or a warm reconnect, so it's a valid check on this
+# path too) — kept.
+#
+# The three auth-hydration-race guards (subscriptions/me, households,
+# ai-access — no-401-at-launch) that budget-launch-logged-in.yaml carries are
+# INTENTIONALLY NOT duplicated here. This flow's common path (see the `when:
+# notVisible: budget-screen` gate above) is a no-op when the app is already
+# warm — it never re-runs initializeAuth()/hydrateProductTokensFromSecureStore,
+# so the proactive-refresh fix those guards depend on never gets a chance to
+# fire. A token that organically expires mid-session (every ~15min the full
+# suite runs) can legitimately 401 here once before the reactive
+# retry-after-401 recovers it — expected JWT lifecycle, not the bug those
+# guards target. Confirmed 2026-08-04: this flow hard-failed on a genuine
+# /ai-access 401 at the ~1h40m mark of a full-suite run for exactly this
+# reason; removed rather than chasing a false positive.
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: GET
+      E2E_VERIFY_PATH: /chat-rooms
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000

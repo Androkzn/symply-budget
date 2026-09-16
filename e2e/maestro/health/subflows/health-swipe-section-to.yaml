@@ -1,0 +1,83 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Bring `${TARGET_ID}` onto the screen on a Health SECTION tab, by REPEATED RAW
+# SWIPES rather than `scrollUntilVisible`.
+#
+#     - runFlow:
+#         file: subflows/health-swipe-section-to.yaml
+#         env:
+#           TARGET_ID: health-meal-group-lunch-toggle
+#           SCROLL_DIR: down          # or: up
+#
+# ## Why this exists — measured, not assumed
+#
+# On 2026-07-26, on the Nutrition tab, with the driver freshly restarted:
+#
+#   * `scrollUntilVisible: {element: {id: health-meal-group-lunch-toggle},
+#     direction: DOWN, timeout: 30000}` ran its full thirty seconds and moved
+#     the list ZERO pixels — the screenshots before and after were identical —
+#     then failed with "element not found";
+#   * two plain `- swipe` commands issued seconds later, same session, same
+#     driver, same screen, carried the same list from the day stepper all the
+#     way past the four meal groups to the WATER card at the bottom.
+#
+# So the GESTURE works and the command wrapping it does not. Shorter hops (one
+# screen or so) do succeed with `scrollUntilVisible`, which is why the suite has
+# been able to use it at all and why this looked intermittent; the failures
+# cluster on the long hops, and a Health section tab is several screens tall.
+#
+# This is the same shape of problem `focus-health-home.yaml` records for the
+# Home list — and note what it means for that entry: the Home list is not
+# uniquely undriveable, `scrollUntilVisible` is unreliable on RN New-Architecture
+# ScrollViews on this build generally. The answer is the same in both places:
+# repeat the raw gesture and stop as soon as the target is on screen.
+#
+# The closing `assertVisible` stays HARD. This makes the gesture reliable; it
+# does not soften what has to be true at the end.
+#
+# ## Callers
+#
+# `TARGET_ID` and `SCROLL_DIR` are both REQUIRED. An unset Maestro variable is
+# not an error — it silently degrades the flow, which is exactly how
+# `focus-health-home.yaml`'s `LIFT_ID` contract rotted unnoticed for weeks.
+- runFlow:
+    when:
+      true: ${SCROLL_DIR === 'down'}
+    commands:
+      - repeat:
+          times: 12
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: ${TARGET_ID}
+                commands:
+                  - swipe:
+                      start: '50%,72%'
+                      end: '50%,32%'
+                      duration: 400
+                  - waitForAnimationToEnd:
+                      timeout: 700
+- runFlow:
+    when:
+      true: ${SCROLL_DIR === 'up'}
+    commands:
+      - repeat:
+          times: 12
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: ${TARGET_ID}
+                commands:
+                  - swipe:
+                      start: '50%,32%'
+                      end: '50%,72%'
+                      duration: 400
+                  - waitForAnimationToEnd:
+                      timeout: 700
+- assertVisible:
+    id: ${TARGET_ID}

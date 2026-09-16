@@ -1,0 +1,32 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# Learn tab (route `index`, locked/pinned).
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-learn-screen'
+    commands:
+      - openLink: ${E2E_APP_SCHEME}://
+      - runFlow: language-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+- tapOn:
+    id: 'tab-index'
+    optional: true
+    retryTapIfNoChange: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-learn-screen'
+    commands:
+      - tapOn:
+          text: 'Learn'
+          retryTapIfNoChange: true
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'language-learn-screen'
+    timeout: 60000

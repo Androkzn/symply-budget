@@ -1,0 +1,18 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:task-planning
+  - readonly
+  - regression
+# Matrix: HOUSE-TPLAN-011…013 (maintenance setup wizard)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- openLink: simplehouse://tasks?screen=MaintenanceSetup
+- extendedWaitUntil:
+    visible:
+      id: 'maintenance-setup-screen'
+    timeout: 30000
+- assertVisible: 'Set Up Maintenance'
+- tapOn:
+    id: 'nav-back-button'
+    optional: true

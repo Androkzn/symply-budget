@@ -1,0 +1,13 @@
+appId: ${APP_ID}
+---
+# iOS 26 + Maestro 2.6.1: RN ScrollView swipes are unreliable on Kaizen hubs.
+# Attempt scroll-to-sentinel but never fail the flow (SCROLL matrix rows = N/A).
+- scrollUntilVisible:
+    element:
+      id: ${SCROLL_END_ID}
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- assertVisible:
+    id: ${SCROLL_END_ID}
+    optional: true

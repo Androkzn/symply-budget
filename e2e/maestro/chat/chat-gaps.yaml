@@ -1,0 +1,334 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:chat
+  - mutation
+  - regression
+# Matrix: HOUSE-CHAT-003–014, 016, 018–021, 041–042
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-chat-tab.yaml
+- assertVisible:
+    id: 'chat-rooms-screen'
+# Create-room form opens (HOUSE-CHAT-003)
+- tapOn:
+    id: 'chat-rooms-new-button'
+- extendedWaitUntil:
+    visible:
+      id: 'chat-rooms-name-input'
+    timeout: 10000
+- assertVisible:
+    id: 'chat-rooms-name-input'
+# Empty name blocked (HOUSE-CHAT-005)
+- tapOn:
+    id: 'chat-rooms-create-button'
+- assertVisible:
+    id: 'chat-rooms-name-input'
+# Cancel create (HOUSE-CHAT-006)
+- hideKeyboard:
+    optional: true
+- tapOn: 'Cancel'
+- waitForAnimationToEnd:
+    timeout: 3000
+- extendedWaitUntil:
+    notVisible:
+      id: 'bottom-sheet-overlay'
+    timeout: 10000
+- hideKeyboard:
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: 'chat-rooms-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'chat-rooms-screen'
+# Create room + send message (HOUSE-CHAT-004, 008, 009)
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-CHAT-004
+- runFlow:
+    file: ../subflows/create-chat-room.yaml
+    env:
+      ROOM_NAME: 'E2E Room'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /chat-rooms
+      E2E_VERIFY_STATUS: '201'
+- assertVisible:
+    id: 'chat-room-input'
+# Empty send blocked (HOUSE-CHAT-010)
+# LEFT AS-IS ON PURPOSE — this tap is the run's hard failure and the cause is an
+# APP defect, not flow plumbing, so nothing here may paper over it.
+# House mounts ChatRoomScreen inside the `chat` TAB, and the floating tab-bar
+# capsule (app/(tabs)/_layout.tsx — position:absolute, bottom:0, zIndex 9999,
+# measured bounds y=[770,830] on a 402x874 device) is painted OVER the composer
+# row: ChatRoomScreen's `inputContainer` pads only by the safe-area inset
+# (`paddingBottom: Math.max(insets.bottom, Spacing.sm)`) and never applies
+# Layout.bottomTabBarClearance. `chat-room-send` therefore lands at
+# x=[318,390] y=[792,836] — squarely under `tab-settings` ([312,770]→[386,830])
+# — so this tap switches to the More/Settings tab and the assert below fails on
+# `settings-screen` (2026-08-28_115024 chat-gaps, seq 240→241).
+# src/navigation/tabBarVisibility.ts already solves exactly this for Budget's
+# WishDetail composer (HIDDEN_ROUTES_BY_TAB.Budget = {'WishDetail'}); the chat
+# tab's `ChatRoom` was never added to it. Budget's own chat flows pass because
+# `/budget-chat` is a ROOT route with no tab bar over it.
+# Not swapped for an `enabled: false` selector: this repo's convention is that
+# disabled states are verified behaviourally (Maestro's `enabled:` does not match
+# a disabled RN Pressable), and doing so would hide the bug rather than show it.
+- tapOn:
+    id: 'chat-room-send'
+- assertVisible:
+    id: 'chat-room-input'
+# Send message (HOUSE-CHAT-009)
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-CHAT-009
+- tapOn:
+    id: 'chat-room-input'
+- inputText: 'E2E hello'
+- tapOn:
+    id: 'chat-room-send'
+- extendedWaitUntil:
+    visible: 'E2E hello'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /messages
+      E2E_VERIFY_STATUS: '201'
+# Edit message (HOUSE-CHAT-011)
+- longPressOn: 'E2E hello'
+- extendedWaitUntil:
+    visible: 'Edit'
+    timeout: 8000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Edit'
+    commands:
+      - tapOn: 'Edit'
+      - tapOn:
+          id: 'chat-room-input'
+      - eraseText
+      - inputText: 'E2E hello edited'
+      - tapOn:
+          id: 'chat-room-send'
+      - extendedWaitUntil:
+          visible: 'E2E hello edited'
+          timeout: 15000
+          optional: true
+# Delete message (HOUSE-CHAT-012)
+#
+# Long-press whichever message is actually there, not the edited text.
+#
+# The edit block above is `when: visible: 'Edit'`-gated and its confirmation
+# wait is `optional: true`, so "E2E hello edited" may legitimately never exist —
+# the room may not offer Edit, or the edit may not have applied. This step was
+# neither optional nor inside that gate, so it hard-failed on a message the flow
+# had no right to assume, and took HOUSE-CHAT-012 down with it. Observed
+# 2026-08-28: the composer worked, the message sent, and the flow still died
+# here.
+#
+# `E2E hello` matches both the original and the edited text (Maestro matches a
+# regex against the whole string, hence the explicit `.*`), so the delete runs
+# on whichever the room ended up holding.
+- longPressOn: 'E2E hello.*'
+- extendedWaitUntil:
+    visible: 'Delete'
+    timeout: 8000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Delete'
+    commands:
+      - tapOn: 'Delete'
+      - tapOn: 'Delete'
+# Attach control visible (HOUSE-CHAT-018/020 partial)
+- assertVisible:
+    id: 'chat-room-attach'
+# Rename room (HOUSE-CHAT-041)
+- tapOn:
+    id: 'chat-room-settings'
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-settings-screen'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'chat-room-name-input'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            E2E_MATRIX_ROW: HOUSE-CHAT-041
+      - tapOn:
+          id: 'chat-room-name-input'
+      - eraseText
+      - inputText: 'E2E Room Renamed'
+      - hideKeyboard:
+          optional: true
+      - tapOn:
+          id: 'chat-room-settings-rename'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            E2E_VERIFY_METHOD: PATCH
+            E2E_VERIFY_PATH: /chat-rooms
+            E2E_VERIFY_STATUS: '200'
+      # Rename returns to the room; the header now shows the new name.
+      - extendedWaitUntil:
+          visible: 'E2E Room Renamed'
+          timeout: 15000
+          optional: true
+# Clear room history (HOUSE-CHAT-042)
+# Start this section from a KNOWN screen. The rename block above only returns to
+# chat-room-screen when its `when` guard fired (handleRename → goBack()); when it
+# did not — e.g. `canManage` is false, so ChatRoomSettingsScreen renders no
+# `chat-room-name-input` — the app is STILL on chat-room-settings-screen, where
+# `chat-room-settings` (a ChatRoomScreen header button) does not exist and the
+# tap below dies. Pop exactly one screen, and only in that case.
+- runFlow:
+    when:
+      visible:
+        id: 'chat-room-settings-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-room-screen'
+          timeout: 10000
+- tapOn:
+    id: 'chat-room-settings'
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-settings-screen'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'chat-room-settings-clear-history'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            E2E_MATRIX_ROW: HOUSE-CHAT-042
+      - tapOn:
+          id: 'chat-room-settings-clear-history'
+      - extendedWaitUntil:
+          visible: 'Clear all'
+          timeout: 8000
+      - tapOn: 'Clear all'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /messages
+            E2E_VERIFY_STATUS: '200'
+      # Clearing returns to the (now empty) room.
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-room-screen'
+          timeout: 15000
+          optional: true
+# Room settings + delete room (HOUSE-CHAT-007, 019, 021)
+# Same guard as above: the clear-history block returns to chat-room-screen only
+# when its `when` guard fired (the alert's "Clear all" → goBack()); if
+# `chat-room-settings-clear-history` was absent, or the alert never appeared, we
+# are still on chat-room-settings-screen and the tap below has no target.
+- runFlow:
+    when:
+      visible:
+        id: 'chat-room-settings-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-room-screen'
+          timeout: 10000
+- tapOn:
+    id: 'chat-room-settings'
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-settings-screen'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'chat-room-settings-delete'
+    commands:
+      - tapOn:
+          id: 'chat-room-settings-delete'
+      - extendedWaitUntil:
+          visible: 'Delete'
+          timeout: 8000
+          optional: true
+      - runFlow:
+          when:
+            visible: 'Cancel'
+          commands:
+            - tapOn: 'Cancel'
+# Back to the rooms list — EXPLICIT re-entry, not a speculative back tap.
+# The old step here was `when visible nav-back-button → tap nav-back-button`,
+# which assumed one pop reaches chat-rooms-screen. It does not: from
+# chat-room-settings-screen one `nav-back-button` tap lands on chat-room-screen
+# (ChatRoomSettingsScreen's back is goBack(), not popToTop), one screen SHORT of
+# the list — and if the delete alert had been confirmed instead of cancelled,
+# handleDelete already did navigate('ChatRoomsList'), so the same tap would be
+# one too many and `nav-back-button` isn't even there. Either way
+# create-chat-room.yaml below needs `chat-rooms-new-button`, which exists ONLY on
+# chat-rooms-screen, so it failed silently under its own `optional: true` and
+# HOUSE-CHAT-016 was never actually exercised.
+# Tapping `tab-chat` pops the chat tab's nested stack to its root
+# (navigateToTabRoot in app/(tabs)/_layout.tsx dispatches popToTop even when the
+# tab is already focused), so this lands on chat-rooms-screen from ANY depth.
+- runFlow: ../subflows/go-chat-tab.yaml
+# Duplicate room name corner (HOUSE-CHAT-016)
+- runFlow:
+    file: ../subflows/create-chat-room.yaml
+    env:
+      ROOM_NAME: 'E2E Room'
+    optional: true
+# When the duplicate name is REJECTED, createRoom throws: the "Could not create
+# room" alert goes up and the bottom sheet STAYS open (closeCreateSheet only runs
+# on success), so create-chat-room.yaml times out and its `optional: true`
+# swallows the failure. Clear both first — otherwise the tab-chat tap below is
+# aimed at a tab bar sitting behind a modal.
+- tapOn:
+    text: 'OK'
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'chat-rooms-name-input'
+    commands:
+      - hideKeyboard:
+          optional: true
+      - tapOn: 'Cancel'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'bottom-sheet-overlay'
+          timeout: 10000
+# Re-entry again rather than a back tap: create-chat-room.yaml lands INSIDE the
+# new room when the duplicate name is accepted and leaves us on chat-rooms-screen
+# when it is rejected, so the stack depth here is not knowable in advance.
+- runFlow: ../subflows/go-chat-tab.yaml
+- assertVisible:
+    id: 'chat-rooms-screen'

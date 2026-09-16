@@ -1,0 +1,8 @@
+appId: ${APP_ID}
+---
+# Open a Kaizen stack route by deep link, then let the push settle.
+# Env: KAIZEN_ROUTE (required) — e.g. kaizen:///kaizen/deep-work
+# The caller asserts its own screen title/content after this returns.
+- openLink: ${KAIZEN_ROUTE}
+- waitForAnimationToEnd:
+    timeout: 4000

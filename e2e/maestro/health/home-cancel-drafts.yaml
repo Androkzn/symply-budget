@@ -1,0 +1,59 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:home
+  - readonly
+  - regression
+# Matrix: HEALTH-HOME-066 (HEALTH-HOME-065 RETIRED 2026-08-01 — see matrix)
+---
+# HOME-065 ("Abandoned weight draft never persists") is RETIRED 2026-08-01:
+# it typed into `health-weight-input` and tapped away without pressing
+# `health-log-weight-button`, both now removed along with the whole Home
+# WEIGHT card. There is no draftable weight field left on Home for a
+# cancel-without-saving case to apply to.
+- runFlow: subflows/launch-health.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Note draft abandoned before blur (HOME-066) ----------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-HOME-066
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-note-input
+            HOME_ANCHOR: bottom
+      - tapOn:
+          id: 'health-note-input'
+      - inputText: 'Draft before tab switch'
+      # LOCAL-ONLY: the tap below blurs health-note-input, and blur IS the
+      # note's save path (`onNoteBlur` → `handleSaveNote` → `saveNoteForDate`,
+      # HealthHomeScreen.tsx) — but `saveNoteForDate` (healthLocalStorage.ts)
+      # writes only to MMKV (`HEALTH_NOTES_KEY`) via storageHelpers.setObject;
+      # it never touches apiClient and the daily note has no backend route at
+      # all, so there is no real endpoint to guard with a network check here.
+      # (See teardown below, which clears this local write.)
+      - tapOn:
+          id: 'health-home-screen'
+          optional: true
+      - runFlow: subflows/go-more.yaml
+      - assertVisible:
+          id: 'health-more-screen'
+      - tapOn:
+          id: 'tab-index'
+      - assertVisible:
+          id: 'health-home-screen'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Teardown --------------------------------------------------------
+      # HOME-066 types into the note field and then switches tab, which BLURS it
+      # — and blur is the note's save path, so the draft is persisted despite
+      # the flow's `readonly` tag. Clear it.
+      - openLink: simplehealth://e2e-health-set-note?text=
+      - waitForAnimationToEnd:
+          timeout: 2000

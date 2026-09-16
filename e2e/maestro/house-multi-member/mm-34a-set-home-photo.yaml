@@ -1,0 +1,129 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - feature:attachments
+  - mutation
+# Matrix: HOUSE-MM-034 (part a) — the owner puts a photo ON THE PROPERTY ITSELF.
+#
+# WHY THIS IS NOT A DUPLICATE OF MM-031. That phase proves a TASK attachment
+# round-trips. The property photo travels by a different path and had its own
+# failure: `uploadPhoto` threw "Home photos sync in a later update" long after H6
+# had shipped, so a member editing a property got an Alert titled **Error** over
+# a save that had otherwise worked, and the one thing on the property that could
+# not reach another member was the picture of it
+# (src/features/house/local/__tests__/houseHomePhoto.test.ts). The unit test pins
+# the ledger shape; nothing until now drove it across two real devices.
+#
+# The descriptor rides IN the `households` ledger row (`photo_blob`) with
+# `photo_key` in the synthetic `lf-blob/` form — which is exactly why the peer
+# check in part b asserts the DECRYPTED view rather than any thumbnail: a
+# local-first property's `photo_url` is signed from a key the Worker never
+# wrote, so an <Image> on it renders broken while still occupying the hierarchy.
+#
+# THE EDIT SHEET IS BEHIND A SWIPE. `household-card-<i>` opens the property
+# DETAIL screen (HouseholdManagementScreen.tsx:134 `onPress={onOpen}`); the Edit
+# action lives in the Swipeable's right actions and carries no testID of its
+# own, so it is reached by swiping the card and tapping its "Edit" label.
+#
+# env: MM_PHOTO_PROPERTY — the SHARED household's displayed name. The runner
+# skips this phase when it could not scrape it, exactly as it skips H5: with the
+# wrong card we would photograph a property the peer is not a member of and the
+# phase would fail for a reason that has nothing to do with sync.
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: ../subflows/open-profile.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-household-members'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'settings-row-household-members'
+- extendedWaitUntil:
+    visible:
+      id: 'household-management-screen'
+    timeout: 25000
+- scrollUntilVisible:
+    element:
+      text: '.*${MM_PHOTO_PROPERTY}.*'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- assertVisible: '.*${MM_PHOTO_PROPERTY}.*'
+- swipe:
+    from:
+      text: '.*${MM_PHOTO_PROPERTY}.*'
+    direction: LEFT
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    text: '^Edit$'
+- extendedWaitUntil:
+    visible: 'Edit Property'
+    timeout: 20000
+# Tap the photo box. Empty it renders the "Add Property Photo" placeholder
+# (HouseholdManagementScreen.tsx:381); once a blob photo is on the property the
+# box is `household-form-photo` instead. Both branches open the same sheet.
+- runFlow:
+    when:
+      visible: 'Add Property Photo'
+    commands:
+      - tapOn:
+          text: 'Add Property Photo'
+- runFlow:
+    when:
+      notVisible: 'Add Property Photo'
+    commands:
+      - tapOn:
+          id: 'household-form-photo'
+# The action sheet's MESSAGE, not its title: the title is "Add Property Photo",
+# byte-identical to the placeholder above, so waiting on it cannot distinguish
+# "the sheet opened" from "the tap missed".
+- extendedWaitUntil:
+    visible: 'Choose how to add a photo'
+    timeout: 15000
+- tapOn:
+    text: 'Choose from Library'
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow: ../subflows/pick-photo-from-library.yaml
+- runFlow: mm-relaunch-if-backgrounded.yaml
+- runFlow: mm-dismiss-dev-chrome.yaml
+# Back on the sheet with a picked file: the placeholder is gone, replaced by the
+# preview <Image> (which has no testID of its own — it is a plain expo-image on
+# a local file, so its absence-of-placeholder is what is observable here).
+- extendedWaitUntil:
+    visible: 'Edit Property'
+    timeout: 25000
+- extendedWaitUntil:
+    notVisible: 'Add Property Photo'
+    timeout: 25000
+- tapOn:
+    id: 'property-sheet-save'
+# The save is what seals the bytes and writes the descriptor into the ledger
+# row. A save that fails surfaces as an Alert titled "Error" over an open sheet
+# — the exact H6 regression this phase exists for — so the sheet CLOSING is the
+# assertion, not a courtesy wait.
+- extendedWaitUntil:
+    notVisible: 'Edit Property'
+    timeout: 45000
+- runFlow: mm-dismiss-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'household-management-screen'
+    timeout: 25000
+# Push the blob and its ledger row out. Chunked upload + finalize is separate
+# from the op, so pulse from the surface that actually owns a sync control
+# rather than from here, where mm-sync-pulse degrades to a plain wait.
+- runFlow: mm-open-lf-settings.yaml
+- repeat:
+    times: 10
+    commands:
+      - runFlow: mm-sync-pulse.yaml
+      - runFlow: mm-dismiss-stale-alerts.yaml

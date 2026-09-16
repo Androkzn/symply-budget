@@ -1,0 +1,183 @@
+<!doctype html>
+<html><head><meta charset="utf-8" /><title>2026-08-17_023004__budget-recover-session — E2E report</title>
+<style>
+:root { color-scheme: light dark; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 0; background: #f6f8fa; color: #1f2328; }
+@media (prefers-color-scheme: dark) { body { background: #0d1117; color: #e6edf3; } .step { background: #161b22 !important; border-color: #30363d !important; } .step-head { border-color: #30363d !important; } .events { background: #0d1117 !important; } header { background: #161b22 !important; border-color: #30363d !important; } table.summary td, table.summary th { border-color: #30363d !important; } .warned-note.benign { background: #21262d !important; border-color: #30363d !important; color: #8b949e !important; } .warned-note.noteworthy { background: #3a3216 !important; border-color: #6b5c1e !important; color: #e6edf3 !important; } .warned-note code { background: rgba(255,255,255,0.12) !important; } .app-name { color: #8b949e !important; } .app-logo { box-shadow: 0 0 0 1px rgba(255,255,255,0.14) !important; } }
+header { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #d0d7de; padding: 16px 24px; z-index: 10; }
+h1 { font-size: 18px; margin: 0 0 4px; }
+.meta { font-size: 13px; color: #57606a; }
+main { max-width: 1040px; margin: 0 auto; padding: 20px 24px 80px; }
+.step { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+.step.failed { border-color: #ffb0a8; }
+.step.warned { border-color: #f0d878; }
+.step-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #eaeef2; font-size: 13px; }
+.seq { color: #8b949e; font-variant-numeric: tabular-nums; }
+.label { font-weight: 600; flex: 1; }
+.dur { font-size: 11px; }
+.badge { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px; }
+.step-body { display: flex; gap: 12px; padding: 10px 12px; align-items: flex-start; }
+.shot { width: 90px; border-radius: 6px; border: 1px solid #d0d7de; display: block; }
+.shot-link { flex-shrink: 0; }
+.step-detail { flex: 1; min-width: 0; }
+.warned-note { border-radius: 6px; padding: 6px 8px; font-size: 12px; margin-bottom: 8px; line-height: 1.5; }
+.warned-note.benign { background: #f6f8fa; border: 1px solid #d0d7de; color: #57606a; }
+.warned-note.noteworthy { background: #fff8c5; border: 1px solid #f0d878; }
+.warned-note code { background: rgba(0,0,0,0.06); border-radius: 3px; padding: 1px 4px; }
+.events { background: #f6f8fa; border-radius: 6px; padding: 6px 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.ev { padding: 2px 0; word-break: break-word; }
+.ev.ok { color: #1a7f37; }
+.ev.fail { color: #b60205; font-weight: 600; }
+.ev.tag { color: #6639ba; }
+.pill { background: #eaeef2; border-radius: 4px; padding: 0 4px; font-weight: 600; }
+.tag { background: #ede4ff; color: #6639ba; border-radius: 10px; padding: 0 6px; font-size: 11px; }
+.muted { color: #8b949e; }
+.small { font-size: 12px; }
+table.summary { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+table.summary td, table.summary th { border: 1px solid #d0d7de; padding: 6px 10px; text-align: left; font-size: 13px; }
+table.summary th { background: #f6f8fa; }
+a { color: #0969da; }
+.title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.app-logo { width: 34px; height: 34px; border-radius: 8px; object-fit: contain; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,0.08); }
+.title-text { display: flex; flex-direction: column; }
+.app-name { font-size: 13px; font-weight: 600; color: #57606a; line-height: 1.2; }
+.title-text h1 { margin: 0; }
+.run-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  padding: 4px 12px; border-radius: 999px; border: 1px solid transparent; }
+.run-status.running { color: #0550ae; background: #ddf4ff; border-color: #0550ae33; }
+.run-status.passed  { color: #1a7f37; background: #dafbe1; border-color: #1a7f3733; }
+.run-status.failed  { color: #b60205; background: #ffebe9; border-color: #b6020533; }
+.run-status .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor;
+  animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1;
+  padding: 5px 10px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+.chip-ico { font-size: 13px; }
+.chip-key { text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px; opacity: 0.75; }
+.chip-val { font-weight: 600; }
+.header-progress { margin-top: 12px; }
+.verdicts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; }
+.verdict-count { color: #57606a; }
+.verdict-fail { color: #b60205; background: #ffebe9; border: 1px solid #b6020533;
+  border-radius: 999px; padding: 3px 10px; font-weight: 600; }
+.verdict-fail em { font-style: normal; opacity: 0.7; font-weight: 400; }
+@media (prefers-color-scheme: dark) { .verdict-fail { background: #67060c !important; color: #ffa198 !important; } }
+@media (prefers-color-scheme: dark) {
+  .run-status.running { background: #0c2d6b !important; color: #79c0ff !important; }
+  .run-status.passed  { background: #0f5323 !important; color: #7ee787 !important; }
+  .run-status.failed  { background: #67060c !important; color: #ffa198 !important; }
+  .chip { filter: brightness(0.85) saturate(1.2); }
+}
+.progress-wrap { margin-top: 10px; }
+.progress-label { font-size: 12px; color: #57606a; margin-bottom: 4px; }
+.progress-bar { height: 8px; border-radius: 4px; background: #eaeef2; overflow: hidden; }
+.progress-fill { height: 100%; background: #0969da; transition: width 0.3s ease; }
+.progress-fill.done { background: #1a7f37; }
+@media (prefers-color-scheme: dark) { .progress-bar { background: #21262d !important; } }
+.progress-footer { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #d0d7de; padding: 8px 24px; z-index: 20; box-shadow: 0 -2px 8px rgba(0,0,0,0.06); }
+.progress-footer .progress-wrap { margin-top: 0; }
+body.has-progress-footer main { padding-bottom: 64px; }
+@media (prefers-color-scheme: dark) { .progress-footer { background: #161b22 !important; border-color: #30363d !important; } }
+.controls { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.controls input { flex: 1; max-width: 320px; padding: 5px 10px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 13px; background: #fff; color: inherit; }
+.controls button { padding: 5px 10px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 12px; background: #f6f8fa; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .controls input, .controls button { background: #161b22 !important; border-color: #30363d !important; color: #e6edf3; } summary { background: #161b22 !important; } details.flow-group { border-color: #30363d !important; } }
+details.flow-group { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; margin-bottom: 10px; overflow: hidden; scroll-margin-top: 90px; }
+details.flow-group.has-fail { border-color: #ffb0a8; }
+details.flow-group.has-warn:not(.has-fail) { border-color: #f0d878; }
+details.flow-group summary { list-style: none; cursor: pointer; padding: 10px 14px; display: flex; align-items: center; gap: 10px; background: #f6f8fa; user-select: none; }
+details.flow-group summary::-webkit-details-marker { display: none; }
+details.flow-group summary::before { content: '▸'; display: inline-block; transition: transform 0.15s; color: #8b949e; }
+details.flow-group[open] summary::before { transform: rotate(90deg); }
+.flow-name { font-weight: 600; flex: 1; }
+.flow-stats { font-size: 12px; color: #57606a; }
+.flow-body { padding: 12px 14px; }
+</style></head>
+<body>
+<header>
+  <h1>2026-08-17_023004__budget-recover-session</h1>
+  <div class="chips"><span class="chip" style="color:#24292f;background:#f6f8fa;border-color:#24292f33"><span class="chip-ico">📱</span><span class="chip-key">Platform</span><span class="chip-val">iOS</span></span><span class="chip" style="color:#9a6700;background:#fff8c5;border-color:#9a670033"><span class="chip-ico">🧪</span><span class="chip-key">Env</span><span class="chip-val">staging</span></span><span class="chip" style="color:#8250df;background:#fbefff;border-color:#8250df33"><span class="chip-ico">🏷</span><span class="chip-key">Build</span><span class="chip-val">54</span></span><span class="chip" style="color:#0550ae;background:#ddf4ff;border-color:#0550ae33"><span class="chip-ico">📲</span><span class="chip-key">Device</span><span class="chip-val">Budget-A</span></span></div>
+  <div class="meta">6 steps · 35s · 1 failed · 0 warned · 0 backend calls (0 failed) · 0 local writes (0 rows) · 0 sync (0 failed, ↑0 ↓0, 0 conflicts) · 0 uploads · 0 ws events · 0 verify checks (0 failed)</div>
+</header>
+<main>
+
+  <div class="step completed" id="step-89">
+    <div class="step-head">
+      <span class="seq">#89</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;onboarding-get-started&quot;</span>
+      <span class="dur muted">473ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-17_023004__budget-recover-session-step-090-assertCondition-onboarding-get-started.png" target="_blank"><img class="shot" src="assets/2026-08-17_023004__budget-recover-session-step-090-assertCondition-onboarding-get-started.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 12000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-102">
+    <div class="step-head">
+      <span class="seq">#102</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;onboarding-get-started&quot;</span>
+      <span class="dur muted">453ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-17_023004__budget-recover-session-step-103-assertCondition-onboarding-get-started.png" target="_blank"><img class="shot" src="assets/2026-08-17_023004__budget-recover-session-step-103-assertCondition-onboarding-get-started.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 12000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-126">
+    <div class="step-head">
+      <span class="seq">#126</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap id=&quot;nav-back-button&quot;</span>
+      <span class="dur muted">318ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-17_023004__budget-recover-session-step-127-tapOnElement-nav-back-button.png" target="_blank"><img class="shot" src="assets/2026-08-17_023004__budget-recover-session-step-127-tapOnElement-nav-back-button.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-128">
+    <div class="step-head">
+      <span class="seq">#128</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap id=&quot;nav-back-button&quot;</span>
+      <span class="dur muted">7248ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-17_023004__budget-recover-session-step-129-tapOnElement-nav-back-button.png" target="_blank"><img class="shot" src="assets/2026-08-17_023004__budget-recover-session-step-129-tapOnElement-nav-back-button.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-130">
+    <div class="step-head">
+      <span class="seq">#130</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap id=&quot;nav-back-button&quot;</span>
+      <span class="dur muted">7183ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-17_023004__budget-recover-session-step-131-tapOnElement-nav-back-button.png" target="_blank"><img class="shot" src="assets/2026-08-17_023004__budget-recover-session-step-131-tapOnElement-nav-back-button.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step failed" id="step-132">
+    <div class="step-head">
+      <span class="seq">#132</span>
+      <span class="badge" style="color:#b60205;background:#ffebe9">✕ FAILED</span>
+      <span class="label">Open link: simplebudget:///</span>
+      <span class="dur muted">350ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-17_023004__budget-recover-session-step-133-openLink-simplebudget.png" target="_blank"><img class="shot" src="assets/2026-08-17_023004__budget-recover-session-step-133-openLink-simplebudget.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+</main>
+</body></html>

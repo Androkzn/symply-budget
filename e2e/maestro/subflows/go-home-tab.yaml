@@ -1,0 +1,34 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- runFlow:
+    file: dismiss-stuck-sheet.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: 'tab-index'
+    commands:
+      - tapOn:
+          id: 'tab-index'
+          retryTapIfNoChange: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'home-screen'
+    commands:
+      - openLink: ${E2E_APP_SCHEME}://
+      - waitForAnimationToEnd:
+          timeout: 4000
+- extendedWaitUntil:
+    visible:
+      id: 'home-screen'
+    timeout: 30000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-up-next-section'
+    timeout: 15000
+    optional: true

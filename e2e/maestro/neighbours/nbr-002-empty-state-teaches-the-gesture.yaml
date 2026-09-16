@@ -1,0 +1,38 @@
+# NBR-002 — the empty map says how to start.
+#
+# Long-press is undiscoverable. On a household with no neighbours yet the hint
+# has to be ON the map, where the member is already looking for somewhere to
+# begin — not in a toast that has already gone, and not in a help screen.
+#
+# `optional` on the hint itself: this suite runs against a shared account whose
+# data other flows have added to, so "no neighbours yet" is a state this flow
+# cannot guarantee. What it CAN guarantee is that exactly one of the two states
+# is coherent — either the hint is up, or there is something on the map.
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:neighbours
+  - readonly
+  - regression
+# Matrix: HOUSE-NBR-003
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-neighbours.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'neighbours-empty-hint'
+    commands:
+      - assertVisible: 'Press and hold a house to add your first neighbour'
+- runFlow:
+    when:
+      notVisible:
+        id: 'neighbours-empty-hint'
+    commands:
+      # Something is on the map, so the list view must have something in it too.
+      - tapOn:
+          id: 'neighbours-view-toggle'
+      - assertVisible:
+          id: 'neighbours-list'
+      - tapOn:
+          id: 'neighbours-view-toggle'

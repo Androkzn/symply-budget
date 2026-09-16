@@ -1,0 +1,97 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:budget-chat
+  - pair
+  - pair:b
+  - readonly
+  - regression
+# Matrix: BUDGET-BCHAT-PAIR-007
+#
+# ── LIVE sync, watcher side (device B / member B) ────────────────────────────
+# Runs CONCURRENTLY with budget-chat-pair-live-a-send.yaml on the other
+# simulator. This is the pair that the serial stages cannot replace.
+#
+# In the serial run, B's app is launched AFTER A has already sent, so B could be
+# picking the message up from the ordinary REST fetch that happens on room open.
+# That proves storage and fan-out, but says nothing about real-time delivery.
+#
+# Here B sits INSIDE the room, already open, and:
+#   1. hard-asserts the message is NOT present on arrival — if A sent too early
+#      this fails loudly instead of silently passing on a message that was
+#      already in the thread
+#   2. then waits, without navigating, refreshing or backgrounding, for the text
+#      to appear on its own — which can only happen over the live ChatRoomDO
+#      WebSocket (useChatSocket), not a fetch
+#   3. and checks it rendered as an INCOMING bubble from the other member
+#
+# Env: PAIR_ROOM_NAME, PAIR_LIVE_MSG, PAIR_PEER_NAME (the SENDER's display
+# name — this flow is direction-agnostic and serves A→B and B→A alike).
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-open-chat-rooms.yaml
+- assertVisible:
+    id: 'chat-rooms-screen'
+- extendedWaitUntil:
+    visible: '.*${PAIR_ROOM_NAME}.*'
+    timeout: 60000
+    optional: true
+- runFlow:
+    when:
+      notVisible: '.*${PAIR_ROOM_NAME}.*'
+    commands:
+      - swipe:
+          direction: DOWN
+          element:
+            id: 'chat-rooms-list'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - extendedWaitUntil:
+          visible: '.*${PAIR_ROOM_NAME}.*'
+          timeout: 60000
+- tapOn:
+    text: '.*${PAIR_ROOM_NAME}.*'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-screen'
+    timeout: 60000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'chat-room-screen'
+    commands:
+      - tapOn:
+          text: '.*${PAIR_ROOM_NAME}.*'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-room-screen'
+          timeout: 60000
+- assertVisible:
+    id: 'chat-room-screen'
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-input'
+    timeout: 45000
+# (1) The message must NOT be here yet. This is what keeps the test honest: it
+#     fails if the sender got ahead of the watcher, rather than passing on a
+#     message that was already in the thread before B started looking.
+- assertNotVisible: '.*${PAIR_LIVE_MSG}.*'
+# (2) Now watch. No taps, no scrolls, no refresh — anything arriving from here
+#     arrived over the socket while this screen was open.
+- extendedWaitUntil:
+    visible: '.*${PAIR_LIVE_MSG}.*'
+    timeout: 240000
+- assertVisible: '.*${PAIR_LIVE_MSG}.*'
+# (3) …and it is the OTHER member's message, not an echo of anything local.
+- extendedWaitUntil:
+    visible:
+      id: 'chat-msg-theirs-.*'
+    timeout: 30000
+- assertVisible:
+    id: 'chat-msg-theirs-.*'
+- assertVisible: '.*${PAIR_PEER_NAME}.*'

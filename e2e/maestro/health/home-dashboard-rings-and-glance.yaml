@@ -1,0 +1,514 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:home
+  - readonly
+  - regression
+# Matrix: HEALTH-HOME-130 … HEALTH-HOME-137
+---
+# Home's TODAY rings (`HealthDayRings`), the AT A GLANCE grid
+# (`HealthDashboardCards`), and the shared per-metric drill-down sheet
+# (`HealthHomeMetricSheet` / `buildHomeMetricDetail`) every one of the eight
+# metrics opens.
+#
+# WATER MOVED OFF THE GLANCE GRID (2026-07-29); WEIGHT LEFT HOME ENTIRELY
+# (2026-08-01). Water used to be a glance TILE restating a figure the full
+# WATER card already showed a few widgets up — its tile even opened the
+# identical sheet the card's own center well already did, so it was a second
+# tap target for one piece of information, not a second piece of information.
+# AT A GLANCE is now Habits + Body only — the two trackers with no card of
+# their own on Home — and Water's card center (`health-water-open-detail`) is
+# the drill-down entry point instead. WEIGHT never got the same "move to a
+# card headline" treatment Water did: the whole WEIGHT card (headline
+# `health-weight-summary`, delta chip, log row) was deleted from Home outright
+# 2026-08-01, so there is no tap target left on this screen to reach
+# `health-metric-detail-weight` at all — `buildHomeMetricDetail`'s `'weight'`
+# case still exists in source but is dead code from Home's side now (weight
+# readings are still viewable on the Weight tab itself). The calorie ring's
+# own duplicate (`calorieRing`, a whole second card with the same kcal figure
+# as the TODAY ring) was retired the same day as Water's tile; its macro
+# breakdown moved into the calories sheet HOME-130 already opens, so nothing
+# here changes for that leg.
+#
+# WHY A SHEET, NOT A TAB SWITCH: `HealthHomeScreen.openTarget` resolves a
+# `metric:<key>` token (`homeMetricFromTarget`) to `setActiveMetric`, which
+# renders `HealthHomeMetricSheet` — the donor's per-metric detail view
+# (`StepsDetailView` etc.), not a tab hop. The sheet's own "Open <Tab>" CTA is
+# the thing that actually calls `router.push`, which is why every leg below
+# opens the sheet FIRST and only some of them go on to press the CTA.
+#
+# STEPS AND MOVE SHARE A TAB ON PURPOSE (HEALTH-HOME-132): both rings route to
+# `/health-activity` — proving the CTA once (via steps, HOME-131) is proving
+# the mechanism; move's own leg stops at the sheet's stat tiles rather than
+# repeating a navigation this flow has already shown works, which is also why
+# `homeMetricFromTarget` cannot infer a destination from the route alone.
+#
+# SCROLL: HOME-133 now reaches its target through the shared
+# `subflows/focus-health-home.yaml` (`health-water-open-detail` / `bottom`) —
+# the SAME subflow and anchor `home-water-note.yaml` already uses successfully
+# for the water controls inside this same card, rather than a bespoke swipe
+# count tuned for the old glance-tile position. HOME-134 (Weight card headline
+# → sheet → Open Weight) is RETIRED 2026-08-01 — the whole WEIGHT card left
+# Home, so there is no tap target left to drive it with. HOME-135/136
+# (Habits/Body, still inside the glance grid) keep their own bounded scroll
+# loop below.
+#
+# NO TEARDOWN: every leg here opens and closes a sheet, or opens then returns
+# from a route push — nothing is written. Read-only, so this can run anywhere
+# in the suite.
+- runFlow: subflows/launch-health.yaml
+# The Habits/Body glance tiles further down (HOME-135/136) need those two
+# trackers turned on — they're opt-in features, off by default, and the local
+# override that turns them on lives in AsyncStorage (gone after any fresh
+# install). Scoped here rather than in launch-health.yaml: turning EVERY
+# opt-in feature on for EVERY flow reshapes the More tab's row list for flows
+# that never needed it — see launch-health.yaml's own comment.
+- openLink: simplehealth://e2e-health-enable-all-features
+- waitForAnimationToEnd:
+    timeout: 500
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # ======================================================================
+      # TODAY rings (HEALTH-HOME-130 … 132)
+      # ======================================================================
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-130
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-today-label
+            HOME_ANCHOR: top
+
+      # --- Calories ring → sheet → stat tiles → Open Nutrition (HOME-130) --
+      - runFlow:
+          when:
+            visible:
+              id: 'health-today-ring-calories'
+          commands:
+            - tapOn:
+                id: 'health-today-ring-calories'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-metric-detail-calories'
+                timeout: 15000
+            - assertVisible:
+                id: 'health-metric-calories-value'
+            - assertVisible:
+                id: 'health-metric-calories-today'
+            - assertVisible:
+                id: 'health-metric-calories-average'
+            - assertVisible:
+                id: 'health-metric-calories-days'
+            # The macro breakdown that used to live in its own duplicate card
+            # (`calorieRing`, retired 2026-07-29) is part of this same sheet now.
+            - assertVisible:
+                id: 'health-metric-calories-protein-bar'
+            - assertVisible:
+                id: 'health-metric-calories-carbs-bar'
+            - assertVisible:
+                id: 'health-metric-calories-fat-bar'
+            - tapOn:
+                id: 'health-metric-calories-open'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-nutrition-screen'
+                timeout: 20000
+            - assertNotVisible:
+                id: 'health-metric-detail-calories'
+            - tapOn:
+                id: 'tab-index'
+                retryTapIfNoChange: true
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-home-screen'
+                timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Steps ring → sheet → stat tiles → Open Activity (HOME-131) ------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-131
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-today-label
+            HOME_ANCHOR: top
+      - runFlow:
+          when:
+            visible:
+              id: 'health-today-ring-steps'
+          commands:
+            - tapOn:
+                id: 'health-today-ring-steps'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-metric-detail-steps'
+                timeout: 15000
+            - assertVisible:
+                id: 'health-metric-steps-value'
+            - assertVisible:
+                id: 'health-metric-steps-today'
+            - assertVisible:
+                id: 'health-metric-steps-average'
+            - assertVisible:
+                id: 'health-metric-steps-best'
+            - tapOn:
+                id: 'health-metric-steps-open'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-activity-screen'
+                timeout: 20000
+            - tapOn:
+                id: 'tab-index'
+                retryTapIfNoChange: true
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-home-screen'
+                timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Move ring → sheet → stat tiles → close (shares Activity with steps, HOME-132) ---
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-132
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-today-label
+            HOME_ANCHOR: top
+      - runFlow:
+          when:
+            visible:
+              id: 'health-today-ring-move'
+          commands:
+            - tapOn:
+                id: 'health-today-ring-move'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-metric-detail-move'
+                timeout: 15000
+            - assertVisible:
+                id: 'health-metric-move-value'
+            - assertVisible:
+                id: 'health-metric-move-today'
+            - assertVisible:
+                id: 'health-metric-move-total'
+            - assertVisible:
+                id: 'health-metric-move-days'
+            # No CTA tap here on purpose — Move's "Open Activity" is the SAME
+            # route Steps already proved (HOME-131); this leg proves the ring
+            # opens its own sheet and closes again instead.
+            - tapOn:
+                id: 'bottom-sheet-close'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'health-metric-detail-move'
+                timeout: 10000
+            - assertVisible:
+                id: 'health-home-screen'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # ======================================================================
+      # Water card (HEALTH-HOME-133) — HOME-134 (Weight card headline) RETIRED
+      # ======================================================================
+      # Water is not a glance TILE any more — see header. Reached the same way
+      # `home-water-note.yaml` already reaches the water controls inside this
+      # same card. HOME-134 used to open the WEIGHT card's headline
+      # (`health-weight-summary`) the same way; that whole card left Home
+      # 2026-08-01, so there is nothing left in this section to reach it with
+      # — see the matrix's HEALTH-HOME-134 tombstone row.
+
+      # --- Water card → sheet → stat tiles → Open Trends (HOME-133) --------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-133
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-water-open-detail
+            HOME_ANCHOR: bottom
+      - runFlow:
+          when:
+            visible:
+              id: 'health-water-open-detail'
+          commands:
+            - tapOn:
+                id: 'health-water-open-detail'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-metric-detail-water'
+                timeout: 15000
+            - assertVisible:
+                id: 'health-metric-water-value'
+            - assertVisible:
+                id: 'health-metric-water-today'
+            - assertVisible:
+                id: 'health-metric-water-average'
+            - assertVisible:
+                id: 'health-metric-water-ontarget'
+            - tapOn:
+                id: 'health-metric-water-open'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-trends-screen'
+                timeout: 20000
+            - tapOn:
+                id: 'tab-index'
+                retryTapIfNoChange: true
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-home-screen'
+                timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # ======================================================================
+      # AT A GLANCE grid — Habits + Body only now (HEALTH-HOME-135 … 136)
+      # ======================================================================
+      # Still its own bespoke scroll below (each leg re-establishes it): the
+      # grid sits a few widgets further up than Water/Weight's cards, and this
+      # budget was already generous enough to cover it before this session's
+      # change removed one card (`calorieRing`) from above it — if anything
+      # there is now more margin than before, not less.
+
+      # --- Habits card → sheet → stat tiles → close (HOME-135) -------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-135
+      - runFlow: subflows/dismiss-weight-keyboard.yaml
+      - runFlow: subflows/dismiss-health-home-cards.yaml
+      - repeat:
+          times: 6
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-today-label'
+                commands:
+                  - swipe:
+                      start: '50%,32%'
+                      end: '50%,82%'
+                      duration: 350
+                  - waitForAnimationToEnd:
+                      timeout: 700
+      - repeat:
+          times: 24
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-glance-habits'
+                commands:
+                  - swipe:
+                      direction: UP
+                      duration: 400
+                  - waitForAnimationToEnd:
+                      timeout: 700
+      - runFlow:
+          when:
+            visible:
+              id: 'health-glance-habits'
+          commands:
+            - assertVisible:
+                id: 'health-glance-body'
+            - tapOn:
+                id: 'health-glance-habits'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-metric-detail-habits'
+                timeout: 15000
+            - assertVisible:
+                id: 'health-metric-habits-value'
+            - assertVisible:
+                id: 'health-metric-habits-today'
+            - assertVisible:
+                id: 'health-metric-habits-average'
+            - assertVisible:
+                id: 'health-metric-habits-perfect'
+            # No CTA tap here — Body's leg (below) proves an "Open <Tab>" CTA
+            # from this same row; this one proves the sheet closes via the
+            # header's own ✕ rather than the backdrop or the tab bar.
+            - tapOn:
+                id: 'bottom-sheet-close'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'health-metric-detail-habits'
+                timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Body card → sheet → stat tiles → Open Body (HOME-136) -----------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-136
+      - runFlow: subflows/dismiss-weight-keyboard.yaml
+      - runFlow: subflows/dismiss-health-home-cards.yaml
+      - repeat:
+          times: 6
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-today-label'
+                commands:
+                  - swipe:
+                      start: '50%,32%'
+                      end: '50%,82%'
+                      duration: 350
+                  - waitForAnimationToEnd:
+                      timeout: 700
+      - repeat:
+          times: 24
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-glance-body'
+                commands:
+                  - swipe:
+                      direction: UP
+                      duration: 400
+                  - waitForAnimationToEnd:
+                      timeout: 700
+      - runFlow:
+          when:
+            visible:
+              id: 'health-glance-body'
+          commands:
+            - tapOn:
+                id: 'health-glance-body'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-metric-detail-body'
+                timeout: 15000
+            - assertVisible:
+                id: 'health-metric-body-value'
+            - assertVisible:
+                id: 'health-metric-body-sites'
+            - assertVisible:
+                id: 'health-metric-body-last'
+            - assertVisible:
+                id: 'health-metric-body-entries'
+            - tapOn:
+                id: 'health-metric-body-open'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-body-screen'
+                timeout: 20000
+            - tapOn:
+                id: 'tab-index'
+                retryTapIfNoChange: true
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-home-screen'
+                timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # ======================================================================
+      # Dismiss-by-backdrop-tap — a CANCEL leg none of the seven above cover
+      # (each of them used either the ✕ or an "Open …" CTA), so this proves
+      # the third way out: tapping outside the sheet (HEALTH-HOME-137).
+      # ======================================================================
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-137
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-today-label
+            HOME_ANCHOR: top
+      - runFlow:
+          when:
+            visible:
+              id: 'health-today-ring-calories'
+          commands:
+            - tapOn:
+                id: 'health-today-ring-calories'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-metric-detail-calories'
+                timeout: 15000
+            # NOT `tapOn: {id: 'bottom-sheet-overlay'}` — verified on-device
+            # 2026-07-29: that id exists in source (`BottomSheet.tsx`) but the
+            # view carrying it is `pointerEvents="box-none"`, and on this
+            # build Maestro's id-lookup reports "Element not found" for it,
+            # the same class of gap this matrix already documents for the
+            # `enabled:` selector on a disabled `Pressable`. A raw point tap
+            # in the visible backdrop strip (`height: 'tall'` never covers
+            # the full screen — the top ~19% stays uncovered) hits the same
+            # `TouchableOpacity` backdrop without depending on that id.
+            #
+            # RETRIED, not single-shot (2026-08-02, HEALTH-HOME-137 flaked
+            # once: `Assert NOT visible: health-metric-detail-calories`
+            # failed after the full 10s wait, sheet still on screen).
+            # Investigated as an app bug first — `BottomSheet.tsx`'s backdrop
+            # `TouchableOpacity` is `StyleSheet.absoluteFill` with
+            # `onPress={onClose}` wired straight to `setActiveMetric(null)`
+            # (`HealthHomeScreen.tsx`), unchanged from the prior green run,
+            # and the failure screenshot shows the sheet at its normal
+            # `tall` height with nothing else overlapping the backdrop strip
+            # — so the dismiss path itself is intact. The one thing this leg
+            # does differently from every other dismiss in this flow
+            # (`bottom-sheet-close`, an "Open …" CTA) is a bare coordinate
+            # tap with no retry, unlike the id-based taps elsewhere in this
+            # file (`retryTapIfNoChange` on `tab-index`) or the bounded
+            # swipe-retry loops below (HOME-135/136) — a single point tap has
+            # no equivalent, so one dropped touch (driver hiccup under load,
+            # not reproducible via static reading) had no second attempt.
+            # Bounded to 3 tries and gated on the sheet still being visible,
+            # so it stops as soon as the first tap actually lands and never
+            # taps a closed sheet. If the dismiss path were truly broken,
+            # this still ends the same way as before: sheet still visible,
+            # `extendedWaitUntil notVisible` below times out and fails.
+            - repeat:
+                times: 3
+                commands:
+                  - runFlow:
+                      when:
+                        visible:
+                          id: 'health-metric-detail-calories'
+                      commands:
+                        - tapOn:
+                            point: '50%, 10%'
+                        - waitForAnimationToEnd:
+                            timeout: 600
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'health-metric-detail-calories'
+                timeout: 10000
+            - assertVisible:
+                id: 'health-home-screen'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+# Teardown — undo the opt-in from line 58. See home-empty-and-privacy.yaml's
+# identical teardown comment: the override lives in AsyncStorage and survives
+# the soft launch every later flow in this suite run does, so leaving it set
+# reshapes Home/More for whatever flow runs next. Outside the
+# `visible: health-home-screen` gate and unconditional, mirroring the openLink
+# call it undoes.
+- openLink: simplehealth://e2e-health-reset-features
+- waitForAnimationToEnd:
+    timeout: 500

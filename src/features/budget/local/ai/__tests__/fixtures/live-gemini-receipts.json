@@ -1,0 +1,565 @@
+[
+  {
+    "label": "superstore",
+    "vendor": "Real Canadian Superstore",
+    "purchase_date": "2024-07-26",
+    "itemCount": 12,
+    "tax_summary": [],
+    "items": [
+      {
+        "raw_name": "TAMAH HRBAL TEA",
+        "name": "Tamah Hrbal Tea",
+        "name_suggestions": [
+          "Tamah Hrbal Tea",
+          "Herbal Tea",
+          "Tamarind Herbal Tea"
+        ],
+        "amount": 549,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Groceries",
+        "category_suggestions": [
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "POHA DRY RICE",
+        "name": "Poha Dry Rice",
+        "name_suggestions": [
+          "Poha Dry Rice",
+          "Dry Rice",
+          "Poha"
+        ],
+        "amount": 579,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Groceries",
+        "category_suggestions": [
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "GOLDN VALLEY EGG",
+        "name": "Golden Valley Eggs",
+        "name_suggestions": [
+          "Golden Valley Eggs",
+          "Goldn Valley Egg"
+        ],
+        "amount": 749,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Dairy",
+        "category_suggestions": [
+          "Dairy",
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "(1)05916155447    OPIC KREMA 8%CON RQ",
+        "name": "Opic Krema 8% Coconut Yogurt",
+        "name_suggestions": [
+          "Opic Krema 8% Coconut Yogurt",
+          "Opic Krema 8%con",
+          "Greek Yogurt Coconut"
+        ],
+        "amount": 399,
+        "saved_amount": 200,
+        "tax_codes": [],
+        "category": "Dairy",
+        "category_suggestions": [
+          "Dairy"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "(1)05916155445    OPIC KREMA 8%STR RQ",
+        "name": "Opic Krema 8% Strawberry Yogurt",
+        "name_suggestions": [
+          "Opic Krema 8% Strawberry Yogurt",
+          "Opic Krema 8%str",
+          "Greek Yogurt Strawberry"
+        ],
+        "amount": 599,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Dairy",
+        "category_suggestions": [
+          "Dairy"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "NN BUTTER",
+        "name": "No Name Butter",
+        "name_suggestions": [
+          "No Name Butter",
+          "Nn Butter",
+          "Butter"
+        ],
+        "amount": 599,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Dairy",
+        "category_suggestions": [
+          "Dairy"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "(2)06568413294    LBRT GRK PNAPLE RJ",
+        "name": "Liberte Greek Pineapple Yogurt",
+        "name_suggestions": [
+          "Liberte Greek Pineapple Yogurt",
+          "Lbrt Grk Pnaple",
+          "Greek Yogurt Pineapple"
+        ],
+        "amount": 1115,
+        "saved_amount": 279,
+        "tax_codes": [],
+        "category": "Dairy",
+        "category_suggestions": [
+          "Dairy"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "PRT SKM MILK 1%       RQ",
+        "name": "PurFiltre Skim Milk 1%",
+        "name_suggestions": [
+          "PurFiltre Skim Milk 1%",
+          "Prt Skm Milk 1%",
+          "Skim Milk 1%"
+        ],
+        "amount": 590,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Dairy",
+        "category_suggestions": [
+          "Dairy"
+        ],
+        "fees": [
+          {
+            "kind": "environmental",
+            "label": "RECYCLING FEE",
+            "amount": 7
+          },
+          {
+            "kind": "deposit",
+            "label": "DEPOSIT 1",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "raw_name": "DRYLND LGHT SCRM",
+        "name": "Dairyland Light Sour Cream",
+        "name_suggestions": [
+          "Dairyland Light Sour Cream",
+          "Drylnd Lght Scrm",
+          "Light Sour Cream"
+        ],
+        "amount": 299,
+        "saved_amount": 150,
+        "tax_codes": [],
+        "category": "Dairy",
+        "category_suggestions": [
+          "Dairy"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "JRDN MAPLE PECAN",
+        "name": "Jordans Maple Pecan Cereal",
+        "name_suggestions": [
+          "Jordans Maple Pecan Cereal",
+          "Jrdn Maple Pecan",
+          "Maple Pecan Cereal"
+        ],
+        "amount": 194,
+        "saved_amount": 555,
+        "tax_codes": [],
+        "category": "Groceries",
+        "category_suggestions": [
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "TOMATO GRAPE",
+        "name": "Grape Tomatoes",
+        "name_suggestions": [
+          "Grape Tomatoes",
+          "Tomato Grape"
+        ],
+        "amount": 591,
+        "saved_amount": 109,
+        "tax_codes": [],
+        "category": "Produce",
+        "category_suggestions": [
+          "Produce"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "CHERRIES RED",
+        "name": "Red Cherries",
+        "name_suggestions": [
+          "Red Cherries",
+          "Cherries Red"
+        ],
+        "amount": 643,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Produce",
+        "category_suggestions": [
+          "Produce"
+        ],
+        "fees": []
+      }
+    ]
+  },
+  {
+    "label": "costco",
+    "vendor": "Costco Wholesale",
+    "purchase_date": null,
+    "itemCount": 15,
+    "tax_summary": [
+      {
+        "code": "G",
+        "label": "TAX",
+        "rate_percent": 5,
+        "amount": 40
+      }
+    ],
+    "items": [
+      {
+        "raw_name": "WATERMELON",
+        "name": "WATERMELON",
+        "name_suggestions": [
+          "Watermelon",
+          "Fresh Watermelon",
+          "Whole Watermelon"
+        ],
+        "amount": 1699,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Produce",
+        "category_suggestions": [
+          "Produce",
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "KS DC BRIE",
+        "name": "KS DC BRIE",
+        "name_suggestions": [
+          "Ks Dc Brie",
+          "Kirkland Signature Double Cream Brie",
+          "Brie Cheese"
+        ],
+        "amount": 1498,
+        "saved_amount": 700,
+        "tax_codes": [],
+        "category": "Dairy",
+        "category_suggestions": [
+          "Dairy",
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "PLANTAIN",
+        "name": "PLANTAIN",
+        "name_suggestions": [
+          "Plantain",
+          "Yellow Plantain",
+          "Green Plantain"
+        ],
+        "amount": 699,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Produce",
+        "category_suggestions": [
+          "Produce",
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "MINI CUKES",
+        "name": "MINI CUKES",
+        "name_suggestions": [
+          "Mini Cukes",
+          "Mini Cucumbers",
+          "Cucumbers"
+        ],
+        "amount": 1516,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Produce",
+        "category_suggestions": [
+          "Produce",
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "SAUERKRAUT",
+        "name": "SAUERKRAUT",
+        "name_suggestions": [
+          "Sauerkraut",
+          "Fermented Cabbage"
+        ],
+        "amount": 1299,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Groceries",
+        "category_suggestions": [
+          "Groceries",
+          "Produce"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "COTTAGE CHSE",
+        "name": "COTTAGE CHSE",
+        "name_suggestions": [
+          "Cottage Chse",
+          "Cottage Cheese"
+        ],
+        "amount": 1199,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Dairy",
+        "category_suggestions": [
+          "Dairy",
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "1% MILK",
+        "name": "1% MILK",
+        "name_suggestions": [
+          "1% Milk",
+          "Part Skim Milk",
+          "Low Fat Milk"
+        ],
+        "amount": 590,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Dairy",
+        "category_suggestions": [
+          "Dairy",
+          "Groceries"
+        ],
+        "fees": [
+          {
+            "kind": "environmental",
+            "label": "ENVIRO FEE C",
+            "amount": 7
+          },
+          {
+            "kind": "deposit",
+            "label": "DEPOSIT CL",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "raw_name": "KS COTT CHSE",
+        "name": "KS COTT CHSE",
+        "name_suggestions": [
+          "Ks Cott Chse",
+          "Kirkland Signature Cottage Cheese"
+        ],
+        "amount": 1599,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Dairy",
+        "category_suggestions": [
+          "Dairy",
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "LEMONS",
+        "name": "LEMONS",
+        "name_suggestions": [
+          "Lemons",
+          "Fresh Lemons"
+        ],
+        "amount": 1099,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Produce",
+        "category_suggestions": [
+          "Produce",
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "LONG PEPPERS",
+        "name": "LONG PEPPERS",
+        "name_suggestions": [
+          "Long Peppers",
+          "Sweet Long Peppers"
+        ],
+        "amount": 899,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Produce",
+        "category_suggestions": [
+          "Produce",
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "GRAPE TOMATO",
+        "name": "GRAPE TOMATO",
+        "name_suggestions": [
+          "Grape Tomato",
+          "Grape Tomatoes",
+          "Tomatoes"
+        ],
+        "amount": 699,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Produce",
+        "category_suggestions": [
+          "Produce",
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "SATSUMAS",
+        "name": "SATSUMAS",
+        "name_suggestions": [
+          "Satsumas",
+          "Satsuma Mandarins",
+          "Oranges"
+        ],
+        "amount": 999,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Produce",
+        "category_suggestions": [
+          "Produce",
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "KUMATO",
+        "name": "KUMATO",
+        "name_suggestions": [
+          "Kumato",
+          "Kumato Tomatoes",
+          "Brown Tomatoes"
+        ],
+        "amount": 2097,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Produce",
+        "category_suggestions": [
+          "Produce",
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "ACE BAKERY",
+        "name": "ACE BAKERY",
+        "name_suggestions": [
+          "Ace Bakery",
+          "Ace Bakery Bread"
+        ],
+        "amount": 699,
+        "saved_amount": 0,
+        "tax_codes": [],
+        "category": "Groceries",
+        "category_suggestions": [
+          "Groceries"
+        ],
+        "fees": []
+      },
+      {
+        "raw_name": "ROTI CHICKEN",
+        "name": "ROTI CHICKEN",
+        "name_suggestions": [
+          "Roti Chicken",
+          "Rotisserie Chicken",
+          "Roasted Chicken"
+        ],
+        "amount": 799,
+        "saved_amount": 0,
+        "tax_codes": [
+          "G"
+        ],
+        "category": "Groceries",
+        "category_suggestions": [
+          "Groceries"
+        ],
+        "fees": []
+      }
+    ]
+  },
+  {
+    "label": "bcl",
+    "vendor": "BC Liquor Store",
+    "purchase_date": "2026-07-13",
+    "itemCount": 1,
+    "tax_summary": [
+      {
+        "code": "L",
+        "label": "PST Liquor 10%",
+        "rate_percent": 10,
+        "amount": 240
+      },
+      {
+        "code": "G",
+        "label": "GST 5%",
+        "rate_percent": 5,
+        "amount": 120
+      }
+    ],
+    "items": [
+      {
+        "raw_name": "CANADIAN CLUB - PREMIUM 1X750ml",
+        "name": "Canadian Club - Premium 1x750ml",
+        "name_suggestions": [
+          "Canadian Club - Premium 1x750ml",
+          "Canadian Club Premium Whisky",
+          "Canadian Club Whisky",
+          "Canadian Club",
+          "Whisky"
+        ],
+        "amount": 2409,
+        "saved_amount": 0,
+        "tax_codes": [
+          "L",
+          "G"
+        ],
+        "category": "Alcohol",
+        "category_suggestions": [
+          "Alcohol"
+        ],
+        "fees": [
+          {
+            "kind": "deposit",
+            "label": "Container Deposit",
+            "amount": 10
+          }
+        ]
+      }
+    ]
+  }
+]

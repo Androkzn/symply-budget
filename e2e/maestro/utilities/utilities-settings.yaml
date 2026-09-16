@@ -1,0 +1,57 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:utilities
+  - mutation
+  - regression
+# Matrix: HOUSE-UTIL-029,030 (settings + municipality)
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-UTIL-029
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-utilities.yaml
+- assertVisible:
+    id: 'utilities-screen'
+# Municipality panel via charts/analytics path when available.
+- tapOn:
+    id: 'utilities-action-analytics'
+- extendedWaitUntil:
+    visible:
+      id: 'utilities-charts-screen'
+    timeout: 20000
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+# Settings entry from utilities More/settings row if present.
+- runFlow:
+    when:
+      visible: 'Utility Settings'
+    commands:
+      - tapOn: 'Utility Settings'
+      - extendedWaitUntil:
+          visible: 'Save'
+          timeout: 15000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+- assertVisible:
+    id: 'utilities-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

@@ -1,0 +1,57 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Scroll Budget Settings until the Spending Categories nav row is tappable.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-screen'
+    timeout: 15000
+# The 12-month grid used to sit between the top of this screen and these rows,
+# which is why this walked down through the editor first. It is one row now
+# (`budget-settings-monthly-caps-link`), so the walk starts at the manage rows.
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-monthly-caps-link'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-transfer-link'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 5
+    optional: true
+# Spending Categories moved out of MANAGE BUDGET into PREFERENCES, which sits
+# below the SHARING group — so the walk now passes Sub-budgets and the three
+# sharing rows before the group label it opens.
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-preferences-section'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 5
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-categories-link'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 5
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-settings-categories-link'
+    commands:
+      - tapOn:
+          text: 'Spending Categories'
+          optional: true
+      - scrollUntilVisible:
+          element:
+            text: 'Spending Categories'
+          direction: DOWN
+          timeout: 15000
+          optional: true

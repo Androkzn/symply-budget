@@ -1,0 +1,31 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - regression
+# Matrix: HOUSE-AUTH-020
+---
+# Background mid-typing — user remains unauthenticated on foreground.
+- runFlow: ../subflows/launch-logged-out.yaml
+- runFlow: ../subflows/open-email-login-form.yaml
+- tapOn:
+    id: 'auth-email-input'
+- inputText: 'background-test@example.com'
+- tapOn:
+    id: 'auth-password-input'
+- inputText: 'BackgroundPass123!'
+- pressKey: home
+- extendedWaitUntil:
+    visible:
+      id: 'login-screen'
+    timeout: 5000
+    optional: true
+- launchApp:
+    clearState: false
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'login-screen'
+    timeout: 30000
+- assertNotVisible:
+    id: 'home-up-next-section'

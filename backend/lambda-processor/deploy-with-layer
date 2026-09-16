@@ -1,0 +1,4 @@
+#!/bin/bash
+# Quick wrapper for full deployment with layer
+cd "$(dirname "$0")"
+./scripts/create-and-deploy-layer.sh "$@"

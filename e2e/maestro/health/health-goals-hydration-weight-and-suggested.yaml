@@ -1,0 +1,515 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:goals
+  - mutation
+  - regression
+# Matrix: HEALTH-GOALS-140 … 162
+---
+# Goals — the HYDRATION, WEIGHT GOAL and SUGGESTED TARGETS cards. The other
+# half of the new `HealthGoalsScreen`; see `health-goals-nutrition-and-
+# activity.yaml` for why the screen is split in two and what it writes through
+# to (the same `health_goals` row Nutrition/Activity/Water/Weight all read).
+#
+# This half owns the water target (cups field + 4 presets + the L caption), the
+# weight-goal-type picker (3 chips, single-select, re-tap to clear), the
+# target/starting-weight/date fields with the CLEAR button, the derived
+# progress card, and the read-only SUGGESTED TARGETS card.
+#
+# STATE THIS FLOW DEPENDS ON. The shared account has a logged weight (68 kg
+# today, from an earlier flow) but NO `health_goals` row fields at all —
+# height, sex, birth year and activity level (all Weight-tab fields) are
+# unset. That is exactly what makes the SUGGESTED card's "missing inputs"
+# message the ONLY reachable state without writing to a screen this flow does
+# not own: setting biometrics here to unlock "Use these targets" would leave
+# residue the Weight tab's own flows do not expect. The refusal message IS the
+# donor-parity behaviour under test ("nothing is guessed"), so it is asserted
+# instead, in full.
+#
+# THE PROGRESS CARD'S numbers are computed independently below, not copied
+# from the screen: starting 72 kg (an existing logged weight), target 65 kg,
+# current 68 kg → `weightGoalProgress` gives fraction `(68−72)/(65−72) =
+# 0.571…` → 57%, and `remaining = 65−68 = −3` → "3 kg to go".
+#
+# TEARDOWN. Water back to the 8-cup default. The weight goal is cleared via
+# its OWN "Clear target" button and then a second save blanks the starting
+# weight and date too — `clearTarget` only nulls the target and the type, so
+# without the second save the starting weight and its date would outlive this
+# flow as residue on a row that started with neither.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-GOALS-140
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-goals.yaml
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-goals-water-input'
+            SCROLL_DIR: down
+      - assertVisible: 'HYDRATION'
+      - assertVisible:
+          id: 'health-goals-water-input'
+          text: '8'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Water target — 4 presets, a typed figure, and the litre caption
+      # (HEALTH-GOALS-141 … 143)
+      # =================================================================
+      # HEALTH-GOALS-141/142 are LOCAL ONLY: every preset chip and the typed
+      # figure just call `setCups` (`HealthGoalsScreen.tsx`) — nothing reaches
+      # the network until `health-goals-water-save` is pressed, which is what
+      # HEALTH-GOALS-143 below verifies.
+      #
+      # Re-anchor the scroll here rather than trusting the down-swipe from
+      # HEALTH-GOALS-140 above to still hold. Reproduced 2026-08-01: that
+      # single swipe (done once, right after entering the screen) landed
+      # correctly — HYDRATION and the 8-cup default both asserted visible —
+      # but by the time this tap actually fires, a whole
+      # `e2e-matrix-after`/`e2e-matrix-before` round trip (dump-log,
+      # clear-log, tag-matrix — each its own `openLink` +
+      # `waitForAnimationToEnd`) has run in between with nothing re-touching
+      # the list, and the very next tap failed "Element not found:
+      # …water-preset-12" against a screenshot showing the ACTIVITY card,
+      # not HYDRATION — the same
+      # "scrolled, then acted on stale position several steps later" shape
+      # `health-goals-nutrition-and-activity.yaml` hit for the calorie preset
+      # (see that flow's own comment). `health-goals-type-row` and
+      # `health-goals-suggested-card` below both already re-scroll to
+      # themselves immediately before their own first tap for this reason —
+      # this section was the one gap that skipped it.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-goals-water-input'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-141
+      - tapOn:
+          id: 'health-goals-water-preset-12'
+      - assertVisible:
+          id: 'health-goals-water-input'
+          text: '12'
+      - tapOn:
+          id: 'health-goals-water-input'
+      - eraseText
+      - inputText: '5'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'HYDRATION'
+      - assertVisible:
+          id: 'health-goals-water-ml'
+          text: '5 cups is 1\.2 L.*'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-142
+      # Same "stale scroll position" gap documented above for preset-12 —
+      # re-anchor before tapping, don't trust the pre-matrix-round-trip scroll.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-goals-water-input'
+            SCROLL_DIR: down
+      - tapOn:
+          id: 'health-goals-water-preset-10'
+      - assertVisible:
+          id: 'health-goals-water-ml'
+          text: '10 cups is 2\.4 L.*'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Teardown to the 8-cup default, then save (HEALTH-GOALS-143) -----
+      # Verified server-side alongside this run: `GET /health/goals` reads
+      # `daily_water_ml: 1920` (8 × 240) after this save, on the row the
+      # NUTRITION/ACTIVITY flow already created.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-143
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # Same "stale scroll position" gap documented above for preset-12 —
+      # re-anchor before tapping, don't trust the pre-matrix-round-trip scroll.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-goals-water-input'
+            SCROLL_DIR: down
+      - tapOn:
+          id: 'health-goals-water-preset-8'
+      - assertVisible:
+          id: 'health-goals-water-input'
+          text: '8'
+      - tapOn:
+          id: 'health-goals-water-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-message'
+            text: 'Targets updated\.'
+          timeout: 15000
+      # `saveWaterSection` → `setWaterTarget` → `healthApi.saveGoal` →
+      # `PUT /health/goals` (`HealthGoalsScreen.tsx` / `healthLocalStorage.ts`).
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Weight-goal-type picker — 3 chips, single-select, re-tap clears
+      # (HEALTH-GOALS-144)
+      # =================================================================
+      # LOCAL ONLY: each chip's `onPress` calls `setGoalType` directly
+      # (`HealthGoalsScreen.tsx`) — nothing is sent until
+      # `health-goals-weight-save` is pressed (verified at HEALTH-GOALS-146).
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-goals-type-row'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-144
+      - assertVisible: 'WEIGHT GOAL'
+      - tapOn:
+          id: 'health-goals-type-lose'
+      - assertVisible:
+          id: 'health-goals-type-note'
+          text: 'Suggested calories come out 20% below your daily burn\.'
+      - tapOn:
+          id: 'health-goals-type-maintain'
+      - assertVisible:
+          id: 'health-goals-type-lose'
+          selected: false
+      - assertVisible:
+          id: 'health-goals-type-note'
+          text: 'Suggested calories match your daily burn\.'
+      - tapOn:
+          id: 'health-goals-type-gain'
+      - assertVisible:
+          id: 'health-goals-type-maintain'
+          selected: false
+      - assertVisible:
+          id: 'health-goals-type-note'
+          text: 'Suggested calories come out 15% above your daily burn, for lean gain\.'
+      # Tapping the SAME chip again clears the pick entirely.
+      - tapOn:
+          id: 'health-goals-type-gain'
+      - assertVisible:
+          id: 'health-goals-type-gain'
+          selected: false
+      - assertVisible:
+          id: 'health-goals-type-note'
+          text: "Pick one and the suggested calorie target below adjusts to match\\. It changes nothing you have already saved\\."
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Target / starting weight / date, saved — and the PROGRESS CARD
+      # (HEALTH-GOALS-145, 146)
+      # =================================================================
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-145
+      - tapOn:
+          id: 'health-goals-type-lose'
+      - assertVisible:
+          id: 'health-goals-type-lose'
+          selected: true
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # Verified server-side alongside this run: `GET /health/goals` reads
+      # `target_weight_kg: 65, weight_goal_type: "lose", starting_weight_kg:
+      # 72, starting_weight_date: <today>` after this save. The date field is
+      # now a native picker, not free-text entry, so a Maestro flow can't pin
+      # it to a specific PAST date without dragging an iOS spinner wheel
+      # (fragile — see `ios-maestro-e2e-gotchas`); the date is left untouched
+      # here, which `saveWeightGoal` stamps as today per the field's own
+      # hint. The exact-date round-trip (a hydrated/typed "2026-01-01") is
+      # covered instead by `HealthGoalsScreen.test.tsx` (HEALTH-GOALS-101,
+      # 120), which drives the picker's mocked `onChange` directly.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-146
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-goals-target-input'
+      - inputText: '65'
+      - tapOn:
+          id: 'health-goals-starting-input'
+      - inputText: '72'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'WEIGHT GOAL'
+      - tapOn:
+          id: 'health-goals-weight-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-message'
+            text: 'Targets updated\.'
+          timeout: 15000
+      # The account's logged weight is 68 kg: (68−72)/(65−72) = 0.571… → 57%,
+      # and 65−68 = −3 → "3 kg to go" — an independent computation of
+      # `weightGoalProgress`, not a readback of the screen.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-progress'
+          timeout: 15000
+      - assertVisible: '57% of the way there'
+      - assertVisible: '3 kg to go'
+      - assertVisible: 'Now 68 kg · target 65 kg · from 72 kg'
+      # `saveWeightSection` → `saveWeightGoal` → `PUT /health/goals` with
+      # `target_weight_kg`/`weight_goal_type`/`starting_weight_kg`
+      # (`HealthGoalsScreen.tsx` / `healthWeightStorage.ts`).
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Clear target + full teardown (HEALTH-GOALS-147, 148)
+      # =================================================================
+      # --- "Clear target" nulls the target and the type ONLY (147) ---------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-147
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-goals-weight-clear'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-message'
+            text: 'Targets updated\.'
+          timeout: 15000
+      - assertVisible:
+          id: 'health-goals-target-input'
+          text: ''
+      - assertVisible:
+          id: 'health-goals-type-lose'
+          selected: false
+      # No target → neither the progress block nor its empty-state sibling
+      # renders; both are gated on `targetKg !== null`.
+      - assertNotVisible:
+          id: 'health-goals-progress'
+      - assertNotVisible:
+          id: 'health-goals-progress-empty'
+      # The button itself is gated on a target existing, so it goes with it.
+      - assertNotVisible:
+          id: 'health-goals-weight-clear'
+      # `clearTarget` → `saveWeightGoal({ target: null, goalType: null })` →
+      # `PUT /health/goals` (`HealthGoalsScreen.tsx`).
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Starting weight + date blanked and saved (HEALTH-GOALS-148) -----
+      # `starting === null` forces `patch.startingDate = null` too — see the
+      # screen's own comment on why an omitted key is not enough here. The
+      # date field was never touched in HEALTH-GOALS-146 above (left blank),
+      # so there is nothing to clear there — erasing the starting weight
+      # alone is what nulls the stored date, unconditionally.
+      # Verified server-side alongside this run: `GET /health/goals` reads
+      # `target_weight_kg: null, weight_goal_type: null, starting_weight_kg:
+      # null, starting_weight_date: null` — the row is back to "no weight goal
+      # at all", indistinguishable from before this flow ran.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-148
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-goals-starting-input'
+      - eraseText
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'WEIGHT GOAL'
+      - tapOn:
+          id: 'health-goals-weight-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-message'
+            text: 'Targets updated\.'
+          timeout: 15000
+      - assertVisible:
+          id: 'health-goals-starting-input'
+          text: ''
+      # `saveWeightSection` → `saveWeightGoal` → `PUT /health/goals` again —
+      # this save nulls `starting_weight_kg` and `starting_weight_date`.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # SUGGESTED TARGETS — read-only, the "nothing is guessed" refusal
+      # (HEALTH-GOALS-149)
+      # =================================================================
+      # At the time this flow was WRITTEN, the account has a logged weight
+      # (68 kg) but no height, sex, birth year or activity level (all
+      # Weight-tab fields this screen never writes), so `suggestGoals` is null
+      # and the screen names exactly what is missing rather than defaulting
+      # any of them — the donor calculator's own default-a-70kg-member
+      # behaviour, deliberately not reproduced. Verified against a real GET
+      # `/health/goals` (answered `{"goal":null}`) immediately before this
+      # flow was authored.
+      #
+      # BOTH BRANCHES ARE HANDLED rather than assumed, because
+      # `weight-tab-dashboard-controls.yaml` sets height/birth year/sex/
+      # activity level on this SAME shared account and — unlike the target it
+      # sets alongside them — never clears them back out (see its own
+      # "GOAL & BODY DETAILS" leg). Whichever of the two runs LAST in a given
+      # session decides which branch below fires; this flow does not force an
+      # order between them. The "apply" branch does not tap "Use these
+      # targets": doing so would overwrite the calorie/macro/step/minute/water
+      # defaults `health-goals-nutrition-and-activity.yaml` just saved with
+      # the suggestion's own figures, and undoing that cleanly means resetting
+      # all seven fields a second time — real coverage, but a cost this split
+      # does not take on. The structural assertions below (every labelled row
+      # present) are what is verified in that branch instead.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-149
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-goals-suggested-card'
+            SCROLL_DIR: down
+      - assertVisible: 'SUGGESTED TARGETS'
+      - runFlow:
+          when:
+            visible:
+              id: 'health-goals-suggested-missing'
+          commands:
+            - assertVisible:
+                id: 'health-goals-suggested-missing'
+                text: 'To work these out we need your height, your birth year, your sex and your activity level\. Weight comes from your weight log; the rest are on the Weight tab under "Goal & body details"\. Nothing is guessed — a suggestion built on a default height would describe somebody else\.'
+            - assertNotVisible:
+                id: 'health-goals-suggested-apply'
+      - runFlow:
+          when:
+            visible:
+              id: 'health-goals-suggested-apply'
+          commands:
+            - assertVisible:
+                id: 'health-goals-suggested-basis'
+            - assertVisible: 'Calories'
+            - assertVisible: 'Protein / carbs / fats'
+            - assertVisible: 'Daily steps'
+            - assertVisible: 'Movement minutes'
+            - assertVisible: 'Water'
+      - assertVisible:
+          id: 'health-goals-footnote'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Back to the Health tab (HEALTH-GOALS-150) ------------------------
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-goals-calories-input'
+            SCROLL_DIR: up
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-more-screen'
+          timeout: 30000
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

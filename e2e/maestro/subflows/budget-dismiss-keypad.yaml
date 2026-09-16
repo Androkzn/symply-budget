@@ -1,0 +1,33 @@
+appId: com.symply.budget
+---
+# Dismiss the iOS NUMERIC keypad in the Budget money forms.
+#
+# `hideKeyboard` does not reliably close it — there is no return key on the
+# numeric pad — and a tap that lands on the still-open keypad does real damage
+# rather than simply failing:
+#   • savings-goal-crud typed 1200 into "Already saved", then the tap meant to
+#     move focus to "Monthly allocation" hit the keypad instead, so the next
+#     300 appended to the SAME field and the form held 1200300 (observed
+#     2026-08-23, Budget-C).
+#   • savings-goal saw a blind tap hit "0" and turn a 5000 target into 50000
+#     without saving (observed 2026-08-22, Budget-B).
+#   • savings-irregular-income tapped the member picker, hit the keypad, and
+#     the "Select member" sheet never opened.
+#
+# What DOES close it: the forms set `keyboardDismissMode="on-drag"`, so any
+# real drag on the ScrollView dismisses the keypad.
+#
+# Why not just `scrollUntilVisible` before the tap — the pattern used elsewhere
+# in these flows: it SHORT-CIRCUITS when the element is already in the view
+# hierarchy, which it is even while sitting behind the keypad. No scroll runs,
+# so no drag happens, so the keypad stays up. It works only by luck, when the
+# target happens to be off-screen. This subflow drags unconditionally.
+#
+# The drag is deliberately short (10% of the screen) so it clears the keypad
+# without moving the form far enough to disturb the caller's next selector.
+- hideKeyboard:
+    optional: true
+- swipe:
+    start: 50%, 55%
+    end: 50%, 45%
+    duration: 400

@@ -1,0 +1,105 @@
+# NBR-007 — neighbourhoods, and the promise that deleting one keeps the homes.
+#
+# The confirmation copy is the assertion that matters. "Delete Maple Court" reads
+# like it might take the street with it, and the dialog is the only place the
+# member is told otherwise — before they commit, not after.
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:neighbours
+  - regression
+# Matrix: HOUSE-NBR-012 (create area), HOUSE-NBR-013 (delete is non-destructive)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-neighbours.yaml
+- tapOn:
+    id: 'neighbours-areas-button'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbourhoods-screen'
+    timeout: 20000
+
+# Clear what a previous run left behind. `(household_id, name)` is unique, so a
+# second run would otherwise be creating a name that already exists — and it
+# means the create path below is exercised on every run rather than only the
+# first one ever against a given account.
+- runFlow:
+    when:
+      visible: 'Delete E2E Maple Court'
+    commands:
+      - tapOn: 'Delete E2E Maple Court'
+      - tapOn:
+          text: '^Delete$'
+      # Regex here too, and it matters more than for a positive assertion: with a
+      # bare name this `notVisible` is true even while the card is on screen, so
+      # it would pass without proving anything.
+      - extendedWaitUntil:
+          notVisible: '.*E2E Maple Court.*'
+          timeout: 15000
+
+# The add affordance differs by state: an empty screen offers it inside the
+# empty state, a populated one as a dashed row beneath the list.
+#
+# The second branch is gated on the SHEET, not on `neighbourhoods-add`. Both
+# blocks are evaluated in order against live state, so keying the second one on
+# `notVisible: neighbourhoods-add` made it fire immediately after the first
+# branch succeeded — opening the sheet is exactly what hides the dashed row —
+# and it then hunted for an empty state that was not on screen.
+- runFlow:
+    when:
+      visible:
+        id: 'neighbourhoods-add'
+    commands:
+      - tapOn:
+          id: 'neighbourhoods-add'
+- runFlow:
+    when:
+      notVisible:
+        id: 'neighbourhood-sheet'
+    commands:
+      - tapOn: 'Create one'
+
+- extendedWaitUntil:
+    visible:
+      id: 'neighbourhood-sheet'
+    timeout: 15000
+- tapOn:
+    id: 'neighbourhood-name'
+- inputText: 'E2E Maple Court'
+# Save is the LAST element of a tall scrolling sheet — name, description,
+# colour, photo, then the button — so with the keyboard up it is both below the
+# fold and behind the keyboard. A bare tap reports "not found", and a
+# `when: visible` guard is worse: it skips silently, so the flow sails on and
+# asserts against a neighbourhood it never created. Scroll to it.
+#
+# `hideKeyboard` is not the alternative: it aborts outright on this app's
+# inputs, and the field has no `onSubmitEditing`, so no return key would save.
+- scrollUntilVisible:
+    element:
+      id: 'neighbourhood-save'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'neighbourhood-save'
+# Regex: the card is one accessible button labelled "E2E Maple Court. 0 homes",
+# so a bare name matches no node — the only other candidate is the delete
+# button's own "Delete E2E Maple Court".
+- extendedWaitUntil:
+    visible: '.*E2E Maple Court.*'
+    timeout: 20000
+
+# HOUSE-NBR-013 — the delete dialog, which this flow claimed to cover and did
+# not. It also puts the account back the way it was found.
+#
+# Caveat worth naming: a freshly made area has no homes in it, so what is
+# asserted here is the empty-case copy. The sentence the header calls the one
+# that matters — "the homes in it will stay on your map" — only renders with
+# neighbour_count > 0, so proving THAT needs an area with a home assigned to it.
+# Not covered yet.
+- tapOn: 'Delete E2E Maple Court'
+- assertVisible: 'This neighbourhood has no homes in it yet.'
+- tapOn:
+    text: '^Delete$'
+- extendedWaitUntil:
+    notVisible: '.*E2E Maple Court.*'
+    timeout: 15000

@@ -1,0 +1,174 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: HOUSE-MM-004 — owner approves the join request via the OOB digits.
+#
+# env: MM_SAS — the six digits the INVITEE's device derived and displayed,
+# carried here from its dev log. This device derives its own from what the
+# control plane reported the invitee's keys to be, so the two agreeing is the
+# statement that no key was substituted in between. Approving without them is
+# supposed to fail the approval (the Worker checks it), so this exercises the
+# real out-of-band check rather than a stub. That is the whole point of the
+# phrase: it is what stops a relay-side attacker from enrolling a device.
+#
+# The requests panel renders at the TOP of `HouseInviteBody`
+# (HouseInviteCreateScreen.tsx:302) and the refresh button at the bottom of it,
+# so this flow scrolls DOWN to check and back UP to read. Both are on the
+# combined Device sync surface, which is where this suite navigates.
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-open-lf-settings.yaml
+- scrollUntilVisible:
+    element:
+      id: '${LF_JOIN_REQUESTS}'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+# Poll, do not check once. The claim reaches the control plane a moment before
+# the owner asks for it, and one refresh that lands early is indistinguishable
+# from no request at all.
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: '${LF_JOIN_REQUESTS_PANEL}'
+          commands:
+            - scrollUntilVisible:
+                element:
+                  id: '${LF_JOIN_REQUESTS}'
+                direction: DOWN
+                centerElement: true
+                timeout: 15000
+                optional: true
+            - tapOn:
+                id: '${LF_JOIN_REQUESTS}'
+                retryTapIfNoChange: true
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 6000
+            - tapOn:
+                text: '^OK$'
+                optional: true
+            - scrollUntilVisible:
+                element:
+                  id: '${LF_JOIN_REQUESTS_PANEL}'
+                direction: UP
+                centerElement: true
+                timeout: 15000
+                optional: true
+- waitForAnimationToEnd:
+    timeout: 2000
+# Clear the "nothing pending" alert UNCONDITIONALLY.
+#
+# Tapping the requests button with nothing waiting raises a native alert
+# (useHouseJoinRequests.ts:89). iOS renders UIAlertController in its own window,
+# so Maestro cannot see it — which makes `when: visible: 'No one is waiting to
+# join'` unreliable: on Budget it SKIPPED, the alert stayed up, and it then
+# swallowed every later step, surfacing as "element not found" several steps
+# from the real cause.
+#
+# Don't gate a dismissal on seeing the thing being dismissed.
+- tapOn:
+    text: '^OK$'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000
+# Back to the top, where anyone waiting is shown.
+- scrollUntilVisible:
+    element:
+      id: '${LF_JOIN_REQUESTS_PANEL}'
+    direction: UP
+    centerElement: true
+    timeout: 15000
+    optional: true
+# REQUIRED, not optional. "Nothing pending is a legitimate outcome" was the
+# reasoning here, and it is what let this flow report PASS on run
+# 20260905-102733 while approving nothing: the panel was absent because a stray
+# `^Cancel$` tap had revoked the invite, the flow took its own escape hatch, and
+# the suite went green through an enrolment that never happened.
+#
+# It cannot legitimately be empty at this point in the run. The orchestrator
+# only reaches mm-04 after `read_join_sas` has read six digits off device B,
+# and those digits exist only for a claim that is in flight. A re-run where the
+# invitee never re-claimed is covered too: mm-03 is idempotent, so the earlier
+# claim is still pending and still shown here.
+#
+# If this assertion fails, the right answer is to find out what happened to the
+# claim — not to make it optional again.
+- extendedWaitUntil:
+    visible:
+      id: '${LF_JOIN_REQUESTS_PANEL}'
+    timeout: 60000
+- assertVisible:
+    id: '${LF_JOIN_REQUESTS_PANEL}'
+- runFlow:
+    when:
+      visible:
+        id: '${LF_JOIN_REQUESTS_PANEL}'
+    commands:
+      - assertVisible: '.*Waiting to join.*'
+      # Not optional: digits that do not match mean the two devices disagree
+      # about the key being enrolled. Shown grouped ("123 456"), hence the
+      # surrounding wildcards.
+      - assertVisible: '.*${MM_SAS}.*'
+      - tapOn:
+          id: '${LF_INVITE_APPROVE}'
+      # Approval reports through a native alert ("Device approved",
+      # useHouseJoinRequests.ts:158), which Maestro cannot see on iOS — so it is
+      # dismissed blind and the assertion is made on the SCREEN instead.
+      #
+      # The screen's own evidence is the request LEAVING: `approve` filters the
+      # row out of state on success (:155) and HouseJoinRequestsPanel renders
+      # null once the list is empty (:47), so the "Waiting to join" heading goes
+      # with it. A failed approval keeps the row — and its heading — on screen.
+      - tapOn:
+          text: '^OK$'
+          optional: true
+      - extendedWaitUntil:
+          notVisible: '.*Waiting to join.*'
+          timeout: 60000
+      - assertNotVisible: '.*Waiting to join.*'
+- waitForAnimationToEnd:
+    timeout: 2000
+# Deposit the wrapped household key (HDK) for the newly approved device.
+#
+# SYNC REPEATEDLY, not once. The deposit cannot happen on the sync that follows
+# the approval: the owner does not yet know the new device is a peer, so that
+# run finds nothing to wrap for. It takes effect on a LATER run, once the peer
+# list has caught up — visible in the log as `peers=2` becoming `peers=3` on the
+# same household, and only then `deposited=1`.
+#
+# Measured on run 20260905-105636: approve at t=…042811, deposit at t=…228740.
+# Three minutes, during which mm-05 exhausted its six attempts and the suite
+# reported the invitee stuck on "Waiting for approval…" — which reads as a
+# broken handshake rather than as a slow one. The app's own copy promises "on
+# its next sync — usually within a minute".
+#
+# `${LF_SYNC_NOW}` is at the TOP of this same card, and the view is still
+# scrolled down from the requests panel.
+- repeat:
+    times: 4
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: '${LF_SYNC_NOW}'
+          direction: UP
+          timeout: 10000
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - tapOn:
+          id: '${LF_SYNC_NOW}'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 15000
+      - tapOn:
+          text: '^OK$'
+          optional: true

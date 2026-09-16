@@ -1,0 +1,167 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+  - feature:habits
+  - mutation
+# Matrix: HEALTH-TD-017 — Wave A table 7/8: `habitLogs` (`habit_logs`).
+#
+# A habit LOG is one of only two Health tables with a DETERMINISTIC id
+# (`HEALTH_DETERMINISTIC_ID_TABLES` — `habit_logs` on `unique(habit_id, date)`,
+# `health_goals` on `unique(user_id, effective_date)`; schema.ts). That changes
+# what "create / modify / delete" can even mean here, and this flow is written
+# around the difference rather than pretending it is a normal row:
+#
+#   create  tick today            → the (habit_id, date) row exists;  peer sees 1
+#   delete  untick today          → the row is TOMBSTONED;            peer sees 0
+#   modify  tick today AGAIN      → the row is RESURRECTED under the SAME
+#                                   deterministic id;                 peer sees 1
+#
+# THE THIRD ONE IS THE POINT, and the runner schedules it LAST for that reason.
+# A tombstone keyed on the same id as the row that replaces it is exactly where a
+# LWW projection goes wrong: if the delete op's clock is not beaten by the
+# re-tick, the resurrected row stays invisible on the peer forever while looking
+# perfectly correct on the device that ticked it. Budget's MM suite has no
+# equivalent case because every Budget table uses random ids.
+#
+# `health-habit-detail` is an RN `<Modal>`, so it occludes the root-mounted
+# `e2e-verify-badge` — this suite does not use the badge, but the same occlusion
+# is why the sheet is explicitly closed before any list-level assertion.
+#
+# env: TD_ROLE, TD_PHASE (create|delete|modify), TD_HABIT (habit name),
+#      TD_EXPECT ('1' or '0' — the streak the peer must converge on)
+---
+- runFlow: td-launch.yaml
+- assertTrue: ${TD_HABIT != null && TD_HABIT != ''}
+
+# ==========================================================================
+# WRITE — device A
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'write'}
+    commands:
+      - runFlow: ../health/subflows/go-health-habits.yaml
+      # Ticks apply to the SELECTED day and `toggleHabitToday` means today —
+      # normalise the day picker before touching the toggle, or a flow that
+      # left the list on yesterday writes a log for the wrong date.
+      - tapOn:
+          id: 'health-habits-back-to-today'
+          optional: true
+      - assertVisible:
+          id: 'health-habits-day-label'
+          text: 'Today'
+
+      # The habit itself is this flow's fixture — minted on the create phase,
+      # reused by the other two. It is quick-added rather than reused from
+      # td-16, so the two tables' flows cannot deadlock on each other's
+      # teardown order.
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'create'}
+            notVisible: '.*${TD_HABIT}.*'
+          commands:
+            - scrollUntilVisible:
+                element:
+                  id: 'health-habit-add-button'
+                direction: DOWN
+                timeout: 20000
+                visibilityPercentage: 10
+            - tapOn:
+                id: 'health-habit-name-input'
+            - inputText: ${TD_HABIT}
+            - hideKeyboard
+            - tapOn:
+                id: 'health-habit-add-button'
+            - extendedWaitUntil:
+                visible: '.*${TD_HABIT}.*'
+                timeout: 30000
+
+      - extendedWaitUntil:
+          visible: '.*${TD_HABIT}.*'
+          timeout: 30000
+      - tapOn: 'Open ${TD_HABIT}'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-detail-toggle'
+          timeout: 20000
+      # One tap flips the (habit_id, today) row into the state this phase wants.
+      # The phases alternate on purpose — each starts from the state the
+      # previous one left, so a single toggle is always the right gesture.
+      - tapOn:
+          id: 'health-habit-detail-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-detail-current'
+            text: '${TD_EXPECT}'
+          timeout: 30000
+      - assertVisible:
+          id: 'health-habit-detail-current'
+          text: '${TD_EXPECT}'
+      - tapOn:
+          id: 'health-habit-detail-close'
+          optional: true
+      - runFlow: td-sync-nudge.yaml
+
+# ==========================================================================
+# OBSERVE — device B
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'observe'}
+    commands:
+      - runFlow: ../health/subflows/go-health-habits.yaml
+      - tapOn:
+          id: 'health-habits-back-to-today'
+          optional: true
+      # The habit definition has to land before its logs can be read — on the
+      # create phase B may reach here before `userHabits` has converged.
+      - repeat:
+          times: 20
+          commands:
+            - runFlow:
+                when:
+                  notVisible: '.*${TD_HABIT}.*'
+                commands:
+                  - runFlow: td-sync-nudge.yaml
+                  - runFlow: ../health/subflows/go-health-habits.yaml
+                  - tapOn:
+                      id: 'health-habits-back-to-today'
+                      optional: true
+      - extendedWaitUntil:
+          visible: '.*${TD_HABIT}.*'
+          timeout: 45000
+      - repeat:
+          times: 20
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-habit-detail-current'
+                    text: '${TD_EXPECT}'
+                commands:
+                  - tapOn:
+                      id: 'health-habit-detail-close'
+                      optional: true
+                  - runFlow: td-sync-nudge.yaml
+                  - runFlow: ../health/subflows/go-health-habits.yaml
+                  - tapOn:
+                      id: 'health-habits-back-to-today'
+                      optional: true
+                  - tapOn:
+                      text: 'Open ${TD_HABIT}'
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 3000
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-detail-current'
+            text: '${TD_EXPECT}'
+          timeout: 45000
+      - assertVisible:
+          id: 'health-habit-detail-current'
+          text: '${TD_EXPECT}'
+      - tapOn:
+          id: 'health-habit-detail-close'
+          optional: true

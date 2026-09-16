@@ -1,0 +1,1016 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:nutrition
+  - mutation
+  - regression
+# Matrix: HEALTH-NUTR-170 … HEALTH-NUTR-188
+---
+# Nutrition diary — the PER-ROW verbs (`HealthMealDetail`) and the quick-add
+# grid (`HealthQuickAdd`).
+#
+# WHY THIS FLOW EXISTS. `nutrition-log-meal.yaml` drives the ADD FOOD form and
+# the day stepper and nothing else, which left the diary's largest control
+# cluster untouched: `HealthMealDetail` was 1 of 15 controls driven and
+# `HealthQuickAdd` 0 of 7. Every verb a member uses on a row they have ALREADY
+# logged — edit, re-portion, move, delete — was unproven on a device.
+# `nutrition-copy-and-batch.yaml` owns the other half (`HealthMealTools`: the
+# copy panel and the multi-select bar).
+#
+# ROW SELECTORS — id AND label, together. A row's testID carries the
+# server-minted entry id (`health-meal-edit-n_a10e1b0f-c557-…`), so no flow can
+# know it in advance; a bare `health-meal-edit-.*` matches every row on the
+# screen AND, once the editor is open, `health-meal-edit-name-…` /
+# `-calories-…` / `-save-…` as well, because Maestro matches an id as a
+# WHOLE-STRING regex. Every per-row tap below therefore pins BOTH the id pattern
+# and the row's accessibility label (`Edit Maestro Diary One`), which are
+# properties of the SAME element — verified against a live view-hierarchy dump,
+# where the testID arrives as `resource-id` and the label as `accessibilityText`.
+# The tap is then unambiguous even on an account carrying other rows, and the id
+# is still exercised.
+#
+# SCROLLING IS SWIPE-DRIVEN, NOT `scrollUntilVisible`. Measured on this screen:
+# `scrollUntilVisible` for a target two and a half screens down ran its full 30 s
+# and moved the list ZERO pixels, while two raw swipes issued seconds later on
+# the same driver carried it to the bottom. See
+# subflows/health-swipe-section-to.yaml.
+#
+# NO `hideKeyboard`. It hard-fails on this build's decimal pad — reproduced in
+# THIS flow, which dismissed the text keyboard with it two steps earlier and
+# then failed on the numeric one. See subflows/dismiss-health-keypad.yaml. Field
+# order below is chosen so the last field typed before any button press is a
+# numeric one.
+#
+# DISABLED STATES ARE BEHAVIOURAL. Maestro's `enabled:` selector does not match
+# a disabled RN `Pressable` on this build, so every gate here is proven by
+# pressing the control and showing the side effect did NOT happen — for the
+# quick-add button, that the name field was not cleared, which is exactly what a
+# successful log does.
+#
+# TEARDOWN. Both rows this flow writes are deleted in the final leg and their
+# names asserted gone; the opening sweep makes the flow idempotent after an
+# aborted run. The calorie goal, the selected slot and the day on screen are all
+# left as found.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-NUTR-170
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- The diary opens on today (HEALTH-NUTR-170) --------------------
+      - runFlow: subflows/go-health-nutrition.yaml
+      - assertVisible: 'CALORIES'
+      # WAS 'QUICK ADD' — that literal heading can no longer appear on THIS
+      # screen at all, at any scroll position or diary state, confirmed
+      # against source. The 8f1f0ef2 refactor (2026-08-01) folded the quick-add
+      # UI into the collapsible ADD FOOD card and passes it `hideHeading`
+      # unconditionally (HealthNutritionScreen.tsx: `<HealthQuickAdd ...
+      # hideHeading />`), because the ADD FOOD label already names the section
+      # — `HealthQuickAdd.tsx` renders its "QUICK ADD" `Typography` only
+      # `{hideHeading ? null : (...)}`. Swapping the asserted text for
+      # 'ADD FOOD' isn't just a same-idea substitute: it is also immune to the
+      # diary-not-empty flake this landmark would otherwise inherit. The ADD
+      # FOOD Card and its header Pressable (carrying the 'ADD FOOD' label) are
+      # unconditional; only the content BELOW it — the slot picker, the Quick/
+      # Manual tabs, and HealthQuickAdd itself — is gated on `addFoodExpanded`
+      # (`entries.length === 0` by default), which a lingering `Maestro *` row
+      # from another flow sharing this account's "today" (e.g. nutrition-log-
+      # meal.yaml, running concurrently in this same suite) can leave false
+      # before `health-clear-maestro-meals.yaml` below has had a chance to
+      # sweep it. 'ADD FOOD' is also already trusted elsewhere in this exact
+      # file as a stable, unambiguous on-screen anchor (every `KEYPAD_ANCHOR:
+      # 'ADD FOOD'` below), so this isn't a new assumption.
+      - assertVisible: 'ADD FOOD'
+      - assertVisible:
+          id: 'health-nutrition-day-label'
+          text: 'Today'
+      # Idempotence, not teardown: see the subflow's header. A previous run that
+      # died before its own teardown leaves a second row with the same name and
+      # makes every per-row tap below ambiguous — which has happened for real.
+      - runFlow: subflows/health-clear-maestro-meals.yaml
+
+      # --- The slot picker aims BOTH add paths (HEALTH-NUTR-171) ---------
+      # `HealthQuickAdd` is handed the same `slot` the ADD FOOD card selects, so
+      # this one tap decides where the calories-only entry below lands too.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-slot-lunch
+            SCROLL_DIR: down
+      # Bounded retry, RE-TAPPING with `retryTapIfNoChange`, not a bare tap.
+      # `health-meal-slot-*` is a 4-way segmented control with an 84x38pt tap
+      # target per option (verified via a live hierarchy dump) — on an EMPTY
+      # diary it sits at y=[832,872], just 3pt below the floating tab bar's
+      # own bounds y=[770,830]. Root-caused 2026-08-01: the shared
+      # FloatingTabBar's decorative blur/gradient backdrop (app/(tabs)/
+      # _layout.tsx) was intercepting taps meant for content beneath it near
+      # the tab bar — a REAL app bug, now fixed at the source by wrapping
+      # those backdrops in plain `pointerEvents="none"` Views. This retry is
+      # cheap insurance for any residual iOS-26 driver-under-load tap drop,
+      # not the primary fix.
+      - repeat:
+          times: 3
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-meal-slot-lunch'
+                    selected: true
+                commands:
+                  - tapOn:
+                      id: 'health-meal-slot-lunch'
+                      retryTapIfNoChange: true
+                  - waitForAnimationToEnd:
+                      timeout: 500
+      - assertVisible:
+          id: 'health-meal-slot-lunch'
+          selected: true
+      - assertVisible:
+          id: 'health-meal-slot-breakfast'
+          selected: false
+      - assertVisible: 'Add to Lunch'
+
+      # --- The quick-add tabs are three real lists (HEALTH-NUTR-172) -----
+      # Driven in both directions and across all three options: a picker only
+      # ever pushed one way cannot tell a working control from one that latches.
+      # The tab is asserted on its own `selected` state rather than on the rows
+      # behind it, because the library's contents belong to the account and this
+      # flow does not own them.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-quick-add-tab-favorites
+            SCROLL_DIR: up
+      - tapOn:
+          id: 'health-quick-add-tab-favorites'
+      - assertVisible:
+          id: 'health-quick-add-tab-favorites'
+          selected: true
+      - assertVisible:
+          id: 'health-quick-add-tab-suggested'
+          selected: false
+      - tapOn:
+          id: 'health-quick-add-tab-recent'
+      - assertVisible:
+          id: 'health-quick-add-tab-recent'
+          selected: true
+      - assertVisible:
+          id: 'health-quick-add-tab-favorites'
+          selected: false
+      - tapOn:
+          id: 'health-quick-add-tab-suggested'
+      - assertVisible:
+          id: 'health-quick-add-tab-suggested'
+          selected: true
+
+      # --- Calories-only refuses a number-less log (HEALTH-NUTR-173) -----
+      # `canQuickLog` is `parseCaloriesInput(...) > 0`, so a name alone must not
+      # write anything. Proven by the side effect a successful log HAS: it
+      # blanks both fields. The name surviving is the proof nothing was filed.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-quick-add-calories-name
+            SCROLL_DIR: down
+      - tapOn:
+          id: 'health-quick-add-calories-name'
+      - inputText: 'Maestro Diary One'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'QUICK ADD'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # `canQuickLog` is false with no calories typed, so the Pressable is
+      # `disabled` and its onPress never fires — no POST is even attempted
+      # (HealthQuickAdd.tsx).
+      - tapOn:
+          id: 'health-quick-add-calories-button'
+      - assertVisible:
+          id: 'health-quick-add-calories-name'
+          text: 'Maestro Diary One'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/entries
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- A number turns the same button live (HEALTH-NUTR-174) ---------
+      - tapOn:
+          id: 'health-quick-add-calories-input'
+      - inputText: '260'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'QUICK ADD'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-quick-add-calories-button'
+      # VERIFY THE WRITE, NOT A UI RESET. This USED to be an
+      # `extendedWaitUntil: visible: id: health-quick-add-calories-input text:
+      # ''` here, on the theory that the field blanking itself is the first
+      # proof the write landed. Reproduced live 2026-08-02: that wait times
+      # out HARD, because this is the diary's FIRST entry of the run (the
+      # opening `health-clear-maestro-meals.yaml` sweep left today empty) and
+      # `addFoodExpanded` is "open while the day is empty; shut once it is
+      # not" (HealthNutritionScreen.tsx's own comment on the card) — the
+      # instant this log lands, `entries.length` goes 0 → 1 and the WHOLE
+      # ADD FOOD card, `health-quick-add-calories-input` included, unmounts
+      # (the block is `{addFoodExpanded ? (...) : null}`, a real unmount, not
+      # a hide) before any client-side "field went blank" proof can be read.
+      # The failure screenshot shows exactly this: "Maestro Diary One · 260
+      # kcal" already logged into Lunch, ADD FOOD collapsed shut (chevron
+      # down), no Quick/Manual toggle or calories field anywhere on screen —
+      # the write succeeded, the old assertion just couldn't observe it that
+      # way. The network verify below is unconditional proof either way.
+      # onLogCalories → addMealEntry → POST /nutrition/entries.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Re-open ADD FOOD if the auto-collapse fired. Every leg from
+      # HEALTH-NUTR-175 onward needs the card expanded to reach
+      # health-add-food-mode-manual / health-meal-name-input, and
+      # `health-add-food-toggle` (the header Pressable) survives the collapse
+      # — only its CONTENTS unmount — so it is always there to tap back open.
+      # Gated on `health-add-food-mode-quick`, not on assuming state: a run
+      # where the day was NOT actually empty (a previous run's teardown
+      # partially failed) would never have collapsed at all, and re-tapping
+      # an already-open toggle would close it instead.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-add-food-mode-quick'
+          commands:
+            - tapOn:
+                id: 'health-add-food-toggle'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-add-food-mode-quick'
+                timeout: 8000
+      # Recover to Nutrition if drifted. Reproduced 2026-08-01: right after
+      # the POST landed (badge PASS confirmed), the next assertion found the
+      # app back on Dashboard/Home instead of Nutrition — the same iOS-26
+      # gesture/tap-drift class already documented and guarded for elsewhere
+      # in this suite (subflows/health-scroll-nutrition-top.yaml,
+      # subflows/focus-health-home.yaml), just not yet at this exact point.
+      # No app or write is at fault: the POST itself succeeded (201, badge
+      # PASS) before the drift happened.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-nutrition-screen'
+          commands:
+            - runFlow: subflows/go-health-nutrition.yaml
+            - runFlow:
+                file: subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: health-quick-add-calories-name
+                  SCROLL_DIR: down
+      # A freshly re-mounted HealthQuickAdd (the re-open above, if it fired)
+      # carries fresh local `useState('')` for both fields regardless — this
+      # holds whether or not the card ever actually collapsed.
+      - assertVisible:
+          id: 'health-quick-add-calories-name'
+          text: ''
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-group-lunch-toggle
+            SCROLL_DIR: down
+      - assertVisible: 'Maestro Diary One'
+
+      # ADD FOOD opens on the Quick/Manual toggle's default tab, Quick
+      # (`HealthNutritionScreen.tsx`'s `addMode` state, added after the rest
+      # of this section's comments were written) — `health-meal-name-input`
+      # below only renders once Manual is selected; Quick is what the
+      # HEALTH-NUTR-171…174 legs above were just exercising. `addMode` is a
+      # screen-level `useState`, so one tap here holds Manual selected for
+      # the rest of this flow — reproduced 2026-08-01: without this tap,
+      # `health-meal-name-input` never mounts at all.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-add-food-mode-manual
+            SCROLL_DIR: up
+      - tapOn:
+          id: 'health-add-food-mode-manual'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-name-input'
+          timeout: 8000
+
+      # --- The manual form carries all four amounts (HEALTH-NUTR-175) ----
+      # `health-meal-carbs-input` / `-fat-input` had never been typed into by
+      # any flow; nutrition-log-meal fills name/kcal/protein only.
+      # Bounded retry, re-scrolling ONLY when the readback gate says a retry
+      # is actually needed — not unconditionally every iteration. `health-
+      # meal-name-input` is a plain `value`/`onChangeText` TextInput
+      # (HealthNutritionScreen.tsx) — nothing async or debounced there — so a
+      # readback should never be false, and the underlying dropped-tap bug
+      # that first motivated this loop is fixed at the source (the
+      # FloatingTabBar blur-backdrop touch-interception bug, see
+      # app/(tabs)/_layout.tsx). Two more bugs surfaced chasing this one:
+      # (1) an UNCONDITIONAL re-scroll on every iteration oversteps the top
+      # of the list and can trip iOS's native pull-to-refresh (a
+      # "Refreshing…" banner reloading the day's data mid-retry, wiping the
+      # just-typed text) — fixed by re-scrolling only inside the `when:
+      # notVisible` gate. (2) SCROLLING TO `health-meal-name-input` ITSELF
+      # lands it right under the fixed "Nutrition" title bar — reproduced
+      # 2026-08-01 via a hierarchy dump: bounds y=[42,84], entirely inside
+      # the header's own y=[0,100] — Maestro counts the field "visible" the
+      # moment it exists in the tree, with no notion that the opaque header
+      # is painted on top of it, so every tap there lands on the header
+      # instead of the field (`focused: "false"`, placeholder still showing,
+      # after 3/3 identical attempts — not a flake). Scrolling to
+      # `health-meal-calories-input` instead — the next field down — forces
+      # the loop to go one field further, landing the name input safely
+      # clear of the header without an extra swipe that would risk the
+      # pull-to-refresh from bug (1).
+      - repeat:
+          times: 3
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-meal-name-input'
+                    text: 'Maestro Diary Two'
+                commands:
+                  - runFlow:
+                      file: subflows/health-swipe-section-to.yaml
+                      env:
+                        TARGET_ID: health-meal-calories-input
+                        SCROLL_DIR: up
+                  - tapOn:
+                      id: 'health-meal-name-input'
+                      retryTapIfNoChange: true
+                  - eraseText:
+                      charactersToErase: 50
+                      optional: true
+                  - inputText: 'Maestro Diary Two'
+                  - waitForAnimationToEnd:
+                      timeout: 1000
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-meal-name-input'
+          commands:
+            - runFlow:
+                file: subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: health-meal-calories-input
+                  SCROLL_DIR: up
+      - assertVisible:
+          id: 'health-meal-name-input'
+          text: 'Maestro Diary Two'
+      - tapOn:
+          id: 'health-meal-calories-input'
+      - inputText: '130'
+      - tapOn:
+          id: 'health-meal-protein-input'
+      - inputText: '8'
+      - tapOn:
+          id: 'health-meal-carbs-input'
+      - inputText: '12'
+      - tapOn:
+          id: 'health-meal-fat-input'
+      - inputText: '3'
+      # ANCHOR IS 'F (g)', NOT 'ADD FOOD'. With all 5 fields filled the
+      # keyboard pushes the "ADD FOOD" section label off-screen, leaving the
+      # Add button (accessibilityLabel "Add food" — same text, different
+      # case) as the ONLY on-screen match, so the dismiss tap fired the real
+      # submit early. The scripted tap below then landed on a
+      # since-disabled/reset button, e2e-clear-log had already wiped the real
+      # POST, and the verify step timed out with no match — reproduced live
+      # 2026-07-31. 'F (g)' sits directly above the field just typed into, so
+      # it can't scroll out of view and it collides with nothing tappable.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'F (g)'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-meal-add-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-name-input'
+            text: ''
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-group-lunch-toggle
+            SCROLL_DIR: down
+      - assertVisible: 'Maestro Diary Two'
+
+      # --- The group header collapses and re-opens (HEALTH-NUTR-176) -----
+      # Both directions. A collapsed slot must remove its rows from the tree
+      # entirely — a `display:none` row is still findable by assistive tech and
+      # by a flow that has no business reaching it.
+      - tapOn:
+          id: 'health-meal-group-lunch-toggle'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-meal-detail-lunch'
+          timeout: 10000
+      - assertNotVisible: 'Maestro Diary One'
+      - tapOn:
+          id: 'health-meal-group-lunch-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-detail-lunch'
+          timeout: 10000
+      - assertVisible: 'Maestro Diary One'
+
+      # --- The editor opens on the row it was asked for (NUTR-177) -------
+      # EDIT/MOVE/DELETE NOW SIT BEHIND A "…" MENU. Reproduced live
+      # 2026-08-02, confirmed against source: the 2026-08-01 refactor
+      # (8f1f0ef2) folded the three per-row verbs behind one "more" button —
+      # "One row, three verbs — folded behind the 'more' button instead of
+      # three permanently-visible icons" (HealthMealDetail.tsx's own
+      # comment). `health-meal-edit-<id>` / `-move-<id>` / `-delete-<id>` (the
+      # OLD always-visible row buttons this whole file used to tap directly)
+      # no longer exist at all — only `health-meal-more-<id>` (the "…" toggle)
+      # does. Its accessibilityLabel is `Actions for <name>`, and the menu it
+      # reveals (`health-meal-menu-<id>`) carries `health-meal-menu-edit-<id>`
+      # / `-move-<id>` / `-delete-<id>` — SAME accessibility labels as
+      # before ("Edit X", "Move X to another meal", "Delete X"), so only the
+      # ENTRY POINT changed, not what each leg below asserts once it is
+      # reached. Everything INSIDE the editor once open (name/calories/
+      # protein/carbs/fat/save/cancel/portion, all still `health-meal-edit-*`
+      # under the entry id) is unchanged — confirmed against source — so
+      # those taps later in this file are untouched.
+      - tapOn:
+          id: 'health-meal-more-.*'
+          text: 'Actions for Maestro Diary One'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-menu-.*'
+          timeout: 10000
+      - tapOn:
+          id: 'health-meal-menu-edit-.*'
+          text: 'Edit Maestro Diary One'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-edit-cancel-.*'
+          timeout: 15000
+      - assertVisible:
+          id: 'health-meal-edit-name-.*'
+          text: 'Maestro Diary One'
+      - assertVisible:
+          id: 'health-meal-edit-calories-.*'
+          text: '260'
+
+      # --- Zero calories is refused, in place (HEALTH-NUTR-178) ----------
+      # `patchFromDraft` returns null for `calories <= 0`, so Save must raise the
+      # rendered error and keep the editor open rather than silently closing.
+      - tapOn:
+          id: 'health-meal-edit-calories-.*'
+      - eraseText
+      - inputText: '0'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # `patchFromDraft` returns null for calories <= 0, so `commitEdit`
+      # raises `showInvalid` and returns WITHOUT calling `onSaveEntry` —
+      # no PUT is sent (HealthMealDetail.tsx).
+      - tapOn:
+          id: 'health-meal-edit-save-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-edit-error-.*'
+          timeout: 10000
+      - assertVisible: 'Calories must be a number above zero, and macros numbers in grams.'
+      - assertVisible:
+          id: 'health-meal-edit-cancel-.*'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /nutrition/entries/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- An empty calories field is refused the same way (NUTR-179) ----
+      - tapOn:
+          id: 'health-meal-edit-calories-.*'
+      - eraseText
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # Same guard as the zero-calories case above — a blank calories field
+      # never reaches `onSaveEntry` either (HealthMealDetail.tsx).
+      - tapOn:
+          id: 'health-meal-edit-save-.*'
+      - assertVisible:
+          id: 'health-meal-edit-error-.*'
+      - assertVisible:
+          id: 'health-meal-edit-cancel-.*'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /nutrition/entries/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Cancel DISCARDS the draft (HEALTH-NUTR-180) -------------------
+      # The dismissal half of the editor. Everything typed below is thrown away
+      # by Cancel, and the row must read exactly as it did before. The name is
+      # typed FIRST so the last field before the button press is numeric — the
+      # only keyboard this build can be made to dismiss reliably.
+      - tapOn:
+          id: 'health-meal-edit-name-.*'
+      - eraseText
+      - inputText: 'Maestro Diary Discarded'
+      - tapOn:
+          id: 'health-meal-edit-calories-.*'
+      - inputText: '999'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # `cancelEdit` just resets local state — the typed name/calories above
+      # are thrown away without ever reaching `onSaveEntry` (HealthMealDetail.tsx).
+      - tapOn:
+          id: 'health-meal-edit-cancel-.*'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-meal-edit-cancel-.*'
+          timeout: 10000
+      - assertNotVisible: 'Maestro Diary Discarded'
+      - assertVisible: 'Maestro Diary One'
+      - assertVisible:
+          id: 'health-meal-item-.*-kcal'
+          text: '260 kcal.*'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /nutrition/entries/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Save rewrites the row IN PLACE (HEALTH-NUTR-181) --------------
+      # An edit is a PUT, not add-then-delete: the row keeps its identity, so
+      # the old name must be gone rather than sitting beside the new one.
+      # Behind the "…" menu — see HEALTH-NUTR-177's comment above.
+      - tapOn:
+          id: 'health-meal-more-.*'
+          text: 'Actions for Maestro Diary One'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-menu-.*'
+          timeout: 10000
+      - tapOn:
+          id: 'health-meal-menu-edit-.*'
+          text: 'Edit Maestro Diary One'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-edit-cancel-.*'
+          timeout: 15000
+      - tapOn:
+          id: 'health-meal-edit-name-.*'
+      - eraseText
+      - inputText: 'Maestro Diary Edited'
+      - tapOn:
+          id: 'health-meal-edit-protein-.*'
+      - eraseText
+      - inputText: '11'
+      - tapOn:
+          id: 'health-meal-edit-carbs-.*'
+      - eraseText
+      - inputText: '22'
+      - tapOn:
+          id: 'health-meal-edit-fat-.*'
+      - eraseText
+      - inputText: '7'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # A valid Save → onSaveEntry → updateMealEntry → PUT /nutrition/entries/:id
+      # (healthNutritionStorage.ts) — an in-place PATCH, not add-then-delete.
+      - tapOn:
+          id: 'health-meal-edit-save-.*'
+      - extendedWaitUntil:
+          visible: 'Maestro Diary Edited'
+          timeout: 20000
+      - assertNotVisible: 'Maestro Diary One'
+      - assertNotVisible:
+          id: 'health-meal-edit-cancel-.*'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /nutrition/entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The row carries a per-100 basis, so it RESCALES (NUTR-185) ----
+      # A hand-typed row is re-portionable too: `resolveNutritionBasis` derives
+      # the basis from the macros and the portion it was given (`portion ?? 1`),
+      # so the row reads "260 kcal · 1 serving" and `canReportion` is true —
+      # confirmed against a live hierarchy dump before this leg was written. A
+      # row WITHOUT a basis gets no portion field at all rather than a control
+      # that could only ever 400, which is what makes this assertion mean
+      # something.
+      # Behind the "…" menu — see HEALTH-NUTR-177's comment above.
+      - tapOn:
+          id: 'health-meal-more-.*'
+          text: 'Actions for Maestro Diary Edited'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-menu-.*'
+          timeout: 10000
+      - tapOn:
+          id: 'health-meal-menu-edit-.*'
+          text: 'Edit Maestro Diary Edited'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-portion-apply-.*'
+          timeout: 15000
+      - assertVisible: 'Rescaling asks the server to work the macros out for the new portion.'
+
+      # --- A portion of zero is refused (HEALTH-NUTR-186) ----------------
+      # `portionFromDraft` returns null and the note turns into the refusal.
+      # Nothing is sent — Rescale is the one control here that spends a request.
+      - tapOn:
+          id: 'health-meal-portion-.*'
+          text: 'Portion for Maestro Diary Edited'
+      - eraseText
+      - inputText: '0'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # `portionFromDraft('0')` is null (must be > 0), so `commitPortion`
+      # raises `showInvalidPortion` and returns before calling
+      # `onReportionEntry` — no POST .../portion is sent (HealthMealDetail.tsx).
+      - tapOn:
+          id: 'health-meal-portion-apply-.*'
+      - extendedWaitUntil:
+          visible: 'A portion has to be a number above zero.'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-meal-edit-cancel-.*'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /portion
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- And so is one past the route's ceiling (HEALTH-NUTR-187) ------
+      # `MAX_PORTION` mirrors the route bound `z.number().positive().max(1000)`,
+      # so 1001 is refused on the device instead of spending a 400.
+      - tapOn:
+          id: 'health-meal-portion-.*'
+          text: 'Portion for Maestro Diary Edited'
+      - eraseText
+      - inputText: '1001'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # `portionFromDraft` mirrors the route's `z.number().positive().max(1000)`
+      # ceiling — 1001 is refused the same way as 0, client-side, before any
+      # request is built (HealthMealDetail.tsx).
+      - tapOn:
+          id: 'health-meal-portion-apply-.*'
+      - assertVisible: 'A portion has to be a number above zero.'
+      - assertVisible:
+          id: 'health-meal-edit-cancel-.*'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /portion
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- A real portion asks the SERVER to re-derive (NUTR-188) --------
+      # 260 kcal for one serving means a basis of 26000 per 100, so two servings
+      # is exactly 520. That number is the Worker's answer, not the device's —
+      # nothing here multiplies a macro. The editor closes on a landed rescale.
+      - tapOn:
+          id: 'health-meal-portion-.*'
+          text: 'Portion for Maestro Diary Edited'
+      - eraseText
+      - inputText: '2'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # A valid portion → onReportionEntry → reportionMealEntry →
+      # POST /nutrition/entries/:id/portion (healthNutritionStorage.ts) — the
+      # 520 kcal answer is the Worker's own re-derivation, not device maths.
+      - tapOn:
+          id: 'health-meal-portion-apply-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-item-.*-kcal'
+            text: '520 kcal.*'
+          timeout: 25000
+      - assertNotVisible:
+          id: 'health-meal-edit-cancel-.*'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /portion
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Move puts the row in another meal (HEALTH-NUTR-182) -----------
+      # The proof is baseline-independent: the Dinner card is COLLAPSED first,
+      # so a row that really moved disappears from the screen entirely and comes
+      # back only when Dinner is re-opened. Asserting "it is still visible
+      # somewhere" would pass for a move that never happened.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-group-dinner-toggle
+            SCROLL_DIR: down
+      # Normalise to EXPANDED first, then collapse. `isExpanded` is
+      # `override ?? count > 0`, so a card that is merely empty-and-collapsed
+      # carries no override and would silently re-open the moment the moved row
+      # lands in it — which would make the assertion below pass for a move that
+      # never happened.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-meal-detail-dinner'
+          commands:
+            - tapOn:
+                id: 'health-meal-group-dinner-toggle'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-meal-detail-dinner'
+                timeout: 10000
+      - tapOn:
+          id: 'health-meal-group-dinner-toggle'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-meal-detail-dinner'
+          timeout: 10000
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-group-lunch-toggle
+            SCROLL_DIR: up
+      # Behind the "…" menu — see HEALTH-NUTR-177's comment above.
+      - tapOn:
+          id: 'health-meal-more-.*'
+          text: 'Actions for Maestro Diary Edited'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-menu-.*'
+          timeout: 10000
+      - tapOn:
+          id: 'health-meal-menu-move-.*'
+          text: 'Move Maestro Diary Edited to another meal'
+      - extendedWaitUntil:
+          visible: 'Move to'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # onMoveEntry → patchEntry({ slot: 'dinner' }) → updateMealEntry →
+      # PUT /nutrition/entries/:id — a MOVE is the same PUT as Save, with a
+      # different meal_type (HealthNutritionScreen.tsx).
+      - tapOn:
+          id: 'health-meal-move-.*-dinner'
+          text: 'Move Maestro Diary Edited to Dinner'
+      - extendedWaitUntil:
+          notVisible: 'Maestro Diary Edited'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /nutrition/entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-group-dinner-toggle
+            SCROLL_DIR: down
+      - tapOn:
+          id: 'health-meal-group-dinner-toggle'
+      - extendedWaitUntil:
+          visible: 'Maestro Diary Edited'
+          timeout: 15000
+
+      # --- Teardown: both rows go (HEALTH-NUTR-183) ----------------------
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # Behind the "…" menu — see HEALTH-NUTR-177's comment above. Unlike
+      # the Foods library's delete, this one still has no confirm alert —
+      # `health-meal-menu-delete-<id>`'s `onPress` calls `onDeleteEntry`
+      # straight away (HealthMealDetail.tsx), same as the old direct button.
+      - tapOn:
+          id: 'health-meal-more-.*'
+          text: 'Actions for Maestro Diary Edited'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-menu-.*'
+          timeout: 10000
+      - tapOn:
+          id: 'health-meal-menu-delete-.*'
+          text: 'Delete Maestro Diary Edited'
+      - extendedWaitUntil:
+          notVisible: 'Maestro Diary Edited'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /nutrition/entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-group-lunch-toggle
+            SCROLL_DIR: up
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # Behind the "…" menu — see HEALTH-NUTR-177's comment above.
+      - tapOn:
+          id: 'health-meal-more-.*'
+          text: 'Actions for Maestro Diary Two'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-menu-.*'
+          timeout: 10000
+      - tapOn:
+          id: 'health-meal-menu-delete-.*'
+          text: 'Delete Maestro Diary Two'
+      - extendedWaitUntil:
+          notVisible: 'Maestro Diary Two'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /nutrition/entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Back to the Health tab (HEALTH-NUTR-184) ----------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

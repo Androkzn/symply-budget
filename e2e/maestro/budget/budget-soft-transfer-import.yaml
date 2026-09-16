@@ -1,0 +1,86 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:st
+  - readonly
+  - regression
+  - smoke
+# Matrix: BUDGET-st (see documents/engineering/testing/matrices/)
+# Soft Transfer — Import a shared summary (SoftTransferImportScreen wrapping the
+# shared SoftTransferFlowScreen, preset house-to-budget). Reached via the Budget
+# Settings screen. Proves the flow mounts + lists packages
+# (listPackages → GET /smart-engine/packages) and, when a package is selectable,
+# advances toward the run step.
+#
+# DESTRUCTIVE GUARD: run-transfer-button fires the real
+# grant-consent/prepare/export/import POST chain and mutates household data, so
+# this flow asserts the button is reachable but never taps it. When Soft Transfer
+# is not enabled the screen shows a 403 "not enabled yet" disabled state instead,
+# which is tolerated.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-open-settings.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-settings-screen'
+    commands:
+      - runFlow: ../subflows/go-budget-tab.yaml
+      - tapOn:
+          id: 'budget-settings-button'
+          retryTapIfNoChange: true
+      - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-settings-screen'
+          timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-screen'
+    timeout: 30000
+# The soft-transfer link lives below the fold. iOS 26 + Maestro 2.6.x can't drive
+# RN New-Arch ScrollViews via scrollUntilVisible (the list never moves), so reveal
+# the link with explicit coordinate swipes, guarded by visibility so we stop once
+# it's on screen.
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-settings-soft-transfer-link'
+          commands:
+            - swipe:
+                start: 50%, 80%
+                end: 50%, 25%
+                duration: 600
+- assertVisible:
+    id: 'budget-settings-soft-transfer-link'
+- tapOn:
+    id: 'budget-settings-soft-transfer-link'
+- extendedWaitUntil:
+    visible:
+      id: 'soft-transfer-flow-screen'
+    timeout: 20000
+# If a package option is offered, select it and confirm we advance to the consent
+# step (proxy for package-selection + backend catalog wiring). We stop at the
+# consent card on purpose: confirming consent fires the real
+# grant-consent/prepare/export/import chain (immediately, for packages that need
+# no household pick), so the flow asserts the consent boundary is reached but
+# never taps consent-confirm-button.
+- runFlow:
+    when:
+      visible:
+        id: 'package-option-.*'
+    commands:
+      - tapOn:
+          id: 'package-option-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'consent-confirmation-card'
+          timeout: 15000
+      - assertVisible:
+          id: 'consent-confirm-button'
+- assertVisible:
+    id: 'soft-transfer-flow-screen'

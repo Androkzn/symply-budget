@@ -1,0 +1,13 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Switch to the Health (Home) tab.
+- tapOn:
+    id: 'tab-index'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-home-screen'
+    timeout: 30000

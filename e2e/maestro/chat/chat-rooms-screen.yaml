@@ -1,0 +1,58 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:chat
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-chat (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-chat-tab.yaml
+- assertVisible:
+    id: 'chat-rooms-screen'
+- tapOn:
+    id: 'chat-rooms-new-button'
+# Both selectors below were stale — neither `chat-rooms-create-name` nor
+# `chat-rooms-create-cancel` exists anywhere in src/. The New-conversation sheet
+# publishes `chat-rooms-name-input` (ChatRoomsListScreen.tsx:448, corroborated by
+# its unit test) and a plain 'Cancel' text button; the only create-* ids on that
+# screen are `chat-rooms-create-button` / `-error` / `-household`. This failed on
+# every device, not just iPad — the iPad run is simply the first thing to reach
+# it. Captured hierarchy on House-iPad 2026-09-01 confirms the sheet is up
+# (`bottom-sheet-frame`, 'New conversation', `chat-rooms-create-button`).
+- extendedWaitUntil:
+    visible:
+      id: 'chat-rooms-name-input'
+    timeout: 10000
+- hideKeyboard:
+    optional: true
+- tapOn: 'Cancel'
+- waitForAnimationToEnd:
+    timeout: 3000
+# `bottom-sheet-frame`, not `bottom-sheet-overlay`: the overlay exists in
+# source (BottomSheet.tsx:252) but is a pointerEvents="box-none" View with no
+# accessibility props, so RN never publishes it — it is absent from the
+# hierarchy even with the sheet fully open, making the old assertion
+# vacuously true. The frame IS published.
+- extendedWaitUntil:
+    notVisible:
+      id: 'bottom-sheet-frame'
+    timeout: 10000
+- hideKeyboard:
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+# Cancel returns to the room list — assert screen root, not header FAB (keyboard can hide it).
+- extendedWaitUntil:
+    visible:
+      id: 'chat-rooms-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'chat-rooms-screen'
+# Scroll contract
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: chat-rooms-screen-scroll-end
+

@@ -1,0 +1,26 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:profile
+  - readonly
+  - regression
+# Matrix: HOUSE-PROF-007…008 — avatar upload/remove not wired in src/api/user.ts;
+# asserts avatar affordance is present without native picker mutation.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-profile.yaml
+- assertVisible:
+    id: 'profile-screen'
+- assertVisible:
+    id: 'profile-avatar-edit'
+- tapOn:
+    id: 'profile-avatar-edit'
+- extendedWaitUntil:
+    visible: 'Cancel'
+    timeout: 10000
+    optional: true
+- tapOn:
+    text: 'Cancel'
+    optional: true
+- assertVisible:
+    id: 'profile-screen'

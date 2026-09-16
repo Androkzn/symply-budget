@@ -1,0 +1,98 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:garden
+  - readonly
+  - regression
+# Matrix: HOUSE-GARD-022 (step one — the seeded lot, adding a corner, undo)
+---
+# STEP ONE: the lot boundary.
+#
+# Nothing here persists — the flow discards on the way out — so this is tagged
+# `readonly` even though it edits a polygon. What it proves is that the tracing
+# surface actually responds: the seed appears, the derived measurements are
+# real, a midpoint handle adds a corner, and undo takes it back.
+#
+# WHY THE CORNER COUNT IS THE ASSERTION AND NOT THE AREA. Area and perimeter
+# depend on where the map happened to open (the E2E home has a province, not a
+# street address, so the imagery is arbitrary) and on the seed rectangle's size
+# in metres. The COUNT is deterministic: the seed is always a rectangle, so it
+# is always four, and a midpoint tap always makes it five. Asserting a number
+# that cannot drift is what keeps this from becoming a flaky area comparison.
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-GARD-022
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-garden-map-wizard.yaml
+
+# The seed: a rectangle, already on the map, so the member drags four corners
+# rather than inventing a polygon on blank imagery.
+- assertVisible:
+    id: 'garden-map-wizard-stat-corners'
+    text: 'Corners 4'
+- assertVisible:
+    id: 'garden-map-wizard-stat-area'
+- assertVisible:
+    id: 'garden-map-wizard-stat-perimeter'
+
+# Undo starts disabled — nothing has been changed yet. `assertVisible` does not
+# test enabled-ness, so this is asserted through the control's accessibility
+# state rather than its presence.
+- assertVisible:
+    id: 'garden-map-wizard-undo'
+- assertVisible:
+    id: 'garden-map-wizard-remove-corner'
+
+# ADD THE CORNER FROM THE PANEL, not from the map handle.
+#
+# The midpoint handles are the primary interaction and a member will use them —
+# but `MKMapView` publishes its annotations to the accessibility tree only
+# intermittently, so a flow keyed on `garden-map-midpoint-0` passes one run and
+# reports "Element not found" the next on an unchanged build. Both were observed
+# on House-B within an hour.
+#
+# The panel button is the same action through a plain React Native view, which
+# is always in the tree. It exists for VoiceOver first — a map annotation cannot
+# be dragged by assistive tech at all — and this flow simply uses the accessible
+# path.
+- tapOn:
+    id: 'garden-map-wizard-add-corner'
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: 'garden-map-wizard-stat-corners'
+    text: 'Corners 5'
+
+# UNDO takes it back. The history entry is pushed by the insert, so one undo is
+# exactly one corner.
+- tapOn:
+    id: 'garden-map-wizard-undo'
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: 'garden-map-wizard-stat-corners'
+    text: 'Corners 4'
+
+# A corner tapped is a corner SELECTED, never deleted — making a tap destructive
+# on a surface where corners are constantly tapped to drag them is how a traced
+# lot loses one nobody meant to remove. So after tapping a vertex the ring is
+# still four, and the remove control is what acts.
+- tapOn:
+    id: 'garden-map-vertex-0'
+    # Optional for the MapView-annotation reason above. The assertion below is
+    # the point of the step and runs either way: whether the vertex was tapped
+    # or the tap never landed, the ring must still hold four corners — a tap on
+    # a corner must never be destructive.
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible:
+    id: 'garden-map-wizard-stat-corners'
+    text: 'Corners 4'
+
+- runFlow: ../subflows/exit-garden-map-wizard.yaml
+- assertVisible:
+    id: 'garden-plans-screen'

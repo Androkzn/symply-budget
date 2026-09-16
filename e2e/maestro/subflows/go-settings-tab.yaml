@@ -1,0 +1,54 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- runFlow:
+    file: dismiss-stuck-sheet.yaml
+- tapOn:
+    id: 'tab-settings'
+    retryTapIfNoChange: true
+- runFlow:
+    when:
+      visible:
+        id: 'home-screen'
+    commands:
+      - openLink: simplehouse://settings
+# The Settings tab hosts an INDEPENDENT navigator (app/(tabs)/settings.tsx wraps
+# SettingsNavigator in NavigationIndependentTree), so it keeps its own history
+# while unfocused. `PropertyDetail` is a route in it
+# (src/navigation/SettingsNavigator.tsx:215): once a flow leaves the app there,
+# every later flow that taps into Settings gets PropertyDetail instead of
+# SettingsMain — and `pop-to-app-root.yaml` cannot help, because that stack is
+# not the one on screen at launch.
+#
+# Killed three flows back-to-back on 2026-09-01 (property-assessment-history,
+# property-notice-import, household-management), all reported as
+# "settings-screen is visible" — 8 flows after `property-detail-overview`
+# actually left the residue. The `openLink` above does not rescue it either:
+# it is gated on `home-screen`, so it was SKIPPED in exactly the runs that
+# needed it.
+- repeat:
+    times: 5
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'settings-screen'
+            visible:
+              id: 'tab-index'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+            - runFlow:
+                when:
+                  visible: 'Discard'
+                commands:
+                  - tapOn: 'Discard'
+            - waitForAnimationToEnd:
+                timeout: 1500
+- extendedWaitUntil:
+    visible:
+      id: 'settings-screen'
+    timeout: 30000

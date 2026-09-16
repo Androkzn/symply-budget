@@ -1,0 +1,5 @@
+PASS [Budget-C] budget-savings-income-entry
+PASS [Budget-C] budget-savings-entry-controls
+PASS [Budget-C] budget-savings-irregular-income
+PASS [Budget-C] budget-savings-recurring-toggle
+PASS [Budget-C] budget-savings-recurring

@@ -1,0 +1,36 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:onboarding
+  - readonly
+  - regression
+# Matrix: HOUSE-onboarding (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-onboarding.yaml
+- runFlow: ../subflows/skip-onboarding-if-onboarded.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-get-started'
+    commands:
+      - assertVisible:
+          id: 'onboarding-get-started'
+      # Get Started is gated until the legal toggle is agreed.
+      - tapOn:
+          id: 'onboarding-agree-terms'
+      - tapOn:
+          id: 'onboarding-get-started'
+      # Regression guard: accepting terms must never pop the error dialog — a dead
+      # session is swallowed (interceptor logs out → routes to login), a valid one
+      # proceeds.
+      # WRONG LITERAL: the guarded string was 'Failed to save terms acceptance',
+      # which is not rendered anywhere in src/ any more. `handleAcceptTermsError`
+      # (src/screens/onboarding/acceptTermsError.ts:47-50) now raises
+      # Alert('Something went wrong', "We couldn't save that. Please check your
+      # connection and try again."). An assertNotVisible on a string the app can
+      # never render always passes, so the guard was watching nothing.
+      - assertNotVisible: "We couldn't save that"
+      # acceptTerms POST → navigate to CreateHousehold (Create Home button is its primary CTA).
+      - extendedWaitUntil:
+          visible: 'Create Home'
+          timeout: 30000

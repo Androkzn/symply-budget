@@ -1,0 +1,33 @@
+appId: com.symply.language
+tags:
+  - app:language
+  - feature:more
+  - mutation
+  - regression
+# Matrix: LANG-MORE-014 — destructive; run last on throwaway account only.
+---
+- runFlow: subflows/launch-language.yaml
+- runFlow: subflows/go-more.yaml
+- assertVisible:
+    id: 'language-more-screen'
+- runFlow: subflows/scroll-more-data.yaml
+- tapOn:
+    id: 'language-more-reset-learning'
+- assertVisible: 'This permanently deletes your assessment, plan, vocabulary, and tutor history. Your account stays. This cannot be undone.'
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplelanguage
+      E2E_MATRIX_ROW: LANG-MORE-014
+- tapOn: 'Reset'
+- extendedWaitUntil:
+    visible: 'Done'
+    timeout: 45000
+    optional: true
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplelanguage
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /user/reset
+      E2E_VERIFY_STATUS: '200'

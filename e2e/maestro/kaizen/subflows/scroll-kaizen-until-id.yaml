@@ -1,0 +1,9 @@
+appId: ${APP_ID}
+---
+# Scroll the Kaizen screen ScrollView until a target id is visible.
+# Env: TARGET_ID (required)
+- scrollUntilVisible:
+    element:
+      id: ${TARGET_ID}
+    direction: DOWN
+    timeout: 20000

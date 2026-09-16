@@ -1,0 +1,991 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:nutrition
+  - mutation
+  - regression
+# Matrix: HEALTH-NUTR-190 … HEALTH-NUTR-208
+---
+# Nutrition diary — the BATCH verbs (`HealthMealTools`): the copy panel in both
+# of its forms and the multi-select bar.
+#
+# WHY THIS FLOW EXISTS. `HealthMealTools` was 3 of 12 controls driven and the
+# two routes behind it (`POST /nutrition/copy-day`, `POST /nutrition/entries/
+# bulk`) had never been exercised from a device at all. Splitting it from
+# `nutrition-meal-detail-tools.yaml` is deliberate: one flow covering both would
+# be long enough that a mid-run driver drop would cost the whole diary surface,
+# and the two halves fail for different reasons.
+#
+# THE SEED IS ON YESTERDAY, ON PURPOSE. A copy needs a source day that is not
+# the day being copied into, and the only way an E2E run can produce one is to
+# step the diary back and log there — the app has no back-dating field. Every
+# row this flow writes on either day is deleted in the teardown legs.
+#
+# NAMES ARE KEPT UNIQUE ACROSS THE TWO DAYS ON SCREEN. Row verbs are matched by
+# id AND accessibility label together (see nutrition-meal-detail-tools.yaml), so
+# two rows sharing a name would make a tap ambiguous. That is why the
+# selection's "Copy to…" targets YESTERDAY rather than another slot on today:
+# the copies land off the screen being asserted.
+#
+# DISABLED STATES ARE BEHAVIOURAL — Maestro's `enabled:` selector does not match
+# a disabled RN `Pressable` on this build. Every gate below is proven by
+# pressing the control and showing nothing was written.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-NUTR-190
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-nutrition.yaml
+      - assertVisible:
+          id: 'health-nutrition-day-label'
+          text: 'Today'
+      # Idempotence, not teardown: see the subflow's header. A run that died
+      # before its own teardown would otherwise leave rows whose names this flow
+      # re-uses, and every per-row tap below would be ambiguous. Both days this
+      # flow touches are swept.
+      - runFlow: subflows/health-clear-maestro-meals.yaml
+
+      # --- Seed a source row on YESTERDAY (HEALTH-NUTR-190) --------------
+      - tapOn:
+          id: 'health-nutrition-prev-day'
+      - extendedWaitUntil:
+          visible: 'Yesterday'
+          timeout: 15000
+      - runFlow: subflows/health-clear-maestro-meals.yaml
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-slot-lunch
+            SCROLL_DIR: down
+      - tapOn:
+          id: 'health-meal-slot-lunch'
+      # ADD FOOD opens on the Quick/Manual toggle's default tab, Quick
+      # (`HealthNutritionScreen.tsx`'s `addMode` state) — `health-meal-name-input`
+      # only renders once Manual is selected. `addMode` is a screen-level
+      # `useState`, so one tap holds Manual for every meal-slot card this flow
+      # opens later too (Yesterday AND Today below) — reproduced 2026-08-01:
+      # without this tap, `health-meal-name-input` never mounts at all.
+      - tapOn:
+          id: 'health-add-food-mode-manual'
+      - tapOn:
+          id: 'health-meal-name-input'
+      - inputText: 'Maestro Copy Source'
+      # DISMISS BEFORE THE FIRST NUMERIC TAP, NOT AFTER, AND NOT ON 'ADD
+      # FOOD'. Reproduced live 2026-08-02: with nothing between typing the
+      # name and tapping health-meal-calories-input, the name field's own
+      # QWERTY keyboard is still up and covers the amountRow directly below
+      # it (HealthNutritionScreen.tsx) — `automaticallyAdjustKeyboardInsets`
+      # (HealthSectionScreen.tsx) only re-scrolls for the field that is
+      # ALREADY focused, so the calories tap's coordinates land on the
+      # on-screen keyboard instead, and the keyboard's own keys fire into the
+      # still-focused name field. Confirmed against the failure screenshot:
+      # the name field read "Maestro Copy Sourcee111gg" — the seed text plus
+      # one stray key per mistargeted tap, "111" typed correctly but into the
+      # wrong (still-focused) field. 'ADD FOOD' does not fix this: it is the
+      # card's collapse toggle (`health-add-food-toggle` Pressable) and its
+      # child Typography is rolled into that ONE Pressable's accessibility
+      # element, not independently tappable by text — the dismiss silently
+      # no-ops (`optional: true`) and the keyboard never actually closes,
+      # which is why "Maestro Copy Source" alone never matches afterward.
+      # 'MACRO SPLIT' is a plain, non-Pressable section label
+      # (HealthMacroBreakdown.tsx) that sits above CALORIES/ADD FOOD and
+      # stayed on screen, above the keyboard, in the failure screenshot at
+      # this exact scroll position.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'MACRO SPLIT'
+      - tapOn:
+          id: 'health-meal-calories-input'
+      - inputText: '111'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'MACRO SPLIT'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-meal-add-button'
+      - extendedWaitUntil:
+          visible: 'Maestro Copy Source'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- "Back to today" is the only way home (HEALTH-NUTR-191) --------
+      # The affordance exists ONLY on a past day, which is why no flow had ever
+      # tapped it — nutrition-log-meal steps forward with the › button instead.
+      - runFlow: subflows/health-scroll-nutrition-top.yaml
+      - tapOn:
+          id: 'health-nutrition-today-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-day-label'
+            text: 'Today'
+          timeout: 15000
+      - assertNotVisible: 'Maestro Copy Source'
+
+      # --- "Copy meal" is now the ONLY pull-copy entry point (NUTR-192) --
+      # `health-nutrition-copy-day-toggle` IS GONE. Reproduced live 2026-08-02,
+      # confirmed against source AND against the 8f1f0ef2 diff directly: that
+      # commit's message ("streamline health weight logging") undersells it —
+      # the same commit also rewrote HealthMealTools.tsx wholesale. The
+      # day-level verb (`slot: null`, heading "COPY A DAY IN", no source
+      # picker, every row keeping its own meal) was DELETED outright, not
+      # renamed. What survives is `health-nutrition-copy-meal-toggle` in the
+      # ADD FOOD card (HealthNutritionScreen.tsx) — PULL only, and ALWAYS
+      # anchored to one target slot (`toSlot`), with "Whole day" folded in as
+      # one SOURCE option alongside the individual meals
+      # (HealthMealTools.tsx's own header comment literally says "TWO
+      # DIRECTIONS, TWO SHEETS, ONE REQUEST SHAPE"). So this leg now targets
+      # LUNCH explicitly — the slot every section below already assumes
+      # "Maestro Copy Source" lands in.
+      #
+      # ADD FOOD CAN BE COLLAPSED HERE, NOT JUST SCROLLED PAST. It only
+      # auto-expands while the day has zero entries (`entries.length === 0`
+      # in HealthNutritionScreen.tsx) — true on a clean Today, but NOT
+      # guaranteed: this is the exact class of leak that broke
+      # nutrition-log-meal.yaml earlier in this same run ("Maestro "-prefixed
+      # rows a prior aborted run left behind), and `health-clear-maestro-
+      # meals.yaml` cannot be trusted to have swept them even though it ran
+      # twice above — it still taps `health-meal-delete-.*`, the OLD
+      # always-visible delete button 8f1f0ef2 ALSO removed (see the teardown
+      # leg's own note further down, HEALTH-NUTR-209); its `when: visible`
+      # branch can never match post-refactor, so it silently deletes nothing
+      # and still reports success. (Fixing that shared subflow is out of
+      # scope here — it is used by every nutrition flow in a live run.)
+      # Either way, the two `runFlow`s below force the card open AND pin
+      # `addFoodOverride` true — a card that is already open by the empty-day
+      # default would otherwise auto-collapse the instant NUTR-195's copy
+      # lands the day's first entry, taking NUTR-197's manual-entry fields
+      # with it.
+      - runFlow:
+          when:
+            visible:
+              id: 'health-nutrition-copy-meal-toggle'
+          commands:
+            - tapOn:
+                id: 'health-add-food-toggle'
+            - tapOn:
+                id: 'health-add-food-toggle'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-nutrition-copy-meal-toggle'
+          commands:
+            - tapOn:
+                id: 'health-add-food-toggle'
+      # `slot` is screen-level state that outlives the day change (see the
+      # ADD MODE comment above) — it should already read Lunch from the
+      # Yesterday seed leg, but re-tapping it is one cheap, harmless line
+      # against that ever silently drifting.
+      - tapOn:
+          id: 'health-meal-slot-lunch'
+      - tapOn:
+          id: 'health-nutrition-copy-meal-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-copy-meal-body'
+          timeout: 10000
+      - assertVisible: 'Copy into Lunch'
+      # The source picker DOES exist now — the opposite of the deleted
+      # day-level panel — and defaults to the slot being added to.
+      - assertVisible:
+          id: 'health-nutrition-copy-meal-source-lunch'
+          selected: true
+      - assertVisible:
+          id: 'health-nutrition-copy-meal-from-label'
+          text: 'Yesterday'
+      - assertVisible: 'Copies are added to Lunch — nothing already there is replaced.'
+
+      # --- Copying a day INTO ITSELF is refused (HEALTH-NUTR-193) --------
+      # `isSelfCopy` closes the gate and the button says why. Behavioural: press
+      # it and show no banner appeared and the sheet did not close.
+      - tapOn:
+          id: 'health-nutrition-copy-meal-from-next'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-copy-meal-from-label'
+            text: 'Today'
+          timeout: 10000
+      - assertVisible: 'Pick a different day or meal'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # `isSelfCopy` disables the Pressable, so RN never fires onPress and no
+      # POST /nutrition/copy-day is attempted (HealthMealTools.tsx).
+      - tapOn:
+          id: 'health-nutrition-copy-meal-confirm'
+      - assertNotVisible:
+          id: 'health-nutrition-banner'
+      - assertVisible:
+          id: 'health-nutrition-copy-meal-body'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/copy-day
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - tapOn:
+          id: 'health-nutrition-copy-meal-from-prev'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-copy-meal-from-label'
+            text: 'Yesterday'
+          timeout: 10000
+
+      # --- The panel dismisses without writing (HEALTH-NUTR-194) ---------
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # `onClose` only sets `copyMealSheetOpen(false)` — no POST
+      # /nutrition/copy-day is ever built by the close button
+      # (HealthNutritionScreen.tsx). The close button itself is the shared
+      # `BottomSheet`'s now (testID `bottom-sheet-close`) — the sheet no
+      # longer owns a bespoke `-close` id now that it is not a hand-rolled
+      # inline panel.
+      - tapOn:
+          id: 'bottom-sheet-close'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-nutrition-copy-meal-body'
+          timeout: 10000
+      - assertNotVisible: 'Maestro Copy Source'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/copy-day
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- And the same panel, submitted, copies the day (NUTR-195) ------
+      - tapOn:
+          id: 'health-nutrition-copy-meal-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-copy-meal-body'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # handleCopyFrom → copyMealsFromDay → healthApi.copyNutritionDay →
+      # POST /nutrition/copy-day (healthNutritionStorage.ts). `toSlot` now
+      # always rides along, so the landed banner names the slot too —
+      # "Copied 1 item into Lunch.", not the deleted day-level "Copied 1
+      # item." (copiedMessage in healthNutritionStorage.ts).
+      - tapOn:
+          id: 'health-nutrition-copy-meal-confirm'
+      - extendedWaitUntil:
+          visible: 'Copied 1 item into Lunch.'
+          timeout: 25000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/copy-day
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # A landed copy closes the sheet; the row keeps the meal it came from.
+      - assertNotVisible:
+          id: 'health-nutrition-copy-meal-body'
+      - assertVisible: 'Maestro Copy Source'
+
+      # --- The banner is dismissible (HEALTH-NUTR-196) -------------------
+      - tapOn:
+          id: 'health-nutrition-banner-dismiss'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-nutrition-banner'
+          timeout: 10000
+
+      # --- A second lunch row, so the batch verbs have a set (NUTR-197) --
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-name-input
+            SCROLL_DIR: down
+      - tapOn:
+          id: 'health-meal-slot-lunch'
+      - tapOn:
+          id: 'health-meal-name-input'
+      - inputText: 'Maestro Batch Two'
+      # Same dismiss-before-first-numeric-tap fix as the Yesterday seed leg
+      # above (KEYPAD_ANCHOR 'MACRO SPLIT', not 'ADD FOOD' — see that leg's
+      # comment) — without it this leg reproduces the identical
+      # garbled-name-field bug.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'MACRO SPLIT'
+      - tapOn:
+          id: 'health-meal-calories-input'
+      - inputText: '90'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'MACRO SPLIT'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-meal-add-button'
+      - extendedWaitUntil:
+          visible: 'Maestro Batch Two'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The PUSH sheet sends a meal OUT, gated the same way (NUTR-198) -
+      # `health-meal-group-lunch-copy` is still tapped here, but it no longer
+      # opens a source-picking PULL panel — 8f1f0ef2 split copying into two
+      # directions (HealthMealTools.tsx's header comment: "TWO DIRECTIONS,
+      # TWO SHEETS, ONE REQUEST SHAPE") and moved the per-row Copy button to
+      # the PUSH side: `HealthCopyToSheet`, picking a DESTINATION, not a
+      # source. Confirmed against the 8f1f0ef2 diff directly — the old sheet
+      # this button opened was testID `health-meal-copy-<slot>` (exactly what
+      # this leg used to assert on); the diff shows that literal string
+      # replaced by `health-meal-copy-to-<slot>` in the same hunk that swaps
+      # `openCopyPanel`/`HealthCopyPanel` for `openCopyToSheet`/
+      # `HealthCopyToSheet`.
+      #
+      # BREAKFAST is the row exercised here, not LUNCH. A push is additive —
+      # it cannot remove "Maestro Copy Source"/"Maestro Batch Two" from
+      # Lunch — but a *landed* push still deposits a new row with the same
+      # name at the destination, and every later tap on those two names is
+      # matched on id-regex AND accessibility text together, which stops
+      # being unique the moment a second "Select Maestro Batch Two" exists
+      # anywhere on screen. Breakfast is still empty at this point, so a push
+      # off it can never land a duplicate — the self-copy and "nothing to
+      # copy" gates below are exercised with zero risk to Lunch's two rows.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-group-breakfast-copy
+            SCROLL_DIR: down
+      - tapOn:
+          id: 'health-meal-group-breakfast-copy'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-copy-to-breakfast-body'
+          timeout: 10000
+      - assertVisible: 'Copy Breakfast'
+
+      # --- Same-day + same-meal is refused here too (HEALTH-NUTR-199) ----
+      # The sheet opens one day AHEAD by default (`toDate = fromDate + 1`,
+      # `toSlot = fromSlot`), so self-copy is reached by stepping the
+      # DESTINATION back one day, not forward like the PULL sheet above.
+      - tapOn:
+          id: 'health-meal-copy-to-breakfast-to-prev'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-copy-to-breakfast-to-label'
+            text: 'Today'
+          timeout: 10000
+      - assertVisible: 'Pick a different day or meal'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # `isSelfCopy` disables the Pressable, so RN never fires onPress and no
+      # POST /nutrition/copy-day is attempted (HealthMealTools.tsx).
+      - tapOn:
+          id: 'health-meal-copy-to-breakfast-confirm'
+      - assertVisible:
+          id: 'health-meal-copy-to-breakfast-body'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/copy-day
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- An empty source is "nothing to copy", not silence (NUTR-200) --
+      # The route answers 201 with zero rows, so an error-only check would
+      # confirm nothing. The sheet STAYS OPEN so a different destination can
+      # be picked. The `today-dinner` shortcut is used here rather than the
+      # stepper this leg already drove above — it is its own affordance
+      # (HealthMealTools.tsx's SHORTCUTS row) and was otherwise never once
+      # tapped by any flow.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # An empty source still spends a real POST /nutrition/copy-day — the
+      # route answers 201 with zero rows created (copyMealsFromDay reads
+      # `copied === 0` from that 201 to show "nothing to copy").
+      - tapOn:
+          id: 'health-meal-copy-to-breakfast-shortcut-today-dinner'
+      - extendedWaitUntil:
+          visible: 'Nothing logged for breakfast on Today.'
+          timeout: 25000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/copy-day
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-meal-copy-to-breakfast-body'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # Same shared `BottomSheet` close as the pull sheet above (testID
+      # `bottom-sheet-close`) — local state only, no request built.
+      - tapOn:
+          id: 'bottom-sheet-close'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-meal-copy-to-breakfast-body'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/copy-day
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - tapOn:
+          id: 'health-nutrition-banner-dismiss'
+
+      # --- Selecting swaps row verbs for tick boxes (HEALTH-NUTR-201) ----
+      # Two live delete affordances on one row is how the wrong thing gets
+      # deleted, so the per-row menu must be GONE, not merely hidden.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-group-lunch-select
+            SCROLL_DIR: down
+      - tapOn:
+          id: 'health-meal-group-lunch-select'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-selection-lunch'
+          timeout: 10000
+      - assertVisible: 'Nothing selected'
+      - assertNotVisible: 'Edit Maestro Batch Two'
+      - assertNotVisible: 'Delete Maestro Batch Two'
+      - assertVisible:
+          id: 'health-meal-select-.*'
+          text: 'Select Maestro Batch Two'
+
+      # --- Delete is inert with nothing ticked (HEALTH-NUTR-202) ---------
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # `handleBulkDelete` early-returns when `selectedIds` is empty — the
+      # confirm Alert never even shows, let alone a DELETE
+      # (HealthNutritionScreen.tsx).
+      - tapOn:
+          id: 'health-meal-selection-lunch-delete'
+      - assertNotVisible: 'This cannot be undone.'
+      - assertVisible: 'Nothing selected'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /nutrition/entries/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Ticking counts, and unticking counts back (NUTR-203) ---------
+      - tapOn:
+          id: 'health-meal-select-.*'
+          text: 'Select Maestro Copy Source'
+      - tapOn:
+          id: 'health-meal-select-.*'
+          text: 'Select Maestro Batch Two'
+      - extendedWaitUntil:
+          visible: '2 items selected'
+          timeout: 10000
+      - tapOn:
+          id: 'health-meal-select-.*'
+          text: 'Select Maestro Batch Two'
+      # Singularised, unlike the donor's "1 items".
+      - extendedWaitUntil:
+          visible: '1 item selected'
+          timeout: 10000
+      - tapOn:
+          id: 'health-meal-select-.*'
+          text: 'Select Maestro Batch Two'
+      - extendedWaitUntil:
+          visible: '2 items selected'
+          timeout: 10000
+
+      # --- Cancel leaves selection mode intact (HEALTH-NUTR-204) --------
+      - tapOn:
+          id: 'health-meal-selection-lunch-cancel'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-meal-selection-lunch'
+          timeout: 10000
+      - assertVisible: 'Edit Maestro Batch Two'
+      - tapOn:
+          id: 'health-meal-group-lunch-select'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-selection-lunch'
+          timeout: 10000
+      - tapOn:
+          id: 'health-meal-select-.*'
+          text: 'Select Maestro Copy Source'
+      - tapOn:
+          id: 'health-meal-select-.*'
+          text: 'Select Maestro Batch Two'
+      - extendedWaitUntil:
+          visible: '2 items selected'
+          timeout: 10000
+
+      # --- Copy the selection to another DAY (HEALTH-NUTR-205) ----------
+      # The bulk route, from a device, for the first time. The target defaults
+      # to the day and meal the rows are already in, so the gate is closed until
+      # one of them moves — pressed here to prove it.
+      - tapOn:
+          id: 'health-meal-selection-lunch-copy'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-selection-lunch-copy-target'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-meal-selection-lunch-copy-to-label'
+          text: 'To Today'
+      - assertVisible: 'Pick a different day or meal'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # `isSelfCopy` (same day + same slot) disables this Pressable exactly
+      # like the day-level panel's confirm — no POST
+      # /nutrition/entries/bulk is attempted (HealthMealTools.tsx).
+      - tapOn:
+          id: 'health-meal-selection-lunch-copy-confirm'
+      - assertVisible:
+          id: 'health-meal-selection-lunch-copy-target'
+      - assertNotVisible:
+          id: 'health-nutrition-banner'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/entries/bulk
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # The slot picker moves the target meal…
+      - tapOn:
+          id: 'health-meal-selection-lunch-copy-slot-snacks'
+      - assertVisible:
+          id: 'health-meal-selection-lunch-copy-slot-snacks'
+          selected: true
+      - assertVisible: 'Copy 2 to Snacks'
+      - tapOn:
+          id: 'health-meal-selection-lunch-copy-slot-lunch'
+      - assertVisible: 'Pick a different day or meal'
+      # …and the stepper moves the target day, in both directions.
+      - tapOn:
+          id: 'health-meal-selection-lunch-copy-prev'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-selection-lunch-copy-to-label'
+            text: 'To Yesterday'
+          timeout: 10000
+      - tapOn:
+          id: 'health-meal-selection-lunch-copy-next'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-selection-lunch-copy-to-label'
+            text: 'To Today'
+          timeout: 10000
+      - tapOn:
+          id: 'health-meal-selection-lunch-copy-prev'
+      - extendedWaitUntil:
+          visible: 'Copy 2 to Lunch'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # handleCopySelection → copyMealEntriesTo → healthApi.bulkCreateNutrition
+      # → POST /nutrition/entries/bulk (healthNutritionStorage.ts) — the bulk
+      # route, not N single creates, so a drop cannot half-write the target.
+      - tapOn:
+          id: 'health-meal-selection-lunch-copy-confirm'
+      - extendedWaitUntil:
+          visible: 'Copied 2 items into Lunch.'
+          timeout: 25000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/entries/bulk
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # A landed copy leaves selection mode; the copies are on YESTERDAY, so
+      # today's two rows are still exactly two.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-meal-selection-lunch'
+          timeout: 10000
+      - tapOn:
+          id: 'health-nutrition-banner-dismiss'
+
+      # --- A batch delete CONFIRMS first, and Cancel means it (NUTR-206) -
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-group-lunch-select
+            SCROLL_DIR: down
+      - tapOn:
+          id: 'health-meal-group-lunch-select'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-selection-lunch'
+          timeout: 10000
+      - tapOn:
+          id: 'health-meal-select-.*'
+          text: 'Select Maestro Copy Source'
+      - tapOn:
+          id: 'health-meal-select-.*'
+          text: 'Select Maestro Batch Two'
+      - tapOn:
+          id: 'health-meal-selection-lunch-delete'
+      - extendedWaitUntil:
+          visible: 'This cannot be undone.'
+          timeout: 10000
+      - assertVisible: 'Delete 2 items'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # The Alert's Cancel button carries no onPress at all — `runBulkDelete`
+      # is only wired to the Delete button (HealthNutritionScreen.tsx), so
+      # Cancel cannot fire a DELETE by construction.
+      - tapOn: 'Cancel'
+      - extendedWaitUntil:
+          notVisible: 'This cannot be undone.'
+          timeout: 10000
+      - assertVisible: 'Maestro Copy Source'
+      - assertVisible: 'Maestro Batch Two'
+      - assertVisible: '2 items selected'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /nutrition/entries/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- …and Delete means that (HEALTH-NUTR-207) ---------------------
+      - tapOn:
+          id: 'health-meal-selection-lunch-delete'
+      - extendedWaitUntil:
+          visible: 'This cannot be undone.'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # runBulkDelete → deleteMealEntries → a client-side batch of
+      # DELETE /nutrition/entries/:id, one per selected row — there is no
+      # bulk-delete route (healthNutritionStorage.ts).
+      - tapOn: 'Delete'
+      - extendedWaitUntil:
+          notVisible: 'Maestro Copy Source'
+          timeout: 25000
+      - assertNotVisible: 'Maestro Batch Two'
+      - assertNotVisible:
+          id: 'health-meal-selection-lunch'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /nutrition/entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The calorie goal is a real picker (HEALTH-NUTR-208) ----------
+      # Opened three times: dismissed, changed, and put back. Restoring 2000 is
+      # teardown — the goal is account state every other Nutrition assertion
+      # reads.
+      - runFlow: subflows/health-scroll-nutrition-top.yaml
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-nutrition-goal-button
+            SCROLL_DIR: down
+      # The goal is set FIRST so the Cancel leg has a known value to prove it
+      # left alone — asserting the default before touching anything would only
+      # pin whatever the account happened to carry in.
+      - tapOn:
+          id: 'health-nutrition-goal-button'
+      - extendedWaitUntil:
+          visible: 'Pick the target this day is measured against.'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # handleCalorieGoal's Alert options → saveNutritionGoals → healthApi.saveGoal
+      # → PUT /goals (healthNutritionStorage.ts).
+      - tapOn: '1500 kcal'
+      - extendedWaitUntil:
+          visible: 'Goal 1500'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - tapOn:
+          id: 'health-nutrition-goal-button'
+      - extendedWaitUntil:
+          visible: 'Pick the target this day is measured against.'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # This Alert option is `{ text: 'Cancel', style: 'cancel' as const }` —
+      # no onPress, so saveNutritionGoals is never called.
+      - tapOn: 'Cancel'
+      - extendedWaitUntil:
+          notVisible: 'Pick the target this day is measured against.'
+          timeout: 10000
+      - assertVisible: 'Goal 1500'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /goals
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - tapOn:
+          id: 'health-nutrition-goal-button'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn: '2000 kcal'
+      - extendedWaitUntil:
+          visible: 'Goal 2000'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Teardown: yesterday's three rows (HEALTH-NUTR-209) -----------
+      # The two copies share their names with the originals, so the delete is
+      # matched on the id pattern plus a name PREFIX rather than a whole name —
+      # every row this flow wrote starts "Maestro ", and nothing else on the
+      # account does.
+      - runFlow: subflows/health-scroll-nutrition-top.yaml
+      - tapOn:
+          id: 'health-nutrition-prev-day'
+      - extendedWaitUntil:
+          visible: 'Yesterday'
+          timeout: 15000
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-group-lunch-toggle
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # DELETE NOW SITS BEHIND A "…" MENU. Reproduced live 2026-08-02,
+      # confirmed against source: the 2026-08-01 refactor (8f1f0ef2) folded
+      # each row's Edit/Move/Delete behind one "more" button
+      # (`health-meal-more-<id>`, accessibilityLabel `Actions for <name>`) —
+      # `health-meal-delete-<id>` (the OLD always-visible button) no longer
+      # exists (HealthMealDetail.tsx). The menu's Delete chip
+      # (`health-meal-menu-delete-<id>`) still deletes immediately, no
+      # confirm step, so open-then-delete replaces the old single tap
+      # one-for-one inside this same repeat.
+      - repeat:
+          times: 3
+          commands:
+            - tapOn:
+                id: 'health-meal-more-.*'
+                text: 'Actions for Maestro.*'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-meal-menu-.*'
+                timeout: 10000
+            - tapOn:
+                id: 'health-meal-menu-delete-.*'
+                text: 'Delete Maestro.*'
+      - extendedWaitUntil:
+          notVisible: 'Maestro Copy Source'
+          timeout: 20000
+      - assertNotVisible: 'Maestro Batch Two'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /nutrition/entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow: subflows/health-scroll-nutrition-top.yaml
+      - tapOn:
+          id: 'health-nutrition-next-day'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-day-label'
+            text: 'Today'
+          timeout: 15000
+      - assertNotVisible: 'Maestro Copy Source'
+      - assertNotVisible: 'Maestro Batch Two'
+
+      # --- Back to the Health tab ---------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

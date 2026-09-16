@@ -1,0 +1,26 @@
+appId: com.symply.kaizen
+---
+# Skill assessment — the diagnostic shell. Deep-linked without a skillId shows
+# the Begin state; 'Start assessment' is a no-op without a resolved skill, so
+# the tap is safe and the scaffold assertions carry the coverage.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/skill-assessment
+- extendedWaitUntil:
+    visible: 'Skill assessment'
+    timeout: 20000
+- assertVisible: 'Begin'
+- assertVisible: 'Generate a diagnostic question to begin.'
+- assertVisible: 'Start assessment'
+- tapOn:
+    text: 'Start assessment'
+    optional: true
+- assertVisible: 'Skill assessment'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

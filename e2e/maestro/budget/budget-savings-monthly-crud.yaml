@@ -1,0 +1,507 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - mutation
+  - regression
+# Matrix: BUDGET-SAVE-007 / BUDGET-SAVE-036 / BUDGET-SAVE-062 /
+#         BUDGET-SAVE-115 / BUDGET-SAVE-118 / BUDGET-SAVE-122
+#
+# Savings → Monthly, the parts no flow drove before:
+#
+#   • the tab's own chrome — total card, and the "This month" / "Whole year"
+#     distribution toggle (BUDGET-SAVE-122 was unit-only);
+#   • the quick-view sheet's "Edit" hand-off (BUDGET-SAVE-118, unit-only) —
+#     tapping a row opens a READ-ONLY sheet whose Edit action routes into
+#     `SavingsRecurringPayments` with `focusItemId`, which must auto-open that
+#     payment's full edit form;
+#   • EDIT of a recurring payment (rename + re-price) read back on the Monthly
+#     tab itself, which no flow proved — `budget-savings-recurring.yaml` only
+#     creates and deletes, and `budget-savings-recurring-toggle.yaml` only
+#     round-trips the `active` switch.
+#
+# GROUP NOTE. The payment is created in "Subscriptions", never the form's
+# default "Loans & Debt": that default mounts the loan-draft section with
+# tracking already ON, so a plain save is refused with "Loan details: Missing
+# principal" and the form stays open. Same reason budget-savings-recurring-toggle
+# picks the group first, before any field has focus.
+#
+# MUTATING but self-cleaning and re-entrant.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/budget-purge-test-payments.yaml
+# Snap the Savings month back to today BEFORE anything reads the Monthly tab.
+# `budget-launch-logged-in` is a deliberate SOFT launch (no stopApp, no
+# clearState, to keep the Expo Dev Client ↔ Metro session alive), so the Zustand
+# store is never torn down between flows in a run: whatever month the previous
+# flow left selected is inherited here. `savingsStore` persists nothing
+# (`partialize: () => ({})`) — the carry-over is in MEMORY, not storage.
+#
+# It surfaced as "Element not found: savings-monthly-add" twice in a row
+# (2026-08-25). That button only renders when the monthly view has data
+# (`{view && ...}` in SavingsMonthlyView.tsx), so an inherited month with no
+# data removes it from the hierarchy entirely — "not found", not "not visible",
+# which is why it never looked like a scroll problem.
+- openLink: simplebudget://e2e-savings-reset-month
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget
+      E2E_MATRIX_ROW: BUDGET-SAVE-118
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-monthly'
+- runFlow:
+    file: ../subflows/budget-savings-force-subtab.yaml
+    env:
+      E2E_SUBTAB: monthly
+- extendedWaitUntil:
+    visible:
+      id: 'savings-monthly'
+    timeout: 25000
+- assertVisible:
+    id: 'savings-monthly-add'
+
+# --- Pre-clean: drain leftovers under BOTH the pre-edit and post-edit name.
+- tapOn:
+    id: 'savings-monthly-add'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 20000
+- repeat:
+    times: 3
+    commands:
+      # Scroll BEFORE checking: groups render alphabetically, so a
+      # "Subscriptions" item sits well below the fold in a populated household
+      # and a bare `when: visible` guard would never fire. centerElement keeps
+      # the row clear of the floating tab bar drawn over this screen — without
+      # it the tap lands on a tab and leaves the screen entirely.
+      # `visibilityPercentage` is what makes this reliable. A ScrollView renders
+      # EVERY row into the view hierarchy regardless of scroll position, so a
+      # bare `visible` guard reads true for a row parked far below the fold —
+      # the optional scroll then no-ops, the tap lands on empty space, and the
+      # failure surfaces 20s later as a missing form. Observed 2026-08-24 on
+      # Budget-C, where the household carries $10k of real payments and the ZZ
+      # row sorts near the very end: the screenshot at the failed assertion
+      # shows the list still at the TOP, the row nowhere near the screen.
+      # Requiring most of the row to be on screen forces a real scroll.
+      - scrollUntilVisible:
+          element: '.*ZZ E2E Monthly CRUD.*'
+          direction: DOWN
+          timeout: 20000
+          centerElement: true
+          visibilityPercentage: 60
+          optional: true
+      - runFlow:
+          when:
+            visible: '.*ZZ E2E Monthly CRUD.*'
+          commands:
+            - tapOn: '.*ZZ E2E Monthly CRUD.*'
+            # BEST EFFORT from here. `when: visible` cannot express "actually on
+            # screen" — a ScrollView keeps every row in the hierarchy, so this
+            # guard fires even when the scroll above could not bring the row
+            # into view, and the tap then lands on empty space. This is a
+            # LEFTOVER DRAIN: if no form opened there is simply nothing to
+            # delete, and failing the whole run for that is wrong. Making the
+            # wait optional (and gating the delete on the form actually being
+            # up) is what stops a cleanup step from sinking the test — it cost
+            # three runs on 2026-08-24 before this was spotted.
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-recurring-form-label'
+                timeout: 20000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'savings-recurring-form-label'
+                commands:
+                  - scrollUntilVisible:
+                      element:
+                        id: 'savings-recurring-form-delete'
+                      direction: DOWN
+                      timeout: 15000
+                      centerElement: true
+                  - tapOn:
+                      id: 'savings-recurring-form-delete'
+                  - extendedWaitUntil:
+                      visible: '^Delete$'
+                      timeout: 10000
+                  - tapOn: '^Delete$'
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'savings-recurring-payments'
+                      timeout: 25000
+      - scrollUntilVisible:
+          element: '.*ZZ E2E Monthly Renamed.*'
+          direction: DOWN
+          timeout: 20000
+          centerElement: true
+          visibilityPercentage: 60
+          optional: true
+      - runFlow:
+          when:
+            visible: '.*ZZ E2E Monthly Renamed.*'
+          commands:
+            - tapOn: '.*ZZ E2E Monthly Renamed.*'
+            # BEST EFFORT — identical reasoning to the CRUD drain above. This
+            # is the twin block for the RENAMED leftover, and it kept the
+            # mandatory wait when that one was fixed, so the run still died
+            # here (2026-08-24). A drain must never be able to fail the test.
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-recurring-form-label'
+                timeout: 20000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'savings-recurring-form-label'
+                commands:
+                  - scrollUntilVisible:
+                      element:
+                        id: 'savings-recurring-form-delete'
+                      direction: DOWN
+                      timeout: 15000
+                      centerElement: true
+                  - tapOn:
+                      id: 'savings-recurring-form-delete'
+                  - extendedWaitUntil:
+                      visible: '^Delete$'
+                      timeout: 10000
+                  - tapOn: '^Delete$'
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'savings-recurring-payments'
+                      timeout: 25000
+
+# ============================ CREATE ============================
+- tapOn:
+    id: 'savings-recurring-add'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-add-manual'
+    timeout: 20000
+- assertVisible:
+    id: 'savings-recurring-add-import'
+- tapOn:
+    id: 'savings-recurring-add-manual'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-label'
+    timeout: 30000
+# Group FIRST, while no field holds focus — the picker is a bottom sheet and a
+# raised numeric keypad puts its rows behind the keys.
+- tapOn:
+    id: 'savings-recurring-form-group'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-group-Subscriptions'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-group-Subscriptions'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-label'
+    timeout: 15000
+- tapOn:
+    id: 'savings-recurring-form-label'
+- inputText: 'ZZ E2E Monthly CRUD'
+- tapOn:
+    id: 'savings-recurring-form-amount'
+- inputText: '33'
+# Assert what the field actually holds, the moment it is typed and while it is
+# still on screen. `inputText` can drop or duplicate characters, and the money
+# figure is what every later assertion in this flow is pegged to — catching a
+# bad value here names the cause instead of surfacing three steps later as a
+# mysterious "row not found".
+- assertVisible:
+    id: 'savings-recurring-form-amount'
+    text: '33'
+- hideKeyboard:
+    optional: true
+# Due day + the two flags — the form's remaining write surface, none of which
+# any other flow sets on a create.
+- tapOn:
+    id: 'savings-recurring-form-day'
+- inputText: '9'
+- hideKeyboard:
+    optional: true
+- assertVisible:
+    id: 'savings-recurring-form-essential'
+- assertVisible:
+    id: 'savings-recurring-form-active'
+- assertVisible:
+    id: 'savings-recurring-form-scope-all-year'
+- assertVisible:
+    id: 'savings-recurring-form-scope-custom'
+# Save lives in the modal's fixed header, above the keyboard.
+- tapOn:
+    id: 'savings-recurring-form-save'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 25000
+
+# --- Back to the Monthly tab: the payment is on the list the SAVINGS tab reads,
+# not just the manager's own list.
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-monthly'
+    timeout: 25000
+- assertVisible:
+    id: 'savings-monthly-total'
+# Give the freshly-created row time to appear in the Savings-tab list before
+# hunting for it. The save definitely succeeded (the form closed and
+# `savings-recurring-payments` came back), and this same lookup worked in
+# earlier runs, so the failure on 2026-08-24 was the list not yet carrying the
+# new row when the scroll started — the Monthly tab re-reads its own view after
+# the manager screen writes. Settle first, then scroll with a longer budget
+# because this household's list is long.
+- waitForAnimationToEnd:
+    timeout: 5000
+- scrollUntilVisible:
+    element: '.*ZZ E2E Monthly CRUD.*'
+    direction: DOWN
+    timeout: 35000
+    centerElement: true
+- assertVisible: '.*ZZ E2E Monthly CRUD.*'
+- assertVisible: '.*Due day 9.*'
+
+# ================ distribution toggle (SAVE-122) ================
+# Both ranges render their own chart. The month view is client-side from the
+# already-loaded groups; the year view fetches its own stacked series, so it
+# gets a real wait rather than an immediate assert.
+# Re-anchor near the TOP first. The steps above scroll DOWN to the ZZ row, and
+# a single upward `scrollUntilVisible` did not get back to the toggle inside
+# 15s on iOS 26 — it failed with "No visible element found" even though the tab
+# was right and the list had items (2026-08-24, Budget-C). `savings-monthly-total`
+# sits above the distribution block, so reaching it puts the toggle in range.
+- scrollUntilVisible:
+    element:
+      id: 'savings-monthly-total'
+    direction: UP
+    timeout: 20000
+    centerElement: true
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'savings-distribution-range-month'
+    direction: UP
+    timeout: 25000
+    centerElement: true
+    visibilityPercentage: 60
+- assertVisible:
+    id: 'savings-distribution-range-year'
+- assertVisible:
+    id: 'savings-recurring-distribution'
+- tapOn:
+    id: 'savings-distribution-range-year'
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-yearly-distribution-loading'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-yearly-distribution'
+    timeout: 45000
+- assertVisible:
+    id: 'savings-yearly-distribution-legend'
+- tapOn:
+    id: 'savings-distribution-range-month'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-distribution'
+    timeout: 20000
+
+# ============ quick-view sheet → Edit hand-off (SAVE-118) ============
+- scrollUntilVisible:
+    element: '.*ZZ E2E Monthly CRUD.*'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn: '.*ZZ E2E Monthly CRUD.*'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-payment-detail-sheet'
+    timeout: 20000
+# The sheet is read-only: the figure and the stored flags, no inputs.
+- assertVisible: '.*\$33.*'
+- assertVisible:
+    id: 'savings-payment-detail-edit'
+- tapOn:
+    id: 'savings-payment-detail-edit'
+# `focusItemId` must auto-open THIS payment's full edit form on the manager —
+# arriving on the bare list instead is the regression this guards.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-label'
+    timeout: 30000
+# DO NOT scroll down to Delete and back up here. The form is an AdaptiveModal
+# rendered as an iOS `pageSheet`, which is swipe-to-dismiss: an upward
+# `scrollUntilVisible` (and the coordinate swipes that used to back it up) is a
+# PULL-DOWN on the sheet, and it closed the form outright — the screenshot at
+# the failure showed the bare Monthly Payments list, not a form parked at the
+# wrong scroll offset (2026-08-24, Budget-C, twice). No amount of scroll
+# hardening survives that, so the round trip is gone: the label and amount sit
+# at the TOP where the form opens, and the Delete control — the proof this is
+# the edit form rather than the add form — is asserted once further down, just
+# before Save, with no journey back.
+
+# ============================= EDIT =============================
+- tapOn:
+    id: 'savings-recurring-form-label'
+- eraseText: 40
+- inputText: 'ZZ E2E Monthly Renamed'
+# `eraseText` clears a fixed number of characters — assert the field rather than
+# assume it emptied, or a leftover fragment ships as part of the new name and
+# every later tap-by-name lands on nothing.
+- assertVisible:
+    id: 'savings-recurring-form-label'
+    text: 'ZZ E2E Monthly Renamed'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'savings-recurring-form-amount'
+- eraseText: 16
+- inputText: '44'
+- assertVisible:
+    id: 'savings-recurring-form-amount'
+    text: '44'
+- hideKeyboard:
+    optional: true
+# Delete control asserted HERE — one downward scroll, no trip back up (see the
+# pageSheet note above). It is the last control of a long form and proves this
+# is the edit form, not the add form.
+- scrollUntilVisible:
+    element:
+      id: 'savings-recurring-form-delete'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+    visibilityPercentage: 60
+- assertVisible:
+    id: 'savings-recurring-form-delete'
+- scrollUntilVisible:
+    element:
+      id: 'savings-recurring-form-save'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-recurring-form-save'
+# Changing the amount of a payment that is already applied to months prompts an
+# edit-scope choice (BUDGET-SAVE-115). A payment created moments ago has no
+# applied months, so the prompt normally does NOT appear — handle it if the
+# household state makes it, choosing the option that writes nothing extra.
+- runFlow:
+    when:
+      visible: 'Apply change to added months?'
+    commands:
+      - tapOn: 'Keep past months'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 25000
+
+# --- Read the edit back on the Monthly tab.
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-monthly'
+    timeout: 25000
+- scrollUntilVisible:
+    element: '.*ZZ E2E Monthly Renamed.*'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- assertVisible: '.*ZZ E2E Monthly Renamed.*'
+- assertVisible: '.*\$44.*'
+- assertNotVisible: '.*ZZ E2E Monthly CRUD.*'
+
+# ============================ DELETE ============================
+# REWIND UP FIRST. "Manage" (`savings-monthly-add`) lives in the total card at
+# the TOP of the Monthly tab, but the asserts just above scrolled DOWN to find
+# the renamed row — so the CTA is off screen and the tap reports "Element not
+# found: savings-monthly-add" (2026-08-25, Budget-C, three runs). The screenshot
+# at the failure shows the correct month with data loaded and the list simply
+# scrolled past the CTA, which is why it never looked like a data problem.
+- scrollUntilVisible:
+    element:
+      id: 'savings-monthly-add'
+    direction: UP
+    timeout: 20000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-monthly-add'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 20000
+# `visibilityPercentage` is load-bearing: without it the scroll can stop with
+# the row only partly on screen, UNDER the floating tab bar, so the tap lands on
+# the tab bar and the app navigates away (2026-08-25 — the screenshot at the
+# failure showed the SPENDING tab instead of the payments list).
+- scrollUntilVisible:
+    element: '.*ZZ E2E Monthly Renamed.*'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+    visibilityPercentage: 60
+- tapOn: '.*ZZ E2E Monthly Renamed.*'
+# Delete is the LAST control of a long form, so it starts below the fold and a
+# bare `visible` wait could never succeed — Maestro's visibility is VIEWPORT
+# based. Scroll to it. No `centerElement`: an element at the very end of a
+# scroll view can never BE centred, so the scroll would burn its full timeout.
+- scrollUntilVisible:
+    element:
+      id: 'savings-recurring-form-delete'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-form-delete'
+    timeout: 20000
+- tapOn:
+    id: 'savings-recurring-form-delete'
+- extendedWaitUntil:
+    visible: '^Delete$'
+    timeout: 10000
+- tapOn: '^Delete$'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-recurring-payments'
+    timeout: 25000
+
+# --- Proof the household is clean, swept over the whole manager list.
+- scrollUntilVisible:
+    element: '.*ZZ E2E Monthly Renamed.*'
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+    optional: true
+- assertNotVisible: '.*ZZ E2E Monthly Renamed.*'
+- assertNotVisible: '.*ZZ E2E Monthly CRUD.*'
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

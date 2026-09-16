@@ -1,0 +1,341 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:exercises
+  - mutation
+  - regression
+# Matrix: HEALTH-EXER-109 … HEALTH-EXER-115
+---
+# Exercise detail — the sheet the workout library opens over itself.
+#
+# It is a MODAL rather than a route on purpose: the library is a browse-and-pick
+# surface, and a sheet keeps the search query, the filters and the scroll
+# position alive behind it. This flow proves exactly that: it searches first,
+# opens the sheet, dismisses it, and then checks the query is still in force.
+#
+# "Log this" does NOT own a write of its own — it hands the catalogue row's
+# workout type and a duration to the activity store, so the session has to show
+# up on the Activity tab. That cross-store hop is the last leg here, and it is
+# also the teardown.
+#
+# Modals race the assertion that follows them, so every step that opens or closes
+# the sheet waits with extendedWaitUntil rather than asserting straight away.
+#
+# NETWORK VERIFICATION AND AN OPEN UNCERTAINTY. `HealthExerciseDetailScreen`
+# renders through RN's own `<Modal>` (`testID="health-exercise-detail"`), which
+# on iOS presents via a genuine native modal, the same class of "covers the
+# root view" concern documented for House's TaskDetailScreen
+# (tasks/task-detail-mutations.yaml). Unlike that flow, this one does NOT close
+# the sheet before each `e2e-verify-badge` assertion — `e2e-clear-log` /
+# `e2e-verify-network` are plain `openLink` deep links that do not depend on
+# on-screen visibility, and unlike House's native-stack "modal" route, this
+# sheet's visibility is local React state (`selectedId` in
+# HealthWorkoutLibraryScreen.tsx) that a deep link cannot pop, so the House
+# "openLink can dismiss the modal" failure mode should not apply here. What is
+# genuinely UNVERIFIED is whether the root-mounted badge stays hit-testable to
+# Maestro while this Modal is on top. Per this batch's own guidance ("if in
+# doubt, keep the simplest approach and flag it"), the badge assertions below
+# are left in place rather than adding an untested close/reopen dance — if a
+# real run shows the badge unreachable while the sheet is open, that is the
+# signal to add one.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-EXER-109
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-exercises.yaml
+
+      # Search first: the sheet has to survive a filtered list, not a fresh one.
+      - tapOn:
+          id: 'health-exercises-search-input'
+      - inputText: 'Plank'
+      - hideKeyboard
+      - extendedWaitUntil:
+          visible:
+            id: 'health-exercise-row-ex_plank'
+          timeout: 20000
+
+      # --- Opening a row raises the sheet (HEALTH-EXER-109) ----------------
+      # The wait is on a real control INSIDE the sheet: RN renders a Modal into
+      # its own window, so waiting on the log button is the reliable proof that
+      # the sheet is up and interactive.
+      - tapOn:
+          id: 'health-exercise-open-ex_plank'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-exercise-log-button'
+          timeout: 20000
+      - assertVisible: 'HOW TO DO IT'
+      - assertVisible:
+          id: 'health-exercise-detail-instructions'
+
+      # --- The sheet carries the whole record (HEALTH-EXER-110) ------------
+      - assertVisible:
+          id: 'health-exercise-detail-category'
+      - assertVisible:
+          id: 'health-exercise-detail-difficulty'
+      - assertVisible:
+          id: 'health-exercise-detail-type'
+      - assertVisible: 'TARGET MUSCLES'
+      - assertVisible:
+          id: 'health-exercise-detail-primary'
+      - assertVisible:
+          id: 'health-exercise-minutes-input'
+      - assertVisible:
+          id: 'health-exercise-detail-favorite'
+
+      # --- Favouriting works in BOTH directions (HEALTH-EXER-116) ----------
+      # The control was asserted here and never pressed. The account is shared,
+      # so the state it starts in is not knowable: the first step NORMALISES it
+      # (conditional, so it cannot fail), and the two flips after that are hard.
+      # It ends OFF, which is where a fresh account has it.
+      # Every flip is a real write: `onToggleFavorite` → `handleFavorite` →
+      # `setExerciseFavorite` (healthExerciseStorage.ts) →
+      # `PUT /health/exercises/ex_plank/favorite` (healthExercises.ts), 200.
+      - runFlow:
+          when:
+            visible: 'In your favourites'
+          commands:
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+            - tapOn:
+                id: 'health-exercise-detail-favorite'
+            - extendedWaitUntil:
+                visible: 'Add to favourites'
+                timeout: 15000
+            - runFlow:
+                file: ../subflows/e2e-verify-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+                  E2E_VERIFY_METHOD: PUT
+                  E2E_VERIFY_PATH: /exercises/ex_plank/favorite
+                  E2E_VERIFY_STATUS: '200'
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+      - assertVisible:
+          id: 'health-exercise-detail-favorite'
+          selected: false
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-exercise-detail-favorite'
+      - extendedWaitUntil:
+          visible: 'In your favourites'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /exercises/ex_plank/favorite
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-exercise-detail-favorite'
+          selected: true
+      # …and off again — teardown, and the half a one-way test never reaches.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-exercise-detail-favorite'
+      - extendedWaitUntil:
+          visible: 'Add to favourites'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /exercises/ex_plank/favorite
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-exercise-detail-favorite'
+          selected: false
+
+      # --- The safety card is the SERVER's verdict (HEALTH-EXER-111) -------
+      # `injury_flag` arrives already computed from the account's active
+      # injuries, and there is no injury-logging surface in the app — so this leg
+      # runs only for an account that already has one, and skips cleanly for a
+      # clear account rather than faking a flag.
+      - runFlow:
+          when:
+            visible:
+              id: 'health-exercise-detail-injury'
+          commands:
+            - assertVisible: 'This loads .*|This may involve .*'
+
+      # --- Dismissing returns to the library, query intact (HEALTH-EXER-112) -
+      - tapOn:
+          id: 'health-exercise-detail-close'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-exercise-row-ex_plank'
+          timeout: 20000
+      - assertNotVisible:
+          id: 'health-exercise-log-button'
+      # Still in search mode: the filter card stays hidden, which it only does
+      # while a query is live. A sheet that had thrown the query away would put
+      # the filters back.
+      - assertNotVisible:
+          id: 'health-exercises-filters'
+
+      # --- "Log this" records a session (HEALTH-EXER-113) ------------------
+      - tapOn:
+          id: 'health-exercise-open-ex_plank'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-exercise-minutes-input'
+          timeout: 20000
+      - tapOn:
+          id: 'health-exercise-minutes-input'
+      - eraseText
+      - inputText: '12'
+      # The number pad covers the log button — dismiss it before tapping. NOT
+      # Maestro's `hideKeyboard`: this field is `number-pad` on iOS and that
+      # command HARD-FAILS on this build's numeric keyboards, which would take
+      # the whole flow with it.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'HOW TO DO IT'
+      # `handleLog` → `logExercise` (healthExerciseStorage.ts) hands the row's
+      # workoutType + minutes to `addWorkoutEntry`, which owns the write:
+      # `POST /health/entries/workouts` (health.ts), 201. Cleared once before
+      # the tap (below) rather than per attempt, so the eventual write is still
+      # caught even on the two-tap `avoid`-confirmation path.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-exercise-log-button'
+      # An `avoid` movement is REFUSED on the first tap: the sheet stays open and
+      # asks again rather than quietly recording it. Only an account with a live
+      # injury reaches this branch.
+      - runFlow:
+          when:
+            visible:
+              id: 'health-exercise-log-confirm'
+          commands:
+            - assertVisible: 'You logged an injury that this loads. Tap again to record it anyway.'
+            - tapOn:
+                id: 'health-exercise-log-button'
+      # The sheet closes and the library reports what it wrote. The regex covers
+      # the offline wording too — the point is that 12 minutes of Plank landed.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-exercises-message'
+          timeout: 20000
+      - assertVisible: 'Logged 12 min of Plank.*'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /entries/workouts
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The session lands in the activity store (HEALTH-EXER-114) -------
+      # The library does not own session writes; it hands the row's workout type
+      # and duration to `addWorkoutEntry`. If that hop broke, the Activity tab
+      # would be empty and the message above would still be green.
+      - runFlow: subflows/go-health-activity.yaml
+      - scrollUntilVisible:
+          element:
+            text: 'Plank'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Plank'
+
+      # --- Teardown: delete the logged session (HEALTH-EXER-115) -----------
+      # Newest-first, so the first row belongs to the session just written.
+      # Edit/delete live on the detail sheet the row opens, not the row
+      # itself; delete asks first (an `Alert.alert` confirmation). The
+      # confirm title names the exercise's WORKOUT TYPE, not "Plank" itself
+      # (`Delete ${workoutTypeLabel(entry.type)}?`), so it is matched loosely.
+      - scrollUntilVisible:
+          element:
+            id: 'health-workout-row-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-workout-row-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-detail-delete'
+          timeout: 10000
+      - tapOn:
+          id: 'health-workout-detail-delete'
+      - extendedWaitUntil:
+          visible: 'Delete .*\?'
+          timeout: 10000
+      # `deleteWorkoutEntry` (healthActivityStorage.ts) → `healthApi.deleteEntry`
+      # → `DELETE /health/entries/:id` (health.ts), 200. The generated entry id
+      # (`${date}-${loggedAt}`) is not predictable, so the path is matched on
+      # the shared `/entries/` fragment + method, which no other DELETE route
+      # under `/health` collides with.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn: 'Delete'
+      - extendedWaitUntil:
+          notVisible: 'Plank'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow: subflows/go-health-home.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

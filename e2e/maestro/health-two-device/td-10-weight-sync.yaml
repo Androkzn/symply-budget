@@ -1,0 +1,236 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+  - feature:weight
+  - mutation
+# Matrix: HEALTH-TD-010 — Wave A table 1/8: `weightEntries` (`weight_entries`).
+#
+# create / modify / delete on device A, each one converging on device B. One
+# invocation per (role, phase): the runner drives A write → B observe three
+# times over, because unlike the Budget MM suite the two devices are the SAME
+# user and cannot each own half of the data.
+#
+# THE MARKER IS THE NOTE, NOT THE NUMBER. `health-weight-entry-note` is the only
+# free-text field on this screen, and it renders on the history row. A weight
+# VALUE is a poor marker on the shared fleet account — the failure screenshots in
+# `privacy-cross-user-leak.yaml` show five same-dated readings (95 / 80 / 99 / 66
+# / 3) left behind by earlier runs, so `.*77\.3.*` could match a row this suite
+# never wrote. The note carries the run timestamp and cannot collide.
+#
+# `weightEntries` is deliberately a RANDOM-id table (schema.ts
+# `HEALTH_RANDOM_ID_TABLES`): a member who weighs in morning and evening gets two
+# rows, and a `weight_${date}` deterministic builder would LWW one of them away.
+# The create leg below is therefore also the check that two same-day rows can
+# coexist across devices at all.
+#
+# env: TD_ROLE (write|observe), TD_PHASE (create|modify|delete),
+#      TD_MARK, TD_MARK2, TD_VALUE, TD_VALUE2, TD_EXPECT
+---
+- runFlow: td-launch.yaml
+
+# ==========================================================================
+# WRITE — device A
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'write'}
+    commands:
+      - runFlow: ../health/subflows/go-health-weight.yaml
+
+      # --- create ---------------------------------------------------------
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'create'}
+          commands:
+            # `LOG A WEIGHT` only renders while a day THIS WEEK through today
+            # has no reading yet (`weightHasGapThisWeek`). On a shared account
+            # the gate is usually already closed by an earlier run, and a
+            # SINGLE delete does not reopen it when several rows share one
+            # date — so delete in a bounded loop that self-terminates the
+            # moment the gate opens. Same guard `weight-tab-log-and-edit.yaml`
+            # and `privacy-cross-user-leak.yaml` use at their own entry.
+            - repeat:
+                times: 8
+                commands:
+                  - runFlow:
+                      when:
+                        notVisible: 'LOG A WEIGHT'
+                      commands:
+                        - scrollUntilVisible:
+                            element:
+                              id: 'health-weight-delete-.*'
+                            direction: DOWN
+                            timeout: 20000
+                            visibilityPercentage: 10
+                            optional: true
+                        - tapOn:
+                            id: 'health-weight-delete-.*'
+                            index: 0
+                            optional: true
+                        - waitForAnimationToEnd:
+                            timeout: 1500
+                        - runFlow:
+                            file: ../health/subflows/health-swipe-section-to.yaml
+                            env:
+                              TARGET_ID: 'health-weight-entry-value'
+                              SCROLL_DIR: up
+            - scrollUntilVisible:
+                element:
+                  text: 'LOG A WEIGHT'
+                direction: UP
+                timeout: 20000
+                visibilityPercentage: 10
+                optional: true
+            - assertVisible: 'LOG A WEIGHT'
+            - tapOn:
+                id: 'health-weight-entry-value'
+            - inputText: ${TD_VALUE}
+            # NOT `hideKeyboard` — this field is decimal-pad and that command
+            # hard-FAILS on this build's numeric keyboards.
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'LOG A WEIGHT'
+            - tapOn:
+                id: 'health-weight-entry-note'
+            - inputText: ${TD_MARK}
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'LOG A WEIGHT'
+            - tapOn:
+                id: 'health-weight-entry-save'
+            - extendedWaitUntil:
+                visible: '.*${TD_MARK}.*'
+                timeout: 30000
+            - assertVisible: '.*${TD_MARK}.*'
+
+      # --- modify ---------------------------------------------------------
+      # Edit by index 0 (newest by date sorts first) but PROVE it was the right
+      # row afterwards: the old marker must be gone and the new one present.
+      # Asserting only the new marker would pass just as happily if the edit
+      # had landed on somebody else's leftover reading.
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'modify'}
+          commands:
+            - extendedWaitUntil:
+                visible: '.*${TD_MARK}.*'
+                timeout: 30000
+            - scrollUntilVisible:
+                element:
+                  id: 'health-weight-edit-.*'
+                direction: DOWN
+                timeout: 20000
+                visibilityPercentage: 10
+                optional: true
+            - tapOn:
+                id: 'health-weight-edit-.*'
+                index: 0
+            - extendedWaitUntil:
+                visible: 'EDIT READING'
+                timeout: 20000
+            - tapOn:
+                id: 'health-weight-entry-value'
+            - eraseText: 12
+            - inputText: ${TD_VALUE2}
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'EDIT READING'
+            - tapOn:
+                id: 'health-weight-entry-note'
+            - eraseText: 60
+            - inputText: ${TD_MARK2}
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'EDIT READING'
+            - tapOn:
+                id: 'health-weight-entry-save'
+            - extendedWaitUntil:
+                visible: '.*${TD_MARK2}.*'
+                timeout: 30000
+            - assertNotVisible: '.*${TD_MARK}.*'
+
+      # --- delete ---------------------------------------------------------
+      # Delete on this screen is immediate — `onPress={async () =>
+      # setEntries(await deleteWeightEntry(entry.id))}`, no confirmation alert.
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'delete'}
+          commands:
+            - extendedWaitUntil:
+                visible: '.*${TD_MARK2}.*'
+                timeout: 30000
+            - scrollUntilVisible:
+                element:
+                  id: 'health-weight-delete-.*'
+                direction: DOWN
+                timeout: 20000
+                visibilityPercentage: 10
+                optional: true
+            - tapOn:
+                id: 'health-weight-delete-.*'
+                index: 0
+            - extendedWaitUntil:
+                notVisible: '.*${TD_MARK2}.*'
+                timeout: 30000
+            - assertNotVisible: '.*${TD_MARK2}.*'
+
+      - runFlow: td-sync-nudge.yaml
+
+# ==========================================================================
+# OBSERVE — device B. Never writes; only waits for A's op to arrive.
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'observe'}
+    commands:
+      - runFlow: ../health/subflows/go-health-weight.yaml
+      - runFlow:
+          when:
+            true: ${TD_PHASE != 'delete'}
+          commands:
+            - repeat:
+                times: 20
+                commands:
+                  - runFlow:
+                      when:
+                        notVisible: '.*${TD_EXPECT}.*'
+                      commands:
+                        - runFlow: td-sync-nudge.yaml
+                        - runFlow: ../health/subflows/go-health-weight.yaml
+                        - scrollUntilVisible:
+                            element:
+                              text: '.*${TD_EXPECT}.*'
+                            direction: DOWN
+                            timeout: 8000
+                            visibilityPercentage: 10
+                            optional: true
+            - extendedWaitUntil:
+                visible: '.*${TD_EXPECT}.*'
+                timeout: 45000
+            # A reading created (or edited) on a device this one never touched.
+            - assertVisible: '.*${TD_EXPECT}.*'
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'delete'}
+          commands:
+            - repeat:
+                times: 20
+                commands:
+                  - runFlow:
+                      when:
+                        visible: '.*${TD_EXPECT}.*'
+                      commands:
+                        - runFlow: td-sync-nudge.yaml
+                        - runFlow: ../health/subflows/go-health-weight.yaml
+            - extendedWaitUntil:
+                notVisible: '.*${TD_EXPECT}.*'
+                timeout: 45000
+            # The tombstone travelled. This is the op a broken projection hides
+            # best: nothing looks wrong on the device that issued the delete.
+            - assertNotVisible: '.*${TD_EXPECT}.*'

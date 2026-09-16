@@ -1,0 +1,26 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Android-only: focusing a multiline text field (chat message box, AI "describe
+# your spending" box) can trigger the system input method's "Try out your
+# stylus" first-run tip — a full-screen IME overlay that covers whatever
+# button the flow taps next (nav-back-button, chat-room-send, chat-room-input
+# on a second field). `adb shell settings put secure stylus_handwriting_enabled 0`
+# (set once at suite start in run-budget-suite-android.sh) does NOT suppress
+# this specific tip — verified live on the AVD: the setting reads back 0 while
+# the tip still renders. Back is the most reliable dismiss for a system IME
+# overlay (no app-owned testID to target); safe no-op on iOS, where this tip
+# doesn't exist. Call right after any `inputText` into `chat-room-input` /
+# `budget-item-ai-input`.
+- runFlow:
+    when:
+      visible: 'Try out your stylus'
+    commands:
+      - pressKey: Back
+      - runFlow:
+          when:
+            visible: 'Try out your stylus'
+          commands:
+            - pressKey: Back

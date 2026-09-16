@@ -1,0 +1,84 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:contractors
+  - mutation
+  - regression
+# Matrix: HOUSE-CONT-003,004 (labor-hub FAB visibility + interact)
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-CONT-003
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-contractors.yaml
+- assertVisible:
+    id: 'contractors-screen'
+# Schedule tab FAB (HOUSE-CONT-003,004 on upcoming).
+- tapOn:
+    id: 'contractors-tab-upcoming'
+- assertVisible:
+    id: 'contractors-fab-schedule'
+- tapOn:
+    id: 'contractors-fab-schedule'
+- extendedWaitUntil:
+    visible:
+      id: 'appointment-form-screen'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+# Quotes tab FAB.
+- tapOn:
+    id: 'contractors-tab-quotes'
+- assertVisible:
+    id: 'contractors-fab-quote'
+- tapOn:
+    id: 'contractors-fab-quote'
+- extendedWaitUntil:
+    visible: 'Request Quote'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+# Contractors tab dual buttons.
+- tapOn:
+    id: 'contractors-tab-contractors'
+- assertVisible:
+    id: 'contractors-add-button'
+- tapOn:
+    id: 'contractors-add-button'
+- extendedWaitUntil:
+    visible:
+      id: 'contractor-form-screen'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+# Projects tab FAB.
+- tapOn:
+    id: 'contractors-tab-projects'
+- assertVisible:
+    id: 'contractors-fab-project'
+- assertVisible:
+    id: 'contractors-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

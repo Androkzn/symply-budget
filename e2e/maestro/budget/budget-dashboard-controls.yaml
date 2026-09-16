@@ -1,0 +1,99 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:dashboard
+  - readonly
+  - regression
+  - smoke
+# Matrix: BUDGET-dashboard (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'budget-dashboard-loading'
+    commands:
+      - extendedWaitUntil:
+          notVisible:
+            id: 'budget-dashboard-loading'
+          timeout: 30000
+- assertVisible:
+    id: 'budget-dashboard'
+- assertVisible:
+    id: 'budget-month-prev'
+- assertVisible:
+    id: 'budget-month-next'
+- tapOn:
+    id: 'budget-month-prev'
+- tapOn:
+    id: 'budget-month-next'
+# The month-prev/next taps above re-fetch the month, which reloads the Insights
+# card — give the layout time to settle, and don't demand full visibility (the
+# small "Refresh" control never reaches 100%).
+- scrollUntilVisible:
+    element:
+      id: 'budget-insights-refresh'
+    direction: DOWN
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 800
+    timeout: 20000
+- tapOn:
+    id: 'budget-insights-refresh'
+# Refresh can raise an alert (no AI key on this device, or a provider failure).
+# Left on screen it covers the dashboard for every flow that follows — the
+# observed cascade on 2026-08-22. Dismiss it here; what the alert SAYS is
+# asserted by budget-dashboard-insights.yaml, which owns that surface.
+- runFlow:
+    when:
+      visible: 'OK'
+    commands:
+      - tapOn: 'OK'
+      - waitForAnimationToEnd:
+          timeout: 2000
+# Home carries no quick-add CTA row — Planned / Spent / AI live on the Planning
+# and Spending tabs (see budget-spendings-*.yaml).
+- assertNotVisible:
+    id: 'budget-dashboard-add-planned'
+- assertNotVisible:
+    id: 'budget-dashboard-add-spent'
+- assertNotVisible:
+    id: 'budget-dashboard-add-ai'
+
+# Savings summary card (BUDGET-DASH-010) — hidden entirely when the savings
+# feature is disabled (404) or minimal-budget, so best-effort like the
+# cashflow-trend tabs above.
+- scrollUntilVisible:
+    element:
+      id: 'budget-savings-headroom'
+    direction: DOWN
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 800
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'budget-savings-headroom'
+    commands:
+      - assertVisible:
+          id: 'budget-savings-headroom'
+      # Projected year-end (BUDGET-DASH-048) sits beside "Savings this month"
+      # in the same card, sourced from the household's default Projection
+      # method — only rendered once that fetch has resolved, so this stays
+      # best-effort rather than a hard assert (mirrors the card guard above).
+      - runFlow:
+          when:
+            visible:
+              id: 'budget-savings-projected-year-end'
+          commands:
+            - assertVisible:
+                id: 'budget-savings-projected-year-end'
+                text: '.*(-?CA\$[0-9,]+).*'
+
+# Scroll contract
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: budget-dashboard-scroll-end
+

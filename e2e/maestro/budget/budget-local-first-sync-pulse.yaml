@@ -1,0 +1,54 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - regression
+  - smoke
+# Matrix: BUDGET-LF-001 — Budget home carries NO sync chrome, and sync is
+# reachable from the one place that owns it.
+#
+# This row used to assert the opposite: `budget-sync-status`, a strip mounted
+# above FilterTabs that read "Synced 3m ago via mailbox". It existed only so
+# these flows had something to tap, it named transports and merge-log counts at
+# whoever opened a dev build, and it was removed 2026-08-16. The assertion is
+# inverted rather than deleted so the banner cannot quietly come back: engine
+# vocabulary on the dashboard is the regression this row now guards.
+#
+# Sync itself is unaffected — it runs on session open (ensureSession.ts), on
+# push wake (pushWake.ts), from Settings → Device sync, and, for these flows,
+# via `{scheme}://e2e-budget-sync` (subflows/budget-sync-pulse.yaml).
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-001
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 30000
+# The dashboard shows the budget, not the engine driving it.
+- assertNotVisible:
+    id: 'budget-sync-status'
+# A pulse leaves the dashboard exactly where it was — no chrome, no navigation.
+- runFlow: ../subflows/budget-sync-pulse.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible:
+    id: 'budget-screen'
+- assertNotVisible:
+    id: 'budget-sync-status'
+# The member's own route to the same `runBudgetLocalSync()`, in plain language.
+- runFlow: ../subflows/budget-open-sync.yaml
+- tapOn:
+    id: 'budget-settings-sync-now'
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertVisible:
+    id: 'budget-sync-status-line'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

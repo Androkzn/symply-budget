@@ -1,0 +1,25 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- runFlow: open-contractors.yaml
+- tapOn:
+    id: 'contractors-tab-contractors'
+# Target the testID, not the text. `tapOn: 'Search'` matched the lowercase
+# `search` ICON node on the Labor Hub dashboard — Maestro matches the whole
+# accessibility string, and that node does not navigate — so the tap reported
+# COMPLETED, nothing happened, and the wait below timed out with the app still
+# on `contractors-screen`. Observed 2026-09-02 on House-iPad.
+# `contractors-search-button` (LaborHubDashboard.tsx) is the control that calls
+# navigation.navigate('ContractorSearch').
+- extendedWaitUntil:
+    visible:
+      id: 'contractors-search-button'
+    timeout: 15000
+- tapOn:
+    id: 'contractors-search-button'
+- extendedWaitUntil:
+    visible:
+      id: 'contractor-search-screen'
+    timeout: 20000

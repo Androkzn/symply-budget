@@ -1,0 +1,214 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:more
+  - mutation
+  - regression
+# Matrix: HEALTH-MORE-050 … HEALTH-MORE-053
+---
+# Health opts into the customizable-tabs model (donor parity: the Swift app had
+# a tab-customization screen). Body, Habits, Cycle and Vitality all ship
+# `defaultHidden`, so they live in the More hub's "MORE TABS" section until the
+# user pins them.
+#
+# This flow proves the overflow hub actually routes — an unpinned tab that
+# cannot be reached is a lost feature, not a tidy bar.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-MORE-050
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-more.yaml
+
+      # --- The overflow hub lists the unpinned tabs (HEALTH-MORE-050) -----
+      # Every `defaultHidden` entry in the brand pack must have a row here.
+      # Cycle + Vitality are driven end-to-end by their own flows
+      # (cycle-log-and-predict.yaml, vitality-log-and-score.yaml); this flow
+      # owns the hub itself, so it asserts all four rows exist.
+      - assertVisible: 'MORE TABS'
+      - assertVisible:
+          id: 'more-tab-health-body'
+      - assertVisible:
+          id: 'more-tab-health-habits'
+      - assertVisible:
+          id: 'more-tab-health-cycle'
+      - assertVisible:
+          id: 'more-tab-health-vitality'
+      # Four overflow rows now sit above "Customize Tabs"; on a short viewport it
+      # can fall below the fold, so probe first — the assertion stays hard.
+      - scrollUntilVisible:
+          element:
+            id: 'more-customize-tabs'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible:
+          id: 'more-customize-tabs'
+
+      # --- Body opens and can log a measurement (HEALTH-MORE-051) ---------
+      - scrollUntilVisible:
+          element:
+            id: 'more-tab-health-body'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'more-tab-health-body'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-body-screen'
+          timeout: 30000
+      - assertVisible: 'MEASUREMENTS'
+      - assertVisible:
+          id: 'health-body-summary-waist'
+      # REAL mutation: handleLog() -> addBodyEntry() -> addBodySession() ->
+      # healthApi.createMeasurement() -> POST /health/measurements, 201
+      # (healthBodyStorage.ts, src/api/health.ts).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-body-value-input'
+      - inputText: '82'
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'MEASUREMENTS'
+      - tapOn:
+          id: 'health-body-add-button'
+      - extendedWaitUntil:
+          visible: '82 cm'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/measurements
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Teardown: remove the reading so the next run starts clean.
+      # REAL mutation: handleDelete() -> deleteBodyEntry() -> the row has no
+      # sibling sites, so it calls healthApi.deleteMeasurement() -> DELETE
+      # /health/measurements/:id, 200 (healthBodyStorage.ts, src/api/health.ts).
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-delete-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-body-delete-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-body-history-empty'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/measurements
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Habits opens and a tick starts a streak (HEALTH-MORE-052) ------
+      - runFlow: subflows/go-more.yaml
+      - tapOn:
+          id: 'more-tab-health-habits'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habits-screen'
+          timeout: 30000
+      - assertVisible:
+          id: 'health-habits-done-today'
+      # REAL mutation: handleToggle() -> toggleHabitToday() ->
+      # healthApi.toggleHabit() -> POST /health/habits/:id/toggle, 200
+      # (healthHabitsStorage.ts, src/api/health.ts).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-habit-toggle-sleep'
+      - extendedWaitUntil:
+          visible: '1 day streak'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /toggle
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Teardown: untick so the streak does not leak into the next run.
+      # Same REAL mutation, opposite direction — POST /health/habits/:id/toggle
+      # is a true server-side toggle, so unticking is its own network call.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-habit-toggle-sleep'
+      - extendedWaitUntil:
+          visible: 'No streak yet'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /toggle
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Return to the Health tab (HEALTH-MORE-053) ---------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

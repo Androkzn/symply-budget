@@ -1,0 +1,48 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-006
+---
+# WHAT THIS PROVES
+# ----------------
+# The Backup & Restore row exists in Settings and a member can find it by
+# scrolling, without knowing a deep link. It is now the ONLY doorway into the
+# surface — restore lost its own row when the two screens were merged.
+#
+# WHY THAT MATTERS
+# ----------------
+# H9 shipped a working backup engine on 2026-08-13 and it was reachable by
+# nobody for a day: `HouseBackupScreen` had unit tests and 26 testIDs while
+# NOTHING in `src/` or `app/` referenced it. An engine with no doorway is not a
+# feature, and no unit test can notice the doorway is missing — which is the
+# whole reason this row exists as a device flow rather than a render test.
+#
+# The row is gated on `isHouseBrand() && isHouseLocalFirst()`. If the ledger is
+# off on this build the scroll runs out of budget and the flow fails with
+# "element not found" — the honest signal that the precondition is unmet.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-006
+- runFlow: ../subflows/open-profile.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'profile-screen'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-house-backup'
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- assertVisible:
+    id: 'settings-row-house-backup'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

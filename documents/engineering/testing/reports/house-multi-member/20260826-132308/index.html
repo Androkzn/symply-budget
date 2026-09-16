@@ -1,0 +1,1930 @@
+<!doctype html>
+<html><head><meta charset="utf-8" /><title>E2E report</title>
+<style>
+:root { color-scheme: light dark; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 0; background: #f6f8fa; color: #1f2328; }
+@media (prefers-color-scheme: dark) { body { background: #0d1117; color: #e6edf3; } .step { background: #161b22 !important; border-color: #30363d !important; } .step-head { border-color: #30363d !important; } .events { background: #0d1117 !important; } header { background: #161b22 !important; border-color: #30363d !important; } table.summary td, table.summary th { border-color: #30363d !important; } .warned-note.benign { background: #21262d !important; border-color: #30363d !important; color: #8b949e !important; } .warned-note.noteworthy { background: #3a3216 !important; border-color: #6b5c1e !important; color: #e6edf3 !important; } .warned-note code { background: rgba(255,255,255,0.12) !important; } .app-name { color: #8b949e !important; } .app-logo { box-shadow: 0 0 0 1px rgba(255,255,255,0.14) !important; } }
+header { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #d0d7de; padding: 16px 24px; z-index: 10; }
+h1 { font-size: 18px; margin: 0 0 4px; }
+.meta { font-size: 13px; color: #57606a; }
+main { max-width: 1040px; margin: 0 auto; padding: 20px 24px 80px; }
+.step { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+.step.failed { border-color: #ffb0a8; }
+.step.warned { border-color: #f0d878; }
+.step-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #eaeef2; font-size: 13px; }
+.seq { color: #8b949e; font-variant-numeric: tabular-nums; }
+.label { font-weight: 600; flex: 1; }
+.dur { font-size: 11px; }
+.badge { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px; }
+.step-body { display: flex; gap: 12px; padding: 10px 12px; align-items: flex-start; }
+.shot { width: 90px; border-radius: 6px; border: 1px solid #d0d7de; display: block; }
+.shot-link { flex-shrink: 0; }
+.step-detail { flex: 1; min-width: 0; }
+.warned-note { border-radius: 6px; padding: 6px 8px; font-size: 12px; margin-bottom: 8px; line-height: 1.5; }
+.warned-note.benign { background: #f6f8fa; border: 1px solid #d0d7de; color: #57606a; }
+.warned-note.noteworthy { background: #fff8c5; border: 1px solid #f0d878; }
+.warned-note code { background: rgba(0,0,0,0.06); border-radius: 3px; padding: 1px 4px; }
+.events { background: #f6f8fa; border-radius: 6px; padding: 6px 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.ev { padding: 2px 0; word-break: break-word; }
+.ev.ok { color: #1a7f37; }
+.ev.fail { color: #b60205; font-weight: 600; }
+.ev.tag { color: #6639ba; }
+.pill { background: #eaeef2; border-radius: 4px; padding: 0 4px; font-weight: 600; }
+.tag { background: #ede4ff; color: #6639ba; border-radius: 10px; padding: 0 6px; font-size: 11px; }
+.muted { color: #8b949e; }
+.small { font-size: 12px; }
+table.summary { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+table.summary td, table.summary th { border: 1px solid #d0d7de; padding: 6px 10px; text-align: left; font-size: 13px; }
+table.summary th { background: #f6f8fa; }
+a { color: #0969da; }
+.title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.app-logo { width: 34px; height: 34px; border-radius: 8px; object-fit: contain; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,0.08); }
+.title-text { display: flex; flex-direction: column; }
+.app-name { font-size: 13px; font-weight: 600; color: #57606a; line-height: 1.2; }
+.title-text h1 { margin: 0; }
+.run-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  padding: 4px 12px; border-radius: 999px; border: 1px solid transparent; }
+.run-status.running { color: #0550ae; background: #ddf4ff; border-color: #0550ae33; }
+.run-status.passed  { color: #1a7f37; background: #dafbe1; border-color: #1a7f3733; }
+.run-status.failed  { color: #b60205; background: #ffebe9; border-color: #b6020533; }
+.run-status.stopped { color: #9a6700; background: #fff8c5; border-color: #9a670033; }
+.run-status .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor;
+  animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1;
+  padding: 5px 10px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+.chip-ico { font-size: 13px; }
+.chip-key { text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px; opacity: 0.75; }
+.chip-val { font-weight: 600; }
+.header-progress { margin-top: 12px; }
+.verdicts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; }
+.verdict-count { color: #57606a; }
+.verdict-fail { color: #b60205; background: #ffebe9; border: 1px solid #b6020533;
+  border-radius: 999px; padding: 3px 10px; font-weight: 600; }
+.verdict-fail em { font-style: normal; opacity: 0.7; font-weight: 400; }
+@media (prefers-color-scheme: dark) { .verdict-fail { background: #67060c !important; color: #ffa198 !important; } }
+@media (prefers-color-scheme: dark) {
+  .run-status.running { background: #0c2d6b !important; color: #79c0ff !important; }
+  .run-status.passed  { background: #0f5323 !important; color: #7ee787 !important; }
+  .run-status.failed  { background: #67060c !important; color: #ffa198 !important; }
+  .run-status.stopped { background: #5c4813 !important; color: #f2cc60 !important; }
+  .chip { filter: brightness(0.85) saturate(1.2); }
+}
+.progress-wrap { margin-top: 10px; }
+.progress-label { font-size: 12px; color: #57606a; margin-bottom: 4px; }
+.progress-bar { height: 8px; border-radius: 4px; background: #eaeef2; overflow: hidden; }
+.progress-fill { height: 100%; background: #0969da; transition: width 0.3s ease; }
+.progress-fill.done { background: #1a7f37; }
+@media (prefers-color-scheme: dark) { .progress-bar { background: #21262d !important; } }
+.progress-footer { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #d0d7de; padding: 8px 24px; z-index: 20; box-shadow: 0 -2px 8px rgba(0,0,0,0.06); }
+.progress-footer .progress-wrap { margin-top: 0; }
+body.has-progress-footer main { padding-bottom: 64px; }
+@media (prefers-color-scheme: dark) { .progress-footer { background: #161b22 !important; border-color: #30363d !important; } }
+.controls { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.controls input { flex: 1; max-width: 320px; padding: 5px 10px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 13px; background: #fff; color: inherit; }
+.controls button { padding: 5px 10px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 12px; background: #f6f8fa; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .controls input, .controls button { background: #161b22 !important; border-color: #30363d !important; color: #e6edf3; } summary { background: #161b22 !important; } details.flow-group { border-color: #30363d !important; } }
+details.flow-group { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; margin-bottom: 10px; overflow: hidden; scroll-margin-top: 90px; }
+details.flow-group.has-fail { border-color: #ffb0a8; }
+details.flow-group.has-warn:not(.has-fail) { border-color: #f0d878; }
+details.flow-group summary { list-style: none; cursor: pointer; padding: 10px 14px; display: flex; align-items: center; gap: 10px; background: #f6f8fa; user-select: none; }
+details.flow-group summary::-webkit-details-marker { display: none; }
+details.flow-group summary::before { content: '▸'; display: inline-block; transition: transform 0.15s; color: #8b949e; }
+details.flow-group[open] summary::before { transform: rotate(90deg); }
+.flow-name { font-weight: 600; flex: 1; }
+.flow-stats { font-size: 12px; color: #57606a; }
+.flow-body { padding: 12px 14px; }
+</style><script>setTimeout(function () { location.reload(); }, 15000);</script></head>
+<body class="has-progress-footer">
+<header>
+  <div class="title-row">
+    
+    <div class="title-text">
+      
+      <h1>E2E test report</h1>
+    </div>
+    <span class="run-status failed">✕ Tested · 1 failed</span>
+  </div>
+  <div class="chips"><span class="chip" style="color:#24292f;background:#f6f8fa;border-color:#24292f33"><span class="chip-ico">📱</span><span class="chip-key">Platform</span><span class="chip-val">iOS</span></span><span class="chip" style="color:#9a6700;background:#fff8c5;border-color:#9a670033"><span class="chip-ico">🧪</span><span class="chip-key">Env</span><span class="chip-val">staging</span></span><span class="chip" style="color:#0550ae;background:#ddf4ff;border-color:#0550ae33"><span class="chip-ico">📲</span><span class="chip-key">Device</span><span class="chip-val">House-D</span></span><span class="chip" style="color:#0550ae;background:#ddf4ff;border-color:#0550ae33"><span class="chip-ico">📲</span><span class="chip-key">Device</span><span class="chip-val">House-E</span></span></div>
+  <div class="verdicts"><span class="verdict-count">0 flow(s) passed · <b>1 failed</b></span><span class="verdict-fail">mm-01-signin <em>[A]</em></span></div>
+  <div class="meta">4 flow(s) · 4 failed · 0 warned · updated 8/26/2026, 1:39:28 PM</div>
+  <div class="header-progress">
+  <div class="progress-wrap">
+    <div class="progress-label">4 / 28 flows ran (14%) · 126 / 130 steps passed · <b style="color:#b60205">4 flow(s) failed</b></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:14%"></div></div>
+  </div></div>
+  <div class="controls">
+    <input id="filter" type="text" placeholder="Filter flows by name…" oninput="__filterFlows(this.value)" />
+    <button onclick="__setAllOpen(true)">Expand all</button>
+    <button onclick="__setAllOpen(false)">Collapse all</button>
+  </div>
+</header>
+<main>
+<table class="summary">
+<tr><th>Flow</th><th>Steps</th><th>Failed</th><th>Duration</th><th>Backend calls</th><th>Local writes</th><th>Verify checks</th></tr>
+<tr>
+        <td><a href="#flow-2026-08-26_131815__lf-021-auto-backup">2026-08-26_131815__lf-021-auto-backup</a></td>
+        
+        <td>52</td>
+        <td style="color:#b60205">1</td>
+        
+        <td>13m 16s</td>
+        <td>1</td>
+        <td>0</td>
+        
+        
+        
+        <td>0</td>
+      </tr>
+<tr>
+        <td><a href="#flow-2026-08-26_132752__mm-01-signin">2026-08-26_132752__mm-01-signin</a></td>
+        
+        <td>50</td>
+        <td style="color:#b60205">1</td>
+        
+        <td>11m 03s</td>
+        <td>1</td>
+        <td>0</td>
+        
+        
+        
+        <td>0</td>
+      </tr>
+<tr>
+        <td><a href="#flow-2026-08-26_133036__home-projects-photos">2026-08-26_133036__home-projects-photos</a></td>
+        
+        <td>21</td>
+        <td style="color:#b60205">1</td>
+        
+        <td>1m 19s</td>
+        <td>0</td>
+        <td>0</td>
+        
+        
+        
+        <td>0</td>
+      </tr>
+<tr>
+        <td><a href="#flow-2026-08-26_133346__home-projects-photos">2026-08-26_133346__home-projects-photos</a></td>
+        
+        <td>7</td>
+        <td style="color:#b60205">1</td>
+        
+        <td>1m 45s</td>
+        <td>0</td>
+        <td>0</td>
+        
+        
+        
+        <td>0</td>
+      </tr>
+</table>
+
+<details class="flow-group has-fail" id="flow-2026-08-26_131815__lf-021-auto-backup" data-name="2026-08-26_131815__lf-021-auto-backup">
+  <summary>
+    <span class="flow-name">2026-08-26_131815__lf-021-auto-backup</span>
+    <span class="badge" style="color:#b60205;background:#ffebe9">✕ FAILED</span>
+    <span class="flow-stats">52 steps · 13m 16s · 1 calls (0 failed) · 0 local writes (0 rows) · 0 verify (0 failed)</span>
+  </summary>
+  <div class="flow-body">
+    
+  <div class="step completed" id="step-9">
+    <div class="step-head">
+      <span class="seq">#9</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap text=&quot;Open&quot;</span>
+      <span class="dur muted">7936ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-20">
+    <div class="step-head">
+      <span class="seq">#20</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap text=&quot;Open&quot;</span>
+      <span class="dur muted">6127ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-59">
+    <div class="step-head">
+      <span class="seq">#59</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap id=&quot;nav-back-button&quot;</span>
+      <span class="dur muted">257ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-060-tapOnElement-nav-back-button.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-060-tapOnElement-nav-back-button.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-61">
+    <div class="step-head">
+      <span class="seq">#61</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap id=&quot;nav-back-button&quot;</span>
+      <span class="dur muted">7197ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-062-tapOnElement-nav-back-button.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-062-tapOnElement-nav-back-button.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-63">
+    <div class="step-head">
+      <span class="seq">#63</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap id=&quot;nav-back-button&quot;</span>
+      <span class="dur muted">7249ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-064-tapOnElement-nav-back-button.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-064-tapOnElement-nav-back-button.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-69">
+    <div class="step-head">
+      <span class="seq">#69</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://</span>
+      <span class="dur muted">1700ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-71">
+    <div class="step-head">
+      <span class="seq">#71</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">30860ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-072-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-072-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 30000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-72">
+    <div class="step-head">
+      <span class="seq">#72</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-up-next-section&quot;</span>
+      <span class="dur muted">759ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-073-assertCondition-home-up-next-section.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-073-assertCondition-home-up-next-section.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 15000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-74">
+    <div class="step-head">
+      <span class="seq">#74</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">53558ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-075-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-075-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 60000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-76">
+    <div class="step-head">
+      <span class="seq">#76</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://e2e-login?submit=1&amp;email=a.tekhtelev%40gmail.com&amp;password=Andrei123%21</span>
+      <span class="dur muted">919ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-127">
+    <div class="step-head">
+      <span class="seq">#127</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;login-screen&quot;</span>
+      <span class="dur muted">21438ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-128-assertCondition-login-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-128-assertCondition-login-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 30000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-134">
+    <div class="step-head">
+      <span class="seq">#134</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://</span>
+      <span class="dur muted">7007ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-136">
+    <div class="step-head">
+      <span class="seq">#136</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">30433ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-137-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-137-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 30000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-137">
+    <div class="step-head">
+      <span class="seq">#137</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-up-next-section&quot;</span>
+      <span class="dur muted">631ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-138-assertCondition-home-up-next-section.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-138-assertCondition-home-up-next-section.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 15000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-138">
+    <div class="step-head">
+      <span class="seq">#138</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-up-next-section&quot;</span>
+      <span class="dur muted">30528ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-139-assertCondition-home-up-next-section.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-139-assertCondition-home-up-next-section.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 30000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-143">
+    <div class="step-head">
+      <span class="seq">#143</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://</span>
+      <span class="dur muted">4311ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-145">
+    <div class="step-head">
+      <span class="seq">#145</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">31351ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-146-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-146-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 30000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-146">
+    <div class="step-head">
+      <span class="seq">#146</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-up-next-section&quot;</span>
+      <span class="dur muted">907ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-147-assertCondition-home-up-next-section.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-147-assertCondition-home-up-next-section.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 15000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-148">
+    <div class="step-head">
+      <span class="seq">#148</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://</span>
+      <span class="dur muted">5201ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-151">
+    <div class="step-head">
+      <span class="seq">#151</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8083</span>
+      <span class="dur muted">4168ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-231">
+    <div class="step-head">
+      <span class="seq">#231</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://e2e-login?submit=1&amp;email=a.tekhtelev%40gmail.com&amp;password=Andrei123%21</span>
+      <span class="dur muted">3719ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-282">
+    <div class="step-head">
+      <span class="seq">#282</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;login-screen&quot;</span>
+      <span class="dur muted">21329ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-283-assertCondition-login-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-283-assertCondition-login-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 30000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-289">
+    <div class="step-head">
+      <span class="seq">#289</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://</span>
+      <span class="dur muted">4105ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-291">
+    <div class="step-head">
+      <span class="seq">#291</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">30456ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-292-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-292-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 30000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-292">
+    <div class="step-head">
+      <span class="seq">#292</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-up-next-section&quot;</span>
+      <span class="dur muted">489ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-293-assertCondition-home-up-next-section.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-293-assertCondition-home-up-next-section.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 15000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-293">
+    <div class="step-head">
+      <span class="seq">#293</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-up-next-section&quot;</span>
+      <span class="dur muted">30349ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-294-assertCondition-home-up-next-section.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-294-assertCondition-home-up-next-section.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 30000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-298">
+    <div class="step-head">
+      <span class="seq">#298</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://</span>
+      <span class="dur muted">4079ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-300">
+    <div class="step-head">
+      <span class="seq">#300</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">30627ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-301-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-301-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 30000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-301">
+    <div class="step-head">
+      <span class="seq">#301</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-up-next-section&quot;</span>
+      <span class="dur muted">533ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-302-assertCondition-home-up-next-section.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-302-assertCondition-home-up-next-section.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 15000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-303">
+    <div class="step-head">
+      <span class="seq">#303</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Launch app</span>
+      <span class="dur muted">2236ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-306">
+    <div class="step-head">
+      <span class="seq">#306</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8083</span>
+      <span class="dur muted">2012ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-384">
+    <div class="step-head">
+      <span class="seq">#384</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap text=&quot;Continue&quot;</span>
+      <span class="dur muted">1894ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-390">
+    <div class="step-head">
+      <span class="seq">#390</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://e2e-login?submit=1&amp;email=a.tekhtelev%40gmail.com&amp;password=Andrei123%21</span>
+      <span class="dur muted">5221ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="events"><div class="ev net ok"><span class="pill">GET</span> /features → <b>200</b> ok</div></div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-437">
+    <div class="step-head">
+      <span class="seq">#437</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;tab-index&quot;</span>
+      <span class="dur muted">1056ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-439">
+    <div class="step-head">
+      <span class="seq">#439</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">149ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-440">
+    <div class="step-head">
+      <span class="seq">#440</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;home-up-next-section&quot;</span>
+      <span class="dur muted">249ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-484">
+    <div class="step-head">
+      <span class="seq">#484</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">216ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-486">
+    <div class="step-head">
+      <span class="seq">#486</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">220ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-487">
+    <div class="step-head">
+      <span class="seq">#487</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert NOT visible: id=&quot;auth-sign-in-email&quot;</span>
+      <span class="dur muted">701ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-488">
+    <div class="step-head">
+      <span class="seq">#488</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">155ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-494">
+    <div class="step-head">
+      <span class="seq">#494</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🧹 Clear observability log</span>
+      <span class="dur muted">376ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-498">
+    <div class="step-head">
+      <span class="seq">#498</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🏷 Tag matrix row: HOUSE-LF-021</span>
+      <span class="dur muted">363ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-504">
+    <div class="step-head">
+      <span class="seq">#504</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;tab-settings&quot;</span>
+      <span class="dur muted">964ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-506">
+    <div class="step-head">
+      <span class="seq">#506</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://settings</span>
+      <span class="dur muted">1559ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-507">
+    <div class="step-head">
+      <span class="seq">#507</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;settings-screen&quot;</span>
+      <span class="dur muted">216ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-509">
+    <div class="step-head">
+      <span class="seq">#509</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;settings-row-house-backup&quot;</span>
+      <span class="dur muted">1604ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-510">
+    <div class="step-head">
+      <span class="seq">#510</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;house-backup-screen&quot;</span>
+      <span class="dur muted">373ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-511">
+    <div class="step-head">
+      <span class="seq">#511</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;house-backup-property-picker&quot;</span>
+      <span class="dur muted">291ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-512">
+    <div class="step-head">
+      <span class="seq">#512</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;house-backup-status-card&quot;</span>
+      <span class="dur muted">203ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-513">
+    <div class="step-head">
+      <span class="seq">#513</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;house-backup-status-title&quot;</span>
+      <span class="dur muted">209ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-515">
+    <div class="step-head">
+      <span class="seq">#515</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;house-backup-auto-toggle&quot;</span>
+      <span class="dur muted">2490ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step failed" id="step-516">
+    <div class="step-head">
+      <span class="seq">#516</span>
+      <span class="badge" style="color:#b60205;background:#ffebe9">✕ FAILED</span>
+      <span class="label">Assert visible: id=&quot;house-recovery-phrase-sheet&quot;</span>
+      <span class="dur muted">60315ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_131815__lf-021-auto-backup-step-517-assertCondition-house-recovery-phrase-sh.png" target="_blank"><img class="shot" src="assets/2026-08-26_131815__lf-021-auto-backup-step-517-assertCondition-house-recovery-phrase-sh.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+  </div>
+</details>
+
+<details class="flow-group has-fail" id="flow-2026-08-26_132752__mm-01-signin" data-name="2026-08-26_132752__mm-01-signin">
+  <summary>
+    <span class="flow-name">2026-08-26_132752__mm-01-signin <span class="muted small">[A]</span></span>
+    <span class="badge" style="color:#b60205;background:#ffebe9">✕ FAILED</span>
+    <span class="flow-stats">50 steps · 11m 03s · 1 calls (0 failed) · 0 local writes (0 rows) · 0 verify (0 failed)</span>
+  </summary>
+  <div class="flow-body">
+    
+  <div class="step completed" id="step-2">
+    <div class="step-head">
+      <span class="seq">#2</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Launch app</span>
+      <span class="dur muted">1468ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-3">
+    <div class="step-head">
+      <span class="seq">#3</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8093</span>
+      <span class="dur muted">6096ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-13">
+    <div class="step-head">
+      <span class="seq">#13</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap text=&quot;Open&quot;</span>
+      <span class="dur muted">1709ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-83">
+    <div class="step-head">
+      <span class="seq">#83</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap text=&quot;^OK$&quot;</span>
+      <span class="dur muted">318ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-084-tapOnElement-^OK$.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-084-tapOnElement-^OK$.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-84">
+    <div class="step-head">
+      <span class="seq">#84</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap text=&quot;^Cancel$&quot;</span>
+      <span class="dur muted">285ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-085-tapOnElement-^Cancel$.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-085-tapOnElement-^Cancel$.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-85">
+    <div class="step-head">
+      <span class="seq">#85</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap text=&quot;^Dismiss$&quot;</span>
+      <span class="dur muted">297ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-086-tapOnElement-^Dismiss$.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-086-tapOnElement-^Dismiss$.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-86">
+    <div class="step-head">
+      <span class="seq">#86</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap text=&quot;^Not Now$&quot;</span>
+      <span class="dur muted">319ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-087-tapOnElement-^Not_Now$.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-087-tapOnElement-^Not_Now$.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-87">
+    <div class="step-head">
+      <span class="seq">#87</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap text=&quot;^OK$&quot;</span>
+      <span class="dur muted">283ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-088-tapOnElement-^OK$.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-088-tapOnElement-^OK$.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-88">
+    <div class="step-head">
+      <span class="seq">#88</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap text=&quot;^Cancel$&quot;</span>
+      <span class="dur muted">322ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-089-tapOnElement-^Cancel$.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-089-tapOnElement-^Cancel$.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-89">
+    <div class="step-head">
+      <span class="seq">#89</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap text=&quot;^Dismiss$&quot;</span>
+      <span class="dur muted">405ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-090-tapOnElement-^Dismiss$.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-090-tapOnElement-^Dismiss$.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-90">
+    <div class="step-head">
+      <span class="seq">#90</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap text=&quot;^Not Now$&quot;</span>
+      <span class="dur muted">341ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-091-tapOnElement-^Not_Now$.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-091-tapOnElement-^Not_Now$.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-91">
+    <div class="step-head">
+      <span class="seq">#91</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap text=&quot;^OK$&quot;</span>
+      <span class="dur muted">330ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-092-tapOnElement-^OK$.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-092-tapOnElement-^OK$.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-92">
+    <div class="step-head">
+      <span class="seq">#92</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap text=&quot;^Cancel$&quot;</span>
+      <span class="dur muted">595ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-093-tapOnElement-^Cancel$.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-093-tapOnElement-^Cancel$.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-93">
+    <div class="step-head">
+      <span class="seq">#93</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap text=&quot;^Dismiss$&quot;</span>
+      <span class="dur muted">422ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-094-tapOnElement-^Dismiss$.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-094-tapOnElement-^Dismiss$.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-94">
+    <div class="step-head">
+      <span class="seq">#94</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Tap text=&quot;^Not Now$&quot;</span>
+      <span class="dur muted">401ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-095-tapOnElement-^Not_Now$.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-095-tapOnElement-^Not_Now$.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-95">
+    <div class="step-head">
+      <span class="seq">#95</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">94268ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-096-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-096-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 120000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="events"><div class="ev net ok"><span class="pill">GET</span> /features → <b>200</b> ok</div></div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-131">
+    <div class="step-head">
+      <span class="seq">#131</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://e2e-logout</span>
+      <span class="dur muted">971ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-168">
+    <div class="step-head">
+      <span class="seq">#168</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;login-screen&quot;</span>
+      <span class="dur muted">139ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-179">
+    <div class="step-head">
+      <span class="seq">#179</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;login-screen&quot;</span>
+      <span class="dur muted">177ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-181">
+    <div class="step-head">
+      <span class="seq">#181</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;auth-sign-in-email&quot;</span>
+      <span class="dur muted">2008ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-182">
+    <div class="step-head">
+      <span class="seq">#182</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;auth-email-input&quot;</span>
+      <span class="dur muted">171ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-183">
+    <div class="step-head">
+      <span class="seq">#183</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;auth-email-input&quot;</span>
+      <span class="dur muted">1307ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-184">
+    <div class="step-head">
+      <span class="seq">#184</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Erase text</span>
+      <span class="dur muted">2921ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-185">
+    <div class="step-head">
+      <span class="seq">#185</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Type: &quot;a.tekhtelev@gmail.com&quot;</span>
+      <span class="dur muted">1799ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-187">
+    <div class="step-head">
+      <span class="seq">#187</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Type: &quot;Andrei123!&quot;</span>
+      <span class="dur muted">1474ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-188">
+    <div class="step-head">
+      <span class="seq">#188</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;auth-sign-in-submit&quot;</span>
+      <span class="dur muted">1392ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-189">
+    <div class="step-head">
+      <span class="seq">#189</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert NOT visible: id=&quot;login-screen&quot;</span>
+      <span class="dur muted">45322ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-190-assertCondition-login-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-190-assertCondition-login-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 45000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-195">
+    <div class="step-head">
+      <span class="seq">#195</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://</span>
+      <span class="dur muted">471ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-197">
+    <div class="step-head">
+      <span class="seq">#197</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">30528ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-198-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-198-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 30000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-198">
+    <div class="step-head">
+      <span class="seq">#198</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-up-next-section&quot;</span>
+      <span class="dur muted">661ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-199-assertCondition-home-up-next-section.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-199-assertCondition-home-up-next-section.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 15000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-199">
+    <div class="step-head">
+      <span class="seq">#199</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-up-next-section&quot;</span>
+      <span class="dur muted">30595ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-200-assertCondition-home-up-next-section.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-200-assertCondition-home-up-next-section.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 30000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-272">
+    <div class="step-head">
+      <span class="seq">#272</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">732ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-273-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-273-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-309">
+    <div class="step-head">
+      <span class="seq">#309</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">887ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-310-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-310-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-346">
+    <div class="step-head">
+      <span class="seq">#346</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">658ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-347-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-347-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-383">
+    <div class="step-head">
+      <span class="seq">#383</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">1061ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-384-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-384-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-420">
+    <div class="step-head">
+      <span class="seq">#420</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">641ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-421-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-421-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-457">
+    <div class="step-head">
+      <span class="seq">#457</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">717ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-458-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-458-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-494">
+    <div class="step-head">
+      <span class="seq">#494</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">643ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-495-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-495-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-531">
+    <div class="step-head">
+      <span class="seq">#531</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">708ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-532-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-532-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-568">
+    <div class="step-head">
+      <span class="seq">#568</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">720ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-569-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-569-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-605">
+    <div class="step-head">
+      <span class="seq">#605</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">638ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-606-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-606-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-642">
+    <div class="step-head">
+      <span class="seq">#642</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">605ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-643-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-643-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-679">
+    <div class="step-head">
+      <span class="seq">#679</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">940ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-680-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-680-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-716">
+    <div class="step-head">
+      <span class="seq">#716</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">665ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-717-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-717-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-753">
+    <div class="step-head">
+      <span class="seq">#753</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">613ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-754-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-754-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-790">
+    <div class="step-head">
+      <span class="seq">#790</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">805ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-791-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-791-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-827">
+    <div class="step-head">
+      <span class="seq">#827</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">556ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-828-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-828-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-864">
+    <div class="step-head">
+      <span class="seq">#864</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">602ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-865-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-865-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-901">
+    <div class="step-head">
+      <span class="seq">#901</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">605ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-902-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-902-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step failed" id="step-902">
+    <div class="step-head">
+      <span class="seq">#902</span>
+      <span class="badge" style="color:#b60205;background:#ffebe9">✕ FAILED</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">656ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_132752__mm-01-signin-step-903-assertCondition-home-screen.png" target="_blank"><img class="shot" src="assets/2026-08-26_132752__mm-01-signin-step-903-assertCondition-home-screen.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+  </div>
+</details>
+
+<details class="flow-group has-fail" id="flow-2026-08-26_133036__home-projects-photos" data-name="2026-08-26_133036__home-projects-photos">
+  <summary>
+    <span class="flow-name">2026-08-26_133036__home-projects-photos</span>
+    <span class="badge" style="color:#b60205;background:#ffebe9">✕ FAILED</span>
+    <span class="flow-stats">21 steps · 1m 19s · 0 calls (0 failed) · 0 local writes (0 rows) · 0 verify (0 failed)</span>
+  </summary>
+  <div class="flow-body">
+    
+  <div class="step completed" id="step-7">
+    <div class="step-head">
+      <span class="seq">#7</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🧹 Clear observability log</span>
+      <span class="dur muted">602ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-11">
+    <div class="step-head">
+      <span class="seq">#11</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🏷 Tag matrix row: HOUSE-HPROJ-021</span>
+      <span class="dur muted">536ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-59">
+    <div class="step-head">
+      <span class="seq">#59</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">170ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-63">
+    <div class="step-head">
+      <span class="seq">#63</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://my-home</span>
+      <span class="dur muted">703ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-64">
+    <div class="step-head">
+      <span class="seq">#64</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;my-home-screen&quot;</span>
+      <span class="dur muted">868ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-65">
+    <div class="step-head">
+      <span class="seq">#65</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;my-home-home-projects&quot;</span>
+      <span class="dur muted">5142ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-66">
+    <div class="step-head">
+      <span class="seq">#66</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;home-projects-list-screen&quot;</span>
+      <span class="dur muted">136ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-67">
+    <div class="step-head">
+      <span class="seq">#67</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-project-hub-title&quot;</span>
+      <span class="dur muted">5198ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_133036__home-projects-photos-step-068-assertCondition-home-project-hub-title.png" target="_blank"><img class="shot" src="assets/2026-08-26_133036__home-projects-photos-step-068-assertCondition-home-project-hub-title.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 5000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-73">
+    <div class="step-head">
+      <span class="seq">#73</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;home-project-hub-title&quot;</span>
+      <span class="dur muted">1867ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_133036__home-projects-photos-step-074-assertCondition-home-project-hub-title.png" target="_blank"><img class="shot" src="assets/2026-08-26_133036__home-projects-photos-step-074-assertCondition-home-project-hub-title.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 10000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-75">
+    <div class="step-head">
+      <span class="seq">#75</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;home-projects-create&quot;</span>
+      <span class="dur muted">1794ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-76">
+    <div class="step-head">
+      <span class="seq">#76</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;template-blank&quot;</span>
+      <span class="dur muted">897ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-77">
+    <div class="step-head">
+      <span class="seq">#77</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap text=&quot;Continue&quot;</span>
+      <span class="dur muted">889ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-78">
+    <div class="step-head">
+      <span class="seq">#78</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;home-project-title&quot;</span>
+      <span class="dur muted">1332ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-79">
+    <div class="step-head">
+      <span class="seq">#79</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Type: &quot;E2E Hub Mutations&quot;</span>
+      <span class="dur muted">1729ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-80">
+    <div class="step-head">
+      <span class="seq">#80</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Hide keyboard</span>
+      <span class="dur muted">4466ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-81">
+    <div class="step-head">
+      <span class="seq">#81</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap text=&quot;Continue&quot;</span>
+      <span class="dur muted">1445ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-82">
+    <div class="step-head">
+      <span class="seq">#82</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;home-project-create-submit&quot;</span>
+      <span class="dur muted">129ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-83">
+    <div class="step-head">
+      <span class="seq">#83</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;home-project-create-submit&quot;</span>
+      <span class="dur muted">2870ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-84">
+    <div class="step-head">
+      <span class="seq">#84</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;home-project-hub-title&quot;</span>
+      <span class="dur muted">147ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-85">
+    <div class="step-head">
+      <span class="seq">#85</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;home-project-hub-title&quot;</span>
+      <span class="dur muted">140ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step failed" id="step-86">
+    <div class="step-head">
+      <span class="seq">#86</span>
+      <span class="badge" style="color:#b60205;background:#ffebe9">✕ FAILED</span>
+      <span class="label">Tap id=&quot;hub-tab-photos&quot;</span>
+      <span class="dur muted">17291ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_133036__home-projects-photos-step-087-tapOnElement-hub-tab-photos.png" target="_blank"><img class="shot" src="assets/2026-08-26_133036__home-projects-photos-step-087-tapOnElement-hub-tab-photos.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+  </div>
+</details>
+
+<details class="flow-group has-fail" id="flow-2026-08-26_133346__home-projects-photos" data-name="2026-08-26_133346__home-projects-photos">
+  <summary>
+    <span class="flow-name">2026-08-26_133346__home-projects-photos</span>
+    <span class="badge" style="color:#b60205;background:#ffebe9">✕ FAILED</span>
+    <span class="flow-stats">7 steps · 1m 45s · 0 calls (0 failed) · 0 local writes (0 rows) · 0 verify (0 failed)</span>
+  </summary>
+  <div class="flow-body">
+    
+  <div class="step completed" id="step-7">
+    <div class="step-head">
+      <span class="seq">#7</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🧹 Clear observability log</span>
+      <span class="dur muted">1234ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-11">
+    <div class="step-head">
+      <span class="seq">#11</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🏷 Tag matrix row: HOUSE-HPROJ-021</span>
+      <span class="dur muted">1748ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-67">
+    <div class="step-head">
+      <span class="seq">#67</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;home-screen&quot;</span>
+      <span class="dur muted">186ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-71">
+    <div class="step-head">
+      <span class="seq">#71</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplehouse://my-home</span>
+      <span class="dur muted">828ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-72">
+    <div class="step-head">
+      <span class="seq">#72</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;my-home-screen&quot;</span>
+      <span class="dur muted">181ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-73">
+    <div class="step-head">
+      <span class="seq">#73</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;my-home-home-projects&quot;</span>
+      <span class="dur muted">1044ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step failed" id="step-74">
+    <div class="step-head">
+      <span class="seq">#74</span>
+      <span class="badge" style="color:#b60205;background:#ffebe9">✕ FAILED</span>
+      <span class="label">Assert visible: id=&quot;home-projects-list-screen&quot;</span>
+      <span class="dur muted">20550ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_133346__home-projects-photos-step-075-assertCondition-home-projects-list-scree.png" target="_blank"><img class="shot" src="assets/2026-08-26_133346__home-projects-photos-step-075-assertCondition-home-projects-list-scree.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+  </div>
+</details>
+</main>
+<div class="progress-footer">
+  <div class="progress-wrap">
+    <div class="progress-label">4 / 28 flows ran (14%) · 126 / 130 steps passed · <b style="color:#b60205">4 flow(s) failed</b></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:14%"></div></div>
+  </div></div>
+<script>
+function __filterFlows(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.flow-group').forEach(function (el) {
+    el.style.display = el.dataset.name.indexOf(q) === -1 ? 'none' : '';
+  });
+}
+function __setAllOpen(open) {
+  document.querySelectorAll('.flow-group').forEach(function (el) { el.open = open; });
+}
+</script>
+</body></html>

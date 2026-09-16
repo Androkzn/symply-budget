@@ -1,0 +1,61 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+# Matrix: HEALTH-TD-002 — device A opens "Add your other device" and mints the
+# second-device enrolment payload.
+#
+# THE COPY IS DEVICE-CENTRIC, DELIBERATELY. `HEALTH_ENROLMENT_COPY`
+# (src/features/health/local/controlPlaneClient.ts:79-87) is the contract this
+# flow asserts against:
+#
+#   title       'Add your other device'
+#   body        'Scan this code on your other device to keep both in sync…'
+#   scanCta     'Scan on your other device'
+#
+# Every string is about a DEVICE. Health has no members to invite, and a screen
+# that says "invite a member" is describing a product Health is not (plan §1.2 /
+# §6 "no invite-member strings in Health Settings"). `td-40` asserts the negative
+# of that across the whole app; this flow asserts the positive on the one screen
+# that has to say it.
+#
+# ⚠️ PENDING SURFACE. As of 2026-08-14 nothing in `src/features/health/screens/`
+# renders `HEALTH_ENROLMENT_COPY` — grep for it returns zero `.tsx` hits — so
+# this flow is the acceptance test for a screen He3/He5-UI still has to land, in
+# the same way the House MM enrolment phase was the acceptance test for H3's.
+# Every id below is the contract that screen must satisfy; if it ships different
+# ids, fix them HERE, not by loosening the assertion to a bare text match.
+#
+# The runner scrapes `[E2E-INVITE] code=… secret=…` off the Metro log after
+# this flow and hands it to `td-03` as `TD_LINK`. That is the harness standing in
+# for a person holding two phones — nothing else about the enrolment is faked.
+---
+- runFlow: td-launch.yaml
+- runFlow: ../health/subflows/go-more.yaml
+- scrollUntilVisible:
+    element:
+      id: 'health-setting-other-device'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 10
+- tapOn:
+    id: 'health-setting-other-device'
+- extendedWaitUntil:
+    visible:
+      id: 'health-other-device-screen'
+    timeout: 30000
+# The device-centric copy, asserted verbatim against HEALTH_ENROLMENT_COPY.
+- assertVisible: 'Add your other device'
+- assertVisible: 'Scan this code on your other device to keep both in sync\.'
+# And the negative, on the one screen most likely to drift back into household
+# vocabulary while someone is porting Budget/House code into it.
+- assertNotVisible: '(?i).*invite (a )?(member|partner|someone).*'
+- assertNotVisible: '(?i).*household member.*'
+- tapOn:
+    id: 'health-other-device-create'
+- extendedWaitUntil:
+    visible:
+      id: 'health-other-device-code'
+    timeout: 30000
+- assertVisible: 'Scan on your other device'

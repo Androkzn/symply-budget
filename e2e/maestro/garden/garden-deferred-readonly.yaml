@@ -1,0 +1,48 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:garden
+  - readonly
+  - regression
+# Matrix: HOUSE-GARD-003…008, 012…017, 020 — deferred IMP / downgraded rows.
+# GARD-010/011 → e2e/maestro/garden/garden-plan-mutations.yaml.
+# Other rows: Mapbox/native-picker pipelines not automatable beyond upload entry points.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-gardening.yaml
+- assertVisible:
+    id: 'garden-plans-screen'
+- runFlow:
+    when:
+      visible:
+        id: 'garden-plans-add-button'
+    commands:
+      - tapOn:
+          id: 'garden-plans-add-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'garden-plan-source-file'
+          timeout: 20000
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'garden-plan-source-camera'
+          timeout: 5000
+          optional: true
+      # OVER-POP GUARD: `optional: true` only means "don't fail when the element
+      # is absent" — it still taps whenever the element IS present, and
+      # `nav-back-button` is present on garden-plans-screen itself
+      # (GardenPlansScreen.tsx:594 → `showBackButton={router.canGoBack()}`). When
+      # the upload screen never opened, this unconditional tap popped the whole
+      # Garden stack to Home and the assert below went red for a teardown reason.
+      # Same fix as garden-plan-mutations.yaml:121 and floor-plans-mutations.yaml:225.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'garden-plans-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+- assertVisible:
+    id: 'garden-plans-screen'

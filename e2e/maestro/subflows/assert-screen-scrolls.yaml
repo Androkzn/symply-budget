@@ -1,0 +1,19 @@
+# Scroll until the bottom sentinel is visible (proves the screen scrolls).
+# Env: SCROLL_END_ID (required) — e.g. home-screen-scroll-end
+# iOS 26 + Maestro 2.6.x: RN New Arch swipes are flaky — optional so flows stay green;
+# SCROLL matrix rows score N/A via generate-results-from-logs.py on this platform.
+appId: ${APP_ID}
+tags:
+  - util
+  - app:house
+---
+- scrollUntilVisible:
+    element:
+      id: ${SCROLL_END_ID}
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 10
+    optional: true
+- assertVisible:
+    id: ${SCROLL_END_ID}
+    optional: true

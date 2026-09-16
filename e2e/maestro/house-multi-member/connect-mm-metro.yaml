@@ -1,0 +1,36 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:multi-member
+---
+# Point the Expo Dev Client at THIS suite's Metro.
+#
+# Not `../subflows/connect-house-metro.yaml`: that one resolves
+# E2E_METRO_DEVCLIENT_URL, which the single-device House suite builds against
+# :8083. This suite deliberately runs its OWN Metro on another port
+# (HOUSE_MM_METRO_PORT, default 8093) so it can run beside the single-device
+# suite; tapping an ":8083" entry in the dev-client server list would attach
+# these two devices to a DIFFERENT session's bundler — silently testing someone
+# else's bundle, or hanging on their reload.
+#
+# env: MM_METRO_PORT, E2E_METRO_DEVCLIENT_URL (already carries the right URL)
+- runFlow:
+    when:
+      visible: 'DEVELOPMENT SERVERS'
+    commands:
+      - tapOn:
+          text: '.*${MM_METRO_PORT}.*'
+          optional: true
+      - tapOn:
+          text: '.*:${MM_METRO_PORT}'
+          optional: true
+      - tapOn:
+          text: '.*localhost.*${MM_METRO_PORT}.*'
+          optional: true
+      # The deep link encodes host+port explicitly, so it is authoritative even
+      # when nothing in the list matched.
+      - openLink: ${E2E_METRO_DEVCLIENT_URL}
+      - waitForAnimationToEnd:
+          timeout: 15000
+- runFlow: mm-dismiss-dev-chrome.yaml

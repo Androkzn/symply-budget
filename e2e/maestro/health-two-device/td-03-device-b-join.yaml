@@ -1,0 +1,56 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+# Matrix: HEALTH-TD-003 — device B claims the enrolment payload device A minted.
+#
+# ONE PASTED LINK, NOT TWO TYPED FIELDS. `simplehealth://lf-invite?secret=…&code=…`
+# is the real deep link the QR encodes (`HEALTH_ENROLMENT_LINK_SCHEME` +
+# `controlPlaneClient.ts:351`), so opening it is what a camera scan does, minus
+# the camera. Typing the two opaque values instead would be testing the harness's
+# keyboard, not the enrolment.
+#
+# ⚠️ BRAND-SCHEME REGRESSION THIS FLOW IS THE TRIPWIRE FOR. The shared Worker
+# returns a BUDGET scheme in the enrolment payload today (`local-first-v2.ts:506`,
+# plan §2 item 5 / §6). If that fix regresses, `TD_LINK` arrives as
+# `symply-budget://lf-invite?…`, the Health app never sees the link at all, and
+# this flow fails HERE — which is the correct place for it to fail. Do not
+# "fix" a failure here by making the runner rewrite the scheme.
+#
+# env: TD_LINK — the full simplehealth://lf-invite?… URL, built by the runner
+#      from the [E2E-INVITE] line device A wrote to the Metro log.
+---
+- runFlow: td-launch.yaml
+- assertTrue: ${TD_LINK != null && TD_LINK != ''}
+# The scheme is asserted on the link itself before it is opened: an
+# `openLink` of another brand's scheme is a silent no-op on this device, and a
+# silent no-op three steps upstream is the hardest kind of failure to read.
+- assertTrue: ${TD_LINK.startsWith('simplehealth://lf-invite')}
+- openLink: ${TD_LINK}
+- waitForAnimationToEnd:
+    timeout: 8000
+- runFlow: td-dismiss-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'health-other-device-claim'
+    timeout: 60000
+# Joining replaces this device's local ledger snapshot — the engine holds one
+# household at a time — so the app confirms before discarding. Tap through the
+# real confirm rather than suppressing it.
+- tapOn:
+    id: 'health-other-device-claim'
+- runFlow:
+    when:
+      visible: '(?i).*replace.*'
+    commands:
+      - tapOn:
+          text: '^(Continue|Replace|OK)$'
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-other-device-pending'
+    timeout: 60000
+# The pending copy is the product's promise that nothing is silently dropped
+# while approval is outstanding (HEALTH_ENROLMENT_COPY.pendingWrites).
+- assertVisible: 'Waiting for your other device to approve this one\. Changes are paused until then\.'

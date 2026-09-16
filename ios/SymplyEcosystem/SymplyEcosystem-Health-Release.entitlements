@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Symply Health — RELEASE entitlements (build configuration `Release-health` only).
+
+  SymplyEcosystem-Release.entitlements plus HealthKit; see the sibling
+  SymplyEcosystem-Health.entitlements for why HealthKit lives in its own pair of
+  files instead of the shared ones. The only difference from that Debug twin is
+  `aps-environment`, exactly as with the shared pair.
+
+  Shipping this requires the HealthKit capability on the com.symply.health App ID
+  and a provisioning profile that carries it, or code signing fails with
+  "doesn't include the com.apple.developer.healthkit entitlement". Only that one
+  App ID needs it — House, Budget, Kaizen and Language keep the shared files.
+
+  `com.apple.developer.healthkit.background-delivery` IS present — see the
+  Debug twin for why (`SymplyHealthKitModule` runs `HKObserverQuery` +
+  `enableBackgroundDelivery`).
+-->
+<plist version="1.0">
+  <dict>
+    <key>aps-environment</key>
+    <string>production</string>
+    <key>keychain-access-groups</key>
+    <array>
+      <string>$(AppIdentifierPrefix)$(CFBundleIdentifier)</string>
+    </array>
+    <key>com.apple.developer.applesignin</key>
+    <array>
+      <string>Default</string>
+    </array>
+    <key>com.apple.developer.healthkit</key>
+    <true/>
+    <key>com.apple.developer.healthkit.access</key>
+    <array/>
+    <key>com.apple.developer.healthkit.background-delivery</key>
+    <true/>
+    <key>com.apple.security.application-groups</key>
+    <array>
+      <string>$(SYMPLY_APP_GROUP)</string>
+    </array>
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+      <string>applinks:simple-house-api.a-tekhtelev.workers.dev</string>
+      <string>applinks:simple-house-api-staging.a-tekhtelev.workers.dev</string>
+    </array>
+  </dict>
+</plist>

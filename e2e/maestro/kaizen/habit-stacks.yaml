@@ -1,0 +1,30 @@
+appId: com.symply.kaizen
+---
+# Habit stacks — name a stack and (when daily-core actions exist) add a step.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/habit-stacks
+- extendedWaitUntil:
+    visible: 'Habit stacks'
+    timeout: 20000
+- assertVisible: 'Create stack'
+- assertVisible: 'Choose steps (0)'
+# Interaction: name the stack (keyboard entry renders).
+- tapOn: 'Morning reset'
+- inputText: 'E2E Stack'
+- assertVisible: 'E2E Stack'
+# Add a step when daily-core actions exist → its tag flips to 'Added'.
+- runFlow:
+    when:
+      visible: 'Add'
+    commands:
+      - tapOn: 'Add'
+      - assertVisible: 'Added'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

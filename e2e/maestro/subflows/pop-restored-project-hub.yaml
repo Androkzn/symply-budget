@@ -1,0 +1,115 @@
+appId: ${APP_ID}
+tags:
+  - util
+  - app:house
+---
+# Pop ANY restored Home Projects route so the LIST is reachable.
+#
+# The Home Projects stack resumes on its last route. Once a flow leaves the app
+# parked anywhere inside that stack, every later flow that taps
+# `my-home-home-projects` lands there instead of the list, then dies on
+# `home-projects-list-screen is visible` — which reads as a missing screen
+# rather than a navigation-state leak from an earlier flow.
+#
+# Observed 2026-09-01 on House-A: EIGHT flows failed back-to-back with that one
+# assertion. Every one was sitting on the `E2E Surface Tile` MATERIAL DETAIL
+# screen left behind when `home-projects-material-detail` failed at its save
+# step. One flow's residue poisoned seven others.
+#
+# WHY THIS IS KEYED ON THE DESTINATION, NOT ON A KNOWN SCREEN.
+# The first version of this subflow only fired `when: visible:
+# home-project-hub-title`, because a restored HUB was the leak seen at the time.
+# A restored MATERIAL DETAIL screen does not publish that id, so the guard
+# no-opped and the flow died anyway — a recovery step that only recovers from
+# the one case already debugged. The condition is now the thing actually
+# required (the list is NOT up yet), so it covers every route in the stack,
+# including ones added later.
+#
+# Call immediately AFTER tapping `my-home-home-projects` and BEFORE waiting on
+# the list. No-op when the list opened normally.
+
+# Give the list its normal chance to appear first. Without this the loop below
+# treats a merely-slow push as a restored route and taps back out of it.
+- extendedWaitUntil:
+    visible:
+      id: 'home-projects-list-screen'
+    timeout: 15000
+    optional: true
+
+- repeat:
+    times: 4
+    commands:
+      # SETTLE BEFORE JUDGING, every pass.
+      #
+      # The condition below is sampled the instant the iteration starts, so on a
+      # loaded machine all four passes can burn through while the restored route
+      # is still being laid out — the loop finds nothing to tap, exits, and the
+      # residue appears immediately afterwards. Seen 2026-09-02, when the whole
+      # suite ran ~2.5x slower than normal (`home-projects-hub` 10m07s against
+      # its usual 4m) and this subflow no-opped in front of a restored Smart
+      # Project wizard that was plainly there by the time the flow asserted.
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          when:
+            notVisible:
+              id: 'home-projects-list-screen'
+          commands:
+            # STOP AT THE STACK BOUNDARY.
+            #
+            # Nested purely to get an AND: keep going only while the list is not
+            # up AND we have not already fallen out onto My Home. `when` takes
+            # one `notVisible`, so two conditions need two runFlows.
+            #
+            # Without this the loop cannot tell "still deep in the stack" from
+            # "already popped past its root": both merely lack the list, so a
+            # slow list kept it tapping back until it left the Projects stack
+            # altogether. The re-entry guard at the end of this file repairs
+            # that after the fact; this stops causing it in the first place.
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'my-home-screen'
+                commands:
+                  # `nav-back-button` is the shared ScreenHeader id; the material
+                  # detail screen overrides it with its own. Both are optional so
+                  # a screen publishing neither still falls through.
+                  - tapOn:
+                      id: 'nav-back-button'
+                      optional: true
+                  - tapOn:
+                      id: 'material-detail-back'
+                      optional: true
+                  # Backing out of a DIRTY material detail raises `confirmDiscard`.
+                  # Left unanswered it blocks every later step, so discard
+                  # explicitly — this is teardown of a failed flow's residue,
+                  # never a real edit.
+                  - runFlow:
+                      when:
+                        visible: 'Discard'
+                      commands:
+                        - tapOn: 'Discard'
+                  - waitForAnimationToEnd:
+                      timeout: 1500
+
+# RE-ENTER IF THE POP WENT ONE LEVEL TOO FAR.
+#
+# The loop above is keyed on "the list is not up yet", so a list that is merely
+# SLOW reads as residue and it keeps tapping back — out of the Projects stack
+# entirely and onto My Home. Observed 2026-09-02: `home-projects-surface-budget`
+# ended on `my-home-screen` and then failed on `hub-tab-plans`, a hub control,
+# with navigation never having happened. The other four callers passed the same
+# run, so this is timing-dependent — a latent flake rather than a dormant bug.
+#
+# Re-entering here, rather than tightening the loop's guard, keeps the residue
+# case this subflow exists for. No-op whenever the pop landed correctly.
+- runFlow:
+    when:
+      visible:
+        id: 'my-home-screen'
+    commands:
+      - tapOn:
+          id: 'my-home-home-projects'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2000

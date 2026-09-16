@@ -1,0 +1,58 @@
+---
+description: Symply Ecosystem project model, structure, and AI rules
+alwaysApply: true
+---
+
+# Symply Ecosystem
+
+## Mandate: agents own E2E
+
+Agents **own** this project end-to-end: understand → build → verify → deploy (staging + production) → keep docs/fleet current.  
+Do not dump commands for the human to run. Execute. Ask only for 2FA, missing secrets, product forks, or force-push/`main` destruction.
+
+## Identity
+
+- **Project:** Symply Ecosystem (repo `Androkzn/symply-ecosystem`) — not “SimpleHouse.”
+- **Template app:** Symply House (`brands/symply-house/`, `documents/apps/symply-house/`).
+- **Children:** Budget, **Symply Kaizen** (`symply-kaizen`), Language, Health — same platform, own brand packs.
+- **Shared contracts docs:** `documents/apps/_ecosystem/` (not a storefront).
+
+## Knowledge entrypoints
+
+1. `AGENTS.md` + `CLAUDE.md`
+2. `documents/ecosystem/PROJECT.md`
+3. `documents/ecosystem/SERVICES.md`
+4. `documents/ecosystem/BRANCHING.md` — trunk + `<app>-v2` clones; never deploy from a clone
+5. `documents/ecosystem/AI_CONVENTIONS.md`
+6. App: `documents/apps/<id>/README.md` → BRD → TRD → `features/`
+
+## Layout
+
+```text
+src/ app/ brands/     FE (APP_BRAND)
+backend/              Worker + D1
+backend/lambda-processor/
+documents/            ecosystem | apps | design | requirements | engineering
+scripts/secrets/      Keychain symply.*
+```
+
+Umbrella donors (read-only reference): `~/Desktop/Symply Ecosystem/{Simply Health,Simply Language,Simply Kaizen}`. Implement in **this** repo only.
+
+## Autonomy (rapid development)
+
+**Own E2E:** implement → verify → deploy staging+production → update docs. Do not stop at instructions for the human.
+
+Work independently: edit FE/BE, test, and **deploy staging + production from the `main` checkout** without asking. Never `deploy:fleet` from an `<app>-v2` clone.  
+Load secrets: `eval "$(./scripts/secrets/export-env.sh)"`.  
+Backend: `cd backend && npm run deploy:fleet`. House-only: `deploy:house:all` (`deploy:all` alias). Migrate both envs if schema changes. Claim the next migration number on `main` first.  
+FE: EAS profiles in `eas.json` by brand.  
+Still stop for: Apple/Google 2FA, force-push **any** branch, rebase, `git stash`, Amplify CLI, printing secrets.  
+Git: [BRANCHING.md](documents/ecosystem/BRANCHING.md) — merge `main` daily on the client branch; land with `--merge` not `--squash`.
+
+## Product rules
+
+- New brand = copy `brands/symply-house/` + `documents/ecosystem/ADD_APP.md`.
+- Domain code in `src/features/<domain>/`; gate with `brand.features`.
+- No Login / Widget / Watch / Analytics forks — brand tokens/assets only. Analytics = shared PostHog wrapper `src/services/analytics.ts` (brand-tagged); guide: `documents/engineering/analytics.md`.
+- One app BRD + one app TRD; no feature catalogs inside app BRD/TRD.
+- Atlassian unused; do not prompt for it.

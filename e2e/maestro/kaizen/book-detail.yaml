@@ -1,0 +1,19 @@
+appId: com.symply.kaizen
+---
+# Book detail — deep-linked without a bookId shows the graceful unavailable
+# state. (With a real book, chapters + Read/Generate/Check actions render.)
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/book
+- extendedWaitUntil:
+    visible: 'Book'
+    timeout: 20000
+- assertVisible: 'This book is no longer available.'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

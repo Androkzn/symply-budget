@@ -1,0 +1,209 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home
+  - readonly
+  - regression
+# Matrix: HOUSE-HOME-004, 007, 009, 012–015, 017, 018, 022, 023
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+- assertVisible:
+    id: 'home-mira-brief'
+- assertVisible:
+    id: 'home-up-next-section'
+# Stat chip → Tasks (HOUSE-HOME-004)
+- runFlow:
+    when:
+      visible:
+        id: 'home-stat-overdue'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      # e2e-clear-log's openLink can trigger iOS's "Open in …?" interstitial
+      # over the Dev Client, which then swallows the next tap — dismiss first.
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - tapOn:
+          id: 'home-stat-overdue'
+      - extendedWaitUntil:
+          visible:
+            id: 'tasks-screen'
+          timeout: 15000
+      # The tab switched (assertVisible above) — confirm the Tasks screen's own
+      # list came from the LEDGER, not the network.
+      #
+      # This asserted `GET /tasks → 200` until House went local-first. Tasks are
+      # served by `localTasksApi.list` now, so that request never leaves the
+      # device and the badge sat empty forever — the flow was asserting a
+      # contract the app had stopped having. Same swap
+      # `tasks/task-detail-mutations.yaml` already made for its writes.
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: GET
+            E2E_VERIFY_PATH: /tasks
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow: ../subflows/go-home-tab.yaml
+# Task card fields + tap detail (HOUSE-HOME-009, 010)
+- runFlow:
+    when:
+      visible:
+        id: 'home-task-card'
+    commands:
+      - assertVisible:
+          id: 'home-task-card'
+      - tapOn:
+          id: 'home-task-card'
+      - extendedWaitUntil:
+          visible:
+            id: 'task-detail-screen'
+          timeout: 15000
+          optional: true
+      # Opened from a Home task card, TaskDetailScreen presents as a modal
+      # closed by task-detail-close (an "X"), not nav-back-button — that
+      # guard never matched, so the modal silently stayed open and blocked
+      # every step after it (attention-card tap, mira-brief tap/assert).
+      # Try both: task-detail-close for the modal path, nav-back-button for
+      # any stack-pushed entry point.
+      - runFlow:
+          when:
+            visible:
+              id: 'task-detail-close'
+          commands:
+            - tapOn:
+                id: 'task-detail-close'
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'task-detail-screen'
+          timeout: 10000
+          optional: true
+# Attention card → fix flow (HOUSE-HOME-012)
+- runFlow:
+    when:
+      visible:
+        id: 'home-attention-cards'
+    commands:
+      - tapOn:
+          id: 'home-attention-cards'
+          optional: true
+# Mira brief visible + opens Mira (HOUSE-HOME-013, 014, MIRA-016)
+# Give Home a moment to resettle after the task-detail back-navigation above
+# before tapping — a blind tapOn here is a known source of iOS-26 timing
+# flakiness (see maestro-ios26-reduced-load-fix in project memory).
+- extendedWaitUntil:
+    visible:
+      id: 'home-mira-brief'
+    timeout: 10000
+- tapOn:
+    id: 'home-mira-brief'
+- extendedWaitUntil:
+    visible:
+      id: 'mira-chat-screen'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'mira-chat-screen'
+    commands:
+      - assertVisible:
+          id: 'mira-chat-screen'
+- runFlow: ../subflows/go-home-tab.yaml
+# Projects card (HOUSE-HOME-015)
+- runFlow:
+    when:
+      visible:
+        id: 'home-projects-card'
+    commands:
+      - assertVisible:
+          id: 'home-projects-card'
+      - tapOn:
+          id: 'home-projects-card'
+      - extendedWaitUntil:
+          visible:
+            id: 'home-project-hub-title'
+          optional: true
+          timeout: 15000
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+# Weather strip when enabled (HOUSE-HOME-022)
+- runFlow:
+    when:
+      visible:
+        id: 'home-stat-weather'
+    commands:
+      - assertVisible:
+          id: 'home-stat-weather'
+# Empty up-next CTA (HOUSE-HOME-018)
+- runFlow:
+    when:
+      visible:
+        id: 'home-up-next-empty'
+    commands:
+      - assertVisible:
+          id: 'home-up-next-empty'
+      - assertVisible:
+          id: 'home-up-next-add-task'
+# Pull-to-refresh (HOUSE-HOME-017)
+- swipe:
+    start: 50%, 30%
+    end: 50%, 80%
+- waitForAnimationToEnd:
+    timeout: 4000
+# Cancel add-task from Home — no POST (HOUSE-HOME-007)
+- runFlow:
+    when:
+      visible:
+        id: 'home-up-next-add-task'
+    commands:
+      - tapOn:
+          id: 'home-up-next-add-task'
+      - extendedWaitUntil:
+          visible:
+            id: 'add-task-sheet'
+          timeout: 10000
+      - tapOn:
+          id: 'add-task-input'
+      - inputText: 'E2E Home Cancel Task'
+      - runFlow:
+          when:
+            visible:
+              id: 'bottom-sheet-close'
+          commands:
+            - tapOn:
+                id: 'bottom-sheet-close'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'bottom-sheet-close'
+          commands:
+            - tapOn:
+                label: Close
+      - extendedWaitUntil:
+          notVisible:
+            id: 'add-task-sheet'
+          timeout: 15000

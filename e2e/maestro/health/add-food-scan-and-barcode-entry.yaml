@@ -1,0 +1,283 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:nutrition
+  - readonly
+  - regression
+# Matrix: HEALTH-NUTR-340 … HEALTH-NUTR-346
+---
+# Add Food's Quick Add rail — Barcode / Label / Photo / Scale / Manual — the
+# third of three flows closing the 2026-07-27 "Nutrition parity push" Maestro
+# gap (see `add-food-manual-entry.yaml`'s header for the full context).
+#
+# NON-MUTATING. Nothing here writes: the Barcode tile is a static notice, the
+# Manual tile is toggled open and closed without typing anything, and Label /
+# Photo / Scale each stop at proving the hand-off into `HealthScanScreen`
+# lands — the scan itself needs a native camera/photo answer this harness
+# cannot supply (same documented boundary `scan-modes-and-sources.yaml` and
+# `scan-meal-mode-controls.yaml` already draw for that screen). No teardown is
+# required, so this flow can sit anywhere in the order.
+#
+# `HealthBarcodeScanScreen` (route `/health-barcode-scan`) IS NOT DRIVEN HERE,
+# ON PURPOSE. Grepped for every call site: the Add-Food Barcode tile does NOT
+# navigate to it (`handleQuickAdd('barcode')` only sets a "coming soon"
+# message — see HEALTH-NUTR-341 below), `HealthScanScreen` has no barcode
+# affordance either (its "Nutrition label" mode chip merely reuses a
+# `barcode` GLYPH), and `tabRegistry.ts` registers the route with no pool
+# entry, `href: null`, same treatment as the Notifications/Widget settings
+# screens — mounted so expo-router CAN resolve it, never linked to from
+# anywhere a member can tap. The screen is a genuine orphan route in this
+# build: no in-app control reaches it, so no flow can drive it honestly
+# without fabricating a deep link a real member never has. Flagged in this
+# session's report, not invented as a scored row.
+#
+# A REAL DEFECT, DOCUMENTED, NOT FIXED (out of scope for a Maestro-only
+# pass). `HealthAddFoodScreen`'s Label tile pushes `/health-scan` with
+# `params: { mode: 'label' }` and Photo/Scale push the same route with
+# `params: { mode: 'meal' }` (the screen's own doc comment: "both quick-add
+# buttons open the same reader"), but `HealthScanScreen` never reads a route
+# param at all — `useState<ScanMode>('label')` is its only source for `mode`,
+# confirmed against source (no `useLocalSearchParams` import). So ALL THREE
+# tiles land on Scan in LABEL mode regardless of which was pressed. Every leg
+# below asserts the REAL, current behaviour, not the intended one.
+#
+# CROSS-GROUP PUSH, `- back` UNVERIFIED WITHOUT A DEVICE RUN. `/health-scan`
+# lives inside the `(tabs)` group; `/health-add-food` is a root-level push
+# outside it. Every leg below re-enters Add-Food fresh via
+# `subflows/go-health-add-food.yaml` immediately before touching Scan, and
+# falls back to the same subflow if `- back` does not land on
+# `health-add-food-screen`, so an uncertain pop cannot strand the rest of the
+# flow.
+#
+# GATED / SKIPS-GRACEFULLY: same contract as nutrition-log-meal.yaml.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-NUTR-340
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Enter Add Food and inventory the Quick Add rail (HEALTH-NUTR-340)
+      - runFlow:
+          file: subflows/go-health-add-food.yaml
+          env:
+            ADD_FOOD_SLOT: snacks
+      - assertVisible:
+          id: 'health-add-food-quick-barcode'
+          text: 'Barcode, coming soon'
+      - assertVisible:
+          id: 'health-add-food-quick-label'
+          text: 'Label'
+      - assertVisible:
+          id: 'health-add-food-quick-photo'
+          text: 'Photo'
+      - assertVisible:
+          id: 'health-add-food-quick-scale'
+          text: 'Scale'
+      - assertVisible:
+          id: 'health-add-food-quick-manual'
+          text: 'Manual'
+
+      # --- Barcode is a static "coming soon" notice, not a scan (NUTR-341) -
+      # LOCAL-ONLY: `handleQuickAdd('barcode')` (HealthAddFoodScreen.tsx) only
+      # calls `setMessage(COMING_SOON_MESSAGE)` and returns — confirmed
+      # against source, no api/health call on this branch at all.
+      - tapOn:
+          id: 'health-add-food-quick-barcode'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-add-food-message'
+          timeout: 10000
+      - assertVisible: 'Barcode scanning is coming soon to Symply Health. Try Label or Photo for now.'
+      # No navigation happened — still the same screen, not Scan.
+      - assertVisible:
+          id: 'health-add-food-screen'
+      - assertNotVisible:
+          id: 'health-scan-screen'
+
+      # --- Manual is a TOGGLE, not a one-way opener (HEALTH-NUTR-342) ------
+      # LOCAL-ONLY: `handleQuickAdd('manual')` just flips `showManualForm`
+      # (HealthAddFoodScreen.tsx) and `HealthManualFoodForm` fires no request
+      # on mount — nothing is typed here, so `handleSave`/`addMealEntry`
+      # (HealthManualFoodForm.tsx) is never reached either.
+      - tapOn:
+          id: 'health-add-food-quick-manual'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-manual-food-form'
+          timeout: 10000
+      - tapOn:
+          id: 'health-add-food-quick-manual'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-manual-food-form'
+          timeout: 10000
+
+      # --- Label opens the Scan screen — in LABEL mode, as always (NUTR-343)
+      - tapOn:
+          id: 'health-add-food-quick-label'
+      # Recover if drifted. Reproduced live 2026-08-02: right after this tap
+      # the app landed back on Dashboard/Home instead of Scan — the failure
+      # screenshot shows "Good morning, Andrei" / TODAY rings, not Add Food or
+      # Scan. Same SYMPTOM as the iOS-26 gesture/tap-drift class already
+      # documented and guarded for elsewhere in this suite (subflows/
+      # health-scroll-nutrition-top.yaml, subflows/focus-health-home.yaml,
+      # nutrition-meal-detail-tools.yaml's HEALTH-NUTR-174 leg) — this tap has
+      # no network write to race against (`onPress` is a synchronous
+      # `router.push`, HealthAddFoodScreen.tsx), but a 20s
+      # `extendedWaitUntil` still timing out means the app genuinely
+      # navigated away and stayed there, not a transient render delay. Same
+      # fix: re-enter Add Food and retry the SAME tile once before trusting
+      # the wait.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-scan-screen'
+          commands:
+            - runFlow:
+                file: subflows/go-health-add-food.yaml
+                env:
+                  ADD_FOOD_SLOT: snacks
+            - tapOn:
+                id: 'health-add-food-quick-label'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-scan-screen'
+          timeout: 20000
+      - assertVisible:
+          id: 'health-scan-mode-label'
+          selected: true
+      - back
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-add-food-screen'
+          commands:
+            - runFlow:
+                file: subflows/go-health-add-food.yaml
+                env:
+                  ADD_FOOD_SLOT: snacks
+
+      # --- Photo opens the SAME screen, in the SAME label mode — the mode
+      #     param `{ mode: 'meal' }` is silently dropped (HEALTH-NUTR-344,
+      #     see the header note above) ---------------------------------
+      - tapOn:
+          id: 'health-add-food-quick-photo'
+      # Recover if drifted — same tap-drift class, same fix as the Label tile
+      # above.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-scan-screen'
+          commands:
+            - runFlow:
+                file: subflows/go-health-add-food.yaml
+                env:
+                  ADD_FOOD_SLOT: snacks
+            - tapOn:
+                id: 'health-add-food-quick-photo'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-scan-screen'
+          timeout: 20000
+      - assertVisible:
+          id: 'health-scan-mode-label'
+          selected: true
+      - back
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-add-food-screen'
+          commands:
+            - runFlow:
+                file: subflows/go-health-add-food.yaml
+                env:
+                  ADD_FOOD_SLOT: snacks
+
+      # --- Scale is the fifth tile and its own control, even though it -----
+      #     currently behaves identically to Photo (HEALTH-NUTR-345) --------
+      - tapOn:
+          id: 'health-add-food-quick-scale'
+      # Recover if drifted — same tap-drift class, same fix as the Label tile
+      # above.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-scan-screen'
+          commands:
+            - runFlow:
+                file: subflows/go-health-add-food.yaml
+                env:
+                  ADD_FOOD_SLOT: snacks
+            - tapOn:
+                id: 'health-add-food-quick-scale'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-scan-screen'
+          timeout: 20000
+      - assertVisible:
+          id: 'health-scan-mode-label'
+          selected: true
+      - back
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-add-food-screen'
+          commands:
+            - runFlow:
+                file: subflows/go-health-add-food.yaml
+                env:
+                  ADD_FOOD_SLOT: snacks
+
+      # --- The screen scrolls to its end (HEALTH-NUTR-346) -----------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-add-food-screen-scroll-end'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+
+      # --- Back to the Health tab ------------------------------------------
+      # `- back` pops `/health-add-food` itself here — root-level, OUTSIDE
+      # `(tabs)`, no in-screen back affordance (see `go-health-add-food.yaml`'s
+      # header comment) — landing back on Nutrition, the only screen that
+      # ever pushed it. Reproduced live 2026-08-02: a single `- back` did not
+      # pop it — several seconds later (well past any transition) the failure
+      # screenshot still showed "Add Food" (QUICK ADD / LOG TO Snacks). The
+      # OLD fallback here (`when: notVisible health-nutrition-screen` →
+      # `go-health-nutrition.yaml`) made things worse: that subflow's first
+      # real step is `tapOn: id: tab-health-nutrition`, but the tab bar is NOT
+      # rendered while Add Food is on screen (same header note — "the tab bar
+      # is not even rendered while this screen is up, so tapping a tab id is
+      # not an option either"), so the fallback failed on a missing TAB BAR
+      # ITEM, not on the missing `- back` — masking the real symptom with an
+      # unrelated one. Same tap/gesture-drift class already documented for
+      # the Label/Photo/Scale tiles above (iOS-26 sim under load); same fix:
+      # retry the SAME gesture once while still stuck off Nutrition, THEN
+      # give the transition a real wait via `extendedWaitUntil` — mirrors
+      # `add-food-manual-entry.yaml` / `add-food-search-library-recipes.yaml`'s
+      # own teardown, which use exactly this `- back` + `extendedWaitUntil`
+      # pair (no tab-tap fallback) and pass reliably.
+      - back
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-nutrition-screen'
+          commands:
+            - back
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-screen'
+          timeout: 20000
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

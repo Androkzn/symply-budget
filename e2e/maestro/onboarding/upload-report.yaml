@@ -1,0 +1,105 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:onboarding
+  - mutation
+  - regression
+# Matrix: HOUSE-onboarding (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-onboarding.yaml
+- runFlow: ../subflows/skip-onboarding-if-onboarded.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-get-started'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_MATRIX_ROW: HOUSE-
+      # UploadReportScreen. Requires a fresh un-onboarded account.
+      # A REAL upload is now possible when scripts/e2e/seed-fixtures.sh has staged the
+      # SymplyE2E docs: "Upload Report (PDF)" (onboarding-upload-report-button) drives
+      # the 3-step R2 handshake, then a "Report Uploaded!" alert offers Continue →
+      # GarbageSetup. The real upload is attempted only when its button is present, and
+      # "Skip for Now" remains the deterministic fallback that advances to GarbageSetup.
+      #
+      # THE STEP IS NOW CONDITIONAL, and this is the flow it changes most.
+      # Reading an inspection report needs a model, so the step exists only for a
+      # member with AI access (`src/features/house/onboarding/aiSteps.ts`). The
+      # fleet E2E account has none, so on the default run the AI step below is
+      # skipped, this screen is never reached, and the assertion at the bottom —
+      # that GarbageSetup came next instead — is the whole coverage. Real upload
+      # coverage returns as soon as the E2E account is entitled; nothing here
+      # needs to change for that, the guard simply starts passing.
+      - runFlow: ../subflows/launch-onboarding.yaml
+      - runFlow:
+          when:
+            visible:
+              id: 'onboarding-ai-provider-skip'
+          commands:
+            - tapOn:
+                id: 'onboarding-ai-provider-skip'
+      # The step was correctly dropped: the screen after the AI ask is the
+      # garbage schedule, not a report upload that could not have worked.
+      - runFlow:
+          when:
+            notVisible: 'Upload Your Inspection Report'
+          commands:
+            - assertVisible: 'Set Up Garbage Collection'
+      - runFlow:
+          when:
+            visible: 'Upload Your Inspection Report'
+          commands:
+            # Real-upload path (guarded on the upload button + a created home).
+            - runFlow:
+                when:
+                  visible:
+                    id: 'onboarding-upload-report-button'
+                commands:
+                  - tapOn:
+                      id: 'onboarding-upload-report-button'
+                  # handleUpload alerts "Please create a home first" and bails when no
+                  # household exists yet — only drive the picker when that didn't fire.
+                  - runFlow:
+                      when:
+                        notVisible: 'Please create a home first'
+                      commands:
+                        - runFlow:
+                            file: ../subflows/pick-document-from-files.yaml
+                            env:
+                              DOC_NAME: 'bc-assessment.pdf'
+                              DOC_NAME_REGEX: 'bc-assessment[.]pdf'
+                        # Success alert → Continue advances to GarbageSetup.
+                        - extendedWaitUntil:
+                            visible: 'Report Uploaded'
+                            timeout: 90000
+                            optional: true
+                        - runFlow:
+                            when:
+                              visible: 'Report Uploaded'
+                            commands:
+                              - tapOn: 'Continue'
+                  - runFlow:
+                      when:
+                        visible: 'Please create a home first'
+                      commands:
+                        - tapOn: 'OK'
+            # Deterministic fallback: Skip advances if we're still on the upload screen.
+            - runFlow:
+                when:
+                  visible: 'Skip for Now'
+                commands:
+                  - tapOn: 'Skip for Now'
+            # → GarbageSetup (day grid + Continue) either way.
+            - extendedWaitUntil:
+                visible: 'Continue'
+                timeout: 30000
+
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house

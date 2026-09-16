@@ -1,0 +1,393 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:activity
+  - mutation
+  - regression
+# Matrix: HEALTH-ACT-140 … 156
+---
+# Activity tab — the three controls neither `activity-log-workout.yaml` nor
+# `activity-goals-and-session-edit.yaml` drives: the 61-type picker sheet
+# (search + category filter), the DISTANCE field it gates, and the past-window
+# ◀ / ▶ navigator.
+#
+# WHY THIS FLOW EXISTS. The other two Activity flows log through the seven
+# QUICK_WORKOUT_TYPES chips (`walk`/`run`/`strength`/`cycle`/`swim`/`yoga`/
+# `other`) and never open `HealthWorkoutTypePicker` at all — so the other 54
+# of the donor's 61 types, the search box, the category facet and the
+# distance field they gate have no device coverage. Distance is also a field
+# the RN app did not have before this wave: metres on the wire, shown in the
+# member's own unit (km here — the account's weight unit is kg, and
+# `distanceUnitFor` maps kg → km).
+#
+# `hiking` is the type this flow logs: it is in `WORKOUT_TYPES_BY_CATEGORY`'s
+# `cardio` bucket (not `outdoor`, despite the name — the donor's own grouping,
+# reproduced verbatim), it supports distance, and it is NOT one of the seven
+# quick chips, so reaching it proves the picker is the only way there.
+#
+# STATE + TEARDOWN. One session logged (`hiking`, 75 min, 8.5 km) and deleted
+# at the end. The window navigator is walked back one step and returned,
+# landing back on `windowsBack = 0` — the mount state every other Activity
+# flow assumes — before the delete, so the just-logged session (dated today)
+# is still inside the visible range when it is removed.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-ACT-140
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-activity.yaml
+      - assertVisible: 'LOG A WORKOUT'
+
+      # =================================================================
+      # The type picker sheet — search + category facet (HEALTH-ACT-141 … 144)
+      # =================================================================
+      # Local-only for the whole sheet below: `query`/`category` are
+      # HealthWorkoutTypePicker.tsx's own useState, filtering its in-memory
+      # catalogue (searchWorkoutTypes). `onSelect` only calls
+      # HealthActivityScreen's setField('type', …) — form draft state, not a
+      # write. Nothing here reaches healthActivityStorage.ts or the API client;
+      # the only network call this sheet leads to is the LOG A WORKOUT tap
+      # below, verified where it happens.
+      - tapOn:
+          id: 'health-workout-type-open-picker'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-type-search'
+          timeout: 15000
+      - assertVisible: 'Workout type'
+      - assertVisible:
+          id: 'health-workout-category-all'
+          selected: true
+
+      # --- Search narrows to the match, grouped (HEALTH-ACT-141) -----------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-141
+      - tapOn:
+          id: 'health-workout-type-search'
+      - inputText: 'hiking'
+      - hideKeyboard
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-type-option-hiking'
+          timeout: 15000
+      - assertVisible:
+          id: 'health-workout-group-cardio'
+      # A search this narrow must not also show an unrelated category's types.
+      - assertNotVisible:
+          id: 'health-workout-type-option-tennis'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Clearing the search restores the full catalogue (HEALTH-ACT-142)
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-142
+      - tapOn:
+          id: 'health-workout-type-search-clear'
+      # A "RECENTLY LOGGED" chip row (capped at 6 types, from the account's
+      # own workout history — HealthActivityScreen.tsx computes it
+      # unbounded) renders above the category list, so on a heavily-logged
+      # shared account it plus the first few categories can push `sports`
+      # (category 5 of 8) below the fold. Reproduced 2026-08-01.
+      - scrollUntilVisible:
+          element:
+            id: 'health-workout-group-sports'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-group-sports'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- The category facet filters independently of search (143, 144) ---
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-143
+      - tapOn:
+          id: 'health-workout-category-cardio'
+      - assertVisible:
+          id: 'health-workout-type-option-hiking'
+      - assertNotVisible:
+          id: 'health-workout-type-option-tennis'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-144
+      - tapOn:
+          id: 'health-workout-category-all'
+      # Same fold problem as HEALTH-ACT-142's restore-full-catalogue case
+      # above: HealthWorkoutTypePicker's type ScrollView keeps whatever scroll
+      # offset it had under the short `cardio`-filtered list, so switching
+      # back to `all` can reopen the full 61-type catalogue already scrolled
+      # past the top — with `sports` (category 5 of 8, where tennis lives)
+      # still below the fold on a heavily-logged shared account. Reproduced
+      # in a full-suite run: `tennis` never entered the viewport without an
+      # explicit scroll.
+      - scrollUntilVisible:
+          element:
+            id: 'health-workout-type-option-tennis'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-type-option-tennis'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Picking a type closes the sheet and lands on the button (145) ---
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-145
+      # Same fold problem as 142/144 above, but inverted. HEALTH-ACT-144's own
+      # scrollUntilVisible (immediately above) leaves the type ScrollView
+      # scrolled DOWN to `sports` (category 5 of 8, to prove tennis was on
+      # screen) — and `hiking` lives in `cardio`, category 1 of 8, now off the
+      # TOP of the viewport. A blind tapOn from that position targets a chip
+      # that isn't actually rendered on screen: the tap lands on nothing,
+      # HealthWorkoutTypePicker's handlePick() never fires, the sheet never
+      # closes, and the `notVisible: health-workout-type-search` wait below
+      # burns its full 15s and fails — NOT a search-field-doesn't-dismiss bug.
+      # Reproduced in a full-suite run 2026-08-02: scroll `hiking` back into
+      # view before tapping it.
+      - scrollUntilVisible:
+          element:
+            id: 'health-workout-type-option-hiking'
+          direction: UP
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-type-option-hiking'
+          timeout: 15000
+      - tapOn:
+          id: 'health-workout-type-option-hiking'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-workout-type-search'
+          timeout: 15000
+      - assertVisible: 'Hiking'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # The distance field — gated on the type, and logged with the session
+      # (HEALTH-ACT-146 … 148)
+      # =================================================================
+      # `hiking` supports distance, so the field must be on screen without
+      # having to be asked for.
+      - assertVisible:
+          id: 'health-workout-distance-input'
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-146
+      - tapOn:
+          id: 'health-workout-distance-input'
+      - inputText: '8.5'
+      - tapOn:
+          id: 'health-workout-minutes-input'
+      - inputText: '75'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'LOG A WORKOUT'
+      - assertVisible:
+          id: 'health-workout-distance-input'
+          text: '8\.5'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Logged: distance reaches the row, in the account's own unit (147)
+      # `formatDuration(75)` is "1h 15m" and `formatDistance(8500, 'km')` is
+      # "8.5 km" — both computed independently of the screen, not copied off
+      # it. Verified server-side alongside this run: `GET
+      # /health/entries?type=workout` shows the new row's `data.workout_type:
+      # "hiking"` with `data.distance_m: 8500`.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-147
+      # addWorkoutEntry() (healthActivityStorage.ts) → healthApi.logWorkout() →
+      # POST /health/entries/workouts, 201 on success.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-workout-add-button'
+      # `health-workout-row-*` only renders on a row, so reaching it is itself
+      # proof one exists. The row's own accessibility label carries type +
+      # duration + distance as one phrase, so matching it proves distance
+      # reached the ROW, not merely the payload.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-workout-row-.*'
+            SCROLL_DIR: down
+      - assertVisible:
+          id: 'health-workout-row-.*'
+          text: 'Hiking workout, 1h 15m, 8\.5 km'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /entries/workouts
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Past-window navigation — ◀ walks back a whole window, ▶ returns
+      # (HEALTH-ACT-149 … 152)
+      # =================================================================
+      # Local-only: `windowsBack`/`range` are HealthActivityScreen.tsx's own
+      # useState, and `rangeKeys`/`rangeWorkouts` are useMemo derivations over
+      # the `workouts`/`stepDays` arrays hydrate() already loaded once on
+      # mount/focus — tapping ◀/▶ never refetches, it only re-filters data
+      # already in memory.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-activity-window-previous'
+            SCROLL_DIR: up
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-149
+      - assertVisible: 'LAST 7 DAYS'
+      - tapOn:
+          id: 'health-activity-window-previous'
+      # A whole window back: the heading stops reading "LAST 7 DAYS" and
+      # becomes a dated range, and today's just-logged Hiking session drops
+      # out of a range that no longer includes today.
+      - extendedWaitUntil:
+          notVisible: 'LAST 7 DAYS'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- ▶ walks forward exactly one window, back to today (HEALTH-ACT-151)
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-151
+      - tapOn:
+          id: 'health-activity-window-next'
+      - extendedWaitUntil:
+          visible: 'LAST 7 DAYS'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Teardown: delete the Hiking session (HEALTH-ACT-152)
+      # =================================================================
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-152
+      # Cleared BEFORE the row is tapped, not right before "Delete": the row's
+      # detail sheet (HealthWorkoutSessionDetail.tsx) is a native
+      # `<Modal transparent={false}>`, and firing an openLink deep link (which
+      # e2e-clear-log/e2e-verify-network both do) while a native Modal is
+      # presented risks the same non-deterministic dismiss House's
+      # task-detail-mutations.yaml documents. Opening the sheet and reading
+      # Delete are both local, so clearing here is still a clean slate for the
+      # DELETE call fired by confirming below.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-workout-row-.*'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-workout-row-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-detail-delete'
+          timeout: 10000
+      - tapOn:
+          id: 'health-workout-detail-delete'
+      - extendedWaitUntil:
+          visible: 'Delete Hiking?'
+          timeout: 10000
+      # Confirming fires `onDelete(id)`: `setSelectedWorkoutId(null)` (closes
+      # the modal) runs synchronously before `handleDelete(id)` →
+      # deleteWorkoutEntry() → healthApi.deleteEntry() → DELETE
+      # /health/entries/:id, 200 on success — so by the time the network call
+      # resolves the modal is already gone and the badge is reachable again.
+      - tapOn: 'Delete'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-workout-row-.*'
+            text: 'Hiking workout, 1h 15m, 8\.5 km'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Back to the Health tab (HEALTH-ACT-153) --------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

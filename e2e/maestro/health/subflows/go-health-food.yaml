@@ -1,0 +1,36 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Switch to the Foods tab (route health-food, label Foods, header "Foods").
+#
+# Unlike Nutrition / Activity / Trends there is NO `tab-health-food` to tap:
+# Foods ships `defaultHidden` in brands/symply-health/brand.cjs, so it lives in
+# the More hub's "MORE TABS" section until the user pins it. Routing through the
+# hub is the point — an unpinned tab that cannot be reached is a lost feature.
+- runFlow: go-more.yaml
+# The overflow rows sit at the TOP of the More screen, but Foods is the FIFTH of
+# them, so on a short viewport it can start below the fold either way. Probe both
+# directions before tapping; the tap itself is the hard proof, not the scroll.
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-health-food'
+    direction: UP
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-health-food'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- tapOn:
+    id: 'more-tab-health-food'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-food-screen'
+    timeout: 30000

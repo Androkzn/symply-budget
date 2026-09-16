@@ -1,0 +1,158 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - feature:garden
+  - mutation
+# Matrix: HOUSE-MM-040 — a MAP-DRAWN yard plan made on one device appears on the
+# other. Runs on BOTH devices AT THE SAME TIME.
+#
+# WHY THIS PLAN AND NOT A TASK. `mm-20` already proves a shared row reaches the
+# peer, so repeating that with a different table would prove nothing new. What is
+# new here is the SHAPE of the row:
+#
+#   * `garden_plans` carries a JSON STRING (`boundary_geojson`) that every
+#     reader parses — a re-encode in transit moves every zone and feature on the
+#     other device;
+#   * `garden_plan_objects.metadata` carries a NESTED ARRAY (the zone ring). It
+#     is the only nested array in the feature, and a projection that flattened or
+#     dropped it would still sync a zone — just a rectangular one. The member's
+#     traced L-shaped back yard would arrive as a box, with nothing on screen
+#     suggesting loss.
+#
+# The ledger half of both claims is proved deterministically in
+# `localGardenPlansApi.test.ts` ("a map-drawn plan reaches the member's OTHER
+# device"). This flow is the device-level half: real relay, real AEAD, real two
+# simulators.
+#
+# WHY IT ONLY ASSERTS THE CARD. The peer's list is the first place the row
+# becomes visible, and it is the assertion that cannot pass for the wrong
+# reason — the caption is generated from `content_type` and the label from the
+# plan row, so seeing them proves the row itself arrived. Opening the peer's plan
+# and comparing geometry would be a better test and is not one Maestro can make
+# reliably: the viewer is a MapView, and this repo has measured its accessibility
+# snapshot collapsing to the status bar under load. Asserted where it is stable,
+# and the geometry is covered by the unit test named above.
+#
+# env:
+#   MM_TITLE        the plan label THIS device creates
+#   MM_PEER_TITLE   the plan label the OTHER device creates, awaited here
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+
+# ---- this device's half: draw a plan on the map --------------------------
+- runFlow: ../subflows/dismiss-garden-map-wizard.yaml
+- runFlow: ../subflows/open-gardening.yaml
+- assertVisible:
+    id: 'garden-plans-screen'
+- tapOn:
+    id: 'garden-plans-add-button'
+- extendedWaitUntil:
+    visible: 'Add yard plan'
+    timeout: 25000
+
+# The label is what the PEER will match on, so it is typed before the wizard is
+# opened — `GardenPlanUpload` owns the field and passes it through as a route
+# param.
+- tapOn:
+    id: 'garden-plan-label-input'
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'garden-plan-label-input'
+    commands:
+      - eraseText
+      - inputText: ${MM_TITLE}
+      - hideKeyboard:
+          optional: true
+
+- tapOn:
+    id: 'garden-plan-source-map'
+- extendedWaitUntil:
+    notVisible:
+      id: 'garden-map-wizard-locating'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plan-map-wizard-screen'
+    timeout: 40000
+
+# Accept the seeded lot, skip the areas step, save from the features step. The
+# wizard's own behaviour is covered by the `garden-map-wizard-*` flows; this one
+# only needs a plan to exist.
+- tapOn:
+    id: 'garden-map-wizard-next'
+- extendedWaitUntil:
+    visible:
+      id: 'garden-map-wizard-panel-areas'
+    timeout: 20000
+- tapOn:
+    id: 'garden-map-wizard-next'
+- extendedWaitUntil:
+    visible:
+      id: 'garden-map-wizard-panel-elements'
+    timeout: 25000
+- tapOn:
+    id: 'garden-map-wizard-next'
+
+# `createMapPlan` writes the plan and its objects in ONE local op, then the
+# wizard REPLACES itself with the viewer.
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plan-viewer-screen'
+    timeout: 40000
+- assertNotVisible:
+    id: 'garden-plan-viewer-loading'
+
+# Back to the list — two pops, because the upload screen is still underneath.
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'garden-plans-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plans-screen'
+    timeout: 25000
+
+# Push this device's op out before waiting on the other.
+- runFlow: mm-sync-pulse.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-relaunch-if-backgrounded.yaml
+
+# ---- the rendezvous: wait for the OTHER device's plan ---------------------
+#
+# The peer is working concurrently, so the first rounds legitimately come back
+# empty — that is the rendezvous, not a failure.
+- repeat:
+    times: 20
+    commands:
+      - runFlow:
+          when:
+            notVisible: '.*${MM_PEER_TITLE}.*'
+          commands:
+            - runFlow: mm-sync-pulse.yaml
+            - runFlow: mm-dismiss-stale-alerts.yaml
+            - runFlow: mm-relaunch-if-backgrounded.yaml
+            - runFlow: ../subflows/open-gardening.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_PEER_TITLE}.*'
+    timeout: 30000
+
+# The peer's plan — drawn on a device this one never touched — is here, and it
+# is labelled as a map plan rather than as an upload, which is only true if
+# `content_type` survived the relay.
+- assertVisible: '.*${MM_PEER_TITLE}.*'
+- assertVisible: '.*Drawn on the map.*'

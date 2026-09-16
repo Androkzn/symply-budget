@@ -1,0 +1,55 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: HOUSE-MM-021 — MODIFY an existing row and see the peer's modification
+# arrive. Runs on BOTH devices AT THE SAME TIME.
+#
+# Creation propagating is not the same guarantee as an edit propagating: a
+# create inserts a whole row, an edit ships only the changed fields and has to
+# land on a row the peer already holds. Each member edits the task THEY created
+# (different rows, so no conflict), then waits for the peer's new value.
+#
+# env:
+#   MM_TITLE       this member's task as it stands now (anchor + " v1")
+#   MM_TITLE_2     its new title (anchor + " v2")
+#   MM_PEER_TITLE_2 the peer's new title, awaited here
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow:
+    file: mm-edit-task-title.yaml
+    env:
+      MM_OPEN_TITLE: ${MM_TITLE}
+      MM_NEW_TITLE: ${MM_TITLE_2}
+- runFlow: mm-go-tasks.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE_2}.*'
+    timeout: 30000
+- assertVisible: '.*${MM_TITLE_2}.*'
+- runFlow: mm-sync-pulse.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-relaunch-if-backgrounded.yaml
+
+# Now wait for the peer's edit to land on this device.
+#
+# The peer's row is already here from phase 2 — what has to arrive is the NEW
+# title on that same row. Waiting on the new title (not on the row) is what
+# makes this an edit test rather than a repeat of MM-020.
+- repeat:
+    times: 20
+    commands:
+      - runFlow:
+          when:
+            notVisible: '.*${MM_PEER_TITLE_2}.*'
+          commands:
+            - runFlow: mm-sync-pulse.yaml
+            - runFlow: mm-dismiss-stale-alerts.yaml
+            - runFlow: mm-relaunch-if-backgrounded.yaml
+            - runFlow: mm-go-tasks.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_PEER_TITLE_2}.*'
+    timeout: 30000
+- assertVisible: '.*${MM_PEER_TITLE_2}.*'

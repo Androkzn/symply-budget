@@ -1,0 +1,42 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Opens Households (BudgetHouseholdScreen) via Profile → Invite & Household →
+# Households.
+#
+# The household manager moved UNDER Invite & Household: it is one of the hub's
+# three pushed rows, so "who is in this household" and "which household is this"
+# are finally answered in one place rather than two navigation trees apart.
+#
+# The door is PROFILE now, not More. More is the overflow-tabs hub — its ACCOUNT
+# section is gone — and Sync & Sharing (Device sync, Backup, Households, Invite &
+# Household, Export) lives on Profile, which is where the account-and-device
+# questions belong. Same hub, same two taps, different entrance.
+#
+# The FAB sits outside the ScrollView — do not scrollUntilVisible it (iOS 26 miss).
+#
+# The `fab-add-household` wait is deliberately NOT optional, and BR-016 is what
+# keeps it honest. The FAB spent the interim single-household release behind an
+# `isLocalFirst` guard that never rendered it, so every caller that creates a
+# household tapped into empty space and failed one confusing step later, on the
+# name input rather than on the missing control. BudgetHouseholdScreen renders it
+# unconditionally again now that creating a household is a real local act, so
+# this is both valid and the cheapest place to catch it disappearing again.
+- runFlow: budget-open-profile.yaml
+- tapOn:
+    id: 'budget-settings-invite-link'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-invite-screen'
+    timeout: 30000
+- tapOn:
+    id: 'budget-invite-section-households'
+- extendedWaitUntil:
+    visible: 'Households'
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'fab-add-household'
+    timeout: 30000

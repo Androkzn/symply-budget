@@ -1,0 +1,42 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:reports
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-reports (see documents/engineering/testing/matrices/)
+---
+# Open an analyzed report → ReportDetailScreen. Report cards have no testID, so we
+# tap the first card by real text and guard on there being at least one such report
+# in the account. Proxy for the ReportDetail multi-endpoint load.
+#
+# DEAD GATE FIXED: this gated on the literal 'View Report', which exists nowhere in
+# ReportsScreen.tsx — Maestro matches a regex against an element's WHOLE text, so the
+# gate never opened and every assertion below it was skipped. The real card text is
+# the status pill, `STATUS_CONFIG.completed.label === 'Ready'` (ReportsScreen.tsx:44),
+# rendered as a Typography inside plain Views, so the tap bubbles up to the card's
+# own GHTouchableOpacity → handleReportPress → navigate('ReportDetail').
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-reports.yaml
+- assertVisible:
+    id: 'reports-screen'
+# Tap the first analyzed report card if one is present.
+- runFlow:
+    when:
+      visible: 'Ready'
+    commands:
+      - tapOn: 'Ready'
+      - extendedWaitUntil:
+          visible: 'Summary'
+          timeout: 20000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+- assertVisible:
+    id: 'reports-screen'

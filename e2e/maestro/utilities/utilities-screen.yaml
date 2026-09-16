@@ -1,0 +1,37 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:utilities
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-utilities (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-utilities.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'utilities-screen'
+    timeout: 15000
+- assertVisible:
+    id: 'utilities-action-scan-bill'
+- assertVisible:
+    id: 'utilities-action-view-bills'
+- assertVisible:
+    id: 'utilities-action-analytics'
+- assertVisible:
+    id: 'utilities-provider-bc_hydro'
+- assertVisible:
+    id: 'utilities-provider-fortisbc'
+- tapOn:
+    id: 'utilities-action-analytics'
+- extendedWaitUntil:
+    visible:
+      id: 'utilities-charts-screen'
+    timeout: 10000
+# Scroll contract
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: utilities-screen-scroll-end
+

@@ -1,0 +1,70 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:households
+  - readonly
+  - regression
+# Matrix: HOUSE-PROP-003, HOUSE-PROP-004 (assessment history + year-over-year)
+---
+# The year-over-year assessment surface: per-year rows, the change percentage,
+# the assessed-value chart and the land-vs-buildings split.
+#
+# This flow is the regression net for a crash that shipped: SectionCard rendered
+# without calling useAppColors(), so every chart section threw a ReferenceError.
+# The charts only draw at 2+ years of data, which is why nothing caught it — the
+# single-year fixtures the unit tests use never mounted the component.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-property-detail.yaml
+
+- tapOn:
+    id: 'filter-tab-assessment'
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# Either the tab has data or it shows its empty state — both are valid, but one
+# of them must render. A blank tab here means the crash is back.
+- runFlow:
+    when:
+      notVisible:
+        id: 'property-assessment-empty'
+    commands:
+      - assertVisible:
+          id: 'property-assessment-upload'
+
+# Jurisdiction block: which authority assessed this property, and how to reach
+# it. Present for every Canadian province, not just BC.
+- assertVisible:
+    id: 'property-assessment-jurisdiction'
+    optional: true
+
+# The multi-year surfaces. All optional — a property with one year of data
+# legitimately has no chart — but when the chart renders it must not crash the
+# screen, which is what the assertion after it proves.
+- runFlow:
+    when:
+      visible:
+        id: 'property-assessment-chart'
+    commands:
+      - assertVisible:
+          id: 'property-assessment-chart'
+      - assertVisible:
+          id: 'chart-x-axis-labels'
+
+- runFlow:
+    when:
+      visible:
+        id: 'property-assessment-split-chart'
+    commands:
+      - assertVisible:
+          id: 'property-assessment-split-chart'
+
+# Scroll the whole tab. If any section card threw, the screen would be gone by
+# now and this assertion would fail.
+- scrollUntilVisible:
+    element:
+      id: 'property-detail-scroll'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- assertVisible:
+    id: 'property-detail-screen'

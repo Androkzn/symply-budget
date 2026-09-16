@@ -1,0 +1,333 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Soft launch (Kaizen-style): do NOT stopApp between flows — that drops the
+# Expo Dev Client ↔ Metro (:8082) session and flakes login on every flow.
+# FAST PATH: only reload+reconnect when the dashboard is NOT already up. The reload
+# was previously UNCONDITIONAL, so a warm/logged-in app got blanked by the
+# metro-devclient reload on every flow and the recovery loop could spin for minutes
+# even when nothing was wrong (a 9-min watchdog TIMEOUT with the app sitting on the
+# dashboard the whole time). Skipping it when budget-screen is already visible makes
+# each flow start instantly.
+#
+# ONBOARDING RACE — why the recovery loops below also dismiss the welcome screen.
+#
+# The single `budget-dismiss-welcome-if-needed.yaml` call in the first phase runs
+# BEFORE login. On a device that has to sign in, that is too early: the welcome
+# screen does not exist yet, its optional 12s wait finds nothing, the dismiss is
+# SKIPPED — and login then lands the app on exactly the screen nothing will ever
+# dismiss again. The `repeat` loops were the only thing still running at that
+# point and they dismissed only the Expo dev chrome, so they span every round
+# against an untouched "Welcome to Symply Budget" while each caller failed
+# waiting for budget-screen.
+#
+# Measured 2026-09-07 on Budget-A: dismiss SKIPPED at 15:20:20, login COMPLETED
+# at 15:22:45, flow still stranded on the welcome screen at 15:23:32 with
+# `onboarding-get-started` plainly in the captured hierarchy. Any Budget flow
+# that starts signed-out hits this, so the dismiss belongs in the retry, not
+# only in the one-shot before it.
+#
+# launchApp (no clearState — soft launch) pre-grants OS permissions the SAME way
+# House/Health/Kaizen's launch subflows already do. Without this, the very first
+# requestPermissionsAsync call in the app's lifetime pops the native "Would Like
+# to Send You Notifications" system alert — which lives in SpringBoard's process,
+# not the app's, so it is NOT reliably discoverable via Maestro's `visible:`
+# element queries (confirmed: every dismiss-chrome check for its text reported
+# SKIPPED while the alert sat on screen for 20+ minutes across many flow
+# attempts/relaunches). Budget was the only fleet brand missing this — its
+# launch subflow never called launchApp at all, only openLink — so it was also
+# the only brand that could ever actually hit the dialog.
+- launchApp:
+    permissions:
+      all: allow
+      faceid: allow
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-screen'
+    commands:
+      - openLink: ${E2E_METRO_DEVCLIENT_URL}
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - runFlow: connect-budget-metro.yaml
+      - runFlow: budget-dismiss-expo-dev-chrome.yaml
+      - runFlow: budget-dismiss-welcome-if-needed.yaml
+      - runFlow: budget-recover-dashboard.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-screen'
+    commands:
+      - openLink: ${E2E_METRO_DEVCLIENT_URL}
+      - runFlow: connect-budget-metro.yaml
+      - runFlow: budget-dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-screen'
+          timeout: 45000
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'auth-sign-in-email'
+          timeout: 20000
+          optional: true
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-screen'
+          commands:
+            - openLink: ${E2E_LOGIN_URL}
+            - runFlow: budget-dismiss-expo-dev-chrome.yaml
+            - waitForAnimationToEnd:
+                timeout: 8000
+      - runFlow: budget-login-email-if-needed.yaml
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+# Poll + actively dismiss rather than one passive 90s wait: the iOS
+# "Would Like to Send You Notifications" prompt fires ASYNCHRONOUSLY from a
+# first-launch native init path (not from any explicit tap in this flow), so
+# it can land at any point during this wait and then sits there — a plain
+# extendedWaitUntil never dismisses it, so it just times out at 90s with the
+# alert still covering budget-screen the whole time.
+- repeat:
+    times: 18
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-screen'
+          commands:
+            - runFlow: budget-dismiss-expo-dev-chrome.yaml
+            # Onboarding too, not just the dev chrome — see ONBOARDING RACE
+            # in the header.
+            #
+            # GATED ON THE CTA, deliberately. The subflow is only free when
+            # budget-screen IS visible; its own first block is
+            # `when: notVisible: budget-screen` -> a 12s optional wait for the
+            # CTA. The enclosing guard here is ALSO `notVisible: budget-screen`,
+            # so an unguarded call burns the full 12s on exactly the iterations
+            # these loops exist for. Stuck somewhere that is neither dashboard
+            # nor welcome (stalled login, an error dialog, mid-navigation) that
+            # is 18 x 12s per loop across three loops — past the 420s driver
+            # watchdog, turning a fast, legible flow failure into an infra hang.
+            # Gating on the CTA costs nothing when it is absent and still fires
+            # whenever it is present, which is the case the race is about.
+            - runFlow:
+                when:
+                  visible:
+                    id: 'onboarding-get-started'
+                commands:
+                  - runFlow: budget-dismiss-welcome-if-needed.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'budget-screen'
+                timeout: 5000
+                optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'auth-sign-in-email'
+    commands:
+      - openLink: ${E2E_LOGIN_URL}
+      - repeat:
+          times: 4
+          commands:
+            - runFlow:
+                when:
+                  visible: 'Open'
+                commands:
+                  - tapOn: 'Open'
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+      - runFlow: budget-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - runFlow: budget-login-email-if-needed.yaml
+- repeat:
+    times: 18
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-screen'
+          commands:
+            - runFlow: budget-dismiss-expo-dev-chrome.yaml
+            # Onboarding too, not just the dev chrome — see ONBOARDING RACE
+            # in the header.
+            #
+            # GATED ON THE CTA, deliberately. The subflow is only free when
+            # budget-screen IS visible; its own first block is
+            # `when: notVisible: budget-screen` -> a 12s optional wait for the
+            # CTA. The enclosing guard here is ALSO `notVisible: budget-screen`,
+            # so an unguarded call burns the full 12s on exactly the iterations
+            # these loops exist for. Stuck somewhere that is neither dashboard
+            # nor welcome (stalled login, an error dialog, mid-navigation) that
+            # is 18 x 12s per loop across three loops — past the 420s driver
+            # watchdog, turning a fast, legible flow failure into an infra hang.
+            # Gating on the CTA costs nothing when it is absent and still fires
+            # whenever it is present, which is the case the race is about.
+            - runFlow:
+                when:
+                  visible:
+                    id: 'onboarding-get-started'
+                commands:
+                  - runFlow: budget-dismiss-welcome-if-needed.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'budget-screen'
+                timeout: 5000
+                optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-screen'
+    commands:
+      - openLink: simplebudget:///
+      - runFlow: connect-budget-metro.yaml
+      - runFlow: budget-dismiss-expo-dev-chrome.yaml
+      - runFlow: budget-login-email-if-needed.yaml
+- repeat:
+    times: 18
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-screen'
+          commands:
+            - runFlow: budget-dismiss-expo-dev-chrome.yaml
+            # Onboarding too, not just the dev chrome — see ONBOARDING RACE
+            # in the header.
+            #
+            # GATED ON THE CTA, deliberately. The subflow is only free when
+            # budget-screen IS visible; its own first block is
+            # `when: notVisible: budget-screen` -> a 12s optional wait for the
+            # CTA. The enclosing guard here is ALSO `notVisible: budget-screen`,
+            # so an unguarded call burns the full 12s on exactly the iterations
+            # these loops exist for. Stuck somewhere that is neither dashboard
+            # nor welcome (stalled login, an error dialog, mid-navigation) that
+            # is 18 x 12s per loop across three loops — past the 420s driver
+            # watchdog, turning a fast, legible flow failure into an infra hang.
+            # Gating on the CTA costs nothing when it is absent and still fires
+            # whenever it is present, which is the case the race is about.
+            - runFlow:
+                when:
+                  visible:
+                    id: 'onboarding-get-started'
+                commands:
+                  - runFlow: budget-dismiss-welcome-if-needed.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'budget-screen'
+                timeout: 5000
+                optional: true
+# The iOS "Would Like to Send You Notifications" prompt fires ASYNCHRONOUSLY
+# from a first-launch native init path (not from any of our own explicit
+# taps), so it can pop up at any point in the many seconds this flow spends
+# waiting above — not only while a dismiss-chrome check happens to be
+# running. A single point-in-time assertVisible below has no retry, so if the
+# alert lands in that exact instant it fails regardless of how well-covered
+# every earlier wait was. Poll+dismiss here to close that race before the
+# hard assert.
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-screen'
+          commands:
+            - runFlow: budget-dismiss-expo-dev-chrome.yaml
+            - waitForAnimationToEnd:
+                timeout: 2000
+- assertVisible:
+    id: 'budget-screen'
+- extendedWaitUntil:
+    notVisible:
+      id: 'auth-sign-in-email'
+    timeout: 30000
+
+# Regression guard for the auth-hydration race fixed 2026-08-04: on a fresh
+# relaunch, isAuthenticated could rehydrate from disk before the
+# SecureStore-held access token loaded, so SubscriptionContext/useAIEntitlement/
+# DataContext fired /subscriptions/me, /households and /ai-access with no token
+# attached — a guaranteed 401 that the axios interceptor then silently
+# retried, so the UI never showed it (see authStore.ts `hasHydrated`). Assert
+# it directly rather than relying on a UI symptom that no longer exists.
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: GET
+      E2E_VERIFY_PATH: /subscriptions/me
+      E2E_VERIFY_STATUS: '401'
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: GET
+      # exact=true: a substring match here also catches every nested
+      # sub-resource (/households/:id/join-requests, .../budget/monthly-overview,
+      # ...) and false-positives on those instead of the bare list call this
+      # guard is actually about — see DataContext.tsx refreshAll().
+      E2E_VERIFY_PATH: /households
+      E2E_VERIFY_EXACT: 'true'
+      E2E_VERIFY_STATUS: '401'
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: GET
+      E2E_VERIFY_PATH: /ai-access
+      E2E_VERIFY_STATUS: '401'
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+# Regression guard for the House-chat brand leak fixed 2026-08-04:
+# useNotificationHandler's badge sync unconditionally polled the House-only
+# chat-rooms segment on every foreground, which 404s on Budget's brand-gated
+# backend (see useNotificationHandler.ts isHouseBrand() guard). Budget should
+# never call this path at all.
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: GET
+      E2E_VERIFY_PATH: /chat-rooms
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000

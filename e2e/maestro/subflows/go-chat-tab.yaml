@@ -1,0 +1,20 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- runFlow:
+    file: dismiss-stuck-sheet.yaml
+- tapOn:
+    id: 'tab-chat'
+    retryTapIfNoChange: true
+- runFlow:
+    when:
+      visible:
+        id: 'home-screen'
+    commands:
+      - openLink: simplehouse://chat
+- extendedWaitUntil:
+    visible:
+      id: 'chat-rooms-screen'
+    timeout: 30000

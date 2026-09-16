@@ -1,0 +1,71 @@
+{
+  "provider": {
+    "name": "BC Hydro",
+    "type": "electricity"
+  },
+  "account": {
+    "number": "1234567890",
+    "invoiceNumber": "INV-2026-04",
+    "serviceAddress": "123 Main St, Surrey, BC",
+    "customerName": "Test Household"
+  },
+  "billing": {
+    "periodStart": "2026-04-09",
+    "periodEnd": "2026-06-08",
+    "billingDate": "2026-06-10",
+    "dueDate": "2026-06-24"
+  },
+  "financial": {
+    "amountDue": 179.72,
+    "previousBalance": 0,
+    "paymentsReceived": null,
+    "currentCharges": 179.72,
+    "latePaymentCharge": null
+  },
+  "usage": {
+    "quantity": 1270,
+    "unit": "kWh",
+    "periodDays": 61,
+    "averageDailyUsage": 20.82,
+    "averageDailyCost": 2.95,
+    "meterNumber": "MTR-001"
+  },
+  "meterReadings": [
+    {
+      "meterNumber": "MTR-001",
+      "currentReading": 45230,
+      "currentReadingDate": "2026-06-08",
+      "previousReading": 43960,
+      "previousReadingDate": "2026-04-09",
+      "consumption": 1270,
+      "unit": "kWh",
+      "conversionFactor": null
+    }
+  ],
+  "lineItems": [
+    { "description": "Basic Charge", "amount": 24.9, "quantity": 61, "rate": 0.41, "unit": "day" },
+    { "description": "Energy charges", "amount": 142.5, "quantity": 1270, "rate": 0.1122, "unit": "kWh" },
+    { "description": "Regional transit levy", "amount": 12.32, "quantity": null, "rate": null, "unit": null }
+  ],
+  "taxes": [
+    { "description": "GST", "amount": 0 }
+  ],
+  "comparison": {
+    "lastBillUsage": 1180,
+    "lastYearUsage": 1150,
+    "unit": "kWh"
+  },
+  "rates": {
+    "basicCharge": 0.41,
+    "energyRate": 0.1122
+  },
+  "confidence": {
+    "overall": 0.92,
+    "provider": 0.98,
+    "account": 0.9,
+    "billing": 0.95,
+    "financial": 0.93,
+    "usage": 0.88
+  },
+  "rawText": "BC Hydro electricity Apr 9, 2026 to Jun 8, 2026"
+}

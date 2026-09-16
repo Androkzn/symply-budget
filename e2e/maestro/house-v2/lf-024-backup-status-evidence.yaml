@@ -1,0 +1,111 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: HOUSE-LF-024 — The status card only claims protection it can point at
+#
+# WHAT THIS PROVES
+# ----------------
+# Back up to this device, delete the archive, and the card stops saying the home
+# is protected — it says the backup is MISSING, and names when it was made.
+#
+# WHY THAT MATTERS
+# ----------------
+# A timestamp is not a backup; the file is. `lastRunAt` records that a run
+# happened and survives the archive that run produced being deleted — from this
+# very list, or from Files. Trusting it alone produces the contradiction this
+# rule exists to end: "Protected · Last backup today" printed directly above a
+# list reading "No backups on this device yet".
+#
+# It has to be a device flow. The evidence is a real folder read, and the whole
+# claim is about what the folder holds AFTER something outside the app's control
+# removed a file from it — which is exactly what a mocked listing cannot show.
+#
+# ISOLATION: leaves the device with no House archive, which is the state LF-007
+# and LF-009 already assume. Mutation only in the sense that it writes one
+# archive and then removes it.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-024
+- runFlow: lf-backup-open-backup-screen.yaml
+# Maestro has no `finally`, so a previous flow that failed mid-way can leave the
+# schedule armed and the screen longer than this one expects. Cleanup is a
+# precondition here, not a postcondition — see lf-backup-reset-state.yaml.
+- runFlow: lf-backup-reset-state.yaml
+
+# --- Write one archive --------------------------------------------------------
+- tapOn:
+    id: 'house-backup-now'
+- extendedWaitUntil:
+    visible:
+      id: 'house-backup-to-device'
+    timeout: 10000
+- tapOn:
+    id: 'house-backup-to-device'
+- extendedWaitUntil:
+    visible:
+      id: 'house-recovery-phrase-sheet'
+    timeout: 180000
+- tapOn:
+    id: 'house-recovery-phrase-done'
+- extendedWaitUntil:
+    notVisible:
+      id: 'house-recovery-phrase-sheet'
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# The card can now point at something.
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-status-title'
+    direction: UP
+    centerElement: true
+    timeout: 15000
+- assertVisible:
+    text: 'Backed up|Protected'
+
+# --- Take the file away -------------------------------------------------------
+- scrollUntilVisible:
+    element:
+      text: 'YOUR BACKUPS'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- tapOn:
+    id: 'house-backup-delete-.*'
+# Destructive, so it asks — a row that deleted on tap would be one mis-tap away
+# from removing the only copy.
+- extendedWaitUntil:
+    visible: 'Delete backup'
+    timeout: 10000
+- tapOn:
+    text: 'Delete'
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# --- The card tells the truth about it ----------------------------------------
+- assertVisible:
+    id: 'house-backup-empty-message'
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-status-title'
+    direction: UP
+    centerElement: true
+    timeout: 15000
+# Not "Protected", and not the blank "No backup yet" either — the member DID
+# back up, and the copy is gone. Saying so is the point.
+- assertVisible:
+    text: 'Backup missing'
+- assertNotVisible:
+    text: 'Protected'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

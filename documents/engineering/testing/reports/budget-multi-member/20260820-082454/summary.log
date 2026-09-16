@@ -1,0 +1,7 @@
+[mm] live report: /Users/andreitekhtelev/Desktop/Symply Ecosystem/Simply Ecosystem-budget/documents/engineering/testing/reports/budget-multi-member/20260820-082454/index.html (opens shortly, self-refreshes)
+[mm] === phase 1: enrolment (ordered) ===
+    PASS [A] mm-01-signin
+    PASS [B] mm-01-signin
+    PASS [A] mm-02-owner-create-invite
+[mm] invite code=X7LHLE
+    PASS [B] mm-03-member-join

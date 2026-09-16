@@ -1,0 +1,195 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:budget-chat
+  - pair
+  - pair:b
+  - mutation
+  - regression
+# Matrix: BUDGET-BCHAT-PAIR-002
+#
+# ── Two-member Budget V2 chat, stage B1 (device B / member B) ────────────────
+# Member B redeems the invite member A minted in stage A1, typing the code and
+# secret into the Join panel exactly as a real invitee would after being read
+# them over the phone.
+#
+# Joining REPLACES this device's own ledger with the household's — the app warns
+# about that in a destructive confirm, and this flow accepts it deliberately.
+# That is the point: afterwards both devices are bound to the SAME household id,
+# which is what makes the chat stages a genuine two-member conversation rather
+# than one account talking to itself.
+#
+# Writes stay paused until the owner approves the OOB phrase in stage A2; the
+# household key only lands in this device's mailbox after that.
+#
+# Env: PAIR_INVITE_CODE, PAIR_INVITE_SECRET.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+# The Join panel used to sit near the BOTTOM of the local-first settings card,
+# below the sync / invite / join-request buttons — as that card grew it dropped
+# off screen and had to be hunted with scrolls and swipes. It now has its own
+# screen, opened directly.
+- runFlow: ../subflows/budget-open-join.yaml
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-join-panel'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-join-panel'
+    timeout: 30000
+- tapOn:
+    id: 'budget-settings-join-code'
+- inputText: ${PAIR_INVITE_CODE}
+- runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+# Advance to the secret field rather than tapping it with the keyboard still up
+# — a tap while the first field holds focus types into the WRONG input on iOS 26
+# (see maestro-missing-hidekeyboard-wrong-field).
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-settings-join-secret'
+- inputText: ${PAIR_INVITE_SECRET}
+- runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+- hideKeyboard:
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: 'budget-settings-join-household'
+    retryTapIfNoChange: true
+# Destructive confirm: "This device's own budget will be replaced by the
+# household's shared budget."
+#
+# This is now an INLINE panel, not a native alert. It used to be an
+# `Alert.alert` whose "Join" button had to be matched as `^Join$` (a bare 'Join'
+# hits the alert TITLE and the "Join household" button behind it first). The
+# screen was redesigned mid-flight, so handle the inline panel by testID and
+# keep the alert path as a fallback for older builds.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-join-confirm-panel'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'budget-settings-join-confirm'
+    commands:
+      - tapOn:
+          id: 'budget-settings-join-confirm'
+          retryTapIfNoChange: true
+      - waitForAnimationToEnd:
+          timeout: 3000
+# Fallback: older builds put the confirmation in a native alert.
+- runFlow:
+    when:
+      visible: 'Join household?'
+    commands:
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - repeat:
+          times: 3
+          commands:
+            - runFlow:
+                when:
+                  visible: 'Join household?'
+                commands:
+                  - tapOn:
+                      text: '^Join$'
+                      retryTapIfNoChange: true
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 2500
+      - extendedWaitUntil:
+          notVisible: 'Join household?'
+          timeout: 15000
+# The outcome is an inline status line below the join button, so it can sit
+# under the fold and read as "not visible" even on success — which is exactly
+# how a run that had genuinely joined got scored as a failure. Wait on the
+# testID, scrolling to it, rather than on free text that happens to be off screen.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-join-status'
+    timeout: 60000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-settings-join-status'
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'budget-settings-join-status'
+          direction: DOWN
+          timeout: 30000
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-join-status'
+    timeout: 30000
+# The status line reports BOTH outcomes, so assert on the success wording — a
+# failed join ("Could not join. Check the invite has not expired…") must not pass.
+- assertVisible: '.*Request sent.*'
+# This device's half of the verification: six digits derived HERE, from this
+# device's own enrolment keys. The orchestrator scrapes them off the dev log and
+# stage A2 asserts the owner's screen shows the same ones — so a control plane
+# that substituted a key between the two would break this run rather than
+# silently take the household key.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-join-sas-panel'
+    timeout: 30000
+- assertVisible:
+    id: 'budget-join-sas'
+- tapOn:
+    text: 'OK'
+    optional: true
+# Backend truth: the claim really reached the control plane.
+- runFlow:
+    file: ../subflows/e2e-verify-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /claim
+      E2E_VERIFY_STATUS: '200'
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 10000
+# Leave the settings stack for the next stage. Best-effort on purpose: this
+# stage's result is already established by the assertions above, so failing it
+# on the way BACK to the dashboard would only add a failure mode, not coverage.
+#
+# `optional` on the recovery subflows, not just the tap — without it the comment
+# above was aspirational rather than true. THIS device has just replaced its
+# ledger and is awaiting approval, so the dashboard it recovers to is a
+# legitimately different screen from the one A sees, and
+# `budget-dismiss-welcome-if-needed` failed on it. A completed claim was being
+# reported as a failed stage, which then stopped the chain before the approval
+# it exists to set up.
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- openLink: simplebudget:///
+- runFlow:
+    file: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+    optional: true
+- runFlow:
+    file: ../subflows/budget-recover-dashboard.yaml
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 60000
+    optional: true

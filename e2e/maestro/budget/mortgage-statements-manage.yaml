@@ -1,0 +1,172 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:mortgage
+  - regression
+# Matrix: MORT-320 — MANIPULATE DATA WITHIN A PROPERTY: add a statement manually,
+# EDIT it manually, then CLEAN all of its data. Runs on a throwaway "E2E Data Home"
+# it creates and deletes, so it never touches the shared account's real statements
+# and re-runs cleanly. Exercises: manual add → manual edit (replace) → clear-all →
+# delete property (full wipe). iOS-26: stable testIDs + fixed values only.
+---
+- runFlow: ../subflows/budget-ensure-mortgage.yaml
+
+# Create the throwaway property (300k @ 4% fixed).
+- tapOn:
+    id: 'budget-settings-button'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000
+- tapOn:
+    id: 'mortgage-settings-add'
+- extendedWaitUntil:
+    visible: 'Set up mortgage'
+    timeout: 15000
+- tapOn: 'Main home'
+- inputText: 'E2E Data Home'
+- tapOn: 'Set up mortgage'
+- tapOn: '500000'
+- inputText: '300000'
+- tapOn: 'Set up mortgage'
+- tapOn: '5.0'
+- inputText: '4.0'
+- tapOn: 'Set up mortgage'
+- tapOn: '2875.46'
+- inputText: '2875.46'
+- tapOn: 'Set up mortgage'
+# 'Save mortgage' is below the fold on this long form. The header tap dismisses
+# the keypad; reveal Save via coordinate swipes (iOS-26 scrollUntilVisible is
+# unreliable). No-op when already visible.
+- runFlow:
+    when:
+      notVisible: 'Save mortgage'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+- tapOn: 'Save mortgage'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 20000
+
+# Open the new property's Statements (first row = newest = E2E Data Home).
+- assertVisible: '.*E2E Data Home.*'
+- tapOn: 'Statements'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-statements-screen'
+    timeout: 15000
+# A brand-new property has no statements yet.
+- assertVisible:
+    id: 'mortgage-statements-empty'
+
+# Add a statement MANUALLY (closing $475,000).
+- tapOn:
+    id: 'mortgage-statements-add'
+- extendedWaitUntil:
+    visible: 'Add statement'
+    timeout: 15000
+- tapOn: '480000' # closing-balance field (placeholder)
+- inputText: '475000'
+- tapOn: 'Add statement' # dismiss keyboard via header
+# The Save button is below the fold on this long form (scan card + 5 fields).
+# tapOn by id does not auto-scroll — reveal it via coordinate swipes first.
+- runFlow:
+    when:
+      notVisible:
+        id: 'mortgage-statement-save'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+- tapOn:
+    id: 'mortgage-statement-save'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-statements-screen'
+    timeout: 15000
+- assertVisible: '.*\$475,000.*'
+- assertVisible: '.*Manual.*'
+
+# EDIT the statement manually (tap the row → change closing to $476,000).
+- tapOn: '.*\$475,000.*'
+- extendedWaitUntil:
+    visible: 'Edit statement'
+    timeout: 15000
+- tapOn: '475000' # prefilled closing value
+- eraseText: 20
+- inputText: '476000'
+- tapOn: 'Edit statement' # dismiss keyboard via header
+# Reveal the (below-fold) Save button via coordinate swipes; no-op when visible.
+- runFlow:
+    when:
+      notVisible:
+        id: 'mortgage-statement-save'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+- tapOn:
+    id: 'mortgage-statement-save'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-statements-screen'
+    timeout: 15000
+- assertVisible: '.*\$476,000.*'
+
+# CLEAN all data for this property (clear every statement → back to empty).
+- tapOn:
+    id: 'mortgage-statements-clear'
+- assertVisible: 'Clear all statements?'
+- tapOn: 'Clear all'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-statements-empty'
+    timeout: 15000
+
+# Tidy up: delete the throwaway property entirely.
+- back
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000
+- tapOn: 'Edit'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-edit-screen'
+    timeout: 15000
+- assertVisible: '.*E2E Data Home.*'
+# 'Delete this property' sits at the very bottom of the edit form (below Save) —
+# reveal it via coordinate swipes before tapping; no-op when already visible.
+- runFlow:
+    when:
+      notVisible:
+        id: 'mortgage-edit-delete'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+- tapOn:
+    id: 'mortgage-edit-delete'
+- assertVisible: 'Delete property?'
+- tapOn: 'Delete'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000
+- assertNotVisible: '.*E2E Data Home.*'

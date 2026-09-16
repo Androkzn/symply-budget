@@ -1,0 +1,120 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: BUDGET-LF-004 — blocked-network spend save succeeds on local ledger (V2)
+# iOS sim airplane mode is a Maestro no-op; use e2e-block-network instead.
+onFlowComplete:
+  - runFlow: ../subflows/budget-network-block-off.yaml
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-004
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+# Drain stale rows from prior LF runs.
+- repeat:
+    times: 15
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: '.*E2E LF Offline Spend.*'
+          commands:
+            - swipe:
+                direction: LEFT
+                element:
+                  text: '.*E2E LF Offline Spend.*'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-delete-spent'
+                commands:
+                  - tapOn:
+                      id: 'budget-delete-spent'
+                  - tapOn: 'Delete'
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+- runFlow: ../subflows/budget-network-block-on.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: 'E2E LF Offline Spend'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: '7'
+# Blur cost so onEndEditing syncs RN state before save (New Arch / Maestro).
+- tapOn:
+    id: 'budget-item-title'
+- waitForAnimationToEnd:
+    timeout: 800
+- tapOn:
+    id: 'budget-item-form-save-header'
+# Allow runSaveAfterNativeFlush (650ms) + local ledger write.
+- waitForAnimationToEnd:
+    timeout: 2500
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-item-form'
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- extendedWaitUntil:
+    visible: '.*E2E LF Offline Spend.*'
+    timeout: 15000
+- assertVisible: '.*E2E LF Offline Spend.*'
+- runFlow: ../subflows/budget-network-block-off.yaml
+# Cleanup while API unblocked (local delete still works).
+- runFlow:
+    when:
+      visible:
+        text: '.*E2E LF Offline Spend.*'
+    commands:
+      - swipe:
+          start: '92%, 55%'
+          end: '8%, 55%'
+          duration: 800
+      - waitForAnimationToEnd:
+          timeout: 2000
+- runFlow:
+    when:
+      visible:
+        id: 'budget-delete-spent'
+    commands:
+      - tapOn:
+          id: 'budget-delete-spent'
+      - tapOn: 'Delete'
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

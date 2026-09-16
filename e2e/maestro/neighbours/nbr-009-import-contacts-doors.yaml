@@ -1,0 +1,44 @@
+# NBR-009 — the two contact doors, and what each one costs.
+#
+# Read-only by design: this flow must NOT open the OS picker or ask for address
+# book access, because a system permission dialog on a shared test device
+# survives the run and breaks every suite after it.
+#
+# What it asserts is the part that is actually ours — that the screen explains
+# the trade BEFORE either door is opened. A build that fires the system prompt
+# on arrival and lets iOS do the explaining is the regression this catches.
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:neighbours
+  - readonly
+  - regression
+# Matrix: HOUSE-NBR-016
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-neighbours.yaml
+- tapOn:
+    id: 'neighbours-add-fab'
+- tapOn:
+    id: 'neighbours-add-contacts'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-import-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'neighbour-import-intro'
+- assertVisible:
+    id: 'neighbour-import-pick-one'
+- assertVisible:
+    id: 'neighbour-import-browse'
+# The narrow door is described in terms of what it does not take.
+# Regex: the door is one accessible button labelled "<title>. <subtitle>", so
+# the privacy sentence is only ever seen inside the longer label. It has to be
+# in that label — labelling the row hides the children, and this is the line a
+# screen-reader user most needs to hear before handing over an address book.
+- assertVisible: ".*Uses your phone's own picker.*"
+# And the privacy note, which is the promise the whole family is built on.
+# Regex: the note is one node reading "Whatever you add stays on your
+# household's devices. Symply does not upload your neighbours, and never sends
+# them to an AI provider." — the sentence asserted here is its second half.
+- assertVisible: '.*Symply does not upload your neighbours, and never sends them to an AI provider\..*'

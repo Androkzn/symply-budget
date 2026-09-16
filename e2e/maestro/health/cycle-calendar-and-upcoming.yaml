@@ -1,0 +1,428 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:cycle
+  - mutation
+  - regression
+# Matrix: HEALTH-CYCLE-200 … HEALTH-CYCLE-210
+---
+# Cycle tab — the surfaces the 2026-07-26 calendar port added, which the two
+# existing Cycle flows do not touch: the MONTH CALENDAR, the WHAT'S COMING
+# card, the SLEEP scale, and the per-phase pattern line.
+#
+# ## WHY THIS FLOW EXISTS
+#
+# `cycle-log-and-predict.yaml` owns the prediction tiles, the flow chips, the
+# symptom severity walk and the craving single-select. `cycle-length-notes-
+# history.yaml` owns the length Alert, the note, the mood/energy second level
+# and the history-row delete. Both drive the tab as if it only ever logs TODAY.
+#
+# The port changed that: **any day can be logged, not just today**. Tapping a
+# calendar day moves the flow card, the scales, the chips and the note onto that
+# day. That is the single most dangerous behaviour on this screen — if the
+# selection reached the highlight but not the write, a tap would silently record
+# one day's intimate log against another date, and every surface would look
+# correct. HEALTH-CYCLE-204/205 are the proof that it reaches the write, and
+# they prove it by reading the CALENDAR back, not by trusting the form.
+#
+# Split rather than extended for the same reason the Weight and Nutrition pairs
+# are split: a mid-run XCUITest driver drop should cost one slice of a screen,
+# not all of it.
+#
+# ## GATED / SKIPS-GRACEFULLY
+#
+# The body is wrapped in `runFlow: when: visible: health-home-screen`, so it
+# runs only when the installed app already holds a session (same contract as
+# nutrition-log-meal.yaml).
+#
+# ## STATE ASSUMPTIONS
+#
+# None that a run can break. Two states depend on what the shared fleet account
+# already holds and are therefore asserted as TWO-BRANCH INVARIANTS, exactly one
+# of which must hold — never as a precondition that can pass once:
+#
+#   * WHAT'S COMING is empty until a period has ever been logged, and the anchor
+#     survives a delete (`removePeriodDay` re-anchors, it does not clear unless
+#     nothing is left);
+#   * the per-phase pattern line only exists once there is an anchor.
+#
+# Both branches assert, so neither is vacuous.
+#
+# ## TEARDOWN — everything this flow writes is put back
+#
+#   * the craving written on last month's 15th is set back to `none`, which is
+#     `createEmptySymptomEntry`'s default AND the value `hasSymptomContent`
+#     treats as "nothing logged" — so the day loses its symptom mark again.
+#     Asserting that mark disappear is BOTH the teardown and the proof;
+#   * the calendar is walked back to the current month;
+#   * the selected day resets to today on its own — `selectedDate` is component
+#     state, so leaving the tab (the last step) restores it;
+#   * the Sleep scale is left on 3. A scale has no "unset", so this is the same
+#     concession the sibling flows make for mood/energy: the value is idempotent
+#     and a re-run taps the same level.
+#
+# NOTHING here logs or deletes a period day, so the cycle ANCHOR and the derived
+# `cycle_length` are untouched — that is deliberate, because a re-anchor is the
+# one write on this tab whose blast radius reaches the other two flows.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-CYCLE-200
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- The tab opens on TODAY (HEALTH-CYCLE-200) ----------------------
+      - runFlow: subflows/go-health-cycle.yaml
+      - assertVisible: "Women's Health"
+      - assertVisible:
+          id: 'health-cycle-screen'
+      # Every card below follows this value. If the tab ever opened on a
+      # remembered day, a returning user's first tap would land on it.
+      - assertVisible:
+          id: 'health-cycle-selected-date'
+          text: 'Today'
+
+      # =================================================================
+      # The month calendar
+      # =================================================================
+      # --- The grid, its legend and its summary (HEALTH-CYCLE-201) --------
+      # Colour is never load-bearing on this card: every state is also named in
+      # the legend and in each day's accessibility label. A legend row missing
+      # is a state a colour-blind reader cannot name.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-cycle-calendar'
+            SCROLL_DIR: down
+      - assertVisible: 'CALENDAR'
+      - assertVisible:
+          id: 'health-cycle-calendar-legend'
+      - assertVisible: 'Period logged'
+      - assertVisible: 'Period expected'
+      - assertVisible: 'Fertile window estimate'
+      - assertVisible: 'Ovulation estimate'
+      - assertVisible: 'Symptoms logged'
+
+      # --- The summary marks the estimates AS estimates (HEALTH-CYCLE-202) -
+      # People read the picture, not the caveat — so the caveat sits directly
+      # under the grid. This is a product requirement (wellness, not a fertility
+      # test), not decoration.
+      - assertVisible:
+          id: 'health-cycle-calendar-summary'
+      - assertVisible:
+          id: 'health-cycle-calendar-summary'
+          text: '.*(not a fertility test|no estimates yet).*'
+
+      # --- The month can be walked back (HEALTH-CYCLE-203) ----------------
+      # The month title is a wall-clock value, so it cannot be asserted by name
+      # in a flow that runs on any date. What CAN be asserted is the
+      # consequence: after stepping back a month, no cell in the grid is today,
+      # so selecting one must move the selection off "Today" — which is exactly
+      # what the next row proves.
+      #
+      # Local-only: `onMonthChange` (HealthCycleCalendar.tsx) only calls
+      # HealthCycleScreen's `setMonth` — `shiftMonthKey`/`todayKey.slice(0, 7)`
+      # arithmetic over a useState, no network call.
+      - tapOn:
+          id: 'health-cycle-calendar-prev'
+      - assertVisible:
+          id: 'health-cycle-calendar-title'
+
+      # --- Selecting a day moves the whole log (HEALTH-CYCLE-204) ---------
+      # The 15th is used because a month grid borrows at most six padding days
+      # at each end, so a neighbouring month's 15th can never appear: the
+      # pattern matches EXACTLY one cell, and that cell is always in-month and
+      # therefore always tappable.
+      #
+      # Local-only too: `handleSelectDay` (HealthCycleScreen.tsx) only calls
+      # `setSelectedDate`/`setMonth` — tapping a day never writes anything by
+      # itself. The WRITE that follows in HEALTH-CYCLE-205 is what is verified.
+      - tapOn:
+          id: 'health-cycle-calendar-day-\d{4}-\d{2}-15'
+      # `formatDayKey` renders anything older than yesterday as the raw key, and
+      # last month's 15th is at least 28 days back — so the card now names a
+      # date rather than "Today".
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-selected-date'
+            text: '\d{4}-\d{2}-15'
+          timeout: 10000
+
+      # --- …and the WRITE follows the selection (HEALTH-CYCLE-205) --------
+      # The dangerous half. A craving is used rather than a flow level or a
+      # scale because it is the only fully reversible control on the card:
+      # `none` is both the default and the value `hasSymptomContent` reads as
+      # "nothing logged", so the teardown restores the day exactly.
+      # `persist({craving})` (HealthCycleScreen.tsx) → saveCycleSymptomEntry()
+      # → healthApi.saveCycleSymptoms() → PUT /health/cycle/symptoms, 200 on
+      # success — against the SELECTED day (the 15th), not today.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-cycle-craving-chocolate'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-craving-chocolate'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-craving-chocolate'
+            selected: true
+          timeout: 10000
+      # The proof that the write landed on the SELECTED day and not on today:
+      # the calendar cell for that day now describes itself as carrying a
+      # symptom log. This reads the record back off a different surface, so a
+      # form that merely echoed the tap could not pass it.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-cycle-calendar-legend'
+            SCROLL_DIR: up
+      - assertVisible:
+          id: 'health-cycle-calendar-day-\d{4}-\d{2}-15'
+          text: '.*symptoms logged.*'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /cycle/symptoms
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Teardown: `none` really is "nothing logged" (HEALTH-CYCLE-206) -
+      # Setting the craving back to the default must REMOVE the day's mark, not
+      # leave a row behind that keeps the dot lit. An entry that exists only
+      # because an empty one was written is not a log. Same write path as 205,
+      # PUT /health/cycle/symptoms, 200.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-cycle-craving-none'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-craving-none'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-craving-none'
+            selected: true
+          timeout: 10000
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-cycle-calendar-legend'
+            SCROLL_DIR: up
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-cycle-calendar-day-\d{4}-\d{2}-15'
+            text: '.*symptoms logged.*'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /cycle/symptoms
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Back to this month (HEALTH-CYCLE-207) --------------------------
+      # The title doubles as "return to this month" and is DISABLED while the
+      # current month is already shown — so it is only reachable when it is
+      # needed. Tapping it here is both the assertion and the teardown for the
+      # month navigation. Local-only, same `setMonth` path as HEALTH-CYCLE-203.
+      - tapOn:
+          id: 'health-cycle-calendar-title'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-calendar-summary'
+          timeout: 10000
+
+      # =================================================================
+      # WHAT'S COMING
+      # =================================================================
+      # --- Exactly one of two states holds (HEALTH-CYCLE-208) -------------
+      # Empty until a period has ever been logged. The anchor survives a delete,
+      # so on the shared fleet account either branch may be live depending on
+      # what ran before — but never both and never neither.
+      # Back to the top card, which is where the anchor signal
+      # (`health-cycle-day` vs `health-cycle-no-anchor`) lives.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-cycle-length-button'
+            SCROLL_DIR: up
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-cycle-day'
+          commands:
+            - runFlow:
+                file: subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: 'health-cycle-upcoming-empty'
+                  SCROLL_DIR: down
+            - assertVisible: 'Log a period day and these dates will appear.'
+      - runFlow:
+          when:
+            visible:
+              id: 'health-cycle-day'
+          commands:
+            - runFlow:
+                file: subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: 'health-cycle-upcoming-nextPeriod'
+                  SCROLL_DIR: down
+            # All three dates, each with a real date and a relative caption. A
+            # row that resolved to nothing would still be "visible", so both are
+            # asserted on CONTENT.
+            - assertVisible:
+                id: 'health-cycle-upcoming-fertileWindow'
+                text: '.*\d{4}-\d{2}-\d{2}.*'
+            - assertVisible:
+                id: 'health-cycle-upcoming-ovulation'
+                text: '.*\d{4}-\d{2}-\d{2}.*'
+            - assertVisible:
+                id: 'health-cycle-upcoming-nextPeriod'
+                text: '.*(Today|Tomorrow|Yesterday|in \d+ days|\d+ days ago).*'
+            - assertNotVisible:
+                id: 'health-cycle-upcoming-empty'
+
+      # =================================================================
+      # The SLEEP scale
+      # =================================================================
+      # --- It carries its own label band (HEALTH-CYCLE-209) ---------------
+      # Three identical scale rows share one `persist()`; only the key in the
+      # closure separates Sleep from Mood. `cycle_symptom_entries.sleep_quality`
+      # shipped in parity P1 with NOTHING writing it, so this row is its first
+      # client and there is no existing data to notice a mix-up.
+      #
+      # Levels 2 and 3 are walked deliberately: "Poor" and "OK" appear in the
+      # sleep band and in neither the mood nor the energy band, so a bare text
+      # assertion cannot be satisfied by the wrong row. One value could not tell
+      # a live scale from a default, so two are taken.
+      #
+      # `persist({sleepQuality})` (HealthCycleScreen.tsx) → saveCycleSymptomEntry()
+      # → healthApi.saveCycleSymptoms() → PUT /health/cycle/symptoms, 200 on
+      # success. Each tap is its own write, cleared and verified separately so
+      # the SECOND tap cannot be "proven" by the first tap's leftover call.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-cycle-sleep-2'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-sleep-2'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-sleep-value'
+            text: '2/5'
+          timeout: 10000
+      - assertVisible: 'Poor'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /cycle/symptoms
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-sleep-3'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-sleep-value'
+            text: '3/5'
+          timeout: 10000
+      - assertVisible: 'OK'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /cycle/symptoms
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # =================================================================
+      # The per-phase pattern line
+      # =================================================================
+      # --- It states a record, never advice (HEALTH-CYCLE-210) ------------
+      # This is what stands in for the donor's phase TIP rows ("focus on
+      # iron-rich foods", "great time for high-intensity workouts") — advice the
+      # app is in no position to give. Whichever branch is live, the sentence
+      # must be about the person's OWN log and must name the phase it is
+      # reading. It only exists once there is an anchor, so it is gated on the
+      # same signal as the card above.
+      - runFlow:
+          when:
+            visible:
+              id: 'health-cycle-day'
+          commands:
+            - runFlow:
+                file: subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: 'health-cycle-phase-pattern'
+                  SCROLL_DIR: down
+            - assertVisible:
+                id: 'health-cycle-phase-pattern'
+                text: '.*(Nothing logged yet in your .* phase\.|In your .* phase you have most often logged .* across \d+ logged days?\.).*'
+            # …and never a prescription.
+            - assertNotVisible: '.*Focus on iron-rich foods.*'
+            - assertNotVisible: '.*High fertility.*'
+
+      # --- Back to the Health tab ----------------------------------------
+      # Leaving the tab unmounts it, which is what resets `selectedDate` to
+      # today for the next flow.
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

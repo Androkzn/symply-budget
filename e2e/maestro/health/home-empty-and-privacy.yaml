@@ -1,0 +1,78 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:privacy
+  - readonly
+  - regression
+  - smoke
+# Matrix: HEALTH-privacy (see documents/engineering/testing/matrices/)
+---
+# HealthHomeScreen — static / empty-state surface. Pure assertions (no
+# auth-write): greeting, tagline, the WATER card. Non-interactive Views
+# asserted as text.
+#
+# GATED / SKIPS-GRACEFULLY: requires a session. The body is wrapped in
+# `runFlow: when: visible: health-home-screen` — it runs only when the installed app
+# already holds a session; otherwise the app sits at the Health login surface and
+# this flow SKIPS instead of hard-failing.
+#
+# RETIRED 2026-08-01: this flow used to also assert the WEIGHT card was
+# present, including its fresh-install empty-state copy ("No entries yet. Log
+# your first weight below."). The whole Home WEIGHT card was removed the same
+# day — both assertions are gone with it, not just made optional.
+#
+# RETIRED 2026-08-01 (found while fixing this flow's failure, not the same
+# commit): the PRIVACY rows ('PRIVACY', 'Private to your account', 'Apple
+# Health — not connected', 'AI assistance — off') and the whole COMING SOON
+# roadmap section also no longer live on Home — commit faa22f17 ("enhance
+# health activity layout customization") moved the account/data-safety copy
+# into `HealthMoreScreen.tsx` under a "PRIVACY & DATA" settings section
+# (confirmed by grep: those four strings now appear nowhere under
+# `src/features/health/screens/HealthHomeScreen.tsx` or
+# `HealthHomeWidgets.tsx`, only in `HealthMoreScreen.tsx` with new copy and
+# testIDs — "Where your data lives" / `health-setting-on-device-storage`,
+# `health-setting-apple-health`, `health-setting-ai-assistance`). That new
+# location is already fully covered by `more-settings-controls.yaml` (storage
+# + Apple Health rows) and `more-ai-access-entry.yaml` (AI assistance row), so
+# this flow drops the stale Home assertions rather than duplicating that
+# coverage at a new location. COMING SOON has no equivalent testID on More
+# yet — `scroll-all-screens.yaml` already flagged that as "a real gap, not
+# silently faked here" when it hit the same removal; not re-litigated here.
+- runFlow: subflows/launch-health.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - assertVisible:
+          id: 'health-home-screen'
+
+      # Reset scroll position — prior mutation flows may leave the list at the bottom.
+      - runFlow: subflows/health-scroll-home-top.yaml
+
+      # Greeting + privacy tagline (time-of-day greeting text varies, so assert
+      # the stable tagline instead).
+      # Copy corrected 2026-07-25: Health is backend-backed, so the screen no
+      # longer claims the data never leaves the device. Asserting the OLD
+      # sentence was asserting a privacy claim the product had retracted.
+      - assertVisible: 'Track your wellness at your own pace — your data is private to you.'
+
+      # Water + note sections render. Anchored via focus-health-home (not a
+      # bare assertVisible): on the shared E2E account the ambient
+      # notification/HealthKit permission cards are both outstanding, so WATER
+      # sits below the fold even at the absolute top of the list — see
+      # subflows/focus-health-home.yaml.
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-water-plus
+            HOME_ANCHOR: bottom
+      - assertVisible: 'WATER'
+      - assertVisible:
+          text: '/ 8 cups'
+
+      # PRIVACY rows and COMING SOON used to be asserted here — see the RETIRED
+      # 2026-08-01 header comment. Privacy/data-safety coverage now lives in
+      # more-settings-controls.yaml + more-ai-access-entry.yaml; COMING SOON has
+      # no live testID anywhere to assert (tracked as a gap in
+      # scroll-all-screens.yaml, not here).

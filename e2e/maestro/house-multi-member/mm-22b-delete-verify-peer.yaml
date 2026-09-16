@@ -1,0 +1,39 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+# Matrix: HOUSE-MM-022 (part b) — the peer's delete arrived here.
+# Runs on BOTH devices AT THE SAME TIME, after mm-22a deleted on each.
+#
+# A delete is the one op that has to *remove* something on the peer rather than
+# add or patch it, so it is the case a projection layer most easily gets wrong:
+# nothing looks broken locally when a tombstone fails to travel. It is also the
+# case a naive "apply the delta" implementation passes by doing nothing.
+#
+# env: MM_TITLE (this device's own, already gone), MM_PEER_TITLE
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-go-tasks.yaml
+# Still gone here — guards against a re-create by a late-arriving op.
+- extendedWaitUntil:
+    notVisible: '.*${MM_TITLE}.*'
+    timeout: 20000
+- runFlow: mm-sync-pulse.yaml
+
+# Wait for the peer's deletion to reach this device.
+- repeat:
+    times: 20
+    commands:
+      - runFlow:
+          when:
+            visible: '.*${MM_PEER_TITLE}.*'
+          commands:
+            - runFlow: mm-sync-pulse.yaml
+            - runFlow: mm-dismiss-stale-alerts.yaml
+            - runFlow: mm-relaunch-if-backgrounded.yaml
+            - runFlow: mm-go-tasks.yaml
+- extendedWaitUntil:
+    notVisible: '.*${MM_PEER_TITLE}.*'
+    timeout: 30000
+- assertNotVisible: '.*${MM_PEER_TITLE}.*'

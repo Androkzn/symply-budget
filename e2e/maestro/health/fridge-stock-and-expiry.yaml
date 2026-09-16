@@ -1,0 +1,940 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:fridge
+  - mutation
+  - regression
+# Matrix: HEALTH-FRIDGE-101 … HEALTH-FRIDGE-113
+---
+# Fridge tab — the donor's "Smart Fridge", rebuilt on the deployed
+# `/health/fridge` routes.
+#
+# WHAT THIS FLOW EXISTS TO PROTECT. The deployed `?expiring_within_days=7`
+# window is INCLUSIVE OF THE PAST and EXCLUDES undated items. Both facts are
+# surfaced by the screen rather than smoothed over, and both are asserted here
+# on real stock rather than in a unit test's fixture:
+#
+#   * expired food is its own group, ordered FIRST — a "what needs eating"
+#     surface that hides food which has gone off is worse than useless;
+#   * an undated item is present in the fridge and ABSENT from the Expiring
+#     view at any horizon, and the screen says so in words.
+#
+# Four items are created to reach four of the five urgency buckets — expired /
+# use today / this week / no date. Only `later` is skipped: it needs a date more
+# than 7 days out, which the quick picks do offer, but it carries no rule this
+# flow is not already proving.
+#
+# The tab ships `defaultHidden`, so this flow enters through the More hub rather
+# than the tab bar (subflows/go-health-fridge.yaml).
+#
+# GATED / SKIPS-GRACEFULLY: the body is wrapped in
+# `runFlow: when: visible: health-home-screen` so it runs only when the installed
+# app already holds a session (same contract as nutrition-log-meal.yaml).
+#
+# RELATIVE DATES COME FROM THE QUICK PICKS. Maestro cannot do date arithmetic,
+# so "today" and "in 3 days" are tapped rather than typed; only the expired item
+# uses a typed absolute date, which is safe precisely because it is in the past
+# for every run.
+#
+# ROW SELECTORS: an item row's testID carries the server-minted id
+# (`health-fridge-item-…`), which no flow can predict — so a row action is
+# selected on its id PATTERN *and* its accessibility label together
+# (`id: health-fridge-delete-.*` + `text: 'Remove Maestro Milk'`). Maestro
+# matches the label as one WHOLE string, so a row action can never be satisfied
+# by the confirm alert's own `Remove` button, nor the reverse; and naming the id
+# means a renamed control fails here rather than silently matching whatever else
+# carries that label.
+#
+# TEARDOWN: all four items are removed. The shared account is reused by every
+# other Health flow, and stale stock would move the expiring-soon counts under
+# the next run.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-FRIDGE-101
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Opens from the More hub, not the tab bar (HEALTH-FRIDGE-101) ---
+      - runFlow: subflows/go-health-fridge.yaml
+      - extendedWaitUntil:
+          visible: 'NEEDS EATING'
+          timeout: 15000
+      - assertVisible: 'Fridge'
+      - assertVisible: 'FIND'
+      - assertVisible: 'ADD AN ITEM'
+      # The tab is reachable but NOT pinned — the hub is the only door.
+      - assertNotVisible:
+          id: 'tab-health-fridge'
+
+      # --- The fridge is in exactly one of two states (HEALTH-FRIDGE-102) -
+      # A re-run inherits whatever the account holds, so neither branch can be a
+      # precondition. Both branches assert, so neither is vacuous.
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-screen-scroll-end'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'health-fridge-empty'
+          commands:
+            - assertVisible: 'Your fridge is empty. Add what you have above and Symply Health will tell you what needs eating first.'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-fridge-empty'
+          commands:
+            - assertVisible:
+                id: 'health-fridge-item-.*'
+
+      # --- An impossible date is refused in the UI (HEALTH-FRIDGE-103) ----
+      # V8 ROLLS 30 February over to 2 March, which would then sort on the wrong
+      # side of the `<= cutoff` comparison the whole window depends on. The
+      # screen refuses it with a plain-words hint — never a parser error.
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-name-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-name-input'
+      - inputText: 'Maestro Milk'
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-expiry-input'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-expiry-input'
+      - inputText: '2026-02-30'
+      - hideKeyboard
+      - assertVisible:
+          id: 'health-fridge-expiry-hint'
+      - assertVisible: 'Enter the date as YYYY-MM-DD, or leave it blank for no date.'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # BEHAVIOURAL, not `enabled: false`: React Native maps a `Pressable`'s
+      # `disabled` to an accessibility TRAIT and Maestro's `enabled` filter does
+      # not match it on this build, so the attribute assertion was silently
+      # unprovable. Pressing a disabled `Pressable` is a no-op — and a save that
+      # DID land calls `resetForm()`, so the name still being in the field is
+      # the proof nothing was filed.
+      # `handleSave` (HealthFridgeScreen.tsx) returns early on
+      # `!parsedExpiry.valid`, before `createFridgeItem` is ever called — so no
+      # `POST /health/fridge` should fire. Verified, not just inferred from the
+      # UI staying on the form.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-fridge-save-button'
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /fridge
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-name-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-fridge-name-input'
+          text: 'Maestro Milk'
+      # Clearing the field is legal — a blank expiry means "no date", which is a
+      # different fact from a bad one.
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-expiry-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-expiry-input'
+      - eraseText
+      - hideKeyboard
+      - assertNotVisible:
+          id: 'health-fridge-expiry-hint'
+
+      # --- Item 1: everything filled in (HEALTH-FRIDGE-104) ---------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-quantity-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-quantity-input'
+      - inputText: '250'
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD AN ITEM'
+      - tapOn:
+          id: 'health-fridge-unit-g'
+      - assertVisible:
+          id: 'health-fridge-unit-g'
+          selected: true
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-category-Dairy'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-category-Dairy'
+      - assertVisible:
+          id: 'health-fridge-category-Dairy'
+          selected: true
+      # Quick pick, not a typed date: only the picks know what "today" is.
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-expiry-today'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-expiry-today'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-notes-input'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-notes-input'
+      - inputText: 'Maestro E2E note'
+      - hideKeyboard
+      # The toggle keeps ONE label ("Favourite") and moves its checked state, so
+      # the state is the read-back — its caption is merged into the switch and
+      # cannot be matched on its own.
+      - tapOn:
+          id: 'health-fridge-favorite-toggle'
+      - assertVisible:
+          id: 'health-fridge-favorite-toggle'
+          checked: true
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `handleSave` → `createFridgeItem` (healthFridgeStorage.ts) →
+      # `POST /health/fridge` (health-assets.ts), 201. The same call backs
+      # every "Save" tap in this section (items 1-4 below), each cleared and
+      # verified independently.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-fridge-save-button'
+      # The form clears back to add mode, which is also what makes the next
+      # three creates possible without re-reading the screen.
+      - extendedWaitUntil:
+          visible: 'ADD AN ITEM'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /fridge
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Items 2-4: the other three urgency buckets (HEALTH-FRIDGE-105) -
+      # Each create is proven by the single sweep further down rather than by
+      # scrolling to its row here: the iOS-26 driver cannot be relied on for
+      # eight extra round trips through a New-Architecture ScrollView, and a
+      # missing item fails the sweep just as loudly.
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-name-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-name-input'
+      - inputText: 'Maestro Yoghurt'
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-expiry-3d'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-expiry-3d'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-fridge-save-button'
+      - extendedWaitUntil:
+          visible: 'ADD AN ITEM'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /fridge
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # An absolute past date is safe to type — it is expired on every run.
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-name-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-name-input'
+      - inputText: 'Maestro Relish'
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-expiry-input'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-expiry-input'
+      - inputText: '2020-01-01'
+      - hideKeyboard
+      - assertNotVisible:
+          id: 'health-fridge-expiry-hint'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-fridge-save-button'
+      - extendedWaitUntil:
+          visible: 'ADD AN ITEM'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /fridge
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # "No date" is a choice, not an omission — the pick clears the field.
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-name-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-name-input'
+      - inputText: 'Maestro Salt'
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-expiry-none'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-expiry-none'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-fridge-save-button'
+      - extendedWaitUntil:
+          visible: 'ADD AN ITEM'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /fridge
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The sweep: four buckets, urgency-ordered (HEALTH-FRIDGE-105) ---
+      # Groups render expired → today → week → later → undated, so scrolling
+      # DOWN meets them in exactly this order. Finding `expired` FIRST is the
+      # assertion, not an accident of the walk.
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-group-expired'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Maestro Relish'
+      # --- Expiry copy names the day (HEALTH-FRIDGE-106) ------------------
+      # The day count moves with the calendar, the wording does not.
+      - assertVisible: 'Expired \d+ days ago'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-group-today'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Maestro Milk'
+      - assertVisible: 'Expires today'
+      # Quantity, unit and category survived the round trip, and so did the note.
+      - assertVisible: '250 g · Dairy'
+      - assertVisible: 'Maestro E2E note'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-group-week'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Maestro Yoghurt'
+      - assertVisible: 'Expires in 3 days'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-group-undated'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Maestro Salt'
+      - assertVisible: 'No expiry date'
+      - assertVisible: 'No date recorded, so these never appear in the expiring-soon count.'
+
+      # --- The expiring-soon summary (HEALTH-FRIDGE-107) ------------------
+      # Each tile is one merged accessibility element (`<label>: <value>`), so a
+      # bare number would not match it. The counts are asserted as "at least
+      # one" rather than exactly: the account is shared, and a tile that reads 0
+      # after this flow stocked the bucket is the failure worth catching.
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-stat-expired'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-fridge-stat-expired'
+          text: 'Expired: [1-9][0-9]*'
+      - assertVisible:
+          id: 'health-fridge-stat-today'
+          text: 'Use today: [1-9][0-9]*'
+      - assertVisible:
+          id: 'health-fridge-stat-week'
+          text: 'Next 7 days: [1-9][0-9]*'
+
+      # --- The note states the cutoff it counted to (HEALTH-FRIDGE-108) ---
+      # A printed cutoff is checkable; "3 items expiring soon" is magic. The
+      # undated clause is the same honesty in the other direction.
+      - assertVisible:
+          id: 'health-fridge-window-note'
+          text: '.*everything dated on or before \d{4}-\d{2}-\d{2}.*'
+      - assertVisible:
+          id: 'health-fridge-window-note'
+          text: '.*undated.*never counted\..*'
+
+      # --- Expiring EXCLUDES undated, and says so (HEALTH-FRIDGE-109) -----
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-filter-expiring'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-filter-expiring'
+      - assertVisible:
+          id: 'health-fridge-filter-expiring'
+          selected: true
+      - assertVisible:
+          id: 'health-fridge-filter-note'
+          text: 'Dated on or before \d{4}-\d{2}-\d{2}, expired stock first\. Items with no date are not in this view\.'
+      # Scrolling to the sentinel puts the WHOLE filtered list on screen, so the
+      # negative below is about absence rather than about being off-screen.
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-screen-scroll-end'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Maestro Relish'
+      - assertNotVisible: 'Maestro Salt'
+      - assertNotVisible:
+          id: 'health-fridge-group-undated'
+
+      # --- Favourites, and the row star (HEALTH-FRIDGE-110) ---------------
+      # The FILTER tap itself is local-only: `filter` is client state applied
+      # by `viewFridge` (healthFridgeStorage.ts) over the already-loaded
+      # `items`/`expiring` arrays — no request per tap. Same is true of
+      # `health-fridge-filter-all` below and the search box further down.
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-filter-favorites'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-filter-favorites'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-screen-scroll-end'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # Only the item saved WITH the favourite toggle on is here.
+      - assertVisible: 'Maestro Milk'
+      - assertNotVisible: 'Maestro Yoghurt'
+      - assertNotVisible: 'Maestro Relish'
+      # The row star flips its own label — the icon alone would prove nothing to
+      # assistive tech or to this flow — and un-starring drops the row out of
+      # the view it is being read in.
+      # `handleFavorite` → `setFridgeFavorite` → `updateFridgeItem`
+      # (healthFridgeStorage.ts) → `PUT /health/fridge/:id`
+      # (health-assets.ts), 200. The server-minted item id is unknown to this
+      # flow, so the path is matched on the shared `/fridge/` fragment; PUT is
+      # the only verb any other in-flight call could share it with, and
+      # nothing else PUTs during this window.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-fridge-favorite-.*'
+          text: 'Unfavourite Maestro Milk'
+      - extendedWaitUntil:
+          notVisible: 'Maestro Milk'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /fridge/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-filter-all'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-filter-all'
+      - assertVisible:
+          id: 'health-fridge-filter-all'
+          selected: true
+
+      # --- Search matches name OR category (HEALTH-FRIDGE-111) ------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-search-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-search-input'
+      - inputText: 'Yogh'
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-screen-scroll-end'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Maestro Yoghurt'
+      - assertNotVisible: 'Maestro Relish'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-search-clear'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-search-clear'
+      # Donor behaviour: the needle is matched against the CATEGORY too, which
+      # is the only way "show me the dairy" works without a category filter.
+      - tapOn:
+          id: 'health-fridge-search-input'
+      - inputText: 'Dairy'
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-screen-scroll-end'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Maestro Milk'
+      - assertNotVisible: 'Maestro Salt'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-search-clear'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-search-clear'
+      # A miss says it is a MISS. "Nothing here" after a search that matched
+      # nothing reads as data loss; naming the cause does not.
+      - tapOn:
+          id: 'health-fridge-search-input'
+      - inputText: 'zzqqxx'
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-empty'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Nothing in your fridge matches that search.'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-search-clear'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-search-clear'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-fridge-search-clear'
+          timeout: 10000
+
+      # --- Edit, and the cancel that abandons it (HEALTH-FRIDGE-112) ------
+      - scrollUntilVisible:
+          element:
+            text: 'Edit Maestro Yoghurt'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-edit-.*'
+          text: 'Edit Maestro Yoghurt'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-cancel-edit'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'EDIT ITEM'
+      # Cancel drops back to add mode — the abandoned edit writes nothing.
+      # `handleCancelEdit`-equivalent here just resets local form state
+      # (`resetForm`) — no `updateFridgeItem` call, so no `PUT /health/fridge/:id`
+      # should fire.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-fridge-cancel-edit'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-fridge-cancel-edit'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /fridge/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible: 'ADD AN ITEM'
+
+      - scrollUntilVisible:
+          element:
+            text: 'Edit Maestro Yoghurt'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-edit-.*'
+          text: 'Edit Maestro Yoghurt'
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-name-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-fridge-name-input'
+      - eraseText
+      - inputText: 'Maestro Kefir'
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `handleSave` (editingId set) → `updateFridgeItem` (healthFridgeStorage.ts)
+      # → `PUT /health/fridge/:id` (health-assets.ts), 200.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-fridge-save-button'
+      # The rename lands and the expiry the edit never touched is still there —
+      # a PUT that dropped the untouched columns would show up right here.
+      - scrollUntilVisible:
+          element:
+            text: 'Remove Maestro Kefir'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /fridge/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible: 'Expires in 3 days'
+      - assertNotVisible: 'Remove Maestro Yoghurt'
+
+      # --- Teardown: empty the fridge again (HEALTH-FRIDGE-113) -----------
+      # Removing asks first. Each alert is a nested modal, so it is waited for
+      # rather than asserted straight after the tap.
+      # `handleDelete` (confirmed) → `deleteFridgeItem` (healthFridgeStorage.ts)
+      # → `DELETE /health/fridge/:id` (health-assets.ts), 200 — the same call
+      # backs all four removes below, each cleared and verified independently.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-fridge-delete-.*'
+          text: 'Remove Maestro Kefir'
+      - extendedWaitUntil:
+          visible: 'Remove item'
+          timeout: 15000
+      - assertVisible: 'Take "Maestro Kefir" out of your fridge?'
+      - tapOn:
+          text: 'Remove'
+      - extendedWaitUntil:
+          notVisible: 'Remove Maestro Kefir'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /fridge/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - scrollUntilVisible:
+          element:
+            text: 'Remove Maestro Milk'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-fridge-delete-.*'
+          text: 'Remove Maestro Milk'
+      - extendedWaitUntil:
+          visible: 'Remove item'
+          timeout: 15000
+      - tapOn:
+          text: 'Remove'
+      - extendedWaitUntil:
+          notVisible: 'Remove Maestro Milk'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /fridge/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - scrollUntilVisible:
+          element:
+            text: 'Remove Maestro Relish'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-fridge-delete-.*'
+          text: 'Remove Maestro Relish'
+      - extendedWaitUntil:
+          visible: 'Remove item'
+          timeout: 15000
+      - tapOn:
+          text: 'Remove'
+      - extendedWaitUntil:
+          notVisible: 'Remove Maestro Relish'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /fridge/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - scrollUntilVisible:
+          element:
+            text: 'Remove Maestro Salt'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-fridge-delete-.*'
+          text: 'Remove Maestro Salt'
+      - extendedWaitUntil:
+          visible: 'Remove item'
+          timeout: 15000
+      - tapOn:
+          text: 'Remove'
+      - extendedWaitUntil:
+          notVisible: 'Remove Maestro Salt'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /fridge/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Back to the Health tab ----------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

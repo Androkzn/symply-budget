@@ -1,0 +1,10 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Creates a household-chat room and lands inside it (chat-room-screen).
+# Assumes we're already on the rooms list (chat-rooms-screen) — run
+# budget-open-chat-rooms.yaml first. Env: ROOM_NAME (required).
+- runFlow:
+    file: budget-enter-chat-room.yaml

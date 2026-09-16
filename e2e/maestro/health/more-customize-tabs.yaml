@@ -1,0 +1,342 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:platform
+  - mutation
+  - regression
+# Matrix: HEALTH-TAB-034, HEALTH-TAB-036, HEALTH-TAB-037, HEALTH-TAB-038, HEALTH-TAB-043
+---
+# The shared tab-customization editor (`src/screens/settings/
+# TabCustomizationScreen.tsx`), driven on SYMPLY HEALTH's own pool.
+#
+# The unit suite (src/features/health/__tests__/areas/
+# platform.tabCustomization.test.tsx) proves the CONTRACT — the 5-slot cap, the
+# locked Home/More slots, the exact override payload Save writes, reset — with
+# `react-native-draggable-flatlist` swapped for a drag-free stand-in and every
+# other input mocked. This flow is the thing that suite cannot be: the same
+# rules enforced by the REAL screen, the real store, real MMKV/AsyncStorage
+# persistence, and the real tab bar that has to reflect the result after a
+# relaunch. Same split as `shell-customize-tabs.yaml` on Language.
+#
+# STATE: starts from whatever the bar currently is (a prior flow may have left
+# customization dirty), so the first step is a hard Reset to a known baseline —
+# Health's donor-parity four (Nutrition / Activity / Trends pinned) — rather
+# than assuming defaults.
+#
+# TEARDOWN: ends on Reset to Defaults again, so nothing pinned here leaks into
+# `more-overflow-all-tabs.yaml` or `tab-shell-five-tabs.yaml`, both of which
+# assert the SHIPPED default bar.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-TAB-034
+      - runFlow: subflows/go-more.yaml
+      - tapOn:
+          id: 'more-customize-tabs'
+      - extendedWaitUntil:
+          visible:
+            id: 'customize-tabs-screen'
+          timeout: 20000
+
+      # --- known baseline: Reset to Defaults (state assumption) -----------
+      # `resetToDefaults()` (src/stores/tabCustomizationStore.ts) queues a real
+      # write through `settingsSync.queueSync` -> debounced `PUT
+      # /api/settings/bulk` (src/api/settings.ts) — not device-local, so this
+      # reset really lands on the account, not just this device.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # This screen lists every `defaultHidden` route from brand.cjs under
+      # "IN MORE" (TabCustomizationScreen.tsx builds its pool from the raw
+      # config, unfiltered by feature flags) — Health's parity phases kept
+      # adding to that list, so "Reset to Defaults" below it now sits off
+      # screen on load. Reproduced 2026-08-01.
+      # `optional: true` added 2026-08-02: this scroll was STILL timing out on
+      # device even with the fix above — Maestro cannot reliably drive this
+      # RN New-Arch ScrollView to completion on iOS 26 (same limitation noted
+      # throughout this suite; see e.g. home-empty-and-privacy.yaml, which
+      # found that DEMANDING a scroll succeed here just makes it give up
+      # sooner, not more reliably). Degrading to "already visible" and letting
+      # the `tapOn` below do the real find-and-tap is the working pattern.
+      - scrollUntilVisible:
+          element:
+            text: 'Reset to Defaults'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn: 'Reset to Defaults'
+      - extendedWaitUntil:
+          visible: 'Reset tabs?'
+          timeout: 10000
+      - tapOn: 'Reset'
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /api/settings/bulk
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- the shipped default: four slots, Home + More locked (HEALTH-TAB-034) ---
+      - assertVisible: 'SHOWN TABS (4/4)'
+      - assertVisible:
+          id: 'tab-customize-remove-health-nutrition'
+      - assertVisible:
+          id: 'tab-customize-remove-health-activity'
+      - assertVisible:
+          id: 'tab-customize-remove-health-trends'
+      # Home has no remove control at all — it is `locked`.
+      - assertNotVisible:
+          id: 'tab-customize-remove-index'
+      - assertVisible: 'Required'
+
+      # --- Save's dirty gate (HEALTH-TAB-036) ------------------------------
+      # `HeaderActionButton` keeps ONE testID whether enabled or disabled (it
+      # flips `disabled` + `accessibilityState`, which Maestro cannot assert
+      # directly) — the unit suite pins the exact enabled/disabled boolean via
+      # the component prop. On a device the observable proof is behavioural: a
+      # no-op round trip (remove Trends, put it straight back) must leave
+      # `Reset to Defaults` — not Save — as the only way back to the baseline,
+      # so tapping Save here must NOT leave the customize screen if it is
+      # correctly disabled.
+      - tapOn:
+          id: 'tab-customize-remove-health-trends'
+      - scrollUntilVisible:
+          element:
+            id: 'tab-customize-add-health-trends'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'tab-customize-add-health-trends'
+      # `HeaderActionButton` (src/components/common/HeaderActionButton.tsx)
+      # renders `disabled={disabled}` on its `TouchableOpacity`, so RN never
+      # invokes `onPress`/`handleSave` while `!isDirty` — this tap must reach
+      # the wire nowhere, not just leave the screen visually unchanged.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'customize-tabs-save'
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /api/settings/bulk
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # A disabled button swallows the tap — the screen must still be here.
+      - assertVisible:
+          id: 'customize-tabs-screen'
+      - assertVisible: 'SHOWN TABS (4/4)'
+
+      # --- the bar is full: every "IN MORE" row is a dead tap (HEALTH-TAB-037) ---
+      # A live 12+ item hub can put the row off-screen; scroll first, then rely
+      # on the Alert (not visibility) as the hard assertion — a disabled row is
+      # a legitimate reason `tapOn` might not register a state change.
+      - scrollUntilVisible:
+          element:
+            id: 'tab-customize-add-health-habits'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'tab-customize-add-health-habits'
+      - extendedWaitUntil:
+          visible: 'Bar is full'
+          timeout: 8000
+      - tapOn: 'OK'
+      # Refused, not merely announced: the sixth tab never left the hidden list.
+      - assertVisible:
+          id: 'tab-customize-add-health-habits'
+      - assertVisible: 'SHOWN TABS (4/4)'
+
+      # --- free a slot, then pin Habits, then Save (HEALTH-TAB-038) --------
+      - scrollUntilVisible:
+          element:
+            id: 'tab-customize-remove-health-trends'
+          direction: UP
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'tab-customize-remove-health-trends'
+      - scrollUntilVisible:
+          element:
+            id: 'tab-customize-add-health-habits'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'tab-customize-add-health-habits'
+      # `handleSave` (TabCustomizationScreen.tsx) calls the store's
+      # `setOverrides`, which queues a real write through
+      # `settingsSync.queueSync` -> debounced (500ms) `PUT
+      # /api/settings/bulk` (src/api/settings.ts) — `router.back()` fires
+      # synchronously, well before that debounce elapses, so the extra
+      # `waitForAnimationToEnd` below is needed for the request to actually
+      # land before verifying it.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'customize-tabs-save'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'customize-tabs-screen'
+          timeout: 20000
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /api/settings/bulk
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- the resolved bar reflects the save: Habits in, Trends in More --
+      - assertVisible:
+          id: 'tab-health-habits'
+      - assertNotVisible:
+          id: 'tab-health-trends'
+      - tapOn:
+          id: 'tab-health-habits'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habits-screen'
+          timeout: 30000
+      - runFlow: subflows/go-more.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'more-tab-health-trends'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible:
+          id: 'more-tab-health-trends'
+
+      # --- survives a relaunch (donor-parity persistence contract) --------
+      # `health-ensure-session.yaml` already does the stop/relaunch, Metro
+      # reconnect and recovery dance (see subflows/launch-health.yaml) — no
+      # clearState, so the Zustand-persisted override on AsyncStorage survives.
+      - stopApp
+      - runFlow: subflows/health-ensure-session.yaml
+      - assertVisible:
+          id: 'tab-health-habits'
+      - assertNotVisible:
+          id: 'tab-health-trends'
+
+      # --- no foreign tab ever offered (HEALTH-TAB-043) --------------------
+      - runFlow: subflows/go-more.yaml
+      - tapOn:
+          id: 'more-customize-tabs'
+      - extendedWaitUntil:
+          visible:
+            id: 'customize-tabs-screen'
+          timeout: 20000
+      - assertNotVisible:
+          id: 'tab-customize-add-budget'
+      - assertNotVisible:
+          id: 'tab-customize-add-my-home'
+      - assertNotVisible: 'Mira'
+      - assertNotVisible: 'Contractors'
+
+      # --- TEARDOWN: back to the shipped defaults --------------------------
+      # Same real write as the baseline reset above — verified again here
+      # because this is the one that actually has to stick for every flow
+      # that runs after this one on the shared account.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      # This screen lists every `defaultHidden` route from brand.cjs under
+      # "IN MORE" (TabCustomizationScreen.tsx builds its pool from the raw
+      # config, unfiltered by feature flags) — Health's parity phases kept
+      # adding to that list, so "Reset to Defaults" below it now sits off
+      # screen on load. Reproduced 2026-08-01.
+      # `optional: true` added 2026-08-02: this scroll was STILL timing out on
+      # device even with the fix above — Maestro cannot reliably drive this
+      # RN New-Arch ScrollView to completion on iOS 26 (same limitation noted
+      # throughout this suite; see e.g. home-empty-and-privacy.yaml, which
+      # found that DEMANDING a scroll succeed here just makes it give up
+      # sooner, not more reliably). Degrading to "already visible" and letting
+      # the `tapOn` below do the real find-and-tap is the working pattern.
+      - scrollUntilVisible:
+          element:
+            text: 'Reset to Defaults'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn: 'Reset to Defaults'
+      - extendedWaitUntil:
+          visible: 'Reset tabs?'
+          timeout: 10000
+      - tapOn: 'Reset'
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /api/settings/bulk
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible: 'SHOWN TABS (4/4)'
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - runFlow: subflows/go-health-home.yaml
+      - assertVisible:
+          id: 'tab-health-trends'
+      - assertNotVisible:
+          id: 'tab-health-habits'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml

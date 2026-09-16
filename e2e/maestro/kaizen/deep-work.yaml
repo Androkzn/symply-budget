@@ -1,0 +1,28 @@
+appId: com.symply.kaizen
+---
+# Deep work — protect focus blocks. Type a topic into the composer and confirm
+# the keyboard entry lands in the field. (Add block / Open Focus settings are
+# left untapped: both call openSystemFocusSettings() which backgrounds the app.)
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/deep-work
+- extendedWaitUntil:
+    visible: 'Deep work'
+    timeout: 20000
+- assertVisible: 'Focus today'
+- assertVisible: 'Add a block'
+- assertVisible: 'Suggest Focus Mode'
+- assertVisible: 'Add block'
+# Interaction: keyboard entry into the topic field → typed text renders.
+- tapOn: 'What will you focus on?'
+- inputText: 'E2E deep focus'
+- assertVisible: 'E2E deep focus'
+- assertVisible: 'Today'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

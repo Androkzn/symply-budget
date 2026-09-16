@@ -1,0 +1,143 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:contractors
+  - mutation
+  - regression
+# Matrix: HOUSE-CMSG-001–016
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+# Contractor search mount + validation (CMSG-001, 003)
+- runFlow: ../subflows/open-contractor-search.yaml
+- assertVisible:
+    id: 'contractor-search-screen'
+- tapOn:
+    id: 'contractor-search-submit'
+- assertVisible:
+    id: 'contractor-search-title-input'
+# Search with query (CMSG-002) — may hit network/API
+- tapOn:
+    id: 'contractor-search-title-input'
+- inputText: 'Leaky faucet repair'
+# `optional: true` only — NO neutral-point tap. The tap was added on a wrong
+# premise (assumed iPad keyboard chrome) and was UNSAFE: 50%,12% is (417,145)
+# on an 834x1210 iPad, which lands on real controls — the profile avatar
+# (opens a camera Alert), the contractor photo circle (ActionSheet), a bare
+# TextInput on property-assessment. On iPhone 12% is inside the 118pt header,
+# outside the ScrollView, so it dismisses nothing at all. An `optional`
+# hideKeyboard cannot abort the flow, which is all that was ever needed here.
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'contractor-search-submit'
+- extendedWaitUntil:
+    visible:
+      id: 'contractor-search-results-screen'
+    timeout: 120000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'contractor-search-results-screen'
+    commands:
+      - assertVisible:
+          id: 'contractor-search-results-screen'
+      # Select first contractor card if present, then compose (CMSG-005–007)
+      - tapOn:
+          text: 'Compose Email'
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'compose-email-screen'
+          timeout: 30000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'compose-email-screen'
+          commands:
+            - tapOn:
+                id: 'compose-email-send'
+            - assertVisible:
+                id: 'compose-email-subject'
+            - tapOn:
+                id: 'compose-email-subject'
+            - inputText: 'E2E quote request'
+            - tapOn:
+                id: 'compose-email-body'
+            - inputText: 'Please share availability for a kitchen faucet repair.'
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+# Messages list (CMSG-008, 016)
+- runFlow: ../subflows/open-messages.yaml
+- assertVisible:
+    id: 'messages-screen'
+- runFlow:
+    when:
+      visible:
+        id: 'messages-empty-state'
+    commands:
+      - assertVisible:
+          id: 'messages-empty-state'
+# Open first conversation + send (CMSG-009, 010, 011)
+- runFlow:
+    when:
+      visible:
+        id: 'messages-search-input'
+    commands:
+      - tapOn:
+          point: 50%, 45%
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'conversation-screen'
+          timeout: 20000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'conversation-input'
+          commands:
+            - tapOn:
+                id: 'conversation-input'
+            - inputText: 'E2E contractor message'
+            - runFlow:
+                file: ../subflows/e2e-matrix-before.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  E2E_MATRIX_ROW: HOUSE-CMSG-010
+            - tapOn:
+                id: 'conversation-send'
+            - extendedWaitUntil:
+                visible: 'E2E contractor message'
+                timeout: 15000
+                optional: true
+            # Local-first contract. ConversationScreen sends via
+            # `messagesApi.create` (ConversationScreen.tsx:217), and `messagesApi`
+            # is wrapped by `createHouseLocalProxy` (src/api/messages.ts:212)
+            # whose only `remoteMethods` are the template reads — `create`
+            # resolves to `localMessagesApi.create` (localMessagesApi.ts:274).
+            # POST /households/:id/messages must therefore never be issued; the
+            # previous e2e-matrix-after check asserted the opposite.
+            - runFlow:
+                file: ../subflows/e2e-verify-no-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  APP_ID: com.symply.house
+                  E2E_VERIFY_METHOD: POST
+                  E2E_VERIFY_PATH: /messages
+            - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+            - runFlow:
+                file: ../subflows/e2e-matrix-after.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  APP_ID: com.symply.house
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true

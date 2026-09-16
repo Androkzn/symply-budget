@@ -1,0 +1,35 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+  - feature:local-first
+  - feature:two-device
+---
+# Clear any app alert left over from an earlier flow or an earlier RUN.
+#
+# These simulators are never launched with `clearState` — that would wipe the
+# local ledger this suite exists to test — so a native alert survives flow
+# boundaries and even whole runs. It is invisible to assertions (an iOS alert
+# does not remove the screen behind it from the view hierarchy, so
+# `assertVisible` on a background element still passes) while it silently
+# swallows every tap and keystroke aimed at that screen.
+#
+# Only dismissive buttons are tapped, never a confirming one. In particular
+# `Remove` / `Delete` are NOT here: this suite's delete legs tap those
+# deliberately, and a blind dismissal loop that also confirmed destructive
+# alerts would make a delete indistinguishable from a stale-alert sweep.
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          text: '^OK$'
+          optional: true
+      - tapOn:
+          text: '^Cancel$'
+          optional: true
+      - tapOn:
+          text: '^Dismiss$'
+          optional: true
+      - tapOn:
+          text: '^Not Now$'
+          optional: true

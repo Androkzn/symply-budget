@@ -1,0 +1,346 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:spend
+  - mutation
+  - regression
+# Matrix: BUDGET-SPEND (see documents/engineering/testing/matrices/budget.md)
+#
+# FOREIGN-CURRENCY RECEIPT — a Canadian member scans a US receipt.
+#
+# The scenario the feature exists for: a member whose budget is in CAD scans a
+# receipt bought in Washington State. Every amount on that paper is USD; every
+# amount in their budget is CAD; something has to multiply, and it must happen
+# exactly once, at save.
+#
+# WHY THIS FIXTURE. The US receipts in resourses/testing/US-recept*.HEIC print a
+# bare "$" and no currency code anywhere — like almost every real US receipt. So
+# the ONLY evidence they are American is the printed store address, and this
+# flow is the end-to-end proof of the rule in
+# src/screens/budget/receiptCurrencyChoice.ts: the address decides ONLY when it
+# disagrees with a home region we actually know. Hence the two setup legs below
+# (Region → Canada/BC, Currency → CAD) are not scene-dressing — without them the
+# correct behaviour is NO conversion, and the flow would be asserting a bug.
+#
+# NO SEEDING PRECONDITION — the fixture is picked from Files BY NAME.
+#
+# The Photos route needed a single-asset library to make PHOTO_INDEX mean
+# anything, which the suite's own seed-fixtures.sh run does not provide: it
+# seeds every budget image, and PHPicker orders these HEICs by EXIF capture date
+# rather than add order, so no index is stable. Picking `us-receipt-propane.jpg`
+# out of Files/SymplyE2E by filename is index-free and survives any seeding,
+# which is what lets this flow run inside the full suite.
+#
+# The old Photos path and scripts/e2e/seed-us-receipt-photos.sh still work for
+# running this flow on its own; they are simply no longer required.
+#   PHOTO_INDEX 0 = Trader Joe's   1 = fuel   2 = propane (newest-first)
+# Run this flow against a library seeded any other way and the index is
+# meaningless — the lesson budget-receipt-scan-quality.yaml paid for on
+# 2026-08-05. HEIC cannot be pushed with Maestro `addMedia` (it rejects .HEIC),
+# which is why the host seeds and this flow never calls addMedia.
+#
+# THE FIXTURE IS THE PROPANE RECEIPT, and the library holds only it.
+#
+# Seeding several made the index unreliable — these HEICs carry their original
+# EXIF capture dates, so PHPicker sorts by when the photo was TAKEN and index 2
+# returned Trader Joe's, not what the add order predicted. It also made the run
+# unkillably slow: Trader Joe's is 46 printed lines, gemini-3.5-flash took >90s,
+# and the long silent wait that needed tripped maestro-flow-run's 420s driver
+# watchdog — an infra kill with no failing assertion to read.
+#
+# US-recept-3 is one item ($5.98 + $0.54 printed tax = $6.52), scans in seconds,
+# and still prints a bare "$" against a Washington address, which is exactly the
+# detection path under test. The filename assertion below is kept as a second
+# lock: a wrong-fixture read is the failure mode this family of flows has paid
+# for repeatedly, and it must be immediate and legible rather than silent.
+#
+# ASSERTIONS ARE UNCONDITIONAL once past the AI gate, deliberately. Guarding
+# them on the review list is how budget-receipt-scan-save.yaml silently passed
+# on a device with no BYOK key (2026-08-22) — it never scanned and still went
+# green. A scan that yields nothing must fail loudly here.
+#
+# Budget is local-first BYOK: no E2E_VERIFY_PATH, the on-device SQLite write is
+# the only proof of persistence.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+
+# ── Setup: make the member Canadian ───────────────────────────────────────
+# Region → Canada / British Columbia. This is what makes a WA address "abroad".
+- runFlow: ../subflows/budget-open-settings.yaml
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-region-link'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'budget-settings-region-link'
+- extendedWaitUntil:
+    visible:
+      id: 'region-screen'
+    timeout: 15000
+- tapOn:
+    id: 'region-country-CA'
+- extendedWaitUntil:
+    visible:
+      id: 'region-sub-BC'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'region-sub-BC'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'region-sub-BC'
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-screen'
+    timeout: 15000
+
+# Currency → Canadian Dollar. The budget is now kept in CAD.
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-currency-link'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'budget-settings-currency-link'
+- extendedWaitUntil:
+    visible:
+      id: 'currency-screen'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'currency-row-CAD'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: 'currency-row-CAD'
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-screen'
+    timeout: 15000
+- scrollUntilVisible:
+    element: '.*Canadian Dollar.*'
+    direction: DOWN
+    timeout: 15000
+- assertVisible: '.*Canadian Dollar.*'
+
+# ── Scan the US receipt ───────────────────────────────────────────────────
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-scan-receipt'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-receipt-scan'
+    timeout: 15000
+    optional: true
+
+# Behind the AI gate: assert we stayed put, then stop. (Same shape as the
+# sibling scan flows — the gate is an entitlement state, not a failure.)
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-receipt-scan'
+    commands:
+      - assertVisible:
+          id: 'budget-spendings'
+      - assertVisible:
+          id: 'budget-add-menu'
+
+- runFlow:
+    when:
+      visible:
+        id: 'budget-receipt-scan'
+    commands:
+      # Pick the US propane receipt from Files BY NAME — no index to get wrong.
+      - tapOn:
+          id: 'budget-receipt-remove'
+          optional: true
+      - tapOn:
+          id: 'budget-receipt-file'
+      - runFlow:
+          file: ../subflows/pick-document-from-files.yaml
+          env:
+            DOC_NAME: us-receipt-propane.jpg
+            DOC_NAME_REGEX: 'us-receipt-propane\\.jpg'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-receipt-remove'
+          timeout: 20000
+      # PROVE THE RIGHT FILE WAS PICKED before scanning it. Without this the
+      # flow can scan a Canadian fixture, correctly decline to convert it, and
+      # fail later on a currency assertion that was never the bug — the
+      # "savings-statement.jpg" class of false red this family of flows has
+      # chased since 2026-08-05.
+      - assertVisible: '.*us-receipt-propane.*'
+      - tapOn:
+          id: 'budget-receipt-scan-button'
+      # WAIT ON THE CURRENCY CARD, NOT THE FIRST ITEM'S NAME.
+      #
+      # `budget-receipt-name` was the usual "the review rendered" anchor, and
+      # this feature invalidated it: the currency card sits ABOVE the review and
+      # for a foreign receipt is four rows tall (currency, rate, charged total,
+      # provenance caption), which pushes the first item's name field off an
+      # iPhone viewport. Maestro's `visible` means in the viewport, not merely
+      # in the hierarchy, so the wait timed out on a scan that had completely
+      # succeeded — store, date, USD and the rate were all on screen behind it.
+      #
+      # The card is the better anchor anyway: it renders the moment `scan` is
+      # set, so it means exactly "the scan returned", and it is at the top of
+      # the section so it is always in view.
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-receipt-currency-card'
+          timeout: 120000
+      - tapOn:
+          text: 'OK'
+          optional: true
+      # Now reach the review list itself, which is below the card.
+      - scrollUntilVisible:
+          element:
+            id: 'budget-receipt-name'
+          direction: DOWN
+          timeout: 20000
+      # A device with no BYOK provider key never extracts anything and every
+      # assertion below would be vacuous. Fail on the environment, loudly.
+      - assertNotVisible: '.*needs text or your AI key.*'
+
+      # ── The currency card ───────────────────────────────────────────────
+      # Present for every scan; it is the only thing on screen that says what
+      # currency the prices below are being read as.
+      - assertVisible:
+          id: 'budget-receipt-currency-card'
+      # Detected as USD from the WA address, NOT from the "$".
+      - assertVisible:
+          id: 'budget-receipt-currency'
+      - assertVisible: '.*USD.*'
+      # Foreign => the rate row is rendered and pre-filled from the lookup.
+      - assertVisible:
+          id: 'budget-receipt-rate'
+      - assertVisible: '.*1 USD =.*'
+      - assertVisible: '.*CAD.*'
+      # The caption states the rate's provenance rather than leaving a bare box.
+      - assertVisible:
+          id: 'budget-receipt-rate-caption'
+
+      # ── The review list is in the MEMBER's currency ─────────────────────
+      # The whole point of the feature: the member set CAD in Settings, so the
+      # editable Price is CAD. The USD figure the receipt actually printed is
+      # demoted to supporting working underneath it. Asserting only that a
+      # price is *present* would stay green if this inverted back, so pin the
+      # label — it is the one thing on screen that names the field's currency.
+      - assertVisible: '.*Review each item.*'
+      - assertVisible:
+          id: 'budget-receipt-name'
+      - scrollUntilVisible:
+          element:
+            id: 'budget-receipt-amount'
+          direction: DOWN
+          timeout: 10000
+      - assertVisible:
+          id: 'budget-receipt-amount'
+      - assertVisible: '.*Price \(CAD\).*'
+      # And the conversion is SHOWN, not merely applied — a member who cannot
+      # see the arithmetic has no way to check the rate did the right thing.
+      # USD's symbol is a bare "$" (only the other dollar currencies carry a
+      # country prefix), so the half worth pinning is the CA$ result: it proves
+      # the line lands in the member's currency, not merely that it rendered.
+      - assertVisible:
+          id: 'budget-receipt-line-converted'
+      - assertVisible: '.*×.*CA\$.*'
+
+      # ── The converted total ─────────────────────────────────────────────
+      # What the month will actually move by. Showing only the USD total is how
+      # a member ends up believing their CAD budget went up by $6.52.
+      - scrollUntilVisible:
+          element:
+            id: 'budget-receipt-converted-total'
+          direction: DOWN
+          timeout: 10000
+      - assertVisible:
+          id: 'budget-receipt-converted-total'
+      - assertVisible: '.*Added in CAD.*'
+
+      # ── Correcting the rate from the statement ──────────────────────────
+      # The reference rate is not what the member was actually charged: their
+      # bank adds a spread and often a foreign-transaction fee. Entering the
+      # figure from the statement derives a rate that already contains both,
+      # so the import reconciles exactly instead of approximately.
+      #
+      # The receipt's own total is whatever the scan read, so there is no
+      # fixed number to assert afterwards. What IS deterministic is the
+      # handover: the caption stops citing the reference rate and starts
+      # citing the charge, and Apply turns into Clear because there is now
+      # something to undo. Both are pure consequences of the applied total.
+      - scrollUntilVisible:
+          element:
+            id: 'budget-receipt-charged'
+          direction: UP
+          timeout: 10000
+      - tapOn:
+          id: 'budget-receipt-charged'
+      - inputText: '8.15'
+      # The decimal keypad covers the lower half of the screen and would
+      # swallow the Apply tap; dismiss it before reaching for the button.
+      - hideKeyboard
+      - tapOn:
+          id: 'budget-receipt-charged-apply'
+      - assertVisible: '.*Rate from what you were charged.*'
+      - assertVisible: 'Clear'
+
+      # Clear must hand the reference rate back — a member who mistypes their
+      # statement figure needs a way out that does not mean rescanning.
+      - tapOn:
+          id: 'budget-receipt-charged-apply'
+      - assertNotVisible: '.*Rate from what you were charged.*'
+
+      # ── Save converts, once ─────────────────────────────────────────────
+      # Save must NOT be sitting in its blocked state — that label is the
+      # feature refusing to import at par, and reaching it here would mean the
+      # rate lookup produced nothing.
+      - assertNotVisible: 'Enter exchange rate'
+      - scrollUntilVisible:
+          element:
+            id: 'budget-receipt-save'
+          direction: DOWN
+          timeout: 10000
+      - tapOn:
+          id: 'budget-receipt-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-spendings'
+          timeout: 20000
+      - assertVisible:
+          id: 'budget-add-menu'
+      # Landing back on Spent proves NAVIGATION, not persistence. Budget is
+      # local-first, so the on-device SQLite write is the only proof there is.
+      - runFlow:
+          file: ../subflows/e2e-verify-persist.yaml
+          env:
+            APP_ID: com.symply.budget
+            E2E_APP_SCHEME: simplebudget
+            E2E_VERIFY_STORE: budget_sqlite
+            E2E_VERIFY_OPERATION: upsert
+            E2E_VERIFY_DETAIL_INCLUDES: expenses
+      - runFlow:
+          when:
+            true: ${E2E_PLATFORM != 'android'}
+          commands:
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000

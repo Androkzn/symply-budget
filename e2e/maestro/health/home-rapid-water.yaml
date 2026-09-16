@@ -1,0 +1,151 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:home
+  - feature:water
+  - mutation
+  - regression
+# Matrix: HEALTH-HOME-063, HEALTH-HOME-130
+---
+# `adjustWater` is a read-modify-write with no queue and `handleWater` is
+# fire-and-forget (`onPress={() => void handleWater(1)}`), so a burst of taps
+# OVERLAPS rather than queues. Two different claims are checked, in order:
+#
+#   HOME-063  the on-screen counter reaches 5 — the optimistic arithmetic held;
+#   HOME-130  the count is still 5 after a tab round trip — the writes actually
+#             LANDED. This is the half that matters: an optimistic counter that
+#             reaches 5 while only 3 rows reached the Worker looks identical on
+#             screen until the next cold start, and the tab switch is the cheapest
+#             way to force a real re-read (Home re-hydrates on focus).
+#
+# Also tagged `feature:water` so `scripts/e2e/run-feature.sh health water` picks
+# it up alongside the water-*.yaml flows — it is a water flow that happens to
+# live on Home.
+- runFlow: subflows/launch-health.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-HOME-063
+      # The WATER card sits below the weight card and is off the bottom of the
+      # screen at the resting scroll position — the `optional: true` minus taps
+      # below silently no-opped and `health-water-cups-count` was never visible.
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-water-plus
+            HOME_ANCHOR: bottom
+      # Reset counter so prior flows do not affect the final count.
+      - repeat:
+          times: 12
+          commands:
+            - tapOn:
+                id: 'health-water-minus'
+                optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+          timeout: 10000
+      # The burst itself: `adjustWater(1)` → `healthApi.addWater` → POST
+      # /health/water/entries (201) per tap (src/features/health/
+      # healthLocalStorage.ts, src/api/health.ts). The 5 taps overlap rather
+      # than queue (see the header), so this only confirms the LAST of the 5
+      # landed with 201 — HEALTH-HOME-130 below is what actually proves all 5
+      # persisted, by forcing a real re-read after a tab round trip.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - repeat:
+          times: 5
+          commands:
+            - tapOn:
+                id: 'health-water-plus'
+      # An unguarded rapid-tap burst can occasionally drift clean off Home —
+      # the same iOS-26 driver-under-load phenomenon already documented in
+      # subflows/health-scroll-nutrition-top.yaml and subflows/go-more.yaml
+      # (a raw gesture burst lands on an unrelated tab with no tap command
+      # responsible; confirmed 2026-07-31 via maestro.log — the 2nd of 5 taps
+      # here failed 18s later with "Element not found", i.e. Home was already
+      # gone). Recover before asserting rather than let a driver glitch read
+      # as a lost write; the '5 cups' check below still hard-fails if a POST
+      # actually dropped, so this does not soften HEALTH-HOME-063.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-home-screen'
+          commands:
+            - tapOn:
+                id: 'tab-index'
+                retryTapIfNoChange: true
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-home-screen'
+                timeout: 30000
+            - runFlow:
+                file: subflows/focus-health-home.yaml
+                env:
+                  FOCUS_ID: health-water-plus
+                  HOME_ANCHOR: bottom
+      # Scoped to the count node: "/ 8 cups" is on screen at every count, so a
+      # bare '5 cups' match could be satisfied by the target suffix.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '5 cups'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- The burst actually LANDED (HEALTH-HOME-130) ---------------------
+      # Leave the screen and come back. Home re-hydrates through
+      # `loadWaterToday()` on focus, which re-reads `/water/summary/daily` — so
+      # a count that survives this round trip is the SERVER's, not the
+      # optimistic one the taps left in component state. A lost write inside the
+      # burst shows up here as 4 (or fewer) and nowhere else.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-HOME-130
+      - runFlow: subflows/go-more.yaml
+      - runFlow: subflows/go-health-home.yaml
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-water-plus
+            HOME_ANCHOR: bottom
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '5 cups'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Teardown --------------------------------------------------------
+      # Drain back to zero: the count is a persisted daily total and every
+      # other water flow starts by assuming it owns the day.
+      - repeat:
+          times: 12
+          commands:
+            - tapOn:
+                id: 'health-water-minus'
+                optional: true

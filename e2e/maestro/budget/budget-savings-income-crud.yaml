@@ -1,0 +1,283 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - mutation
+  - regression
+# Matrix: BUDGET-SAVE-004 / BUDGET-SAVE-005 / BUDGET-SAVE-006 / BUDGET-SAVE-049 /
+#         BUDGET-SAVE-052
+#
+# Savings → Income, the full lifecycle on a real device: create → read back →
+# EDIT (amount + member) → read the edit back → DELETE from the row's own swipe
+# action → prove it is gone.
+#
+# Why this exists. Income EDIT had no device coverage at all — `BUDGET-SAVE-005`
+# was satisfied by `SavingsEntryForm.test.tsx`, which mocks `savingsApi`, so
+# nothing proved `updateIncome` reaches the Worker or that the list re-reads
+# after it. Delete was device-covered only through the entry FORM
+# (budget-savings-irregular-income.yaml); the row's swipe actions
+# (`savings-income-edit` / `-copy` / `-delete`) had never been driven at all.
+#
+# ADDRESSING NOTE — why the label is never typed. Income has no free-text name:
+# `persistEntry` DERIVES the label from member + source ("Andrei Freelance",
+# or just "Freelance" with no member). That is exactly what makes the edit
+# assertable here: switching the entry from no-member to a real member makes
+# the SERVER recompute the row title, so a passing assertion proves the write
+# round-tripped rather than that the UI repainted what we typed.
+#
+# `freelance` is the source throughout so the cleanup drain can be scoped to
+# `savings-income-source-freelance` and cannot touch the household's real
+# payroll/rental income.
+#
+# MUTATING but self-cleaning and re-entrant.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget
+      E2E_MATRIX_ROW: BUDGET-SAVE-005
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-income'
+- runFlow:
+    file: ../subflows/budget-savings-force-subtab.yaml
+    env:
+      E2E_SUBTAB: income
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 20000
+
+# --- Pre-clean: drain every leftover `freelance` row from an aborted run. Two
+# of them would make the tap-by-source steps below land on an arbitrary one and
+# the closing assertNotVisible unsatisfiable.
+- runFlow:
+    file: ../subflows/budget-savings-drain-income-source.yaml
+    env:
+      E2E_INCOME_SOURCE: freelance
+
+# ============================ CREATE ============================
+- scrollUntilVisible:
+    element:
+      id: 'savings-add-income'
+    direction: UP
+    timeout: 10000
+    optional: true
+    centerElement: true
+# Rewind to the Add button before tapping it. "Add / Copy / Import (AI)" sits
+# at the TOP of the Income tab, above the entries list, so once the list has
+# been scrolled it is off screen and the tap silently misses — the form never
+# opens and it surfaces later as "savings-entry-form is visible" being false
+# (2026-08-26: screenshot shows the Income tab correctly selected with the
+# entries list scrolled past the button row entirely).
+- scrollUntilVisible:
+    element:
+      id: 'savings-add-income'
+    direction: UP
+    timeout: 15000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-add-income'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-form'
+    timeout: 20000
+- assertVisible: 'Add income'
+# No member on the create pass — the derived label is therefore the bare source
+# label ("Freelance"), which the EDIT pass below will change.
+- tapOn:
+    id: 'savings-entry-amount'
+- inputText: '321'
+# Assert what the field actually holds, the moment it is typed and while it is
+# still on screen. `inputText` can drop or duplicate characters, and the money
+# figure is what every later assertion in this flow is pegged to — catching a
+# bad value here names the cause instead of surfacing three steps later as a
+# mysterious "row not found".
+- assertVisible:
+    id: 'savings-entry-amount'
+    text: '321'
+- hideKeyboard:
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-source-freelance'
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+- tapOn:
+    id: 'savings-entry-source-freelance'
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-form-save-header'
+    direction: UP
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: 'savings-entry-form-save-header'
+
+# --- Read the create back. formatBudgetCurrency drops cents on whole dollars:
+# 32100c => "$321". The amount is a Text node inside the row's accessible
+# TouchableOpacity, so iOS folds it into the row's merged accessibility label —
+# the only queryable copy lives inside that longer string, hence `.*…​.*`.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 25000
+- scrollUntilVisible:
+    element:
+      id: 'savings-income-source-freelance'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 5
+    centerElement: true
+- assertVisible:
+    id: 'savings-income-source-freelance'
+- assertVisible: '.*\$321.*'
+# The list total is a real BE-computed figure, and it only renders once the
+# month has at least one entry — so its presence is a load-bearing check that
+# the entry landed in THIS month, not a neighbouring one.
+- assertVisible:
+    id: 'savings-income-total'
+# The row title is the DERIVED label — the human "Freelance", not the raw
+# `freelance` enum — and with no member attached it is the source label alone.
+- assertVisible: '.*Freelance.*'
+
+# ============================= EDIT =============================
+# Tap the row (its whole body navigates to the edit form — same target the
+# swipe "Edit" action uses).
+- tapOn:
+    id: 'savings-income-source-freelance'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-form'
+    timeout: 20000
+- assertVisible: 'Edit income'
+# The form is showing the SERVER's copy of the entry — proof the create
+# persisted rather than merely repainted.
+- assertVisible:
+    id: 'savings-entry-amount'
+- tapOn:
+    id: 'savings-entry-amount'
+- eraseText: 16
+- inputText: '654'
+# Assert what the field actually holds, the moment it is typed and while it is
+# still on screen. `inputText` can drop or duplicate characters, and the money
+# figure is what every later assertion in this flow is pegged to — catching a
+# bad value here names the cause instead of surfacing three steps later as a
+# mysterious "row not found".
+- assertVisible:
+    id: 'savings-entry-amount'
+    text: '654'
+- hideKeyboard:
+    optional: true
+# Attach a member. Household member ids are UUIDs, so the row is matched by a
+# negative-lookahead regex that skips the picker button and the "No member"
+# option — and the sheet's real rows can still be in flight when it opens, so
+# wait for one before tapping rather than racing it.
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-member-picker'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+    centerElement: true
+- tapOn:
+    id: 'savings-entry-member-picker'
+- extendedWaitUntil:
+    visible: 'Select member'
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-member-(?!picker|none).*'
+    timeout: 15000
+- tapOn:
+    id: 'savings-entry-member-(?!picker|none).*'
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-form-save-header'
+    direction: UP
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: 'savings-entry-form-save-header'
+
+# --- Read the edit back. The new amount is there, the old one is not, and the
+# row's source chip is unchanged (the edit changed the entry, not its identity).
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 25000
+- scrollUntilVisible:
+    element:
+      id: 'savings-income-source-freelance'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 5
+    centerElement: true
+- assertVisible: '.*\$654.*'
+- assertNotVisible: '.*\$321.*'
+
+# ============================ DELETE ============================
+# Through the ROW's swipe action this time, not the form — `savings-income-delete`
+# is otherwise never driven by any flow. `NativeSwipeable` reveals its right
+# actions on a leftward swipe over the row itself.
+- swipe:
+    direction: LEFT
+    element:
+      id: 'savings-income-source-freelance'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income-delete'
+    timeout: 15000
+# The swipe row also carries Edit and Copy — assert them here so a regression
+# that drops an action from the set fails loudly instead of silently.
+- assertVisible:
+    id: 'savings-income-edit'
+- assertVisible:
+    id: 'savings-income-copy'
+- tapOn:
+    id: 'savings-income-delete'
+# The confirm alert is TITLED "Delete income", so the confirm button needs the
+# anchored '^Delete$' — an unanchored 'Delete' matches the title first.
+- extendedWaitUntil:
+    visible: 'Delete income'
+    timeout: 10000
+- tapOn: '^Delete$'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 25000
+
+# --- Proof the household is clean, swept over the whole list.
+- runFlow:
+    file: ../subflows/budget-savings-drain-income-source.yaml
+    env:
+      E2E_INCOME_SOURCE: freelance
+- scrollUntilVisible:
+    element:
+      id: 'savings-income-source-freelance'
+    direction: DOWN
+    timeout: 10000
+    visibilityPercentage: 5
+    optional: true
+    centerElement: true
+- assertNotVisible:
+    id: 'savings-income-source-freelance'
+# NOT `assertNotVisible: '.*\$654.*'`. The source-scoped check above already
+# proves this flow's row is gone, and it is scoped to a source the household's
+# real income never uses. A bare AMOUNT is not: it matches any row that happens
+# to carry the same figure, including one left by an earlier aborted run of
+# this same flow. That is not hypothetical — on 2026-08-22 a run killed by the
+# SavingsEntryForm `sourceTypeRef` bug (which rewrote the entry to payroll
+# mid-flow) orphaned an "Andrei Payroll … $654" row, and the next run failed
+# here on somebody else's data while its own delete had worked perfectly.
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

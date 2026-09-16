@@ -1,0 +1,8 @@
+appId: ${APP_ID}
+tags:
+  - util
+---
+# Tag subsequent console lines with a matrix row id (E2E_MATRIX_ROW env, e.g. HOUSE-TASK-002).
+- openLink: ${E2E_APP_SCHEME}://e2e-tag-matrix?row=${E2E_MATRIX_ROW}
+- waitForAnimationToEnd:
+    timeout: 2000

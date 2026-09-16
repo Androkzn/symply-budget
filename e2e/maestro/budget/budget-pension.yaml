@@ -1,0 +1,63 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:pension
+  - readonly
+  - regression
+  - smoke
+# Matrix: BUDGET-pension (see documents/engineering/testing/matrices/)
+# Pension tab (Room / Goals / Contributions) end-to-end:
+#   • the Pension tab is present (gated by the savings kill-switch),
+#   • the Pension container + default Room sub-view render,
+#   • the Room / Goals / Contributions sub-tabs each render.
+# NOTE: the registered-Accounts sub-view is intentionally hidden in the current
+# UI ("account setup disabled in UI" — see PensionView.tsx), so this flow no
+# longer exercises pension-accounts / savings-registered. Non-mutating: only
+# switches between sub-tabs, adds no test data.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- openLink: simplebudget:///pension
+- extendedWaitUntil:
+    visible:
+      id: 'pension-view'
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'pension-room'
+    timeout: 20000
+- takeScreenshot: pension-room
+
+# Goals sub-tab renders.
+- tapOn:
+    id: 'filter-tab-goals'
+- extendedWaitUntil:
+    visible:
+      id: 'pension-goals'
+    timeout: 30000
+
+# Contributions sub-tab renders.
+- tapOn:
+    id: 'filter-tab-contributions'
+- extendedWaitUntil:
+    visible:
+      id: 'pension-contributions'
+    timeout: 15000
+
+# Back to Room.
+- tapOn:
+    id: 'filter-tab-room'
+- extendedWaitUntil:
+    visible:
+      id: 'pension-room'
+    timeout: 15000
+
+# The header Back button on an overflow section returns to the More hub
+# (`/settings`), never the Home tab.
+- tapOn:
+    id: 'budget-section-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-screen'
+    timeout: 20000
+- takeScreenshot: pension-back-to-more

@@ -1,0 +1,36 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:ai-access
+  - readonly
+  - regression
+# Matrix: PLAT-AIACC-044
+# Guards the BYOK connect screen's floating CTA: the "Connect & validate" button
+# is a blurred-gradient overlay that FLOATS above the scrolling body (it no longer
+# sits in a solid bar that clipped the "how to get your key" guide). Proves the
+# footer overlay renders, the body scrolls underneath it, and the CTA stays
+# pinned/visible after the content has scrolled to its end.
+---
+- runFlow: subflows/launch-platform.yaml
+- openLink: simplehouse://ai-access/connect?provider=anthropic
+# The floating CTA and the footer overlay both render on entry.
+- extendedWaitUntil:
+    visible:
+      id: 'ai-connect-button'
+    timeout: 20000
+- assertVisible:
+    id: 'ai-flow-footer'
+# The illustrated key guide is reachable in the body — it is NOT clipped by the
+# footer the way the old solid bar clipped it.
+- assertVisible: 'How to get your key.*'
+# Body scrolls all the way to its sentinel underneath the floating footer.
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: ai-flow-scaffold-scroll-end
+# After scrolling, the CTA is STILL visible — it floats/pins above the content
+# rather than scrolling away with it.
+- assertVisible:
+    id: 'ai-connect-button'
+- assertVisible:
+    id: 'ai-flow-footer'

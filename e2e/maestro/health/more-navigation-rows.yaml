@@ -1,0 +1,171 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:more
+  - readonly
+  - regression
+# Matrix: HEALTH-MORE-045, HEALTH-MORE-046, HEALTH-MORE-090
+---
+# The NAVIGATING rows on HealthMoreScreen that more-settings-controls.yaml does
+# not drive: ACCOUNT → Profile, PREFERENCES → Goals / Notifications / Widget, and
+# MORE SYMPLY APPS → Symply apps. Each pushes a screen, so this proves the row is
+# wired (not just rendered) and that the back path returns to the Health More tab
+# rather than stranding the user.
+#
+# Profile and Symply apps do not fetch on mount (ProfileScreen renders from the
+# rehydrated auth store; the Symply-apps grid resolves locally and tolerates a
+# missing /smart-engine), so those legs assert navigation + return, not a wire
+# call. The three PREFERENCES destinations DO hydrate from their own read-through
+# caches, so each is asserted on its screen root only — their controls belong to
+# their own feature flows, not to this one.
+#
+# EXTENDED 2026-07-26 (HEALTH-MORE-090). Goals, Notifications and Widget landed
+# on the More tab that day. Notifications and Widget are reachable from NOWHERE
+# ELSE in the app, so a mis-wired row here does not degrade a surface — it
+# removes it, silently, with the row still rendering perfectly.
+#
+# READ-ONLY: every leg opens a screen and comes straight back. Nothing is typed,
+# toggled or saved, so there is no teardown.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-more.yaml
+      - assertVisible:
+          id: 'health-more-screen'
+
+      # --- ACCOUNT → Profile (HEALTH-MORE-045) ----------------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-MORE-045
+      # Addressed by testID since 2026-07-26. It used to be matched by its
+      # SUBTITLE ("Name, photo, and account") because the row was the last
+      # `SettingItem` on the screen without a testID — the word "Profile" alone
+      # collides with the header and the avatar's accessibility label, so the
+      # subtitle was the only unambiguous string available.
+      - scrollUntilVisible:
+          element:
+            id: 'health-setting-profile'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'health-setting-profile'
+      - extendedWaitUntil:
+          visible:
+            id: 'profile-screen'
+          timeout: 30000
+      - assertNotVisible:
+          id: 'health-more-screen'
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-more-screen'
+          timeout: 30000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- PREFERENCES → Goals / Notifications / Widget (HEALTH-MORE-090) --
+      # Three rows, three destinations, one shape. Each is asserted on its own
+      # screen root AND on its title: a screen that mounted under the wrong
+      # header is a routing bug the testID alone would not catch (the three
+      # settings screens share `HealthSettingsShell`, so a copy-paste route
+      # would still produce a valid-looking root).
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-MORE-090
+      - scrollUntilVisible:
+          element:
+            id: 'health-setting-goals'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'health-setting-goals'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-screen'
+          timeout: 30000
+      - assertVisible: 'Goals'
+      - assertNotVisible:
+          id: 'health-more-screen'
+      - runFlow: subflows/go-more.yaml
+
+      - scrollUntilVisible:
+          element:
+            id: 'health-setting-notifications'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'health-setting-notifications'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-notifications-screen'
+          timeout: 30000
+      - assertVisible: 'Notifications'
+      - assertNotVisible:
+          id: 'health-more-screen'
+      - runFlow: subflows/go-more.yaml
+
+      - scrollUntilVisible:
+          element:
+            id: 'health-setting-widget'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'health-setting-widget'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-widget-screen'
+          timeout: 30000
+      - assertVisible: 'Widget'
+      - assertNotVisible:
+          id: 'health-more-screen'
+      # Back through the tab bar rather than a header button: three round trips
+      # off a scrolled list is exactly where a `Go back` chain drifts.
+      - runFlow: subflows/go-more.yaml
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- MORE SYMPLY APPS → Symply apps (HEALTH-MORE-046) ---------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-MORE-046
+      - scrollUntilVisible:
+          element:
+            id: 'health-setting-symply-apps'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-setting-symply-apps'
+      - extendedWaitUntil:
+          visible:
+            id: 'symply-apps-screen'
+          timeout: 30000
+      - assertNotVisible:
+          id: 'health-more-screen'
+      # The grid lists the OTHER four apps — Health must not offer to install itself.
+      - assertVisible:
+          id: 'sibling-app-symply-house'
+      - assertNotVisible:
+          id: 'sibling-app-symply-health'
+      - tapOn: 'Go back'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-more-screen'
+          timeout: 30000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml

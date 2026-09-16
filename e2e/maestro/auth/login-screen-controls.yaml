@@ -1,0 +1,26 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-auth (see documents/engineering/testing/matrices/)
+---
+# Auth login surface controls (House). Starts from a clean app state so the
+# LoginScreen chrome is visible (Data Bridge joined-auth testIDs).
+- runFlow: ../subflows/launch-logged-out.yaml
+- assertVisible:
+    id: 'auth-sign-in-email'
+# Biometric CTA appears only when SecureStore still holds remember-last-login
+# credentials — covered by biometric-remember-last-login.yaml (do not clearState there).
+- tapOn:
+    id: 'auth-sign-in-email'
+- assertVisible:
+    id: 'auth-email-input'
+- assertVisible:
+    id: 'auth-password-input'
+- assertVisible:
+    id: 'auth-sign-in-submit'
+- assertVisible: 'Sign Up'
+- assertVisible: 'Forgot Password?'

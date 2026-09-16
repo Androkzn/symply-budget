@@ -1,0 +1,9 @@
+appId: ${APP_ID}
+tags:
+  - util
+---
+# Clear all E2E observability ring buffers before a matrix step.
+# Requires E2E_APP_SCHEME (simplehouse | simplebudget | kaizen | simplelanguage | simplehealth).
+- openLink: ${E2E_APP_SCHEME}://e2e-clear-log
+- waitForAnimationToEnd:
+    timeout: 2000

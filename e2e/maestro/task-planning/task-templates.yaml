@@ -1,0 +1,26 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:task-planning
+  - readonly
+  - regression
+# Matrix: HOUSE-TPLAN-007…010 (maintenance templates)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- openLink: simplehouse://tasks?screen=TaskTemplates
+- extendedWaitUntil:
+    visible:
+      id: 'task-templates-screen'
+    timeout: 30000
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: task-templates-screen-scroll-end
+- runFlow:
+    when:
+      visible: 'All'
+    commands:
+      - tapOn: 'All'
+- tapOn:
+    id: 'nav-back-button'
+    optional: true

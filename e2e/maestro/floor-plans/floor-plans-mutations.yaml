@@ -1,0 +1,248 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:floorplan
+  - mutation
+  - regression
+# Matrix: HOUSE-FP-007 (tap plan → dismiss add-task sheet), HOUSE-FP-009 (marker sheet cancel),
+# HOUSE-FP-010/011 (area editor back cancel), HOUSE-FP-012 (delete control visible on edit, back cancel).
+# FP-006 calibrate — no UI entry point. FP-008 move marker — no drag testIDs.
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-FP-007
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-house-settings.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-floor-plans'
+    direction: DOWN
+    timeout: 15000
+# This row sits near the bottom of the list, right above the fixed tab bar.
+# Tapping immediately after scrollUntilVisible can compute the tap point
+# before scroll momentum fully settles, landing on the Budget tab icon
+# underneath instead of the row (reproduced deterministically 2026-07-31 —
+# same failure, same screenshot, twice in a row). Let it settle first.
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    id: 'settings-row-floor-plans'
+- extendedWaitUntil:
+    visible:
+      id: 'floor-plans-screen'
+    timeout: 20000
+- runFlow:
+    when:
+      visible:
+        id: 'floor-plan-card-.*'
+    commands:
+      - tapOn:
+          id: 'floor-plan-card-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'floor-plan-viewer-screen'
+          timeout: 30000
+          optional: true
+# FP-010 — add custom area (back without save) — verify the typed name never
+# actually got persisted (no PATCH .../analysis), not just that we navigated back.
+- runFlow:
+    when:
+      visible:
+        id: 'floor-plan-add-area'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'floor-plan-add-area'
+          timeout: 8000
+      - tapOn:
+          id: 'floor-plan-add-area'
+      - extendedWaitUntil:
+          visible:
+            id: 'floor-plan-area-name-input'
+          timeout: 15000
+      - tapOn:
+          id: 'floor-plan-area-name-input'
+      - inputText: 'E2E Maestro Area'
+      - tapOn:
+          id: 'nav-back-button'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: PATCH
+            E2E_VERIFY_PATH: /analysis
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+# FP-011 / FP-012 — edit existing zone (back without save/delete) — same:
+# verify no PATCH .../analysis fired.
+- runFlow:
+    when:
+      visible:
+        id: 'floor-plan-zone-edit-.*'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'floor-plan-zone-edit-.*'
+          timeout: 8000
+      - tapOn:
+          id: 'floor-plan-zone-edit-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'floor-plan-area-save'
+          timeout: 15000
+      - assertVisible:
+          id: 'floor-plan-area-delete'
+          optional: true
+      - tapOn:
+          id: 'nav-back-button'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: PATCH
+            E2E_VERIFY_PATH: /analysis
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+# Enter map view for marker flows
+- runFlow:
+    when:
+      visible:
+        id: 'floor-plan-view-full'
+    commands:
+      - tapOn:
+          id: 'floor-plan-view-full'
+- runFlow:
+    when:
+      visible:
+        id: 'floor-plan-zone-card-.*'
+    commands:
+      - tapOn:
+          id: 'floor-plan-zone-card-.*'
+# FP-007 — tap plan canvas, dismiss add-task sheet without creating marker —
+# verify no task got created (no POST /tasks).
+- runFlow:
+    file: ../subflows/e2e-clear-log.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+- tapOn:
+    point: 50%,50%
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'floor-plan-marker-new-task'
+    commands:
+      - tapOn:
+          id: 'bottom-sheet-close'
+          optional: true
+      - tapOn:
+          id: 'bottom-sheet-overlay'
+          optional: true
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /tasks
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+# FP-009 — if a marker exists, open sheet then dismiss without remove —
+# verify no DELETE .../floor-plans/markers/ fired.
+- runFlow:
+    file: ../subflows/e2e-clear-log.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+- tapOn:
+    point: 35%,45%
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'floor-plan-marker-remove'
+    commands:
+      - assertVisible:
+          id: 'floor-plan-marker-remove'
+      - tapOn:
+          id: 'bottom-sheet-close'
+          optional: true
+      - tapOn:
+          id: 'bottom-sheet-overlay'
+          optional: true
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /floor-plans/markers/
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+# Unwind to the list. `optional: true` only means "don't fail when the element
+# is missing" — it still taps whenever the element IS present, and
+# `nav-back-button` is present on every screen in this stack INCLUDING
+# floor-plans-screen itself. The depth here is 0, 1 or 2 depending on which of
+# the `when:` branches above actually ran (a test account with no seeded plan
+# skips all of them and never leaves the list), so two unconditional taps popped
+# the whole Floor Plans stack back to Settings and the assert below went red for
+# a teardown reason. Guard each hop on not already being there instead — same
+# fix as garden-plan-mutations.yaml:117 and property-notice-import.yaml:54.
+- runFlow:
+    when:
+      notVisible:
+        id: 'floor-plans-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'floor-plans-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- assertVisible:
+    id: 'floor-plans-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

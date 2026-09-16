@@ -1,0 +1,73 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:utilities
+  - mutation
+  - regression
+# Matrix: HOUSE-UTIL-015,016,018 (property tax)
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-UTIL-015
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-utilities.yaml
+- tapOn:
+    id: 'utilities-action-property-tax'
+# VACUOUS-GATE FIX: this waited on the text 'Property Tax', which is the LABEL OF
+# THE QUICK ACTION WE JUST TAPPED (UtilitiesScreen.tsx:578) — it is still on
+# screen whether or not we navigated. And that action is `disabled={!canUsePropertyTax}`,
+# so on a household outside a supported jurisdiction the tap is a no-op and the
+# wait passed anyway. PropertyTaxScreen's ScreenHeader carries no title at all
+# (PropertyTaxScreen.tsx:192); its stable anchor is the container testID.
+- extendedWaitUntil:
+    visible:
+      id: 'property-tax-screen'
+    timeout: 20000
+# Load list (HOUSE-UTIL-015).
+- runFlow:
+    when:
+      visible: 'Add Property Tax'
+    commands:
+      - tapOn: 'Add Property Tax'
+      - extendedWaitUntil:
+          visible: 'Save'
+          timeout: 15000
+          optional: true
+      # Validation: submit empty (paired with unit tests; Maestro asserts screen stays).
+      - runFlow:
+          when:
+            visible: 'Save'
+          commands:
+            - tapOn: 'Save'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'property-tax-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+# OVER-POP GUARD: `nav-back-button` is present on `utilities-screen` itself
+# (UtilitiesScreen.tsx:290 renders the header with
+# `showBackButton={router.canGoBack()}`, true for a deep-linked open), so gating
+# this hop on the BUTTON rather than on WHERE WE ARE popped the whole Utilities
+# stack out to Home/Settings and the assert below went red for a teardown reason.
+- runFlow:
+    when:
+      notVisible:
+        id: 'utilities-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- assertVisible:
+    id: 'utilities-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

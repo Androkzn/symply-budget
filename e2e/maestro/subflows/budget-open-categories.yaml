@@ -1,0 +1,37 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Opens Spending Categories (BudgetCategoriesScreen, Settings → Preferences) via
+# deep link — avoids iOS 26 scroll flakiness on the long Budget Settings screen.
+- openLink: simplebudget:///?screen=BudgetCategories
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-categories-screen'
+    timeout: 30000
+# Screen mounts with a spinner while categories load — wait for content, not shell.
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-categories-loading'
+    timeout: 60000
+# The scroll budget has to cover the CUSTOM list, because the "New category"
+# editor sits below it (BudgetCategoriesScreen renders custom → editor →
+# defaults). That list is unbounded: a household that predates the 41-name seed
+# carries every name it created by hand as a custom row, and the E2E account's
+# Sweet Home ledger is 3,666 pt of them — ~57 rows. 30s at speed 40 buys about
+# seven swipes, which landed one swipe short and failed the flow with the button
+# already on screen (2026-08-22). 90s is not a flake allowance: it is the
+# distance, and it scales with a real member's category count.
+- scrollUntilVisible:
+    element:
+      id: 'budget-category-add'
+    direction: DOWN
+    timeout: 90000
+    speed: 40
+    visibilityPercentage: 50
+- assertVisible:
+    id: 'budget-category-add'

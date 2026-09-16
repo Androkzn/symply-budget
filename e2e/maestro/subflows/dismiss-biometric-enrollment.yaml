@@ -1,0 +1,22 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# One-time Face ID enrollment sheet after first login on a fresh sim session.
+- runFlow:
+    when:
+      visible:
+        id: 'auth-biometric-skip'
+    commands:
+      - tapOn:
+          id: 'auth-biometric-skip'
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      visible: 'Enable Face ID?'
+    commands:
+      - tapOn: 'Not Now'
+      - waitForAnimationToEnd:
+          timeout: 3000

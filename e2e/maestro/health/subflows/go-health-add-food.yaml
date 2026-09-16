@@ -1,0 +1,35 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Enter `HealthAddFoodScreen` (route `/health-add-food`) the only door it has —
+# the "+" on one of the Nutrition diary's four meal groups
+# (`health-meal-group-${ADD_FOOD_SLOT}-add`, `HealthNutritionScreen`'s
+# `router.push({ pathname: '/health-add-food', params: { slot: groupSlot } })`).
+#
+# NO BACK BUTTON. The screen is a root-level PUSH (`app/health-add-food.tsx`
+# sits OUTSIDE the `(tabs)` group, unlike every screen it Quick-Adds into) and
+# it renders with `HealthSectionScreen`, which never draws a back affordance —
+# confirmed against source, not assumed. Callers pop it with a bare `- back`
+# (Maestro's system-back command), the same convention
+# `e2e/maestro/budget/mortgage-settings.yaml` already uses for a shell with no
+# back button; the tab bar is not even rendered while this screen is up, so
+# tapping a tab id is not an option either.
+#
+# ADD_FOOD_SLOT is REQUIRED — breakfast | lunch | dinner | snacks. It seeds
+# BOTH the LOG TO chip on this screen and `HealthManualFoodForm`'s own meal
+# chip (`params.slot` → `isMealSlot` → the screen's `slot` state, passed on as
+# `HealthManualFoodForm`'s `initialSlot`).
+- runFlow: go-health-nutrition.yaml
+- runFlow:
+    file: health-swipe-section-to.yaml
+    env:
+      TARGET_ID: health-meal-group-${ADD_FOOD_SLOT}-add
+      SCROLL_DIR: down
+- tapOn:
+    id: health-meal-group-${ADD_FOOD_SLOT}-add
+- extendedWaitUntil:
+    visible:
+      id: 'health-add-food-screen'
+    timeout: 20000

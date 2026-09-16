@@ -1,0 +1,16 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Reset the Health home ScrollView toward the top.
+- repeat:
+    times: 4
+    commands:
+      - swipe:
+          start: '50%,32%'
+          end: '50%,82%'
+          duration: 280
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 250

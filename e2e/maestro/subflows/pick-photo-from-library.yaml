@@ -1,0 +1,152 @@
+appId: ${APP_ID}
+tags:
+  - util
+  - app:house
+---
+# Drive the native photo picker to select a REAL image. On iOS,
+# scripts/e2e/seed-fixtures.sh pushes fixtures into the Photos library via
+# `simctl addmedia` ahead of the suite run. On Android there's no equivalent
+# host-side seeding step (documented gap — Android has no CoreSimulator to
+# push into) — the caller flow is responsible for calling `addMedia` with the
+# fixture path(s) it needs BEFORE opening this picker (addMedia works on both
+# platforms; see budget-receipt-scan.yaml for the Android-gated example).
+#
+# Precondition: the caller has already tapped the in-app control that opens
+# the photo library (e.g. "Gallery", "Photo Library", "Choose Photo").
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      # iOS: handles both pickers used in the app:
+      #   * expo-image-picker (PHPicker)  -> tap a photo, returns immediately, or
+      #     an edit screen with "Choose"/"Add".
+      #   * react-native-image-crop-picker -> tap a photo, then a crop screen with
+      #     a "Choose"/"Done" confirm.
+      # Selects the first photo cell (top-left), which is the most recently
+      # added fixture. All confirm taps are optional so it works for either picker.
+      - extendedWaitUntil:
+          visible: 'Photos'
+          timeout: 8000
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+      # OPTIONAL env PHOTO_INDEX — pick the Nth cell instead of the first.
+      #
+      # The first cell is NOT "the most recently added fixture", despite what
+      # this file used to claim. On a library that has accumulated fixtures
+      # across runs (Budget-A was 21 assets deep) the first cell is a
+      # spreadsheet or savings-statement, so every receipt scan silently read
+      # the wrong image. Callers that seed a KNOWN set into a CLEAN library
+      # pass PHOTO_INDEX to address a specific one; everyone else keeps the
+      # old first-cell behaviour.
+      - runFlow:
+          when:
+            true: ${PHOTO_INDEX != null && PHOTO_INDEX != ''}
+          commands:
+            - tapOn:
+                text: 'Photo,.*'
+                index: ${PHOTO_INDEX}
+      - runFlow:
+          when:
+            true: ${PHOTO_INDEX == null || PHOTO_INDEX == ''}
+          commands:
+            - runFlow:
+                when:
+                  visible: 'Photo,.*'
+                commands:
+                  - tapOn: 'Photo,.*'
+            - runFlow:
+                when:
+                  notVisible: 'Photo,.*'
+                commands:
+                  # Fallback when the cells are not addressable by label — which
+                  # is ALWAYS the case on iPad, where the picker is presented as
+                  # a POPOVER and publishes no contents at all (the captured
+                  # hierarchy holds `PopoverDismissRegion` and nothing else).
+                  #
+                  # The coordinate has to differ by form factor. `18%,28%` is the
+                  # top-left of the iPhone's full-screen grid; on the iPad popover
+                  # that lands in the SIDEBAR, which selects nothing and dismisses
+                  # the popover — so no photo is picked and the caller fails on
+                  # `home-project-photo-item-0` (observed 2026-09-02).
+                  #
+                  # `PopoverDismissRegion` is published only while a popover is up,
+                  # so it is a reliable iPad discriminator at this instant.
+                  # Geometry measured from the captured popover on an 834x1210pt
+                  # iPad: panel x 62..772, sidebar ends ~x 310, first thumbnail
+                  # ~(340,350)pt = 41%,29%.
+                  - runFlow:
+                      when:
+                        visible:
+                          id: 'PopoverDismissRegion'
+                      commands:
+                        - tapOn:
+                            point: '41%,29%'
+                            optional: true
+                  - runFlow:
+                      when:
+                        notVisible:
+                          id: 'PopoverDismissRegion'
+                      commands:
+                        - tapOn:
+                            point: '18%,28%'
+                            optional: true
+      - waitForAnimationToEnd:
+          timeout: 2000
+      # Confirm buttons for whichever picker/crop screen appears (all optional).
+      - runFlow:
+          when:
+            visible: 'Choose'
+          commands:
+            - tapOn: 'Choose'
+      - runFlow:
+          when:
+            visible: 'Done'
+          commands:
+            - tapOn: 'Done'
+      - runFlow:
+          when:
+            visible: 'Add'
+          commands:
+            - tapOn: 'Add'
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM == 'android'}
+    commands:
+      # Android system Photo Picker (ACTION_PICK_IMAGES / expo-image-picker's
+      # Android backend). Grid thumbnails carry no stable, predictable a11y
+      # text (unlike iOS's "Photo,..." label), so this is a best-effort
+      # coordinate tap on the first (most recent) grid cell, same fallback
+      # strategy the iOS branch above already uses — NOT verified against a
+      # live run yet; recheck against the report screenshot after the next
+      # Android suite run and adjust the point if the tap misses the grid.
+      - extendedWaitUntil:
+          visible: 'Photos'
+          timeout: 8000
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - tapOn:
+          point: '15%,25%'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2000
+      # Some OEM/AOSP picker builds show an explicit confirm action after
+      # selection (e.g. a checkmark/"Add" button) rather than returning
+      # immediately — harmless no-op when absent.
+      - runFlow:
+          when:
+            visible: 'Add'
+          commands:
+            - tapOn: 'Add'
+      - waitForAnimationToEnd:
+          timeout: 3000
+# On iPad the picker is a floating POPOVER, not a full-screen sheet, so the
+# `15%,25%` selection tap above lands in its sidebar rather than on a photo:
+# nothing is selected and the popover stays up, owning the accessibility tree
+# and making every later app testID unreachable (observed 2026-09-01 as
+# `mira-gaps` -> "Element not found: mira-chat-overflow-menu" with the button
+# plainly on screen). No-op on iPhone and whenever the picker already closed.
+- runFlow: dismiss-ios-popover.yaml

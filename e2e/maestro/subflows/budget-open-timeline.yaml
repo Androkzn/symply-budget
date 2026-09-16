@@ -1,0 +1,15 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Opens Long-term timeline (BudgetTimelineScreen) via deep link.
+- openLink: simplebudget:///?screen=BudgetLongTermTimeline
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-timeline-screen'
+    timeout: 30000
+    optional: true

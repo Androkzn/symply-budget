@@ -1,0 +1,384 @@
+# Maestro workspace config — Symply Health (com.symply.health) E2E.
+# Runs sequentially on one simulator. Modular: each flow targets one screen/feature.
+#
+# Authenticated flows establish their own session via subflows/launch-health.yaml
+# (deep-link autologin, falling back to the email form) — they do NOT depend on the
+# auth flows below, which run last because they wipe state + Keychain.
+# needs-admin-feature-seed: 26 flows across Cycle / Vitality / Exercises /
+# Injuries / Body / Habits / Fridge / Coach / Scan (all `defaultHidden`,
+# opt-in features reached through the More hub's "MORE TABS" overflow
+# section) plus the two More-hub flows that assert that overflow list
+# directly, plus Trends (`trends-ranges.yaml`) — reached via the pinned bar
+# tab rather than the overflow hub, but gated by the exact same
+# `enabledByDefault: false` / non-admin-override-ignored mechanism. Root-caused 2026-08-01 via `resolveHealthFeature`
+# (`src/stores/healthFeatureStore.ts:57-65`): a COMMON USER always gets the
+# coded defaults (`enabledByDefault: false` for every one of these in
+# `src/config/healthFeatures.ts`) and a stored per-device override is
+# IGNORED for non-admin accounts — so the route never even enters the tab
+# pool (`filterTabsByHealthFeatures`, `useEffectiveTabs.ts`), not merely
+# "unpinned". No subflow anywhere seeds/enables these features first, and
+# doing so needs either an admin account or a seeding path that does not
+# exist yet — an E2E setup gap, not an app bug. Excluded by default (a
+# deterministic 100%-repro precondition failure, not an intermittent one)
+# until a feature-seed subflow exists. Re-add once that lands.
+# known-flaky-weight-input: RESOLVED 2026-08-01, tag retired. It covered 7
+# flows sharing a reproducible Maestro/XCUITest defect on Home's
+# `health-weight-input` wheel-picker's decimal-pad manual-entry (erase+type
+# left a stray trailing digit — a driver quirk, ruled out as an app bug
+# 2026-07-31). The whole Home WEIGHT card that field belonged to was removed
+# from the app 2026-08-01: `home-weight-entry-lifecycle.yaml` and
+# `home-weight-keyboard-return.yaml` (both entirely about that card) were
+# deleted outright; the other five — `home-weight-water-note` (renamed
+# `home-water-note`, weight section removed), `more-units-propagate-home`
+# (renamed `more-units-picker`, its Home leg retired), `privacy-local-
+# mutations`, `privacy-cross-user-leak` and `trends-charts` — no longer touch
+# the flaky field at all (the latter two now seed their weigh-in through the
+# Weight tab's plain `health-weight-entry-value` `TextInput` instead, which
+# has no manual-entry mode to be flaky in). The tag is gone from every file
+# and from `excludeTags` below, and all five survivors are back in
+# `flowsOrder`.
+excludeTags:
+  - util
+  - needs-admin-feature-seed
+flows:
+  - '*.yaml'
+executionOrder:
+  continueOnFailure: true
+  # login-screen-controls + login-email-submit-seeded clearState AND clearKeychain
+  # (an uninstall + reinstall), destroying the session every other flow depends on.
+  # They run LAST so flows 1..12 keep one warm session — same reason budget/config.yaml
+  # puts budget-auth last. login-email-submit-seeded re-establishes the session for
+  # anything that follows.
+  flowsOrder:
+    # home-weight-entry-lifecycle / home-weight-keyboard-return: DELETED
+    # 2026-08-01 along with the Home WEIGHT card they tested — no longer real
+    # files, so no longer listed here either.
+    - home-water-note
+    - home-keyboard-accessories
+    - home-empty-and-privacy
+    - home-rapid-water
+    - home-note-and-water-edges
+    - home-cancel-drafts
+    - home-header-navigation
+    # Previously-undocumented, zero-coverage surface: the Home dashboard
+    # widgets (TODAY rings, AT A GLANCE cards, the shared metric drill-down
+    # sheet, and the two donor-parity widgets — Weekly Trends, Food
+    # Challenges — that ship in DEFAULT_HOME_WIDGETS). All read-only. Run
+    # right after the header flow since they own the same screen and a
+    # failure here should sit beside it, not read as a different surface's
+    # regression.
+    - home-dashboard-rings-and-glance
+    - home-dashboard-widgets-calorie-trends-challenges
+    - scroll-note-keyboard
+    - privacy-data-paths
+    - privacy-local-mutations
+    - tab-shell-five-tabs
+    # Section tabs (donor parity): Nutrition / Activity / Trends run after the
+    # Home flows so a failure there is not confused with a Home regression.
+    # Trends is read-only and runs last of the three so it sees the data the
+    # other two just wrote (and cleaned up).
+    - nutrition-log-meal
+    # The diary's PER-ROW and BATCH verbs. Both run straight after
+    # nutrition-log-meal — they own the same screen, so a failure here should
+    # sit beside the flow that owns the ADD form rather than being read as an
+    # Activity or Trends regression. -meal-detail-tools runs first because
+    # -copy-and-batch borrows the same add form to seed a source day, and a
+    # broken add form should fail in the flow that owns it.
+    #
+    # Both write to TODAY (and -copy-and-batch to YESTERDAY as well) and delete
+    # everything they write, so they run well before trends-charts, which reads
+    # the day it seeds itself, and well before privacy-cross-user-leak + the
+    # auth pair, which destroy the session.
+    - nutrition-meal-detail-tools
+    - nutrition-copy-and-batch
+    # The 2026-07-27 "Nutrition parity push" Maestro gap — Add-Food's manual
+    # entry (MUTATION), its Search/Library/Recipes tabs (MUTATION, seeds and
+    # tears down its own library fixture), and the Quick Add rail's
+    # camera/barcode hand-offs (read-only — stops at the native-camera
+    # boundary, same as scan-modes-and-sources.yaml). All three write only to
+    # TODAY and clean up after themselves, so they run here beside the rest
+    # of the Nutrition-diary block and well before trends-charts / the auth
+    # pair.
+    - add-food-manual-entry
+    - add-food-search-library-recipes
+    - add-food-scan-and-barcode-entry
+    # Food Challenges manager — the screen had NO coverage of any kind before
+    # 2026-08-13 (no Jest suite named it, no flow drove any of its fifteen
+    # testIDs). It belongs in the nutrition block: a challenge is scored against
+    # logged foods, and this flow creates and deletes its own challenge
+    # ("Maestro Greens") without touching the diary. It is NOT behind
+    # `needs-admin-feature-seed` — `health-challenges` is absent from the
+    # feature catalog entirely, so no flag gates it for a common user; it is
+    # reached by push from the Home widget's pencil, never from a tab.
+    - challenges-create-edit-delete
+    - activity-log-workout
+    # The date/time half of the log form (both typed fields, the Today /
+    # Yesterday / Now chips), the STEPS & DISTANCE switch and the session
+    # sheet's dismiss — five controls the two flows either side of it never
+    # touch. Runs after activity-log-workout because both write a session to
+    # the same list and this one counts rows; it uses `cycle` where that flow
+    # uses `strength`, so their teardowns can never collide.
+    - activity-datetime-and-steps-metric
+    # The Activity tab's other half: the range picker, both goal Alerts, the
+    # intensity picker, the note field and the EDIT path. Straight after
+    # activity-log-workout because they own the same screen — a failure here
+    # should sit beside the flow that owns the ADD form rather than read as a
+    # Trends regression. -log-workout runs first because this flow borrows its
+    # form to seed the session it edits, and a broken add form should fail in
+    # the flow that owns it.
+    #
+    # It restores both goals to DEFAULT_ACTIVITY_GOALS and the range to 7 days,
+    # and deletes the session it logs, so nothing reaches trends-*.
+    - activity-goals-and-session-edit
+    # The Activity screen's third split: the 61-type picker sheet (search +
+    # category facet), the DISTANCE field it gates, and the past-window ◀ / ▶
+    # navigator — none of which the two flows above ever open. Same reasoning
+    # as the split between them: a mid-run driver drop should cost a third of
+    # the screen, not all of it. It logs and deletes its own session (`hiking`,
+    # a type reached only through the picker), so it is order-independent with
+    # the other two.
+    - activity-distance-picker-and-window-nav
+    # - trends-ranges   # needs-admin-feature-seed, see header comment — Trends
+    #   is enabledByDefault:false too (healthFeatures.ts), same non-admin gate
+    # trends-charts seeds a weigh-in (via the Weight tab, 2026-08-01) and a
+    # meal, then opens Trends for the FIRST time in the process so the
+    # dashboards hydrate with data it controls. It has to follow trends-ranges
+    # (which asserts the read-only shell) and precede nothing in particular —
+    # it tears its own seed rows down again.
+    - trends-charts
+    # Overflow section tabs (Cycle / Vitality) — reached through the More hub
+    # rather than the bar. They run after the pinned sections so a failure is
+    # not confused with a tab-bar regression, and before the More flows that
+    # assert the hub itself.
+    # - cycle-log-and-predict   # needs-admin-feature-seed, see header comment
+    # …and the controls that flow leaves alone: the cycle-length Alert (picked,
+    # cancelled and restored to the 28-day default), the day's note field
+    # (written and emptied), the per-row delete in RECENT PERIOD DAYS, and
+    # mood/energy at a second level. It runs immediately after the flow that
+    # owns the same screen, and it restores mood/energy to the 3/4 that flow
+    # asserts, so the pair is order-independent within a run.
+    # - cycle-length-notes-history   # needs-admin-feature-seed, see header comment
+    # The month CALENDAR, the WHAT'S COMING card, the SLEEP scale and the
+    # per-phase pattern line — the 2026-07-26 calendar port, on top of what
+    # the two Cycle flows above already own. It can log ANY day, not just
+    # today, which is exactly what those two do not exercise.
+    # - cycle-calendar-and-upcoming   # needs-admin-feature-seed, see header comment
+    # - vitality-log-and-score   # needs-admin-feature-seed, see header comment
+    # Vitality's thirteen remaining controls — every HealthScaleRow driven to
+    # two levels (one to both ends of its range) and every HealthToggleRow
+    # flipped ON and OFF. It MUST follow vitality-log-and-score, not precede it:
+    # that flow opens by asserting both conditional rows are absent, and this
+    # one is what puts every toggle back off.
+    # - vitality-scales-and-toggles   # needs-admin-feature-seed, see header comment
+    # The "WHAT TO SHOW" card (8 switches deciding which of the tab's six
+    # cards exist) and the guided Kegel timer, neither touched by the two
+    # flows above. -section-preferences runs first because it can hide or
+    # show the very cards -kegel-timer needs on screen; it self-normalises on
+    # entry (asserts the count rather than assuming a starting state) and
+    # ends on "Show everything", so it is safe however a previous run left it.
+    # - vitality-section-preferences   # needs-admin-feature-seed, see header comment
+    # - vitality-kegel-timer   # needs-admin-feature-seed, see header comment
+    # Workouts + Body are `defaultHidden` too, and both are feature flows rather
+    # than hub flows: they run with Cycle / Vitality, after the pinned sections
+    # and before the More flows that own the hub itself. exercises-detail-log
+    # follows exercises-library-browse because it reuses the same search entry
+    # point and finishes by deleting the session it logged through Activity.
+    # - exercises-library-browse   # needs-admin-feature-seed, see header comment
+    # - exercises-detail-log   # needs-admin-feature-seed, see header comment
+    # injuries-log-and-resolve writes the precondition the Workouts safety gate
+    # reads (`injury_flag` on /health/exercises is derived from active
+    # injuries), so it runs AFTER the two exercise flows: they assert the
+    # unflagged library, and an injury left active underneath them would change
+    # what they see. It deletes its own entry, so nothing leaks forward either.
+    # - injuries-log-and-resolve   # needs-admin-feature-seed, see header comment
+    # body-measure-and-trend owns the Body tab; more-overflow-body-habits (below)
+    # only proves the hub routes to it, so this runs first and leaves it clean.
+    # - body-measure-and-trend   # needs-admin-feature-seed, see header comment
+    # The comprehensive-sites rebuild (migration 0131): the detailed-sites
+    # switch, date navigation on entry, and the multi-site session sheet — all
+    # added on top of the shape body-measure-and-trend already owns, so a
+    # regression in either fails in the flow that owns it.
+    # - body-session-date-and-detailed   # needs-admin-feature-seed, see header comment
+    # Water is `defaultHidden` too (donor parity — reached through the More
+    # hub, same as Body/Habits/Cycle/Vitality), and it is the only surface
+    # that can log an exact volume — Home and Nutrition can only ever mean one
+    # 240 ml cup. -presets-and-log owns the three quick-adds and the per-entry
+    # log (including its own per-row delete); -goal-units-custom owns the
+    # ml/oz display choice, the custom-amount ± stepper and the goal editor —
+    # split for the same mid-run-driver-drop reason as every other pair here,
+    # and ordered second because it borrows the first flow's presets to put a
+    # volume on screen before touching the goal. Both self-drain the day
+    # before asserting, so they tolerate whatever an earlier Home/Nutrition
+    # flow left behind. water-cross-surface-parity is READ-ONLY (Home / Water
+    # tab / Nutrition all reading the same total) and runs last of the three
+    # so it sees a day the other two have already exercised and cleaned up.
+    - water-tab-presets-and-log
+    - water-tab-goal-units-custom
+    - water-cross-surface-parity
+    # The Weight tab. Two flows because one would be long enough that a mid-run
+    # driver drop costs the whole screen: -log-and-edit owns the entry form,
+    # -dashboard-controls owns the window / customise / goal half. Both run
+    # after the Home block, so a failure here is not confused with the Home
+    # weight card, and both tear down everything they write.
+    - weight-tab-log-and-edit
+    - weight-tab-dashboard-controls
+    # Two named gaps from the 2026-07-26 control-coverage table, closed
+    # 2026-07-29: the optional starting-weight goal field (runs right after
+    # -dashboard-controls since both gate on / restore the "no target set"
+    # precondition) and the Measurements widget's Body-tab hand-off (0/1 ->
+    # 1/1), which resets the customise layout back to default on its way out.
+    - weight-tab-goal-start-field
+    - weight-widgets-measurements-toggle
+    # habits-add-tick-delete owns the Habits SCREEN (add / tick / untick /
+    # delete-with-confirm). more-overflow-body-habits, further down, owns the
+    # hub row that routes to it — same split as Body above, and the same reason
+    # for the order: a Habits regression should fail in the flow that owns
+    # Habits.
+    # - habits-add-tick-delete   # needs-admin-feature-seed, see header comment
+    # The rest of the Habits screen, each split owning a slice that
+    # `habits-add-tick-delete` (quick-add + tick/untick + delete-with-confirm)
+    # never touches — same "a regression should fail in the flow that owns
+    # it" rule as the rest of this block, and the same reason each is its own
+    # file rather than an extension.
+    #   * -library-and-filter and -day-navigation are READ-ONLY (nothing is
+    #     written, so they need no teardown and could run anywhere in the
+    #     suite) — the 19-preset library's search/category facet, and the
+    #     date selector's forward-disabled-on-today guard.
+    #   * -archive-and-restore mints and removes its own habit to prove the
+    #     one destructive-looking action on this screen that is NOT
+    #     destructive: archive takes a habit out of the day's list and the
+    #     ring's denominator, unarchive puts it straight back with its
+    #     history intact.
+    #   * -form-schedule-and-reminder drives the full `HealthHabitForm` (icon
+    #     grid, category, time of day, the frequency/custom-days picker with
+    #     its "cannot remove the last day" guard, the reminder toggle + time
+    #     sheet, notes) through BOTH callers — "Custom habit" on this screen
+    #     and "Edit" on the detail sheet — and runs last of the five because
+    #     it is the longest and the other four do not depend on it.
+    # - habits-library-and-filter   # needs-admin-feature-seed, see header comment
+    # - habits-day-navigation   # needs-admin-feature-seed, see header comment
+    # - habits-archive-and-restore   # needs-admin-feature-seed, see header comment
+    # - habits-form-schedule-and-reminder   # needs-admin-feature-seed, see header comment
+    # Goals (route `health-goals`) — new this wave, and reached the SETTINGS
+    # way (More → Preferences → "Goals and targets"), not through the tab bar
+    # or the hub's tab pool, so it sits on its own rather than beside a
+    # feature-tab block. Every field here writes through to the SAME
+    # `health_goals` row Nutrition/Activity/Water/Weight all read (see the
+    # screen's own header comment), which is why it runs LAST of the mutating
+    # feature flows: -nutrition-and-activity ends by saving
+    # DEFAULT_NUTRITION_GOALS / DEFAULT_ACTIVITY_GOALS — the exact fallback
+    # figures nutrition-log-meal, activity-log-workout and every other flow
+    # above already assume — so a member's account goes from "no goals row at
+    # all" to "a row that reads exactly like the default" without moving
+    # anything any earlier flow depends on. -hydration-weight-and-suggested
+    # runs second because it borrows the row the first flow just created.
+    - health-goals-nutrition-and-activity
+    - health-goals-hydration-weight-and-suggested
+    # The onboarding NUX (ChildWelcomeScreen → the goals mini-flow →
+    # EssentialPermissions → HealthKitPermission → Home) — a SOFT launch, not
+    # a state-destroying one (see the flow's own header comment), so it sits
+    # here as a read-mostly flow rather than beside the auth pair that wipes
+    # state at the very end. On the shared, already-onboarded account this is
+    # a no-op past the Home assertion; it only drives the NUX for real against
+    # a genuinely fresh account.
+    - onboarding
+    # Health notification settings (route `health-notifications`) — reached
+    # the same SETTINGS way as Goals, from More → Preferences, so it sits
+    # beside it rather than in the tab-feature blocks above. The ten activity
+    # flags on `PUT /health/activity-preferences`, proven to survive leaving
+    # and re-entering the screen (i.e. really written, not just painted) and
+    # to each send only their own flag.
+    - notification-settings-toggles
+    # Widget settings (route `health-widget`) — the third and last of the
+    # PREFERENCES-row trio (Goals / Notifications / Widget) reached the same
+    # settings way. All six `widget_preferences` columns on `PUT
+    # /health/widget/preferences`, proven to survive a navigate-away-and-back.
+    - widget-preferences-controls
+    # Parity-phase-P2 overflow tabs (Foods / Recipes / Fridge). Same placement
+    # rule as the rest of this block: after the pinned sections, before the More
+    # flows that own the hub, and well before privacy-cross-user-leak + the auth
+    # pair, which destroy the session these three depend on.
+    #
+    # food-library-manage runs FIRST because recipes-build-and-scale borrows the
+    # Foods screen to mint its own ingredient — a Foods regression should fail in
+    # the flow that owns Foods, not surface as a confusing failure inside
+    # Recipes. All three delete everything they create, so there is no data
+    # dependency between them; the order is about attributing blame.
+    #
+    # food-library-manage also writes ONE Nutrition diary row (the "Log to
+    # today" CTA) and deletes it again from the Nutrition tab, which is why it
+    # sits well after nutrition-log-meal rather than beside it.
+    - food-library-manage
+    # Closes HealthFoodLibraryScreen's last two named gaps (portion input,
+    # favourite-driven suggestion row) — runs right after food-library-manage,
+    # same "attribute blame to the flow that owns the screen" rule above.
+    - food-library-portion-and-suggestions
+    - recipes-build-and-scale
+    # Three splits off recipes-build-and-scale's own stated remaining gaps:
+    # the LOG TO DIARY panel (pre-existing gap), and the 2026-07-27 "Nutrition
+    # parity push" fields that never got a flow at all (category picker,
+    # prep/cook time, searchable ingredient picker, photo attach). Each mints
+    # and tears down its own recipe/ingredient — no ordering dependency on
+    # recipes-build-and-scale or each other, placed here purely to keep the
+    # Recipes block contiguous.
+    - recipes-log-to-diary
+    - recipes-form-category-and-time
+    - recipes-form-ingredient-search-and-photo
+    # - fridge-stock-and-expiry   # needs-admin-feature-seed, see header comment
+    # Parity phase P5, on top of fridge-stock-and-expiry's manual CRUD: the
+    # barcode field, the receipt reader and "what could I cook" meal ideas.
+    # Deliberately stops short of completing a receipt scan (Camera/Gallery/
+    # File hand off to native pickers with no deterministic Health fixture to
+    # feed them, and a stranded system sheet would fail every flow after it in
+    # a serial suite) — see the flow's own header for what it covers instead.
+    # - fridge-barcode-receipt-meals   # needs-admin-feature-seed, see header comment
+    # The P3 AI tabs (Coach / Scan), both `defaultHidden`. They run after the
+    # food block because the coach's "YOUR FIGURES TODAY" card and its proposals
+    # read the day's own rows, and after every flow that writes them the picture
+    # is at its richest. scan-modes-and-sources is non-mutating and could sit
+    # anywhere; it stays beside Coach so the whole AI surface is one block.
+    #
+    # coach-consent-and-turn GRANTS AI consent, which has no revoke affordance on
+    # the screen — see the flow header and the matrix's Flagged section. It is
+    # deliberately placed before the More flows so `more-settings-controls`'
+    # privacy assertions run against the same account state a member would have.
+    # - coach-consent-and-turn   # needs-admin-feature-seed, see header comment
+    # The two cards that PERSIST across the conversation coach-consent-and-turn
+    # drives: the stored measurement summary and the commit ledger. Read-only,
+    # so it runs straight after and needs no teardown of its own.
+    # - coach-ledger-and-summary   # needs-admin-feature-seed, see header comment
+    # - scan-modes-and-sources   # needs-admin-feature-seed, see header comment
+    # Every control in MEAL mode (the mode scan-modes-and-sources leaves LABEL
+    # mode untouched by), plus the mode-reset proof. Read-only.
+    # - scan-meal-mode-controls   # needs-admin-feature-seed, see header comment
+    - more-settings-controls
+    # The shared tab-customization editor (5-slot cap, locked Home/More
+    # slots, Save, reset) driven on Health's own pool, and the shared BYOK
+    # "AI assistance" entry row — both cross-app components this brand only
+    # instantiates, so each is its own flow rather than folded into
+    # more-settings-controls.
+    - more-customize-tabs
+    - more-ai-access-entry
+    # The two DATA verbs (Export, Clear all). Export is committed for real;
+    # Clear-all is asserted up to (never past) its destructive confirmation —
+    # this is the shared fleet account, and actually wiping it would corrupt
+    # every flow that runs after it. See the flow's own header for the split.
+    - more-data-safety
+    - more-navigation-rows
+    # - more-overflow-body-habits   # needs-admin-feature-seed, see header comment
+    # Sweeps ALL four defaultHidden tabs (Body/Habits/Cycle/Vitality) and opens
+    # each one. Read-only, so it runs straight after the mutating hub flow and
+    # needs no teardown of its own.
+    # - more-overflow-all-tabs   # needs-admin-feature-seed, see header comment
+    - more-units-picker
+    - more-brand-isolation
+    - scroll-all-screens
+    # privacy-cross-user-leak signs OUT and reinstalls, so it runs after every
+    # session-dependent flow and immediately before the auth pair that
+    # re-seeds the session — the auth pair does its own full
+    # clearState/clearKeychain regardless, so this flow's own sign-out first
+    # doesn't strand anything after it.
+    - privacy-cross-user-leak
+    # Session-destroying auth flows last.
+    - login-screen-controls
+    - login-email-submit-seeded

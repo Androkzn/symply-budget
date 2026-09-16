@@ -1,0 +1,108 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:habits
+  - readonly
+  - regression
+# Matrix: HEALTH-HABIT-120 … HEALTH-HABIT-124
+---
+# Habits tab — the date selector.
+#
+# WHY THIS FLOW EXISTS. The tab is no longer "today only": a forgotten day can
+# still be ticked, which means the screen now has a piece of state that decides
+# WHICH DAY every tick is filed against. Two properties matter to a member and
+# neither is visible in a screenshot:
+#
+#   1. The forward control is disabled ON today. A habit cannot be ticked in
+#      advance — a day the member cannot reach is a day they cannot file
+#      against, and a future tick would inflate a streak that has not happened.
+#   2. There is always a one-tap way back. Paging back four days and then having
+#      to page forward four times is how a member ends up leaving the tab on the
+#      wrong day and mistaking it for lost data.
+#
+# STATE + TEARDOWN. **Nothing is written.** The selected day is view state that
+# dies with the screen, and this flow taps no checkbox, so it needs no teardown
+# and can run anywhere in the suite. It is deliberately separate from
+# `habits-add-tick-delete` so a date-selector regression fails on its own.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-HABIT-120
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-habits.yaml
+
+      # --- The tab opens on today (HEALTH-HABIT-120) -----------------------
+      - assertVisible:
+          id: 'health-habits-day-label'
+          text: 'Today'
+      # "Back to today" is hidden when there is nowhere to go back FROM — an
+      # always-on link that does nothing trains members to ignore it.
+      - assertNotVisible:
+          id: 'health-habits-back-to-today'
+
+      # --- Forward is disabled on today (HEALTH-HABIT-121) -----------------
+      # Behavioural, not an `enabled:` selector: RN maps a Pressable's
+      # `disabled` to an accessibility trait Maestro's filter does not match on
+      # this build. Pressing it and proving the day did NOT move tests the guard
+      # itself — and the guard is inside the handler as well as on the prop, so
+      # a press that slips through the disabled state still cannot reach tomorrow.
+      - tapOn:
+          id: 'health-habits-next-day'
+      - assertVisible:
+          id: 'health-habits-day-label'
+          text: 'Today'
+
+      # --- Paging back reaches yesterday (HEALTH-HABIT-122) ----------------
+      - tapOn:
+          id: 'health-habits-prev-day'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habits-day-label'
+            text: 'Yesterday'
+          timeout: 15000
+      # Now that there IS somewhere to return to, the escape hatch appears.
+      - assertVisible:
+          id: 'health-habits-back-to-today'
+
+      # --- Paging forward walks back toward today (HEALTH-HABIT-123) -------
+      # Two back, one forward: proves the control moves by ONE day in each
+      # direction rather than jumping to an edge.
+      - tapOn:
+          id: 'health-habits-prev-day'
+      - assertNotVisible:
+          id: 'health-habits-day-label'
+          text: 'Yesterday'
+      - tapOn:
+          id: 'health-habits-next-day'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habits-day-label'
+            text: 'Yesterday'
+          timeout: 15000
+
+      # --- One tap returns to today (HEALTH-HABIT-124) ---------------------
+      - tapOn:
+          id: 'health-habits-back-to-today'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habits-day-label'
+            text: 'Today'
+          timeout: 15000
+      - assertNotVisible:
+          id: 'health-habits-back-to-today'
+
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

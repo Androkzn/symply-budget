@@ -1,0 +1,56 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:onboarding
+  - mutation
+  - regression
+# Matrix: HOUSE-onboarding (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-onboarding.yaml
+- runFlow: ../subflows/skip-onboarding-if-onboarded.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-get-started'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            E2E_MATRIX_ROW: HOUSE-ONBD-003
+      # CreateHouseholdScreen (onboarding step 1). Requires a fresh un-onboarded account.
+      # The "this screen exposes ZERO testIDs" note that used to live here is STALE:
+      # the name field is `onboarding-create-home-name` (CreateHouseholdScreen.tsx:339)
+      # and the CTA is `onboarding-create-home-submit` (:516) — the same ids
+      # create-household-cancel/-empty-name/-offline and onboarding-kill-resume already
+      # drive. Target the field by id instead of tapping its "Home Name" LABEL, which
+      # is a sibling <Typography> and does not focus the input.
+      - runFlow: ./welcome.yaml
+      - assertVisible: 'Create Home'
+      - assertVisible: 'Home Name'
+      - tapOn:
+          id: 'onboarding-create-home-name'
+      - inputText: 'E2E Test Home'
+      - hideKeyboard
+      - assertVisible: 'Create Home'
+
+      # LOCAL-FIRST: `householdsApi` is wrapped by `createHouseLocalProxy`
+      # (src/api/households.ts:399) with NO `remoteMethods` at all, so
+      # `createHousehold` is served from the on-device ledger and POST /households
+      # must NEVER fire. Passing E2E_VERIFY_PATH to e2e-matrix-after runs
+      # e2e-verify-network (subflows/e2e-matrix-after.yaml:7-10), i.e. this used to
+      # assert the exact opposite of the contract — a check that can only go red,
+      # burning its 5x retry budget on deep links that dismiss native modals.
+      # `E2E_VERIFY_EXACT` is required for a bare collection route: without it
+      # `/households` substring-matches every nested sub-resource too.
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /households
+            E2E_VERIFY_EXACT: 'true'

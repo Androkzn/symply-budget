@@ -1,0 +1,69 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`scale corpus — shape fidelity > pins the JSON byte size of each table first row 1`] = `
+{
+  "budgetLoans": 397,
+  "budgetRenewals": 246,
+  "categories": 221,
+  "expenses": 380,
+  "goals": 290,
+  "items": 595,
+  "mortgageEvents": 279,
+  "mortgageOffers": 249,
+  "mortgageStatements": 376,
+  "mortgageTerms": 439,
+  "mortgages": 544,
+  "registeredAccounts": 666,
+  "registeredTransactions": 307,
+  "savingsCategories": 185,
+  "savingsGoals": 377,
+  "savingsIncome": 440,
+  "savingsIncomeTemplates": 246,
+  "savingsMonthlyTargets": 96,
+  "savingsRecurringPayments": 446,
+  "savingsSpending": 347,
+  "subBudgets": 243,
+  "transfers": 154,
+  "wishAttachments": 170,
+  "wishEntries": 388,
+  "wishes": 323,
+}
+`;
+
+exports[`scale corpus — shape fidelity > pins the corpus fingerprint every record is stamped with 1`] = `"081907752847eb99"`;
+
+exports[`scale corpus — shape fidelity > pins the size of the LWW watermark map (audit C18) 1`] = `162129`;
+
+exports[`scale corpus — shape fidelity > pins the sorted field-name set of every table 1`] = `
+{
+  "budgetLoans": "amount_paid_cents,created_at,created_by,household_id,id,lender,loan_kind,notes,portal_url,principal_cents,rate_bps,rate_type,recurring_payment_id,start_date,term_months,updated_at",
+  "budgetRenewals": "created_at,household_id,id,next_renewal_date,recurring_payment_id,reminder_lead_days,status,updated_at",
+  "categories": "color,created_at,hidden,household_id,icon,id,is_default,name,sort_order,usage_count",
+  "expenses": "amount,budget_item_id,category_id,created_at,created_by,description,expense_date,household_id,id,receipt_key,saved_amount,tax_amount,title,vendor",
+  "goals": "actual_spent,category_budgets,created_at,household_id,id,month,notes,planned_budget,updated_at,year",
+  "items": "actual_cost,category_id,completed_at,created_at,created_by,description,estimated_cost_max,estimated_cost_min,household_id,id,is_recurring,priority,quarter,recurrence_frequency,source_id,source_type,status,target_date,timeframe,title,updated_at,year",
+  "mortgageEvents": "amount_cents,created_at,event_date,event_type,household_id,id,mortgage_id,new_payment_cents,new_rate_bps,note,policy",
+  "mortgageOffers": "bankName,id,monthlyPaymentCents,note,offerExpiresAt,offeredRatePct,paymentSavedVsCurrentCents,rateType,status,termMonths",
+  "mortgageStatements": "closing_balance_cents,created_at,id,interest_paid_cents,interest_rate_bps,mortgage_id,opening_balance_cents,payment_amount_cents,prime_rate_bps,principal_paid_cents,raw_extraction_json,source,statement_date,variance_bps",
+  "mortgageTerms": "amortization_months_at_start,compounding,household_id,id,is_current,maturity_date,mortgage_id,nominal_rate_bps,payment_frequency,prime_rate_bps,rate_type,scheduled_payment_cents,sequence,spread_bps,starting_balance_cents,term_months,term_start_date",
+  "mortgages": "created_at,current_home_value_cents,down_payment_cents,household_id,id,insurance_premium_cents,is_active,lender,mortgage_number_last4,nickname,original_amortization_months,original_price_cents,original_principal_cents,product_type,property_address,start_date,updated_at",
+  "registeredAccounts": "account_type,annual_goal_cents,annual_goal_pct,annual_limit_override_cents,balance_cents,created_at,currency,employer_match_cents,employer_name,household_id,id,institution,is_employer_plan,is_room_only,member_id,pension_adjustment_cents,prior_earned_income_cents,recurring_start_month,regular_contribution_cents,room_as_of_date,starting_room_cents,updated_at",
+  "registeredTransactions": "account_id,amount_cents,contributor,created_at,created_by,id,import_batch_id,kind,notes,period,source,tax_year,transaction_date,type",
+  "savingsCategories": "color,created_at,household_id,icon,id,is_essential,name,sort_order",
+  "savingsGoals": "created_at,currency,current_amount_cents,household_id,id,monthly_allocation_cents,months_of_expenses,name,status,target_amount_cents,target_date,type,updated_at",
+  "savingsIncome": "amount_cents,created_at,created_by,currency,household_id,id,income_date,label,member_id,notes,period,rolled_over_from_entry_id,source_type,status,template_id,updated_at",
+  "savingsIncomeTemplates": "active,amount_cents,created_at,currency,day_of_month,household_id,id,label,member_id,source_type",
+  "savingsMonthlyTargets": "id,period,target_cents,updated_at",
+  "savingsRecurringPayments": "active,active_months,amount_cents,category_id,created_at,created_by,currency,day_of_month,group_label,household_id,id,is_automated,is_essential,label,scope_type,scope_year,source,updated_at",
+  "savingsSpending": "amount_cents,category_id,created_at,created_by,currency,household_id,id,label,notes,period,recurring_payment_id,spending_date,updated_at",
+  "subBudgets": "amount_cents,category_id,created_at,household_id,id,limit_type,month,percent_bps,updated_at,year",
+  "transfers": "amountCents,createdAt,destinationLabel,destinationType,id,note",
+  "wishAttachments": "id,key,localUri,mime",
+  "wishEntries": "author_avatar_url,author_id,author_name,body,created_at,created_by,household_id,id,image_key,kind,link_title,parent_entry_id,price_cents,reply_to,url,wish_id",
+  "wishes": "cover_image_key,created_at,created_by,estimated_cost_cents,household_id,id,notes,sort_order,status,target_date,title,updated_at",
+}
+`;
+
+exports[`scale corpus — shape fidelity > pins the whole-corpus CONTENT hash 1`] = `"a558f246fa05267f51e7725c5dadd0d464c3248af7a53bb8d65081d8da644fab"`;
+
+exports[`scale corpus — shape fidelity > pins the whole-corpus JSON size at the reference scale 1`] = `13810144`;

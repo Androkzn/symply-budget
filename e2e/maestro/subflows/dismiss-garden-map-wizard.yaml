@@ -1,0 +1,70 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Clear a map wizard — and its confirm alert — left behind by an earlier flow.
+#
+# WHY THIS EXISTS, which is the most useful thing in this file.
+#
+# The wizard is the one screen in the House suite that `pop-to-app-root.yaml`
+# cannot dismiss. Backing out of it does not pop; it raises a native
+# `Discard this plan?` alert and waits. So the moment ANY flow dies inside the
+# wizard, every flow after it inherits a wizard it cannot leave — and the
+# failure they report is `garden-plans-screen is visible`, which names the
+# screen they wanted rather than the modal that is actually in the way.
+#
+# That is exactly how one real failure (a zone chip scrolled off-screen) turned
+# into three: `zones` died on step two, then `discard` and `lot` both inherited
+# the stuck wizard and reported a symptom fifteen steps from its cause.
+#
+# So this runs BEFORE the wizard is opened, not only after it is used. A suite
+# that can only recover when the previous flow exited cleanly does not recover
+# at all.
+#
+# ORDER MATTERS: the alert is dismissed FIRST. While it is up every tap on the
+# screen underneath is swallowed, and Maestro does not test occlusion — so a
+# `tapOn` aimed at the footer would be reported as landing perfectly while
+# changing nothing.
+- runFlow:
+    when:
+      visible: 'Discard this plan?'
+    commands:
+      - tapOn:
+          text: 'Discard'
+      - waitForAnimationToEnd:
+          timeout: 2500
+
+# Walk out of whatever step the wizard is on.
+#
+# `garden-map-wizard-back` (the footer) rather than `nav-back-button` (the
+# header), deliberately: the wizard is pushed OVER `Add yard plan`, whose header
+# carries a `nav-back-button` of its own, and with no occlusion test a tap on
+# that id can land on the covered one underneath. The footer id exists only on
+# this screen.
+#
+# Three passes because the footer button steps BACK one step at a time and only
+# exits from step one — elements → areas → lot → alert.
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'garden-plan-map-wizard-screen'
+          commands:
+            - tapOn:
+                id: 'garden-map-wizard-back'
+            - waitForAnimationToEnd:
+                timeout: 1500
+            - runFlow:
+                when:
+                  visible: 'Discard this plan?'
+                commands:
+                  - tapOn:
+                      text: 'Discard'
+                  - waitForAnimationToEnd:
+                      timeout: 2500
+
+- assertNotVisible:
+    id: 'garden-plan-map-wizard-screen'

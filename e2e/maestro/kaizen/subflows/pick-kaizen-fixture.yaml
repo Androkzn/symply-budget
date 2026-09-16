@@ -1,0 +1,67 @@
+appId: com.symply.kaizen
+tags:
+  - util
+  - app:kaizen
+---
+# Dev-only bundled fixture pick — queue via e2e-pick, restore route, tap Upload File.
+# Env: E2E_PICK_KEY, E2E_PICK_NAME, E2E_PICK_REGEX, KAIZEN_ROUTE
+- runFlow: scroll-kaizen-to-top.yaml
+- openLink: ${KAIZEN_ROUTE}
+- waitForAnimationToEnd:
+    timeout: 4000
+- runFlow: scroll-kaizen-to-top.yaml
+- scrollUntilVisible:
+    element:
+      id: kaizen-upload-source-file
+    direction: DOWN
+    timeout: 30000
+    speed: 90
+- openLink: kaizen://e2e-pick?key=${E2E_PICK_KEY}
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: ${KAIZEN_ROUTE}
+- waitForAnimationToEnd:
+    timeout: 4000
+- runFlow: scroll-kaizen-to-top.yaml
+- scrollUntilVisible:
+    element:
+      id: kaizen-upload-source-file
+    direction: DOWN
+    timeout: 30000
+    speed: 90
+- tapOn:
+    id: kaizen-upload-source-file
+- extendedWaitUntil:
+    visible:
+      id: kaizen-upload-selected-file
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: kaizen-upload-selected-file
+    commands:
+      - openLink: kaizen://e2e-pick?key=${E2E_PICK_KEY}
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn:
+          id: kaizen-upload-source-file
+      - waitForAnimationToEnd:
+          timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: kaizen-upload-selected-file
+    timeout: 90000
+- extendedWaitUntil:
+    visible: ${E2E_PICK_NAME}
+    timeout: 30000
+- runFlow:
+    when:
+      notVisible:
+        id: kaizen-upload-selected-file
+    commands:
+      - runFlow:
+          file: ../../subflows/pick-document-from-files.yaml
+          env:
+            DOC_NAME: ${E2E_PICK_NAME}
+            DOC_NAME_REGEX: ${E2E_PICK_REGEX}

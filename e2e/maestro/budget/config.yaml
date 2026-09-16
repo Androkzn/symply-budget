@@ -1,0 +1,144 @@
+# Maestro workspace — Symply Budget (com.symply.budget)
+# Subflows under e2e/maestro/subflows/ are referenced via runFlow (not discovered here).
+excludeTags:
+  - util
+  # Two-member chat stages (budget-chat-pair-*). They are meaningless in this
+  # single-device suite: each one assumes a specific other-member device has
+  # already run the preceding stage, and half of them must execute as the
+  # SECONDARY account. Driven only by scripts/e2e/run-budget-chat-two-members.sh.
+  - pair
+  # Maintenance flows (budget-savings-purge-residue). They DELETE rows from the
+  # shared E2E household — that is their whole job, run by name when the Monthly
+  # Payments list has accumulated residue from failed runs. A destructive purge
+  # that fires as part of a regression suite would take real fixtures with it,
+  # so it is excluded rather than ordered.
+  - maintenance
+flows:
+  - '**'
+executionOrder:
+  continueOnFailure: true
+  # budget-auth clears Keychain — run it last. flowsOrder runs first in listed order;
+  # list every flow explicitly so nothing runs after auth.
+  flowsOrder:
+    - budget-prime-session
+    - budget-recover-session
+    - budget-onboarding-terms
+    - budget-ai-screen
+    - budget-ai-providers
+    - budget-ai-consent
+    - budget-categories
+    - budget-category-inline-create
+    - budget-category-detail
+    - budget-chat-assistant
+    - budget-chat-extended
+    - budget-chat-fab-visible
+    - budget-chat-message
+    - budget-chat-rooms
+    - budget-consistency-golden
+    - budget-corner-testids
+    - budget-customize-tabs
+    - budget-dashboard-controls
+    - budget-dashboard-insights
+    - budget-dashboard-offline
+    - budget-date-sheet-check
+    - budget-dashboard-widgets
+    - budget-data-sharing
+    - budget-deep-links
+    - budget-item-form
+    - budget-bulk-purchase
+    - budget-local-first-sync-pulse
+    - budget-local-first-settings
+    - budget-local-first-offline-crud
+    - budget-local-first-no-financial-d1
+    - budget-local-first-backup
+    - budget-local-first-auto-backup
+    - budget-local-first-backup-destinations
+    - budget-local-first-backup-retention
+    - budget-local-first-backup-drive-folder
+    - budget-local-first-restore-ui
+    - budget-local-first-soft-transfer
+    - budget-local-first-ai-detect
+    - budget-local-first-mortgage-statement
+    - budget-local-first-pension-import
+    - budget-planned-select
+    - budget-offline-sweep
+    - budget-pension
+    - budget-pension-interactions
+    - budget-pension-offline
+    - budget-plan-delete
+    - budget-quick-add
+    - budget-receipt-scan
+    - budget-receipt-scan-save
+    - budget-receipt-scan-quality
+    # Runs after the other receipt flows: it leaves Region=Canada/BC and
+    # Currency=CAD set on the device, which the flows above do not expect.
+    - budget-receipt-foreign-currency
+    - budget-savings-entry-controls
+    - budget-savings-goal
+    - budget-savings-goal-crud
+    - budget-savings-import
+    - budget-savings-income-entry
+    - budget-savings-income-crud
+    - budget-savings-income-copy
+    - budget-savings-irregular-income
+    - budget-savings-month-stepper
+    - budget-savings-monthly-crud
+    - budget-savings-offline
+    - budget-savings-overview
+    - budget-savings-projection
+    - budget-savings-projection-figures
+    - budget-savings-projection-methods
+    - budget-savings-projection-targets
+    - budget-savings-recurring
+    - budget-savings-recurring-toggle
+    - budget-savings-renewal-reminder
+    - budget-savings-year-history
+    - budget-settings
+    - budget-settings-extended
+    - budget-settings-more
+    - budget-settings-offline
+    - budget-region-setting
+    - budget-soft-transfer-export
+    - budget-soft-transfer-import
+    - budget-see-all-spending
+    - budget-see-all-planned
+    - budget-spend-mutations
+    - budget-spent-form
+    - budget-sub-budgets
+    - budget-subbudgets-consistency-golden
+    - budget-tabs
+    - budget-timeline-year-setup
+    - budget-transfer
+    - budget-wishes
+    - budget-wishes-extended
+    - check-spendings-layout
+    - mortgage-setup
+    - mortgage-tabs
+    - mortgage-tabs-customize
+    - mortgage-renewal-offers
+    - mortgage-settings
+    - mortgage-title-switcher
+    - mortgage-multi-property
+    - mortgage-statements-manage
+    - mortgage-history
+    - mortgage-forecast
+    - budget-chat-assistant-room
+    - budget-receipt-category
+    - budget-spent-select
+    - budget-spend-select-sticky
+    # Household flows run LAST (before auth), for the same reason budget-auth
+    # does: they leave the device in a state the rest of the suite cannot use.
+    #
+    # Under BR-016 a household is a fully isolated local ledger, and creating one
+    # ACTIVATES it (`handleSave` → `activateLocalBudgetHousehold`). These three
+    # therefore end with an empty "E2E …" household active — and the switch flow
+    # deliberately ends on an arbitrary other one. Sitting at order 40-42 they
+    # left ~60 downstream flows asserting against an empty budget.
+    #
+    # Restoring the original household afterwards is not available: it is named
+    # after the account's display name, so there is no stable string to address
+    # it by. Ordering is the fix that does not depend on one.
+    - budget-household-extended
+    - budget-household-switch
+    - budget-households
+    - budget-auth

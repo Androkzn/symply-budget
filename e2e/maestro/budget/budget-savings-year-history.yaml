@@ -1,0 +1,136 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - readonly
+  - regression
+# Matrix: BUDGET-SAVE-019 / BUDGET-SAVE-020 / BUDGET-SAVE-039 / BUDGET-SAVE-040 /
+#         BUDGET-SAVE-077
+#
+# Previous years + Compare years — the two Savings history screens. Both were
+# unit-only: `SavingsYearHistoryScreen.test.tsx` / `SavingsCompareYearsScreen.test.tsx`
+# render them with a mocked `savingsApi`, so nothing proved the ROUTE exists,
+# that the app still links to it, or that `/savings/history` and
+# `/savings/compare` answer from the device.
+#
+# The door is the MORE tab's INSIGHTS group now, not the bottom of Budget
+# Settings — see `budget-open-insights.yaml`.
+#
+# YEAR ADDRESSING. Chips are `savings-year-chip-<year>` — `buildYearOptions`
+# always includes the currently-selected year, which starts at today's. The
+# year is computed at run time rather than hard-coded, so this flow does not
+# quietly rot on 1 January.
+#
+# Non-mutating: navigates, picks years, reads. No writes.
+---
+- evalScript: ${output.curYear = new Date().getFullYear()}
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget
+      E2E_MATRIX_ROW: BUDGET-SAVE-019
+# ===================== Previous years (SAVE-019) =====================
+# The staged scroll helpers this flow used to need are gone with the links they
+# walked to: Budget Settings is a long nested scroll that resists
+# scrollUntilVisible under iOS 26 + Maestro (measured 2026-08-22: 40 iterations,
+# link never found, though it rendered unconditionally), and reaching the last
+# of three text links at its foot took two blind swipes on top of the helper.
+# More is a short screen, so the group is one scroll away.
+- runFlow: ../subflows/budget-open-insights.yaml
+- tapOn:
+    id: 'settings-row-budget-year-history'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-year-history'
+    timeout: 30000
+- assertVisible:
+    id: 'savings-year-history-compare'
+# One hard assertion that holds in BOTH data states: the populated screen ends
+# in "Import another year" (`savings-year-history-import`), the empty one in
+# "Import previous years" (`savings-year-history-import-empty`) — the regex
+# spans both, so a screen that rendered NEITHER still fails here rather than
+# being waved through by a pair of optional guards.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-year-history-import.*'
+    timeout: 30000
+
+# --- Year chips (SAVE-039). The current year is always an option; selecting it
+# re-reads the year from the Worker.
+- assertVisible:
+    id: 'savings-year-chip-${output.curYear}'
+- tapOn:
+    id: 'savings-year-chip-${output.curYear}'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-year-history-import.*'
+    timeout: 30000
+- assertVisible:
+    id: 'savings-year-history'
+# The month grid renders only for a year that HAS data — guarded, and the guard
+# is not the only assertion on this screen (the import CTA above is hard).
+- runFlow:
+    when:
+      visible:
+        id: 'savings-year-row-1'
+    commands:
+      - assertVisible:
+          id: 'savings-year-row-12'
+      - assertVisible: 'Income'
+      - assertVisible: 'Savings'
+
+# ===================== Compare years (SAVE-020) =====================
+- tapOn:
+    id: 'savings-year-history-compare'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-compare-years'
+    timeout: 30000
+- assertVisible: 'Compare years'
+# --- Year multi-select (SAVE-040). Toggling a chip re-fetches the comparison;
+# the chips carry no accessibility selected-state (they are plain
+# TouchableOpacitys tinted by background colour), so what is assertable from
+# the tree is that the screen survives the toggle and re-renders — the
+# selection maths itself stays unit-covered.
+- assertVisible:
+    id: 'savings-compare-chip-${output.curYear}'
+- tapOn:
+    id: 'savings-compare-chip-${output.curYear}'
+- waitForAnimationToEnd:
+    timeout: 4000
+- assertVisible:
+    id: 'savings-compare-years'
+- tapOn:
+    id: 'savings-compare-chip-${output.curYear}'
+- waitForAnimationToEnd:
+    timeout: 4000
+- assertVisible:
+    id: 'savings-compare-years'
+- assertVisible:
+    id: 'savings-compare-chip-${output.curYear}'
+
+# --- Back out through both screens, leaving the app where the next flow expects.
+# Both were PUSHED onto the Budget stack in the Home tab (More opens them by
+# URL, not by a stack push), so the second back lands on the dashboard — not on
+# Budget Settings, which is no longer anywhere in this flow's history.
+- tapOn:
+    id: 'savings-compare-back'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-year-history'
+    timeout: 25000
+- tapOn:
+    id: 'savings-year-history-back'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 25000
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

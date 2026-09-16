@@ -1,0 +1,26 @@
+appId: com.symply.kaizen
+---
+# Interview pipeline — add an opportunity and confirm it lands in the list with
+# its starting stage badge.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/pipeline
+- extendedWaitUntil:
+    visible: 'Interview pipeline'
+    timeout: 20000
+- assertVisible: 'Add opportunity'
+- assertVisible: 'Opportunities'
+# Interaction: add an opportunity → the row + 'saved' stage appear.
+- tapOn: 'Company or role'
+- inputText: 'Acme — Senior Engineer'
+- tapOn: 'Add to pipeline'
+- assertVisible: 'Acme — Senior Engineer'
+- assertVisible: 'saved'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

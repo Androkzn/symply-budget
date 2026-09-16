@@ -1,0 +1,192 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:more
+  - mutation
+  - regression
+# Matrix: HEALTH-MORE-097, HEALTH-MORE-099, HEALTH-MORE-100
+---
+# HealthMoreScreen — the two DATA verbs added 2026-07-26: "Export my data" and
+# "Clear all health data". Both walk the whole account, both block the screen
+# with the shared `ProcessingOverlay` while they run, and only "Clear" is
+# destructive.
+#
+# WHY EXPORT IS DRIVEN BUT CLEAR-ALL IS NOT COMMITTED ON DEVICE
+# This is the fleet's shared test account (`a.tekhtelev@gmail.com`), which every
+# OTHER Health flow reads and writes against. Actually deleting its health data
+# here would corrupt every flow that runs after it in the suite — the opposite of
+# the teardown discipline every other flow in this directory follows. So:
+#   * Export is committed for real — it reads, it does not mutate, and its
+#     completion (`health-data-overlay` appears then disappears, a result Alert
+#     shows) is fully observable.
+#   * Clear-all is driven up to and including the SYSTEM CONFIRMATION, then
+#     CANCELLED. That proves the row, the inventory panel, and the Alert's copy
+#     and buttons are wired correctly without touching a single row. The
+#     destructive commit itself (`clearAllHealthData()` actually running) is
+#     covered at unit speed only, in `HealthMoreScreen.test.tsx`
+#     (HEALTH-MORE-101/102), against a mocked verb — which is the correct level
+#     for a call that is irreversible on a shared account.
+#
+# STATE: needs a session. Export writes a temp file to cache and shares it (the
+# share sheet is dismissed rather than completed, so nothing leaves the sim).
+# Clear-all's panel is left CLOSED at the end (dismissed via Cancel then a second
+# tap on the row) so the tab returns to its resting state for the next flow.
+#
+# GATED / SKIPS-GRACEFULLY: wrapped in `runFlow: when: visible: health-home-screen`.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-more.yaml
+      - assertVisible:
+          id: 'health-more-screen'
+
+      # --- Export my data (HEALTH-MORE-097) --------------------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-MORE-097
+      - scrollUntilVisible:
+          element:
+            id: 'health-setting-export'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `handleExport` -> `exportHealthData()` (src/features/health/
+      # healthExport.ts) -> `healthApi.sync(HEALTH_EXPORT_SINCE)` ->
+      # `GET /health/sync` (src/api/health.ts) — a real account-wide read, not
+      # a mutation, but a real wire call worth pinning: a silently-failed fetch
+      # would still show the overlay and a (misleading) result Alert.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-setting-export'
+      # The shared blocking overlay — the SAME primitive every AI-scan surface
+      # uses, so if it renders here it renders correctly everywhere else too.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-data-overlay'
+          timeout: 10000
+      - assertVisible: 'Preparing your export…'
+      # The share sheet (or its absence on a simulator with no target app) is a
+      # platform surface Maestro does not own; either dismiss it if it appears,
+      # or let the flow proceed once the overlay itself has cleared.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-data-overlay'
+          timeout: 30000
+      # MOVED ABOVE the network verify + badge check (2026-08-02): on a
+      # simulator with a real share target (e.g. Files), `Share.share()` pops
+      # the NATIVE iOS share sheet once the JS-side `health-data-overlay`
+      # clears, and that sheet renders on TOP of the whole app — including the
+      # e2e-verify-badge overlay. Checking the badge while the sheet is still
+      # up fails even though the underlying GET /health/sync already
+      # succeeded; dismissing it first is what makes the badge checkable at
+      # all. `Cancel` is the share sheet's own dismiss action here, same
+      # string this leg already used for a possible result Alert.
+      - tapOn:
+          text: 'Cancel|Close|OK'
+          optional: true
+      # The overlay only clears after `await exportHealthData()` resolves, so
+      # the sync call has already completed by this point — no extra settle
+      # wait needed before verifying it.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: GET
+            E2E_VERIFY_PATH: /health/sync
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # The screen is still the More tab and still interactive afterwards.
+      - assertVisible:
+          id: 'health-more-screen'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Clear all health data → panel + Alert, CANCELLED (HEALTH-MORE-099/100) --
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-MORE-099
+      - scrollUntilVisible:
+          element:
+            id: 'health-setting-clear-data'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-setting-clear-data'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-clear-data-panel'
+          timeout: 10000
+      # The inventory — a member should be able to check the promise, not just
+      # trust it. Asserted by a representative line from each half rather than
+      # every line, since the two lists are already exhaustively unit-tested.
+      - assertVisible: 'This deletes'
+      - assertVisible: 'This is kept'
+      - assertVisible: 'It cannot be undone'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-MORE-100
+      # `handleClearAll` (HealthMoreScreen.tsx) only reaches
+      # `clearAllHealthData()` (src/features/health/healthDataReset.ts) — whose
+      # first call is `healthApi.sync(...)` (`GET /health/sync`), followed by
+      # tombstone pushes to `POST /health/sync/push` — from the Alert's
+      # DESTRUCTIVE button's `onPress`. Cancel has no `onPress` at all (pure
+      # dismiss), so this is the one point in the flow where actually proving
+      # zero network traffic matters most: this is the shared fleet account,
+      # and a regression here would silently wipe it out from under every flow
+      # that runs after it in the suite.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-clear-data-confirm'
+      - assertVisible: 'Delete all health data?'
+      - assertVisible: 'Delete everything'
+      - tapOn: 'Cancel'
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_PATH: /health/sync
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Cancelling the SYSTEM alert must not have deleted anything and must not
+      # have collapsed the panel out from under the member mid-decision.
+      - assertVisible:
+          id: 'health-clear-data-panel'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # TEARDOWN: close the panel so the tab is at rest for the next flow.
+      - tapOn:
+          id: 'health-setting-clear-data'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-clear-data-panel'
+          timeout: 10000

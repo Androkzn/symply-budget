@@ -1,0 +1,13 @@
+# Speed up Cursor indexing — not active product code
+_archive/
+node_modules/
+coverage/
+.expo/
+ios/Pods/
+android/.gradle/
+backend/node_modules/
+backend/.wrangler/
+backend/lambda-processor/venv/
+backend/lambda-processor/package/
+credentials/
+*.zip

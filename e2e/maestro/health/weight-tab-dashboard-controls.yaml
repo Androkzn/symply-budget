@@ -1,0 +1,310 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:weight
+  - mutation
+  - regression
+# Matrix: HEALTH-WEIGHT-421 … HEALTH-WEIGHT-423, HEALTH-WEIGHT-434 … 438
+---
+# Weight tab — the window navigator and the main chart's own Trend/Change +
+# average-line controls.
+#
+# WHY THIS FLOW EXISTS. `weight-tab-log-and-edit.yaml` owns the entry form; this
+# one owns everything around it that is still ON this screen. Between them
+# every control this screen actually renders is driven.
+#
+# CHARTS ARE SVG WITH NO TEXT, so the dashboard widgets are asserted on their
+# WRAPPER testIDs and on the captions beside them — never on chart internals.
+#
+# RETARGETED 2026-08-02 — TWO WHOLE LEGS REMOVED, NOT JUST RENAMED. This flow
+# used to also own an in-screen "CUSTOMISE" disclosure (toggle/reorder/reset a
+# widget) and a "GOAL & BODY DETAILS" editor (target/starting/height/birth
+# year/sex/activity). Neither exists on `HealthWeightScreen.tsx` any more —
+# confirmed by reading the current 974-line source top to bottom, not
+# inferred from the failure:
+#   * CUSTOMISE was extracted into the shared `WidgetOrderSection`, reachable
+#     from More → Customize Tabs → "WEIGHT SCREEN WIDGETS"
+#     (`src/screens/settings/TabCustomizationScreen.tsx`, testID prefix
+#     `customize-tabs-weight`). It also dropped the up/down arrows this flow
+#     used to press (`health-weight-customise-up/down-*`) for a native
+#     long-press drag handle (`customize-tabs-weight-drag-*`) — no flow in
+#     this suite automates that gesture yet. The toggle-only half of that
+#     interaction (turn a widget on, confirm it renders, reset) is covered by
+#     `weight-widgets-measurements-toggle.yaml`, retargeted the same day.
+#   * The GOAL editor's target/starting fields moved to `HealthGoalsScreen.tsx`
+#     ("Goals", reached from More → Preferences → "Goals and targets") and are
+#     covered there by `health-goals-hydration-weight-and-suggested.yaml`
+#     (HEALTH-GOALS-144…148) and, for the one field that sibling flow leaves
+#     alone, `weight-tab-goal-start-field.yaml` (retargeted the same day).
+#     Height / sex / birth year / activity level are NOT on that screen —
+#     `HealthGoalsScreen.tsx` only READS them (for its suggestion engine) and
+#     its own footer text still says they are "on the Weight tab, under 'Goal
+#     & body details'", which is now a dangling reference to a card that does
+#     not exist anywhere in this build. Grepped for `heightCm`/`gender`/
+#     `birthYear`/`activityLevel` across every screen under `src/`: the only
+#     writable UI left is the ONE-TIME onboarding step
+#     (`src/screens/onboarding/HealthGoalsBiometricsScreen.tsx`). SUSPECTED
+#     REAL GAP, not guessed at in this flow: once onboarding is behind a
+#     member, height/sex/birth year/activity level appear to be permanently
+#     read-only. Flagged for product/eng to confirm intentional — not fixed
+#     here per this matrix's own rule against guess-fixing app code from a
+#     test flow.
+#
+# EVERY CONTROL LEFT HERE STILL PERSISTS, so teardown is not optional: the
+# window width goes through `persistLayout` and is put back with
+# `health-weight-range-30` (`DEFAULT_WEIGHT_LAYOUT.windowDays`); the average
+# line ends ON (`DEFAULT_WEIGHT_LAYOUT.showAverageLine`).
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-WEIGHT-421
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-weight.yaml
+
+      # --- The window navigator walks back and forward (WEIGHT-421) -------
+      # `Next` is disabled while the current window is on screen — the boundary
+      # case — and becomes live only after `Previous` has moved off it.
+      - assertVisible:
+          id: 'health-weight-window-label'
+      - assertVisible: 'Up to today'
+      # `Next` is inert on the current window. Behavioural rather than an
+      # `enabled:` selector: RN maps a `Pressable`'s `disabled` to an
+      # accessibility TRAIT and Maestro's `enabled` filter does not match it on
+      # this build, so the proof is that pressing it does not move the label.
+      - tapOn:
+          id: 'health-weight-window-next'
+      - assertVisible: 'Up to today'
+      - tapOn:
+          id: 'health-weight-window-previous'
+      - extendedWaitUntil:
+          visible: '1 window back'
+          timeout: 10000
+      - tapOn:
+          id: 'health-weight-window-previous'
+      - extendedWaitUntil:
+          visible: '2 windows back'
+          timeout: 10000
+      # …and forward again, twice, back to the current window.
+      - tapOn:
+          id: 'health-weight-window-next'
+      - extendedWaitUntil:
+          visible: '1 window back'
+          timeout: 10000
+      - tapOn:
+          id: 'health-weight-window-next'
+      - extendedWaitUntil:
+          visible: 'Up to today'
+          timeout: 10000
+      # Past the current window `Next` goes inert again — one more press must
+      # not walk into the future.
+      - tapOn:
+          id: 'health-weight-window-next'
+      - assertVisible: 'Up to today'
+
+      # --- The width picker takes every option (HEALTH-WEIGHT-422) --------
+      # Four options, all four chosen — a range picker driven with one value
+      # cannot tell selection from a hard-coded default. The count caption is
+      # the proof the WINDOW changed and not merely the highlight.
+      # Local-only: each tap calls `persistLayout({ windowDays })`, which is
+      # `saveWeightLayout` writing AsyncStorage key 'health.weightLayout.v1'
+      # only — there is no backend route for this layout (confirmed: the
+      # module header at healthWeightStorage.ts:312-322 says "this stays
+      # DEVICE-LOCAL"; `saveWeightLayout` at healthWeightStorage.ts:366-370
+      # only calls `storageHelpers.setObject`, never `healthApi`). No
+      # network verification below for this control or the chart-mode /
+      # average-line controls further down, which all go through the same
+      # `persistLayout`.
+      - tapOn:
+          id: 'health-weight-range-7'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-weight-range-7'
+            selected: true
+          timeout: 10000
+      - assertVisible:
+          id: 'health-weight-window-count'
+      - tapOn:
+          id: 'health-weight-range-90'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-weight-range-90'
+            selected: true
+          timeout: 10000
+      - assertVisible:
+          id: 'health-weight-range-7'
+          selected: false
+      - tapOn:
+          id: 'health-weight-range-365'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-weight-range-365'
+            selected: true
+          timeout: 10000
+      - assertVisible: '1 year'
+
+      # --- Changing the width returns to the current window (WEIGHT-423) --
+      # "Changing the width while parked in the past would land on a different
+      # span than the one on screen", so `setOffset(0)` is part of the handler.
+      - tapOn:
+          id: 'health-weight-window-previous'
+      - extendedWaitUntil:
+          visible: '1 window back'
+          timeout: 10000
+      - tapOn:
+          id: 'health-weight-range-30'
+      - extendedWaitUntil:
+          visible: 'Up to today'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-weight-range-30'
+          selected: true
+
+      # --- The chart's Trend/Change toggle (HEALTH-WEIGHT-437) ------------
+      # `mainChart` heads `DEFAULT_WEIGHT_WIDGETS`, so the dashboard is on screen
+      # without touching the customise panel. Both segments are driven and the
+      # picker is left on `trend` — `DEFAULT_WEIGHT_LAYOUT.chartMode`.
+      # Local-only: `onModeChange` calls `persistLayout({ chartMode })` — same
+      # AsyncStorage-only write as the width picker above, no network call.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-weight-chart-mode-change'
+            SCROLL_DIR: down
+      - assertVisible:
+          id: 'health-weight-chart-mode-trend'
+          selected: true
+      - tapOn:
+          id: 'health-weight-chart-mode-change'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-weight-chart-mode-change'
+            selected: true
+          timeout: 10000
+      - assertVisible:
+          id: 'health-weight-chart-mode-trend'
+          selected: false
+      # The average-line toggle is CONDITIONAL on `mode === 'trend'` — it is not
+      # merely greyed out in change mode, it is not rendered. Asserting its
+      # absence here is what makes the assertion below about state and not
+      # about the viewport.
+      - assertNotVisible:
+          id: 'health-weight-chart-toggle-average'
+      - tapOn:
+          id: 'health-weight-chart-mode-trend'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-weight-chart-toggle-average'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-weight-chart-mode-trend'
+          selected: true
+
+      # --- The average line goes off AND on again (HEALTH-WEIGHT-438) -----
+      # `showAverageLine` PERSISTS through `persistLayout`, so the state this
+      # starts in is not knowable on a shared account. The first step normalises
+      # it to ON (conditional, so it cannot fail); the two flips after it are
+      # hard, and it ends ON — `DEFAULT_WEIGHT_LAYOUT.showAverageLine`.
+      # Local-only: `persistLayout` writes AsyncStorage, not the backend — see
+      # the width-picker note above (healthWeightStorage.ts:366-370).
+      #
+      # 2026-08-02 — failed on the OFF flip: `extendedWaitUntil: visible:
+      # 'Average line off'` timed out at 10s (step 492 of this run's live
+      # report). Checked the failure screenshot and this run's app-side
+      # console log FIRST, because a concurrent session bumping
+      # brands/symply-health/brand.cjs had already sunk four other flows this
+      # run with a Fast Refresh remount that looks identical from the
+      # assertion's side (water-tab-goal-units-custom.yaml,
+      # activity-goals-and-session-edit.yaml). It is NOT that here: the
+      # failure screenshot has no blue "Refreshing…" banner, and
+      # /tmp/metro-health.log has zero `[E2E-NET]` lines and no `global probe
+      # installed` re-log anywhere in the failing window (14:21:15–14:21:34
+      # local) — a real remount reliably produces both (the confirmed cases
+      # show 25+ refetched GETs in the same window). This control doesn't
+      # call the network either way, so their absence just confirms no
+      # remount happened, not that the write finished on time.
+      # Maestro's own log shows the tap landing on the right element
+      # (`health-weight-chart-toggle-average`, bounds matching the pill that
+      # was on screen) and its post-tap hierarchy diff detecting a change, so
+      # the press itself was not dropped. What IS exposed here: this toggle
+      # persists through `saveWeightLayout` (healthWeightStorage.ts:368-372),
+      # an unconditional read-modify-write against `storageHelpers` — MMKV is
+      # dead under bridgeless on this build, so in practice that's a real
+      # AsyncStorage round trip, not memory-speed, and this run had a second
+      # CPU-heavy process (the brand/token rebuild) contending for the same
+      # simulator the whole time. Bumped 10s → 20s on all three flips in this
+      # block, not only the one that lost the race this run — every one goes
+      # through the identical write and is equally exposed.
+      - runFlow:
+          when:
+            visible: 'Average line off'
+          commands:
+            - tapOn:
+                id: 'health-weight-chart-toggle-average'
+            - extendedWaitUntil:
+                visible: 'Average line on'
+                timeout: 20000
+      - assertVisible: 'Average line on'
+      - tapOn:
+          id: 'health-weight-chart-toggle-average'
+      - extendedWaitUntil:
+          visible: 'Average line off'
+          timeout: 20000
+      - assertVisible:
+          id: 'health-weight-chart-toggle-average'
+          selected: false
+      - tapOn:
+          id: 'health-weight-chart-toggle-average'
+      - extendedWaitUntil:
+          visible: 'Average line on'
+          timeout: 20000
+      - assertVisible:
+          id: 'health-weight-chart-toggle-average'
+          selected: true
+
+      # --- HISTORY discloses the rest (HEALTH-WEIGHT-434) -----------------
+      # `See all` renders only past five readings, so this is asserted where it
+      # applies rather than demanded of an account that has fewer.
+      - scrollUntilVisible:
+          element:
+            id: 'health-weight-history-see-all'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'health-weight-history-see-all'
+          commands:
+            - tapOn:
+                id: 'health-weight-history-see-all'
+            - waitForAnimationToEnd:
+                timeout: 1000
+            - tapOn:
+                id: 'health-weight-history-see-all'
+            - waitForAnimationToEnd:
+                timeout: 1000
+
+      # --- The screen scrolls to its end (HEALTH-WEIGHT-435) --------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-weight-screen-scroll-end'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+
+      # --- Back to the Health tab (HEALTH-WEIGHT-436) ---------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

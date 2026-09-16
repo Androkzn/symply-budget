@@ -1,0 +1,31 @@
+# NBR-001 — the map opens, from the map's own entry point.
+#
+# The ONE flow that navigates by tapping rather than by deep link. An entry point
+# nobody can reach is a fully-tested screen that ships unreachable, and a deep
+# link proves nothing about the row on My Home that is supposed to lead here.
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:neighbours
+  - readonly
+  - regression
+# Matrix: HOUSE-NBR-001 (entry point), HOUSE-NBR-002 (map surface)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-my-home.yaml
+- assertVisible:
+    id: 'my-home-neighbours'
+- tapOn:
+    id: 'my-home-neighbours'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbours-screen'
+    timeout: 30000
+# The three controls that must exist before anything else is worth asserting:
+# somewhere to search, somewhere to add, and a way to leave the map.
+- assertVisible:
+    id: 'neighbours-search'
+- assertVisible:
+    id: 'neighbours-add-fab'
+- assertVisible:
+    id: 'neighbours-view-toggle'

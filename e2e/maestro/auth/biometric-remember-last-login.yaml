@@ -1,0 +1,116 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-auth (see documents/engineering/testing/matrices/)
+---
+# Full remember-last-login UI path:
+# enable Face ID in Settings → Sign Out → biometric CTA on Login → Face ID → Home.
+# Requires: scripts/run-e2e-biometric.sh (Face ID enroll + auto-match loop) and e2e credentials.
+- runFlow: ../subflows/launch-logged-in.yaml
+# Dismiss one-time enrollment sheet if present (Settings toggle is the source of truth below).
+- runFlow:
+    when:
+      visible: 'Not Now'
+    commands:
+      - tapOn: 'Not Now'
+      - waitForAnimationToEnd:
+          timeout: 3000
+# Quick sign-in moved off the More tab with the rest of ACCOUNT: it now sits on
+# Profile, next to Sign out, which is the thing it signs you in for.
+- runFlow: ../subflows/open-profile.yaml
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- assertVisible:
+    id: 'profile-screen'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-row-biometric'
+    timeout: 25000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'settings-row-biometric'
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'settings-row-biometric'
+          direction: DOWN
+          timeout: 20000
+          speed: 40
+          visibilityPercentage: 50
+          optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'settings-row-biometric'
+    commands:
+      - assertVisible:
+          id: 'settings-row-biometric'
+      - runFlow:
+          when:
+            visible: 'Enable for faster login'
+          commands:
+            - tapOn:
+                id: 'settings-toggle-biometric'
+            - waitForAnimationToEnd:
+                timeout: 8000
+      - extendedWaitUntil:
+          visible: 'Enabled for quick sign in'
+          timeout: 20000
+          optional: true
+# Sign out — biometric SecureStore enrollment must survive (remember last login).
+- runFlow:
+    when:
+      visible:
+        id: 'settings-row-biometric'
+    commands:
+      - runFlow: ../subflows/open-profile.yaml
+      - assertVisible:
+          id: 'profile-screen'
+      - scrollUntilVisible:
+          element:
+            id: 'profile-sign-out'
+          direction: DOWN
+          timeout: 15000
+          optional: true
+      # REACHABILITY: the scroll above is `optional: true` (RN New Arch swipes are
+      # flaky on iOS 26 + Maestro 2.6.x), but the tap below is NOT — so a swipe that
+      # silently no-ops used to fail here instantly with a bare "element not found",
+      # masking a scroll problem as a sign-out problem. Give the row a real settle
+      # window before demanding it. Sibling flows logout-profile.yaml:18 and
+      # logout-relaunch.yaml:18 keep the scroll non-optional instead; either shape
+      # is fine, "optional scroll + hard tap" is the one that is not.
+      - extendedWaitUntil:
+          visible:
+            id: 'profile-sign-out'
+          timeout: 15000
+      - tapOn:
+          id: 'profile-sign-out'
+      - runFlow: ../subflows/confirm-sign-out-alert.yaml
+      # Login screen restored — biometric CTA appears (old 'Welcome Back' copy was removed).
+      - extendedWaitUntil:
+          visible:
+            id: 'auth-biometric-login'
+          timeout: 60000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'auth-biometric-login'
+          commands:
+            - assertVisible:
+                id: 'auth-biometric-login'
+            - tapOn:
+                id: 'auth-biometric-login'
+            - waitForAnimationToEnd:
+                timeout: 5000
+            - extendedWaitUntil:
+                visible:
+                  id: 'home-screen'
+                timeout: 90000
+                optional: true
+            - runFlow: ../subflows/launch-logged-in.yaml

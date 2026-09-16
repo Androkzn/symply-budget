@@ -1,0 +1,188 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:spend
+  - readonly
+  - regression
+# Matrix: BUDGET-spend (see documents/engineering/testing/matrices/)
+# Budget receipt scan (BudgetReceiptScanScreen, wrapped in AIAccessGate) → REAL
+# photo upload + scan. Reaches the scanner from the Spent tab CTA
+# (budget-scan-receipt), attaches a seeded receipt photo via the gallery tile
+# (budget-receipt-gallery → native photo picker), runs Scan receipt, and asserts
+# the parsed grocery draft ("Review, edit, and accept each item" + the
+# budget-receipt-save control). Nothing is committed — the flow leaves before Save.
+#
+# NOTE: if the AI-access gate is not satisfied the screen renders a paywall/gate
+# instead of budget-receipt-scan, so the container assertion is guarded (optional)
+# and the flow no-ops past the scan step in that case.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+# Scan Receipt CTA lives on the Spent tab of BudgetSpendingsView.
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-scan-receipt'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-receipt-scan'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-receipt-scan'
+    commands:
+      - assertVisible:
+          id: 'budget-spendings'
+      # The Scan CTA now lives inside the header "+" sheet, which closed itself
+      # on the tap — so the proof we are still on the Spent tab is the "+".
+      - assertVisible:
+          id: 'budget-add-menu'
+- runFlow:
+    when:
+      visible:
+        id: 'budget-receipt-scan'
+    commands:
+      # Intro copy must be legible before any source is picked (regression guard
+      # for the receipt-scan copy-visibility fix). Waited form re-polls the a11y
+      # tree so the long test-id-less Text node is indexed after the gate resolves
+      # (avoids the iOS-26 snapshot race).
+      - extendedWaitUntil:
+          visible: '.*Snap any receipt.*'
+          timeout: 10000
+      # All four capture sources are offered.
+      - assertVisible:
+          id: 'budget-receipt-camera'
+      - assertVisible:
+          id: 'budget-receipt-gallery'
+      - assertVisible:
+          id: 'budget-receipt-file'
+      - assertVisible:
+          id: 'budget-receipt-drive'
+      - assertVisible:
+          id: 'budget-receipt-scan-button'
+      # Android has no CoreSimulator-equivalent host-side fixture seeding
+      # (scripts/e2e/seed-fixtures.sh is iOS-only) — the gallery is otherwise
+      # empty ("No photos yet"), so push the fixture in directly. iOS already
+      # has this seeded before the suite runs, so skip there to avoid
+      # duplicating the well-tested existing seeding path.
+      - runFlow:
+          when:
+            true: ${E2E_PLATFORM == 'android'}
+          commands:
+            - addMedia:
+                - ../../../resourses/testing/Budget app - Receipt 2.jpg
+      # PICK THE RECEIPT FROM FILES, BY NAME — not from the photo gallery.
+      #
+      # The gallery pick was the reason this flow could never assert anything.
+      # seed-fixtures.sh puts EIGHT budget images in Photos and
+      # pick-photo-from-library.yaml (with no PHOTO_INDEX) takes cell 0, which
+      # PHPicker does not order by add time — so the scan was handed a
+      # spreadsheet or a savings statement, correctly read ZERO items, and the
+      # flow took its "Nothing found" bail. Every assertion below then skipped
+      # and the run reported green having checked nothing. Measured 2026-09-08:
+      # `items: 0, vendor: "Other"` with the whole review block SKIPPED.
+      #
+      # This is the same failure budget-receipt-scan-quality.yaml documents from
+      # 2026-08-05 and solves with a controlled library; picking a NAMED file
+      # out of Files/SymplyE2E is the cheaper cure — no seeding precondition,
+      # no index to drift, and it cannot silently select the wrong asset.
+      - tapOn:
+          id: 'budget-receipt-file'
+      - runFlow:
+          file: ../subflows/pick-document-from-files.yaml
+          env:
+            DOC_NAME: receipt.jpg
+            DOC_NAME_REGEX: 'receipt\\.jpg'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-receipt-remove'
+          timeout: 20000
+          optional: true
+      - tapOn:
+          id: 'budget-receipt-scan-button'
+      # WAIT ON THE CURRENCY CARD — non-optional, and the only honest signal.
+      #
+      # This waited on `budget-receipt-save`, OPTIONALLY. Save sits at the
+      # bottom of the screen, so on any receipt with real items it is below the
+      # fold and the wait warns and returns AT ONCE — before the scan has
+      # returned anything. Every guard downstream then reads false and skips,
+      # and the flow reports green having asserted nothing. That is the same
+      # vacuous pass this file already records for a missing BYOK key, arriving
+      # by a different door.
+      #
+      # The receipt-currency card is the correct anchor: it renders exactly when
+      # `scan` is set — including for a 0-item scan, so the "Nothing found" bail
+      # below still works — and sits at the top of the review, so it is in the
+      # viewport rather than behind it.
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-receipt-currency-card'
+          timeout: 90000
+      - runFlow:
+          when:
+            visible: '.*Review each item.*'
+          commands:
+            - assertVisible: '.*Review each item.*'
+      # When the scan produced a draft (AI returned >=1 item) the editable
+      # line-item rows and the per-item toggle must be present (review UI is
+      # interactive). Guard on the first row's name field, NOT on the Save
+      # control: Save also renders when the AI reads 0 items (setScan is called
+      # with an empty list + a "Nothing found" alert), so guarding on Save
+      # hard-fails on AI variance. On 0 items this block no-ops and the alert
+      # is dismissed by the OK tap below.
+      # SCROLL THE NAME FIELD INTO VIEW BEFORE THE GUARD BELOW.
+      #
+      # The guard is `when: visible: budget-receipt-name`, and `visible` means
+      # in the VIEWPORT. The receipt-currency card now sits above the review —
+      # four rows tall for a foreign receipt (currency, rate, charged total,
+      # provenance caption) — which can push the first item's name past the
+      # fold. A guard that reads false does not fail: it SKIPS every assertion
+      # inside it, and the flow goes green having checked nothing. That is the
+      # same vacuous pass this file already records for a missing BYOK key.
+      #
+      # Optional, because on a 0-item scan there is no name to reach and the
+      # block is meant to no-op.
+      - scrollUntilVisible:
+          element:
+            id: 'budget-receipt-name'
+          direction: DOWN
+          timeout: 10000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'budget-receipt-name'
+          commands:
+            - assertVisible:
+                id: 'budget-receipt-name'
+            # Price/Saved sit below the name field, the alias chips and the tax
+            # row, so the first card's amount is past the fold on an iPhone even
+            # though the card is on screen, and `assertVisible` only sees the
+            # visible viewport. Same fix as budget-receipt-scan-save.yaml.
+            #
+            # This never surfaced before 2026-08-22 because the device had no
+            # BYOK key: the scan bailed early, the `budget-receipt-name` guard
+            # above was never true, and the whole block was skipped while the
+            # flow still reported PASS.
+            - scrollUntilVisible:
+                element:
+                  id: 'budget-receipt-amount'
+                direction: DOWN
+                timeout: 10000
+            - assertVisible:
+                id: 'budget-receipt-amount'
+            - assertVisible:
+                id: 'budget-receipt-toggle'
+      - tapOn:
+          text: 'OK'
+          optional: true
+- tapOn:
+    id: 'nav-back-button'
+    optional: true

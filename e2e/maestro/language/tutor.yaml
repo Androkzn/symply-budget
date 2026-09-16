@@ -1,0 +1,64 @@
+appId: com.symply.language
+tags:
+  - app:language
+  - feature:tutor
+  - readonly
+  - regression
+  - smoke
+# Matrix: LANGUAGE-tutor (see documents/engineering/testing/matrices/)
+---
+# AI tutor: type a message → Send → assert the message appears.
+# Boot fires POST /teaching-chat/sessions + GET /sessions/:id/messages. Send fires
+# POST /teaching-chat/messages; the user bubble is added optimistically and a tutor
+# reply bubble follows. The composer TextInput lacks a testID (matched by placeholder);
+# the Send button carries accessibilityLabel "Send message" (matched by text).
+# The load-bearing proxy is the sent user bubble rendering (the reply text is server-
+# generated and unknowable without a bubble testID).
+# TODO(testIDs): add a testID to the composer TextInput and to the tutor reply bubbles.
+- runFlow: subflows/launch-language.yaml
+- runFlow: subflows/go-tutor.yaml
+- assertVisible:
+    id: 'language-tutor-screen'
+- tapOn:
+    id: 'language-tutor-composer'
+- inputText: 'Hello, please teach me a greeting.'
+- hideKeyboard
+- tapOn:
+    text: 'Send message'
+# FlatList mounts once the optimistic user bubble is appended.
+- extendedWaitUntil:
+    visible:
+      id: 'language-tutor-messages'
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'language-tutor-user-message'
+    timeout: 45000
+# Give the donor reply time to arrive; the screen stays healthy through the round-trip.
+- waitForAnimationToEnd:
+    timeout: 15000
+- assertVisible:
+    id: 'language-tutor-screen'
+# Composer growth cap (LANG-TUTOR-021).
+- tapOn:
+    id: 'language-tutor-composer'
+- inputText: 'line one
+line two
+line three
+line four
+line five
+line six'
+- assertVisible:
+    id: 'language-tutor-composer'
+# Keyboard avoidance smoke (LANG-TUTOR-012) — focus keeps the screen healthy.
+- hideKeyboard
+# Message list scroll proxy (LANG-TUTOR-011) when prior messages exist.
+- runFlow:
+    when:
+      visible:
+        id: 'language-tutor-messages'
+    commands:
+      - swipe:
+          direction: UP
+      - assertVisible:
+          id: 'language-tutor-composer'

@@ -1,0 +1,39 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Opens House Settings — the hub behind the header gear on every tab.
+#
+# House's More tab used to BE this screen; it is the overflow-tabs hub now
+# (MORE TABS / CUSTOMIZATION / INSIGHTS), and preferences, units, the AI config
+# screens, notifications and data sharing live here instead. A flow that still
+# runs `go-settings-tab.yaml` to reach one of those rows lands on a screen that
+# no longer has it.
+#
+# Via the deep link rather than the gear, for the same reason
+# `budget-open-settings.yaml` does: a header icon tap is the flakiest thing on
+# iOS 26, and `/house-settings` is a real root route (app/house-settings.tsx).
+- runFlow:
+    file: dismiss-stuck-sheet.yaml
+- waitForAnimationToEnd:
+    timeout: 1500
+- openLink: simplehouse://house-settings
+- extendedWaitUntil:
+    visible:
+      id: 'house-settings-screen'
+    timeout: 20000
+    optional: true
+# An openLink fired right after boot/login can be dropped when the navigation
+# container is not ready yet (see open-profile.yaml, root-caused 2026-07-31).
+# Retry once before failing.
+- runFlow:
+    when:
+      notVisible:
+        id: 'house-settings-screen'
+    commands:
+      - openLink: simplehouse://house-settings
+      - extendedWaitUntil:
+          visible:
+            id: 'house-settings-screen'
+          timeout: 30000

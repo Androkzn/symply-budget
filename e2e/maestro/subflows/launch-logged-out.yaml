@@ -1,0 +1,29 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Login surface for auth matrix flows.
+# clearState alone leaves Keychain JWTs → Home; clearKeychain + e2e-logout force Login.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+    permissions:
+      all: allow
+      faceid: allow
+- runFlow: connect-house-metro.yaml
+- runFlow: dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 8000
+- runFlow: e2e-logout.yaml
+- runFlow: dismiss-expo-dev-chrome.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'home-screen'
+    commands:
+      - runFlow: e2e-logout.yaml
+      - runFlow: dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow: assert-logged-out-login.yaml

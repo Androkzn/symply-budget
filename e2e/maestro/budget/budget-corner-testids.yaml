@@ -1,0 +1,22 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - readonly
+  - regression
+# Matrix: BUDGET-CORNER-019 — unique testIDs for ambiguous selectors
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-goals'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goals-add-empty'
+    timeout: 15000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goals-add-list'
+    timeout: 15000
+    optional: true

@@ -1,0 +1,198 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:budget-chat
+  - pair
+  - pair:b
+  - mutation
+  - regression
+# Matrix: BUDGET-BCHAT-PAIR-005
+#
+# ── Two-member Budget chat, stage B2 (device B / member B) ───────────────────
+# The heart of the two-member run: a DIFFERENT user on a DIFFERENT simulator must
+# actually receive what member A sent in stage A3, and be able to answer it.
+#
+# What this proves that a single-account chat flow cannot:
+#   • a room created by A shows up in B's rooms list at all (room fan-out)
+#   • it carries an UNREAD badge for B (unread accounting is per member, and is
+#     asserted BEFORE opening the room, since opening marks it read)
+#   • the list preview attributes the message to A by name (sender identity)
+#   • inside the room A's message renders as an INCOMING bubble
+#     (`chat-msg-theirs-.*`) — the one assertion an echo of one's own send can
+#     never satisfy — under A's display name
+#   • B can reply, and the reply is an outgoing bubble backed by a real 201
+#
+# Env: PAIR_HOUSEHOLD_ID, PAIR_ROOM_NAME, PAIR_MSG_A, PAIR_MSG_B, PAIR_A_NAME.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+# Stage A2's approval released the household key into THIS device's mailbox; the
+# ledger only rebinds once a sync picks it up. Pull it now so the rooms list is
+# read against the shared household rather than a still-pending local one.
+- runFlow: ../subflows/budget-open-sync.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-sync-now'
+    timeout: 45000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'budget-settings-sync-now'
+    commands:
+      - tapOn:
+          id: 'budget-settings-sync-now'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible: 'Sync'
+          timeout: 60000
+          optional: true
+      - tapOn:
+          text: 'OK'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 3000
+- openLink: simplebudget:///
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- runFlow: ../subflows/budget-recover-dashboard.yaml
+- runFlow: ../subflows/budget-open-chat-rooms.yaml
+- assertVisible:
+    id: 'chat-rooms-screen'
+# Rooms list is fetched on focus; A's brand-new room may need one refresh.
+- extendedWaitUntil:
+    visible: '.*${PAIR_ROOM_NAME}.*'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      notVisible: '.*${PAIR_ROOM_NAME}.*'
+    commands:
+      - swipe:
+          direction: DOWN
+          element:
+            id: 'chat-rooms-list'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - extendedWaitUntil:
+          visible: '.*${PAIR_ROOM_NAME}.*'
+          timeout: 45000
+          optional: true
+- runFlow:
+    when:
+      notVisible: '.*${PAIR_ROOM_NAME}.*'
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: '.*${PAIR_ROOM_NAME}.*'
+          direction: DOWN
+          timeout: 30000
+          optional: true
+# (1) The room member A created is visible to member B.
+- assertVisible: '.*${PAIR_ROOM_NAME}.*'
+# (2) It is UNREAD for B. Asserted here, before the room is opened — entering
+#     marks it read, so this can only ever be checked from the list.
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-unread-.*'
+    timeout: 30000
+- assertVisible:
+    id: 'chat-room-unread-.*'
+# (3) The row preview attributes the message to A by name ("Andrei: <msg>").
+- assertVisible: '.*${PAIR_A_NAME}.*${PAIR_MSG_A}.*'
+- tapOn:
+    text: '.*${PAIR_ROOM_NAME}.*'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-screen'
+    timeout: 60000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'chat-room-screen'
+    commands:
+      - tapOn:
+          text: '.*${PAIR_ROOM_NAME}.*'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-room-screen'
+          timeout: 60000
+- assertVisible:
+    id: 'chat-room-screen'
+# (4) A's message is here, and it is an INCOMING bubble — not an echo of a send
+#     made on this device. This is the assertion the whole two-device setup exists
+#     for; `chat-msg-theirs-*` is only ever rendered for another member's message.
+- extendedWaitUntil:
+    visible: '.*${PAIR_MSG_A}.*'
+    timeout: 45000
+- extendedWaitUntil:
+    visible:
+      id: 'chat-msg-theirs-.*'
+    timeout: 30000
+- assertVisible:
+    id: 'chat-msg-theirs-.*'
+# (5) …attributed to A by display name on the bubble itself.
+- assertVisible: '.*${PAIR_A_NAME}.*'
+# (6) B answers.
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-input'
+    timeout: 30000
+- tapOn:
+    id: 'chat-room-input'
+- inputText: ${PAIR_MSG_B}
+- runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: 'chat-room-send'
+- extendedWaitUntil:
+    visible: '.*${PAIR_MSG_B}.*'
+    timeout: 20000
+    optional: true
+# Same dropped-first-keystroke recovery as every other Budget chat flow.
+- runFlow:
+    when:
+      notVisible: '.*${PAIR_MSG_B}.*'
+    commands:
+      - tapOn:
+          id: 'chat-room-input'
+      - eraseText
+      - inputText: ${PAIR_MSG_B}
+      - runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - tapOn:
+          id: 'chat-room-send'
+      - extendedWaitUntil:
+          visible: '.*${PAIR_MSG_B}.*'
+          timeout: 20000
+- assertVisible: '.*${PAIR_MSG_B}.*'
+- extendedWaitUntil:
+    visible:
+      id: 'chat-msg-mine-.*'
+    timeout: 20000
+- assertVisible:
+    id: 'chat-msg-mine-.*'
+# Backend truth for B's reply.
+- runFlow:
+    file: ../subflows/e2e-verify-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /messages
+      E2E_VERIFY_STATUS: '201'
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 10000
+- runFlow: ../subflows/budget-exit-chat.yaml

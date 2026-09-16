@@ -1,0 +1,21 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Re-establish a Health session after sign-out or driver flakes.
+- runFlow: launch-health.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: 'health-home-screen'
+      true: ${E2E_LOGIN_URL != null && E2E_LOGIN_URL != ''}
+    commands:
+      - openLink: ${E2E_LOGIN_URL}
+      - waitForAnimationToEnd:
+          timeout: 15000
+      - runFlow: health-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'health-home-screen'
+    timeout: 120000

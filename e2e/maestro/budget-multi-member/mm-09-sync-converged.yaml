@@ -1,0 +1,44 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+# Matrix: BUDGET-MM-009 — after both members come back online, both devices
+# show the SAME amount for the row they edited concurrently (TRD §8.4).
+#
+# The winner is deterministic: the later edit in wall-clock order carries the
+# higher HLC and takes the field. The orchestrator runs the member's edit first
+# and the owner's second, so the owner's value is the expected one on BOTH
+# devices — this flow runs on both with the same MM_EXPECT_AMOUNT.
+#
+# env: MM_TITLE, MM_EXPECT_AMOUNT (formatted as shown in the list, e.g. 20.00).
+---
+- runFlow: ../subflows/budget-network-block-off.yaml
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 20000
+# Several rounds: each device has to push its own op AND pull the peer's.
+- repeat:
+    times: 8
+    commands:
+      - runFlow:
+          when:
+            notVisible: '.*${MM_EXPECT_AMOUNT}.*'
+          commands:
+            - runFlow: ../subflows/budget-sync-pulse.yaml
+            - waitForAnimationToEnd:
+                timeout: 10000
+            - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- assertVisible: '.*${MM_TITLE}.*'
+- extendedWaitUntil:
+    visible: '.*${MM_EXPECT_AMOUNT}.*'
+    timeout: 20000
+- assertVisible: '.*${MM_EXPECT_AMOUNT}.*'

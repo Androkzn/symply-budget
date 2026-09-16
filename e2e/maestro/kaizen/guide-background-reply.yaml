@@ -1,0 +1,33 @@
+appId: com.symply.kaizen
+---
+# GUIDE-022 — coach send survives leaving the Guide tab and returning (no stuck/error state).
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow: subflows/go-guide.yaml
+- assertVisible:
+    id: 'kaizen-guide-screen'
+- tapOn:
+    text: 'Enable AI'
+    optional: true
+- tapOn:
+    id: 'kaizen-guide-composer'
+- inputText: 'Background me after this send'
+- tapOn:
+    text: 'Send'
+- assertVisible: 'Background me after this send'
+- openLink: kaizen://today
+- waitForAnimationToEnd:
+    timeout: 8000
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-today-screen'
+    timeout: 45000
+- runFlow: subflows/go-guide.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-guide-screen'
+    timeout: 30000
+- assertVisible:
+    id: 'kaizen-guide-screen'
+- assertNotVisible:
+    text: 'I could not reach the coach. Please try again.'
+    optional: true

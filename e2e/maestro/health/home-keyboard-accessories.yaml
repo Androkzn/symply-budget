@@ -1,0 +1,87 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:home
+  - readonly
+  - regression
+# Matrix: HEALTH-HOME-070
+---
+# The note's iOS InputAccessoryView-style Done bar.
+#
+# The weight field used to have one of these too (HEALTH-HOME-067/069 —
+# health-weight-keyboard-done committed the weight and cleared the draft), back
+# when it was a plain always-editable TextInput. It was later an
+# OnboardingWheelNumberField (wheel picker + "Enter manually" keyboard
+# fallback) whose inner field surfaced no blur/focus callback a Done row could
+# hook into, so that bar stopped existing before the field itself did — and as
+# of 2026-08-01 the field is gone too: the whole Home WEIGHT card (headline,
+# delta chip, log row and all) was removed. Weight logging now lives only on
+# the Weight tab (`weight-tab-log-and-edit.yaml`), which has no Done-bar
+# equivalent of its own. health-note-keyboard-done is the only one left:
+#   * health-note-keyboard-done → dismisses the keyboard only. The note itself
+#     persists through the field's own onBlur / onEndEditing.
+#
+# The suite's `save-health-note.yaml` subflow taps this bar `optional: true` as
+# housekeeping elsewhere, so it was never ASSERTED there — a bar that silently
+# stopped rendering would not have failed anything.
+- runFlow: subflows/launch-health.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- The note bar only dismisses (HOME-070) --------------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-HOME-070
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-note-input
+            HOME_ANCHOR: bottom
+      - tapOn:
+          id: 'health-note-input'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-note-keyboard-done'
+          timeout: 10000
+      # LOCAL-ONLY: tapping Done dismisses the keyboard, which blurs
+      # health-note-input and fires its onBlur → handleSaveNote →
+      # saveNoteForDate path (HealthHomeScreen.tsx) — but saveNoteForDate
+      # (healthLocalStorage.ts) is a pure MMKV write (HEALTH_NOTES_KEY) via
+      # storageHelpers.setObject; it never calls apiClient, and the daily
+      # note has no backend route at all, so there is no real network call to
+      # verify here (confirmed by reading both files, not assumed).
+      - tapOn:
+          id: 'health-note-keyboard-done'
+      # 2026-08-02: the 10000 → 20000 timeout bump below (previous pass) was
+      # NOT the fix — this re-failed a third time with the wider timeout,
+      # running the FULL 20276ms before giving up, not resolving late. That
+      # ruled out "just slow": three separate runs (2026-08-01 22:55,
+      # 2026-08-02 02:00, 2026-08-02 12:38) all produced the same failure
+      # screenshot, pixel-identical in composition — note card filling the
+      # screen down to exactly where the keyboard starts, Done row never in
+      # frame, keyboard still fully up. Root cause was in the APP: `DoneRow`
+      # rendered as a sibling AFTER the `TextInput` in `HealthHomeWidgets.tsx`
+      # (`NoteWidget`). iOS's scroll-to-reveal-responder only guarantees the
+      # focused field itself clears the keyboard, not a view mounted after
+      # it — so the Done row landed behind the on-screen keyboard. Maestro's
+      # `assertVisible` still passed (it only checks the accessibility tree
+      # has an in-bounds frame, not whether a system window like the keyboard
+      # visually covers it), but the `tapOn` a few lines up was landing on the
+      # keyboard's own window at that screen position, not this Pressable —
+      # a real member would hit the same dead tap. Fixed by moving `DoneRow`
+      # to render BEFORE the `TextInput` (same file), in the region the OS is
+      # already forced to keep clear of the keyboard to show the field
+      # itself. Timeout left at 20000 as reasonable margin, not as the fix —
+      # if this times out again, re-check screenshots for keyboard occlusion
+      # before touching the number again.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-note-keyboard-done'
+          timeout: 20000
+      - assertVisible:
+          id: 'health-home-screen'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml

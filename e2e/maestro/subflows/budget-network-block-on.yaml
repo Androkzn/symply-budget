@@ -1,0 +1,10 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Block outbound HTTP in __DEV__ (works on iOS sim where airplane mode is a no-op).
+- openLink: ${E2E_APP_SCHEME}://e2e-block-network
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 1500

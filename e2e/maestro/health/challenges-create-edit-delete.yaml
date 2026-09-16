@@ -1,0 +1,305 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:challenges
+  - mutation
+  - regression
+# Matrix: HEALTH-CHAL-101 … HEALTH-CHAL-118
+---
+# Food Challenges manager — create, validate, edit, delete.
+#
+# WHY THIS FLOW EXISTS. `HealthChallengesScreen` (490 lines, fifteen testIDs)
+# shipped with the Dashboard parity phase carrying ZERO coverage of any kind:
+# no Jest suite named it and no flow in this directory drove a single one of its
+# ids. Its store had the same hole. Both are closed in the same pass — the unit
+# halves are `src/features/health/screens/__tests__/HealthChallengesScreen.test.tsx`
+# and `src/features/health/__tests__/healthChallengesStorage.test.ts`; this file
+# is the device half.
+#
+# ENTRY. There is no tab. See `subflows/go-health-challenges.yaml` — the Home
+# widget's pencil is the only account-state-independent way in.
+#
+# ROW ADDRESSING. Rows carry SERVER ids, so every row verb is matched on the id
+# PATTERN **and** the row's own accessibility label together
+# (`health-challenge-delete-.*` + `Delete Maestro Greens`), the shape the
+# matrix's 2026-07-26 pass converted the Foods/Recipes/Fridge flows to. Both
+# have to match the same element, so the confirm Alert's own `Delete` button
+# cannot satisfy a row verb, and a renamed control fails loudly instead of a
+# bare label match silently landing elsewhere.
+#
+# WHAT THIS FLOW DELIBERATELY DOES NOT DRIVE: `health-challenge-toggle-*`
+# (pause / resume). Its accessibility label is `Pause challenge` /
+# `Resume challenge` — the SAME string on every row, with no per-row token — so
+# on the shared E2E account, which may already carry challenges this flow did
+# not create, there is no way to address the toggle of the row this flow owns
+# without risking pausing somebody else's. Pause/resume is pinned instead at the
+# unit layer (four cases in `HealthChallengesScreen.test.tsx`, including the
+# move into the PAUSED section). Recorded here rather than faked with an
+# `index: 0` that is not deterministic. Fix: give the toggle a per-row label
+# (`Pause Maestro Greens`), then add the leg.
+#
+# TEARDOWN. The challenge this flow creates is deleted in the last leg. Nothing
+# else on the account is touched: the flow never edits or deletes a row it did
+# not create.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-CHAL-101
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Opens from the Home widget, and owns no tab (HEALTH-CHAL-101) ----
+      - runFlow: subflows/go-health-challenges.yaml
+      - assertVisible: 'Food Challenges'
+      # The screen is reachable by push only. A tab for it would mean the
+      # feature catalog had grown an entry nobody added.
+      - assertNotVisible:
+          id: 'tab-health-challenges'
+
+      # --- The form opens, and Cancel writes nothing (HEALTH-CHAL-102/103) --
+      # The form is INLINE rather than a sheet, so "it opened" and "it closed
+      # again without writing" are both assertable. `closeForm` only touches
+      # local `useState`; the proof that nothing was filed is that the ADD
+      # button is back and no new row appeared.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-challenges-add'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-challenge-form'
+          timeout: 15000
+      - assertVisible: 'NEW CHALLENGE'
+      - assertVisible:
+          id: 'health-challenge-name-input'
+      - assertVisible:
+          id: 'health-challenge-grams-input'
+      # The ADD button is replaced by the form, not stacked under it.
+      - assertNotVisible:
+          id: 'health-challenges-add'
+      - tapOn:
+          id: 'health-challenge-form-cancel'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-challenge-form'
+          timeout: 15000
+      - assertVisible:
+          id: 'health-challenges-add'
+
+      # --- Submit is inert until the draft is valid (HEALTH-CHAL-104…106) ---
+      # BEHAVIOURAL, not an `enabled: false` selector: React Native maps
+      # `disabled` to an accessibility TRAIT and Maestro's `enabled:` filter does
+      # not match a disabled RN `Pressable` on this build (matrix, 2026-07-26).
+      # Pressing a disabled Pressable is a no-op, so the proof is that the form
+      # is STILL OPEN afterwards — `handleSubmit` calls `closeForm()` on success.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-CHAL-104
+      - tapOn:
+          id: 'health-challenges-add'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-challenge-form'
+          timeout: 15000
+      # 104 — empty draft.
+      - tapOn:
+          id: 'health-challenge-form-submit'
+      - assertVisible:
+          id: 'health-challenge-form'
+      # 105 — a name alone is not enough; the target is still missing.
+      - tapOn:
+          id: 'health-challenge-name-input'
+      - inputText: 'Maestro Greens'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'NEW CHALLENGE'
+      - tapOn:
+          id: 'health-challenge-form-submit'
+      - assertVisible:
+          id: 'health-challenge-form'
+      # 106 — a target of zero is refused: a challenge complete before it
+      # starts, and a divide-by-zero on every progress bar behind it.
+      - tapOn:
+          id: 'health-challenge-grams-input'
+      - inputText: '0'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'NEW CHALLENGE'
+      - tapOn:
+          id: 'health-challenge-form-submit'
+      - assertVisible:
+          id: 'health-challenge-form'
+
+      # --- Category + cadence are single-select (HEALTH-CHAL-107/108) -------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-CHAL-107
+      # The ingredient field is conditional on the custom category — it is the
+      # only field on this form that appears and disappears.
+      - assertNotVisible:
+          id: 'health-challenge-ingredient-input'
+      - tapOn:
+          id: 'health-challenge-category-custom_ingredient'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-challenge-ingredient-input'
+          timeout: 15000
+      - tapOn:
+          id: 'health-challenge-category-vegetables'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-challenge-ingredient-input'
+          timeout: 15000
+      # 108 — cadence.
+      - tapOn:
+          id: 'health-challenge-frequency-weekly'
+      - tapOn:
+          id: 'health-challenge-frequency-daily'
+
+      # --- Create (HEALTH-CHAL-109…112) ------------------------------------
+      # The grams field currently holds `0` from the validation leg; clear it
+      # rather than typing on top, which would read as `0500`.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-CHAL-109
+      - tapOn:
+          id: 'health-challenge-grams-input'
+      - eraseText
+      - inputText: '500'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'NEW CHALLENGE'
+      - tapOn:
+          id: 'health-challenge-form-submit'
+      # The form closes on success — the same signal the validation leg used
+      # in the negative.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-challenge-form'
+          timeout: 30000
+      # 110 — the row is on screen, with its target and cadence.
+      - extendedWaitUntil:
+          visible: 'Maestro Greens'
+          timeout: 30000
+      - assertVisible: '500g per day'
+      # 111 — and it was really filed, not just rendered optimistically.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/challenges
+            E2E_VERIFY_STATUS: '201'
+      # 112 — the empty state is gone now that a challenge exists.
+      - assertNotVisible:
+          id: 'health-challenges-empty'
+
+      # --- Edit (HEALTH-CHAL-113…115) --------------------------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-CHAL-113
+      - tapOn:
+          id: 'health-challenge-open-.*'
+          text: 'Edit Maestro Greens'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-challenge-form'
+          timeout: 15000
+      # 113 — an edit is labelled as one, and prefilled from the row.
+      - assertVisible: 'EDIT CHALLENGE'
+      - assertVisible: 'Save'
+      # 114 — the change persists through a re-render of the list.
+      - tapOn:
+          id: 'health-challenge-grams-input'
+      - eraseText
+      - inputText: '600'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'EDIT CHALLENGE'
+      - tapOn:
+          id: 'health-challenge-form-submit'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-challenge-form'
+          timeout: 30000
+      - extendedWaitUntil:
+          visible: '600g per day'
+          timeout: 30000
+      # 115 — an edit is a PUT against the existing row, never a second POST.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/challenges/
+            E2E_VERIFY_STATUS: '200'
+
+      # --- Delete, armed then confirmed (HEALTH-CHAL-116…118) --------------
+      # Also the teardown. The Alert is the only destructive path on the screen.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-CHAL-116
+      - tapOn:
+          id: 'health-challenge-delete-.*'
+          text: 'Delete Maestro Greens'
+          retryTapIfNoChange: true
+      # 116 — it asks first, and names the challenge in the body.
+      - extendedWaitUntil:
+          visible: 'Delete challenge'
+          timeout: 15000
+      - assertVisible: 'Maestro Greens'
+      # 117 — Cancel backs out and the row survives.
+      - tapOn: 'Cancel'
+      - extendedWaitUntil:
+          notVisible: 'Delete challenge'
+          timeout: 15000
+      - assertVisible: 'Maestro Greens'
+      # 118 — the destructive action removes it, and it really left the server.
+      - tapOn:
+          id: 'health-challenge-delete-.*'
+          text: 'Delete Maestro Greens'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible: 'Delete challenge'
+          timeout: 15000
+      - tapOn: 'Delete'
+      - extendedWaitUntil:
+          notVisible: 'Maestro Greens'
+          timeout: 30000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/challenges/
+            E2E_VERIFY_STATUS: '200'
+      - runFlow:
+          file: ../subflows/e2e-dump-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health

@@ -1,0 +1,12 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - regression
+# Matrix: HOUSE-AUTH-032
+---
+# Matrix: HOUSE-AUTH-032 — no in-app resend control in House yet; prove logged-out login surface.
+- runFlow: ../subflows/e2e-matrix-before.yaml
+- runFlow: ../subflows/launch-logged-out.yaml
+- runFlow: ../subflows/assert-logged-out-login.yaml
+- runFlow: ../subflows/e2e-matrix-after.yaml

@@ -1,0 +1,864 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:goals
+  - mutation
+  - regression
+# Matrix: HEALTH-GOALS-101 … 129 (nutrition/activity), 123 … 129 = the
+# per-weekday MACRO plan (0139)
+---
+# Goals — the NUTRITION and ACTIVITY cards. New screen this wave
+# (`HealthGoalsScreen`, route `health-goals`): before it `NutritionGoals`
+# carried `protein`/`carbs`/`fat` and nothing wrote them, the calorie goal was
+# four presets in an Alert, and the per-weekday calorie columns
+# (`goal_history`, migration 0119) had shipped with no client. Every field on
+# this screen writes through to the SAME `health_goals` row Nutrition,
+# Activity, Water and Weight all read — see the screen's own header comment —
+# so this flow is also the first device proof that a save here actually moves
+# those other screens' numbers.
+#
+# WHY SPLIT FROM HYDRATION/WEIGHT/SUGGESTED. Five cards on one screen is a lot
+# of driver time; the same rule the Activity and Weight pairs already follow —
+# a mid-run driver drop should cost half the screen, not all of it. This half
+# owns NUTRITION (calorie field + 4 presets, the per-weekday plan's toggle + 7
+# typed fields + weekly-average caption + "set every day", the 3 macro fields +
+# their 3 rebalance buttons + the macro bar + the difference caption) and
+# ACTIVITY (steps + minutes, each with 4 presets).
+#
+# THE REBALANCE MATHS ARE EXACT, not "did the button do something". Three
+# distinct starting points (see `rebalanceMacros` in `healthGoalsStorage.ts`)
+# are chosen so each button's press predicts a different outcome:
+#   * protein=100/carbs=50/fat=200 @ 2000 kcal, keep PROTEIN → carbs 40, fat
+#     160 (the ordinary case, and the total lands exactly on target).
+#   * fat manually pushed to 300 (alone worth 2700 kcal, over the 2000 target)
+#     then keep FAT → protein AND carbs both go to 0 — `Math.max(0, …)`
+#     flooring `remaining`, the edge the donor's own formula has to guard.
+#   * carbs manually set to 150 with protein still 0, keep CARBS → fat drops
+#     300 → 156 while protein stays 0 (`firstRatio` is exactly 0).
+#
+# STATE. The account has NO `health_goals` row at all before this runs (a
+# fresh GET `/health/goals` answers `{"goal":null}`) — so the teardown target
+# is not an arbitrary reset, it is `DEFAULT_NUTRITION_GOALS` /
+# `DEFAULT_ACTIVITY_GOALS` (2000/120/220/65, 8000 steps, 30 min), the exact
+# figures every OTHER Health flow already assumes as the fallback default.
+# Ending there — including nulling all seven per-weekday columns back out —
+# leaves the shared row indistinguishable from "never set" to any flow that
+# reads it, while still proving a real row now exists where none did.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-GOALS-101
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # 2026-08-02: failed here — the live report (health-goals-nutrition-
+      # and-activity.html) shows step 152 as "Tap text=Done", FAILED, 225174ms,
+      # with NO captured error message (metadata.error is an empty object,
+      # which is why the terminal summary had nothing to show). That label
+      # alone is ambiguous — both `dismiss-health-keypad.yaml` (used all over
+      # this flow's NUTRITION card, below) and `dismiss-weight-keyboard.yaml`
+      # (called from `go-more.yaml`) tap the exact same `text: 'Done'`.
+      # Drilling into the run's raw commands.json (not just the HTML, which
+      # only renders the innermost command) resolved it: the FAILED tap sits
+      # at depth 4, nested inside runFlow(dismiss-weight-keyboard.yaml) ←
+      # runFlow(go-more.yaml) ← runFlow(subflows/go-health-goals.yaml) — i.e.
+      # this is the very FIRST thing that runs after entering this block,
+      # firing while still on Home, before the tap into More/Goals. Every
+      # ancestor runFlow (depths 0-3) is ALSO marked FAILED with essentially
+      # the same duration (225886/225616/225536/225451/225174ms) — the whole
+      # 225s stall is this ONE optional tap, nothing later.
+      #
+      # The screen-hierarchy artifact captured at the exact moment of failure
+      # (screen-hierarchy/step-153-tapOnElement-Done.json) shows resource-id
+      # `health-home-screen` present and NEITHER "Done" NOR "Refresh" text
+      # anywhere in the tree — by the time Maestro gave up, the app had
+      # already settled back onto a perfectly normal, correct Home screen
+      # (exactly where `dismiss-weight-keyboard.yaml` is supposed to fire).
+      # So this is not a wrong-screen or stuck-app bug: a plain optional
+      # `tapOn: {text: 'Done'}` against an already-clean Home screen should
+      # resolve in about a second, not 225 of them, and `optional: true`
+      # normally swallows a clean "not found" instantly — it does NOT swallow
+      # the driver failing to read the hierarchy at all, which is what a
+      # view tree that keeps tearing down and rebuilding under an ACTIVE
+      # reload produces. Same signature already root-caused THREE times this
+      # session (`activity-goals-and-session-edit.yaml`, `water-tab-goal-
+      # units-custom.yaml`, `weight-tab-goal-start-field.yaml`): Metro's
+      # DevLoadingView blue "Refreshing…" banner from the concurrent session
+      # bumping `brands/symply-health/brand.cjs`'s build number and
+      # regenerating token/icon files — a Fast Refresh remount mid-flow,
+      # unbounded in duration, that can swallow/stall a query for as long as
+      # it keeps recurring. No banner survived in THIS run's frozen final
+      # frame because by definition the frame was only captured once the
+      # 225s stall finally ended and the app had re-settled.
+      #
+      # Fixed at the CALL SITE in this flow, not inside `go-more.yaml` /
+      # `go-health-goals.yaml` / `dismiss-weight-keyboard.yaml` themselves —
+      # those are shared navigation subflows ("Called broadly across
+      # navigation transitions", per the latter's own header) that many
+      # OTHER flows in this same live suite run are calling concurrently;
+      # gating here keeps the fix scoped to this one flow. Wait for any
+      # in-flight remount to finish settling BEFORE the dismiss-keyboard →
+      # More → Goals chain even starts, rather than bumping a timeout that
+      # would only be a bigger guess at the same wrong target.
+      - extendedWaitUntil:
+          notVisible: 'Refreshing...'
+          timeout: 20000
+      - runFlow: subflows/go-health-goals.yaml
+      - assertVisible: 'Goals'
+      - assertVisible: 'NUTRITION'
+      - assertVisible:
+          id: 'health-goals-calories-input'
+      # ACTIVITY sits below the whole NUTRITION card, which grew a per-weekday
+      # calorie plan and a per-weekday MACRO plan (0139) after this assertion
+      # was first written — reproduced 2026-08-01: with no scroll, ACTIVITY's
+      # own section heading is off-screen on load. Scroll to it directly
+      # rather than re-ordering the NUTRITION checks above.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-goals-steps-input'
+            SCROLL_DIR: down
+      - assertVisible: 'ACTIVITY'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # Scroll back UP before touching NUTRITION again. The ACTIVITY check
+      # just above left the list scrolled to the STEPS field, well past the
+      # calorie presets HEALTH-GOALS-102 taps next — this scroll-down was
+      # added 2026-08-01 without a matching scroll-back, and Maestro's
+      # element lookup does not auto-scroll to find an off-screen id, so the
+      # very next tap failed with "Element not found: …calorie-preset-2500"
+      # (a real chip at a real preset value — `CALORIE_PRESETS` in
+      # `HealthGoalsScreen.tsx` still includes 2500 — just off-screen).
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-goals-calories-input'
+            SCROLL_DIR: up
+
+      # NETWORK NOTE FOR THE WHOLE NUTRITION CARD (HEALTH-GOALS-102 … 114,
+      # 123 … 129): every preset chip, typed field, per-weekday toggle/input,
+      # rebalance button and macro-week control below is LOCAL DRAFT STATE
+      # ONLY — `setCalories`/`setWeek`/`setMacros`/`setMacroWeek`
+      # (`HealthGoalsScreen.tsx`) and the pure transforms they call
+      # (`seedCalorieWeek`, `setEveryCalorieDay`, `rebalanceMacros`,
+      # `seedMacroWeek` in `healthGoalsStorage.ts`) never touch the network.
+      # The card's only network calls are the Save button
+      # (`health-goals-nutrition-save`), verified where it is actually
+      # pressed: the validation-blocked press at HEALTH-GOALS-128 and the
+      # real save at HEALTH-GOALS-115.
+      #
+      # =================================================================
+      # Calorie target — preset, then a manual figure (HEALTH-GOALS-102)
+      # =================================================================
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-102
+      - tapOn:
+          id: 'health-goals-calorie-preset-2500'
+      - assertVisible:
+          id: 'health-goals-calories-input'
+          text: '2500'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Per-weekday plan (HEALTH-GOALS-103 … 108)
+      # =================================================================
+      # --- Toggling ON SEEDS every day from the single target (103) --------
+      # `seedCalorieWeek` fills every currently-null day with the calorie
+      # target at the moment the toggle flips — not a blank placeholder — so a
+      # day nobody has touched yet already reads 2500, matching what
+      # `weeklyAverageCalories` would substitute for it anyway.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-103
+      - tapOn:
+          id: 'health-goals-perday-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-week'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-goals-week-wednesday_calories'
+          text: '2500'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Two days typed by hand (HEALTH-GOALS-104) ------------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-104
+      - tapOn:
+          id: 'health-goals-week-monday_calories'
+      - eraseText
+      - inputText: '2800'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Different target per weekday'
+      - tapOn:
+          id: 'health-goals-week-friday_calories'
+      - eraseText
+      - inputText: '1800'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Different target per weekday'
+      - assertVisible:
+          id: 'health-goals-week-monday_calories'
+          text: '2800'
+      - assertVisible:
+          id: 'health-goals-week-friday_calories'
+          text: '1800'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- The weekly average is the exact mean, blanks included (105) -----
+      # Mon 2800, Tue/Wed/Thu/Sat/Sun 2500 (seeded), Fri 1800 → 17,100 / 7 =
+      # 2,442.86, rounded to 2,443 — computed here independently of
+      # `weeklyAverageCalories` so a regression in that function is caught
+      # rather than confirmed.
+      - assertVisible:
+          id: 'health-goals-week-average'
+          text: 'Weekly average 2,443 kcal a day\. A day left blank uses your single target of 2,500 kcal\.'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- "Set every day" overwrites every day, including typed ones (106)
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-106
+      - tapOn:
+          id: 'health-goals-week-preset-2000'
+      - assertVisible:
+          id: 'health-goals-week-monday_calories'
+          text: '2000'
+      - assertVisible:
+          id: 'health-goals-week-friday_calories'
+          text: '2000'
+      - assertVisible:
+          id: 'health-goals-week-sunday_calories'
+          text: '2000'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Toggling OFF hides the block (it does not lose the figures) (107)
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-107
+      - tapOn:
+          id: 'health-goals-perday-toggle'
+      - assertNotVisible:
+          id: 'health-goals-week'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- The calorie field also takes a manual figure (108) --------------
+      # Lands on 2000 — `DEFAULT_NUTRITION_GOALS.calories` — which the macro
+      # maths below are built against.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-108
+      - tapOn:
+          id: 'health-goals-calories-input'
+      - eraseText
+      - inputText: '2000'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'NUTRITION'
+      - assertVisible:
+          id: 'health-goals-calories-input'
+          text: '2000'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Macros — 3 fields, 3 rebalance buttons, the bar, the difference
+      # (HEALTH-GOALS-109 … 116)
+      # =================================================================
+      # --- Typed unbalanced on purpose: 2,400 kcal vs a 2,000 target (109) -
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-109
+      - tapOn:
+          id: 'health-goals-macro-protein-input'
+      - eraseText
+      - inputText: '100'
+      - tapOn:
+          id: 'health-goals-macro-carbs-input'
+      - eraseText
+      - inputText: '50'
+      - tapOn:
+          id: 'health-goals-macro-fat-input'
+      - eraseText
+      - inputText: '200'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Macro targets'
+      - assertVisible:
+          id: 'health-goals-macro-bar'
+      - assertVisible:
+          id: 'health-goals-macro-difference'
+          text: '.*2,400 kcal — 400 kcal MORE than your calorie target.*'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- "Keep Protein, rebalance the other two" — the ordinary case (110)
+      # carbs 50→40, fat 200→160, protein untouched — and the total now lands
+      # EXACTLY on the 2,000 target, flipping the difference caption's branch.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-110
+      - tapOn:
+          id: 'health-goals-macro-protein-rebalance'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-macro-carbs-input'
+            text: '40'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-goals-macro-fat-input'
+          text: '160'
+      - assertVisible:
+          id: 'health-goals-macro-protein-input'
+          text: '100'
+      - assertVisible:
+          id: 'health-goals-macro-difference'
+          text: 'Your macros add up to 2,000 kcal, which matches your calorie target\.'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Fat pushed past the target alone, then "Keep Fats" floors the
+      # other two AT ZERO rather than going negative (HEALTH-GOALS-111) ------
+      # 300 g fat alone is 2,700 kcal — already over the 2,000 target — so
+      # `remaining = Math.max(0, target - anchorCalories)` is 0 and BOTH
+      # protein and carbs land on 0. This is the guard `rebalanceMacros`
+      # exists to have; a regression that dropped the floor would show a
+      # negative gram figure instead.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-111
+      - tapOn:
+          id: 'health-goals-macro-fat-input'
+      - eraseText
+      - inputText: '300'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Macro targets'
+      - tapOn:
+          id: 'health-goals-macro-fat-rebalance'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-macro-protein-input'
+            text: '0'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-goals-macro-carbs-input'
+          text: '0'
+      - assertVisible:
+          id: 'health-goals-macro-fat-input'
+          text: '300'
+      - assertVisible:
+          id: 'health-goals-macro-difference'
+          text: '.*2,700 kcal — 700 kcal MORE than your calorie target.*'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- "Keep Carbs" with a zero-ratio anchor (HEALTH-GOALS-112) --------
+      # protein is still 0 from the leg above, so `firstRatio` (protein's
+      # share of what carbs+fat currently claim) is exactly 0 — every
+      # remaining calorie lands on fat alone: fat 300 → 156, protein stays 0.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-112
+      - tapOn:
+          id: 'health-goals-macro-carbs-input'
+      - eraseText
+      - inputText: '150'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Macro targets'
+      - tapOn:
+          id: 'health-goals-macro-carbs-rebalance'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-macro-fat-input'
+            text: '156'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-goals-macro-protein-input'
+          text: '0'
+      - assertVisible:
+          id: 'health-goals-macro-carbs-input'
+          text: '150'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Per-weekday MACRO plan (0139) — protein/carbs/fat sibling of the
+      # per-weekday calorie plan above (HEALTH-GOALS-123 … 130)
+      # =================================================================
+      # `HealthMacroWeekEditor` is shared with the onboarding nutrition step
+      # (`src/features/health/components/HealthMacroWeekEditor.tsx`) and is
+      # deliberately NOT a 7-row × 3-field grid: a day CHIP row plus one set of
+      # 3 gram fields for whichever day is selected, defaulting to today but
+      # driven here by tapping a named chip so the assertions do not depend on
+      # the device's real calendar date.
+      #
+      # --- Toggling ON seeds the VISIBLE day from the flat targets above
+      # (123). At this point in the flow the flat macros are 0P/150C/156F
+      # (the previous leg's "Keep Carbs" result) and the calorie per-day
+      # switch is OFF, so every weekday's kcal target falls back to the flat
+      # 2,000 — both are what `seedMacroWeek` / `caloriesByDay` read.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-123
+      - tapOn:
+          id: 'health-goals-macro-week-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-macro-week-body'
+          timeout: 10000
+      - tapOn:
+          id: 'health-goals-macro-week-day-mon'
+      - assertVisible:
+          id: 'health-goals-macro-week-protein-input'
+          text: '0'
+      - assertVisible:
+          id: 'health-goals-macro-week-carbs-input'
+          text: '150'
+      - assertVisible:
+          id: 'health-goals-macro-week-fat-input'
+          text: '156'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Editing Monday only touches Monday (124) --------------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-124
+      - tapOn:
+          id: 'health-goals-macro-week-protein-input'
+      - eraseText
+      - inputText: '220'
+      - tapOn:
+          id: 'health-goals-macro-week-fat-input'
+      - eraseText
+      - inputText: '70'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Macro targets'
+      - assertVisible:
+          id: 'health-goals-macro-week-protein-input'
+          text: '220'
+      - assertVisible:
+          id: 'health-goals-macro-week-fat-input'
+          text: '70'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Switching to Tuesday shows ITS OWN (still seeded) split — proves
+      # the edit above landed on Monday's slot, not a shared draft (125) -----
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-125
+      - tapOn:
+          id: 'health-goals-macro-week-day-tue'
+      - assertVisible:
+          id: 'health-goals-macro-week-protein-input'
+          text: '0'
+      - assertVisible:
+          id: 'health-goals-macro-week-fat-input'
+          text: '156'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Switching back to Monday shows the edit is still there (126) -----
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-126
+      - tapOn:
+          id: 'health-goals-macro-week-day-mon'
+      - assertVisible:
+          id: 'health-goals-macro-week-protein-input'
+          text: '220'
+      - assertVisible:
+          id: 'health-goals-macro-week-fat-input'
+          text: '70'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- The per-day kcal readout judges THIS day against THIS day's
+      # calorie target (127). 220P/150C/70F = 880+600+630 = 2,110 kcal, 110
+      # over the flat 2,000 target — independently summed here, not trusted
+      # from the screen.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-127
+      - assertVisible:
+          id: 'health-goals-macro-week-difference'
+          text: '.*2,110 kcal — 110 kcal more than this day''s 2,000 kcal target.*'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- An out-of-bound per-day target names the DAY and the macro, and
+      # blocks the whole nutrition save (128) — the per-day sibling of the
+      # flat-macro refusal already proven at HEALTH-GOALS (macro bound) above.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-128
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-goals-macro-week-protein-input'
+      - eraseText
+      - inputText: '9999'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Macro targets'
+      - tapOn:
+          id: 'health-goals-nutrition-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-message'
+            text: '^Monday Protein: .*'
+          timeout: 15000
+      # `saveNutritionSection` runs `checkMacroWeek` BEFORE calling
+      # `saveNutritionGoals`/`saveCalorieWeek`/`saveMacroWeek` and returns the
+      # error early on a bound violation (9999 g > `MACRO_GRAMS_MAX` 2000,
+      # `healthGoalsStorage.ts`) — this Save press must fire NO `PUT
+      # /health/goals` at all.
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Teardown: Monday's fields back to blank (the only day this leg
+      # touched), then the switch OFF (129) — same "erase every SET field,
+      # then hide the block" rule the per-day calorie teardown above follows,
+      # so the saved row reads as "no per-weekday macro plan" rather than
+      # merely "not shown".
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-129
+      - tapOn:
+          id: 'health-goals-macro-week-protein-input'
+      - eraseText
+      - tapOn:
+          id: 'health-goals-macro-week-carbs-input'
+      - eraseText
+      - tapOn:
+          id: 'health-goals-macro-week-fat-input'
+      - eraseText
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Macro targets'
+      - tapOn:
+          id: 'health-goals-macro-week-toggle'
+      - assertNotVisible:
+          id: 'health-goals-macro-week-body'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Teardown + save — NUTRITION (HEALTH-GOALS-113 … 115)
+      # =================================================================
+      # --- Macros back to DEFAULT_NUTRITION_GOALS (113) ---------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-113
+      - tapOn:
+          id: 'health-goals-macro-protein-input'
+      - eraseText
+      - inputText: '120'
+      - tapOn:
+          id: 'health-goals-macro-carbs-input'
+      - eraseText
+      - inputText: '220'
+      - tapOn:
+          id: 'health-goals-macro-fat-input'
+      - eraseText
+      - inputText: '65'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Macro targets'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Every per-weekday column nulled back out (114) -------------------
+      # `checkCalorieWeek` only validates SET days, so a blank field is legal —
+      # this is what restores the account to "no per-weekday plan" rather than
+      # merely "not shown".
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-114
+      - tapOn:
+          id: 'health-goals-perday-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-week'
+          timeout: 10000
+      - tapOn:
+          id: 'health-goals-week-monday_calories'
+      - eraseText
+      - tapOn:
+          id: 'health-goals-week-tuesday_calories'
+      - eraseText
+      - tapOn:
+          id: 'health-goals-week-wednesday_calories'
+      - eraseText
+      - tapOn:
+          id: 'health-goals-week-thursday_calories'
+      - eraseText
+      - tapOn:
+          id: 'health-goals-week-friday_calories'
+      - eraseText
+      - tapOn:
+          id: 'health-goals-week-saturday_calories'
+      - eraseText
+      - tapOn:
+          id: 'health-goals-week-sunday_calories'
+      - eraseText
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Different target per weekday'
+      - tapOn:
+          id: 'health-goals-perday-toggle'
+      - assertNotVisible:
+          id: 'health-goals-week'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Save NUTRITION — the write this whole card has been building to
+      # (HEALTH-GOALS-115). Verified server-side by hand alongside this run:
+      # `GET /health/goals` after this flow reads `daily_calories: 2000,
+      # daily_protein_grams: 120, daily_carbs_grams: 220, daily_fats_grams: 65,
+      # use_per_day_calories: false`, every `*_calories` weekday column `null`
+      # — on an account that had NO `health_goals` row at all beforehand.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-115
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-goals-nutrition-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-message'
+            text: 'Targets updated\.'
+          timeout: 15000
+      # `saveNutritionSection` fires THREE sequential `PUT /health/goals`
+      # calls (`saveNutritionGoals`, `saveCalorieWeek`, `saveMacroWeek` —
+      # `HealthGoalsScreen.tsx`); the ring buffer's most recent match proves
+      # at least the last of the three landed.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # NETWORK NOTE FOR THE ACTIVITY CARD (HEALTH-GOALS-116 … 119): every
+      # preset chip and typed field below is LOCAL DRAFT STATE ONLY
+      # (`setSteps`/`setMinutes`, `HealthGoalsScreen.tsx`) — the only network
+      # call is `health-goals-activity-save`, verified at HEALTH-GOALS-120.
+      #
+      # =================================================================
+      # ACTIVITY card — steps + minutes, each with 4 presets and a typed
+      # figure (HEALTH-GOALS-116 … 122)
+      # =================================================================
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-goals-steps-input'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-116
+      - tapOn:
+          id: 'health-goals-steps-preset-12000'
+      - assertVisible:
+          id: 'health-goals-steps-input'
+          text: '12000'
+      - tapOn:
+          id: 'health-goals-steps-input'
+      - eraseText
+      - inputText: '9500'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ACTIVITY'
+      - assertVisible:
+          id: 'health-goals-steps-input'
+          text: '9500'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-118
+      - tapOn:
+          id: 'health-goals-minutes-preset-60'
+      - assertVisible:
+          id: 'health-goals-minutes-input'
+          text: '60'
+      - tapOn:
+          id: 'health-goals-minutes-input'
+      - eraseText
+      - inputText: '25'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ACTIVITY'
+      - assertVisible:
+          id: 'health-goals-minutes-input'
+          text: '25'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Teardown to DEFAULT_ACTIVITY_GOALS, then save (HEALTH-GOALS-120)
+      # Verified server-side alongside this run: `GET /health/goals` reads
+      # `daily_steps: 8000, daily_workout_minutes: 30` after this save.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-GOALS-120
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-goals-steps-preset-8000'
+      - assertVisible:
+          id: 'health-goals-steps-input'
+          text: '8000'
+      - tapOn:
+          id: 'health-goals-minutes-preset-30'
+      - assertVisible:
+          id: 'health-goals-minutes-input'
+          text: '30'
+      - tapOn:
+          id: 'health-goals-activity-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-goals-message'
+            text: 'Targets updated\.'
+          timeout: 15000
+      # `saveActivitySection` → `saveActivityGoals` → `PUT /health/goals` with
+      # `daily_steps`/`daily_workout_minutes` (`healthActivityStorage.ts`).
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Back to the Health tab (HEALTH-GOALS-122) ------------------------
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-more-screen'
+          timeout: 30000
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

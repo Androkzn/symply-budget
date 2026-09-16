@@ -1,0 +1,149 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:utilities
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-UTIL-001
+---
+# READ THIS BEFORE DEBUGGING A "VACUOUS PASS" HERE
+# ------------------------------------------------
+# The Utilities screen is CURRENTLY UNREACHABLE on the House brand, by design —
+# and there is no second door. Both candidate routes are closed:
+#
+#   1. `simplehouse://utilities` → app/(tabs)/utilities.tsx returns
+#      `<Redirect href="/" />` whenever `isBudgetOff() || isMinimalBudget()`.
+#      House ships `budget: 'minimal'` (brands/symply-house/brand.cjs:158), so
+#      the redirect always fires. `UtilitiesNavigator` is mounted from that file
+#      and NOWHERE else, so the whole stack is unreachable through it.
+#
+#   2. `settings-row-bills` — used by utilities/bills-from-more.yaml as the
+#      Settings-stack alternative — DOES NOT SHIP. SettingsScreen.tsx has
+#      `settings-row-floor-plans`, `-garden`, `-home-projects`, `-spaces` and
+#      two dozen others, but no `-bills`. That existing flow references an id
+#      that has never existed on this build (reported separately; not fixed
+#      here because existing flow files are out of scope for this change).
+#
+# So the honest shape of this flow is: assert the redirect actually happens, and
+# keep the real local-first verification behind a `visible: utilities-screen`
+# guard so it starts proving something the moment House's budget mode changes
+# back to `full`. That is the same structure utilities/utilities-mutations.yaml
+# already uses for the same reason, and it is deliberately NOT a hand-written
+# skip — a guard that becomes live on its own is worth more than a TODO.
+#
+# WHAT THIS PROVES WHEN THE SCREEN IS REACHABLE
+# ---------------------------------------------
+# `utilitiesApi` is proxied at src/api/utilities.ts:961 with exactly ONE
+# remote-by-design method: `getMunicipality` → `/utilities/municipality`. Every
+# other utilities route must stay silent under local-first.
+#
+# That single exception is why the paths asserted below are NARROW
+# (`/utilities/bills`, `/utilities/dashboard`) rather than a blanket
+# `/utilities`. A blanket check would go red on the one call that is SUPPOSED to
+# happen, and the natural "fix" — deleting the check — would delete the
+# coverage. Narrow paths keep the legitimate call legitimate.
+#
+# PRECONDITION (self-contained)
+# -----------------------------
+# A signed-in House session on a local-first build. No seeded bill or account —
+# an empty dashboard served from the ledger proves the same thing, because the
+# assertion is about the request that must not exist. Runs ALONE, in ANY order.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-LF-UTIL-001
+- runFlow: ../subflows/open-utilities.yaml
+
+# --- Currently-true branch: the redirect ---------------------------------
+# On today's House build this is the branch that runs. It is a real assertion,
+# not a placeholder: if someone flips House to `budget: 'full'` without
+# revisiting the local-first coverage, this goes red and points at the guarded
+# block below.
+- runFlow:
+    when:
+      notVisible:
+        id: 'utilities-screen'
+    commands:
+      - assertVisible:
+          id: 'home-screen'
+      # Even the redirect must not have triggered a utilities read on the way
+      # through — a mount-then-unmount would still leak a request.
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: GET
+            E2E_VERIFY_PATH: /utilities/dashboard
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+# --- Live branch: the actual local-first verification --------------------
+- runFlow:
+    when:
+      visible:
+        id: 'utilities-screen'
+    commands:
+      - assertVisible:
+          id: 'utilities-screen'
+      # Dashboard read → utilitiesApi.getDashboard (local).
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: GET
+            E2E_VERIFY_PATH: /utilities/dashboard
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Bills list → utilitiesApi.getBills (local).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - tapOn:
+          id: 'utilities-action-view-bills'
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: GET
+            E2E_VERIFY_PATH: /utilities/bills
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      # DoD H7 — no identifier in front of a member.
+      - assertNotVisible: 'utilitiesApi\.'
+      - assertNotVisible: 'is not available offline yet'
+
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

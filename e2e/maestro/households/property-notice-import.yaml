@@ -1,0 +1,119 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:households
+  - mutation
+  - regression
+# Matrix: HOUSE-PROP-006, HOUSE-PROP-007 (notice import: Files + Google Drive)
+---
+# Importing an assessment or tax notice, from local Files and from Google Drive.
+#
+# The Drive picker remembers a folder per feature — the key is
+# `cloud_picker_folder:<provider>:<scope>`, with `property-taxes` and
+# `property-assessments` as separate scopes, so pinning a tax folder must not
+# move the assessment one. This flow opens both pickers in turn; a regression in
+# the scope key shows up as the second picker landing in the first one's folder.
+#
+# Drive needs a signed-in Google account, which the E2E account does not have,
+# so every Drive step is `optional: true`. The flow proves the picker opens and
+# is addressable; it does not prove a Drive download.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-property-detail.yaml
+
+# --- Tax notice import -----------------------------------------------------
+- tapOn:
+    id: 'filter-tab-tax'
+- waitForAnimationToEnd:
+    timeout: 3000
+
+- runFlow:
+    when:
+      visible:
+        id: 'property-tax-upload'
+    commands:
+      - tapOn:
+          id: 'property-tax-upload'
+      # The source sheet offers camera / gallery / file / Drive.
+      - extendedWaitUntil:
+          visible: 'Google Drive'
+          timeout: 10000
+          optional: true
+      - runFlow:
+          when:
+            visible: 'Google Drive'
+          commands:
+            - tapOn: 'Google Drive'
+            - extendedWaitUntil:
+                visible:
+                  id: 'cloud-picker-modal'
+                timeout: 15000
+                optional: true
+            - tapOn:
+                id: 'cloud-picker-cancel'
+                optional: true
+      # Close the source sheet if it is still open. Note `optional: true` only
+      # means "don't fail when the element is missing" — it still taps whenever
+      # the element IS present. `nav-back-button` is always present on the
+      # detail screen, so tapping it unconditionally pops us back to My
+      # Properties. Guard on having actually left the detail screen instead.
+      - tapOn:
+          text: 'Cancel'
+          optional: true
+      - runFlow:
+          when:
+            notVisible:
+              id: 'property-detail-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+
+- assertVisible:
+    id: 'property-detail-screen'
+
+# --- Assessment notice import ----------------------------------------------
+- tapOn:
+    id: 'filter-tab-assessment'
+- waitForAnimationToEnd:
+    timeout: 3000
+
+- runFlow:
+    when:
+      visible:
+        id: 'property-assessment-upload'
+    commands:
+      - tapOn:
+          id: 'property-assessment-upload'
+      - extendedWaitUntil:
+          visible: 'Google Drive'
+          timeout: 10000
+          optional: true
+      - runFlow:
+          when:
+            visible: 'Google Drive'
+          commands:
+            - tapOn: 'Google Drive'
+            - extendedWaitUntil:
+                visible:
+                  id: 'cloud-picker-modal'
+                timeout: 15000
+                optional: true
+            - tapOn:
+                id: 'cloud-picker-cancel'
+                optional: true
+      # Same guard as the tax tab above: only navigate back if the sheet
+      # actually took us off the detail screen.
+      - tapOn:
+          text: 'Cancel'
+          optional: true
+      - runFlow:
+          when:
+            notVisible:
+              id: 'property-detail-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+
+- assertVisible:
+    id: 'property-detail-screen'

@@ -1,0 +1,453 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:recipes
+  - mutation
+  - regression
+# Matrix: HEALTH-FOOD-150 … 153
+---
+# Recipes tab — the LOG TO DIARY panel (`recipes-build-and-scale.yaml`'s own
+# stated remaining gap: "the four LOG TO DIARY controls … the panel is open at
+# the point recipes-build-and-scale.yaml already reaches … Next pass: split
+# it, the way Weight and Nutrition were split."). This flow is that split —
+# it owns the panel's four controls (`-log-slot-*`, `-log-prev-day`,
+# `-log-next-day`, `-log-button`) and nothing `recipes-build-and-scale.yaml`
+# already covers (build/scale/favourite/edit/delete stay there).
+#
+# SELF-SUFFICIENT, LIKE THE FLOW IT SPLITS FROM: a recipe can only be built
+# from the user's OWN foods, so this flow mints its own ingredient on the
+# Foods tab and its own recipe, and deletes both in teardown — it must not
+# depend on `recipes-build-and-scale.yaml` having run first or left anything
+# behind. Distinct names (`Maestro Loggable Rice` / `Maestro Loggable Bowl`,
+# not `Maestro Rice` / `Maestro Bowl`) so a leftover from an aborted run of
+# THAT flow can never collide with a row selector in THIS one.
+#
+# THE NUMBERS ARE THE SAME ARITHMETIC recipes-build-and-scale.yaml USES: 130
+# kcal/100 g, 200 g → 260 kcal. One ingredient, default servings (1) left
+# untouched, so `scaleTarget` opens already at 1 and the log panel's own
+# figures (`Per serving`, `Total for 1 servings`, the log preview and the
+# post-log message) are all provable by hand against that single number.
+#
+# LOGGING MINTS A REAL DIARY ROW ON THE SHARED ACCOUNT, so the teardown is
+# `subflows/health-clear-maestro-meals.yaml` — the sweep that deletes only
+# rows whose name starts with `Maestro `, so a row a member logged is never
+# touched, and a leftover from a previous aborted run is cleaned up too, not
+# just this run's own row.
+#
+# TWO-BRANCH ON THE PANEL ITSELF, same discipline as the scale-answer branch
+# in `recipes-build-and-scale.yaml`: the LOG TO DIARY panel only renders once
+# `scaled` is truthy (a real `/recipes/:id/scale` answer). If that answer
+# never lands the panel is never in the tree, so the four controls this flow
+# exists to drive are undrivable that run — the flow names that state
+# (`health-recipe-scale-unavailable`) rather than either faking a log or
+# hanging on a control that will never appear.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-FOOD-150
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Mint this flow's own ingredient ---------------------------------
+      - runFlow: subflows/go-health-food.yaml
+      # 'SEARCH', NOT 'MY FOODS'. Reproduced live 2026-08-02: the Add Food
+      # redesign grew what renders ABOVE the food list on this screen —
+      # SEARCH (All/Favourites/Most used) / USUALLY AT <time> / LOG TO / ADD
+      # FOOD (the create-food form) all now sit above "MY FOODS"
+      # (HealthFoodLibraryScreen.tsx), so a landing check with no scroll can
+      # no longer reach it — the failure screenshot shows Foods freshly
+      # opened with those four cards filling the whole viewport and nothing
+      # below the fold. 'SEARCH' is the section label this same landing check
+      # can still make with NO scroll: it is the first thing on the screen,
+      # unconditional once HealthSectionScreen's own `loading` gate clears,
+      # and `health-food-name-input` right below (the create-food form) sits
+      # above 'MY FOODS' too, so there is nothing to scroll back up from.
+      - extendedWaitUntil:
+          visible: 'SEARCH'
+          timeout: 15000
+      - tapOn:
+          id: 'health-food-name-input'
+      - inputText: 'Maestro Loggable Rice'
+      - tapOn:
+          id: 'health-food-calories-input'
+      - inputText: '130'
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `handleSave` → `createFood` (healthFoodStorage.ts) →
+      # `POST /health/custom-foods` (health-food.ts), 201.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-save-button'
+      - scrollUntilVisible:
+          element:
+            text: '100 g · 130 kcal · 0P / 0C / 0F'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /custom-foods
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Build the recipe (mirrors recipes-build-and-scale.yaml) ---------
+      # `health-recipe-add-ingredient` is local-only (`handleAddIngredient`
+      # only touches the in-memory draft) until the Save below.
+      - runFlow: subflows/go-health-recipes.yaml
+      - extendedWaitUntil:
+          visible: 'NEW RECIPE'
+          timeout: 15000
+      - assertVisible:
+          id: 'health-recipe-ingredients-empty'
+      - scrollUntilVisible:
+          element:
+            text: 'Use Maestro Loggable Rice as an ingredient'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-food-.*'
+          text: 'Use Maestro Loggable Rice as an ingredient'
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-quantity-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-quantity-input'
+      - eraseText
+      - inputText: '200'
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'NEW RECIPE'
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-add-ingredient'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-add-ingredient'
+      - extendedWaitUntil:
+          visible: 'Maestro Loggable Rice · 200 g'
+          timeout: 15000
+
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-name-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-name-input'
+      - inputText: 'Maestro Loggable Bowl'
+      # Servings is left at its default (1) on purpose — see the header. That
+      # makes `scaleTarget` 1 the moment the recipe is opened, so every figure
+      # the panel below shows is provable against ONE number. Because
+      # servings is never touched, there is no later numeric-field edit to
+      # supersede this text keyboard the way recipes-build-and-scale.yaml's
+      # own servings edit does — it is dismissed here explicitly instead.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'NEW RECIPE'
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `handleSave` → `createRecipe` (healthFoodStorage.ts) →
+      # `POST /health/recipes` (health-food.ts), 201.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-recipe-save-button'
+      - scrollUntilVisible:
+          element:
+            text: 'Open Maestro Loggable Bowl, 1 servings, 260 kcal total'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /recipes
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Open it — the panel is gated behind a real scale answer --------
+      # NOT network-verified: opening the recipe fires a REAL
+      # `POST /health/recipes/:id/scale`, but per that route's own contract
+      # ("Nothing is written, both totals come back computed") it never
+      # mutates state — same call, same reasoning as
+      # `recipes-build-and-scale.yaml`'s HEALTH-FOOD-117.
+      - tapOn:
+          id: 'health-recipe-open-.*'
+          text: 'Open Maestro Loggable Bowl, 1 servings, 260 kcal total'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-recipe-detail'
+          timeout: 15000
+      # Give the `/scale` answer a fair chance to land before the two-branch
+      # check below reads it — `optional` so a genuinely offline run still
+      # falls through to the named unavailable state rather than hard-failing
+      # here.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-recipe-log-section'
+          timeout: 8000
+          optional: true
+
+      - runFlow:
+          when:
+            visible:
+              id: 'health-recipe-log-section'
+          commands:
+            # --- Panel defaults: DINNER, TODAY, forward-disabled (FOOD-150) -
+            - assertVisible:
+                id: 'health-recipe-log-slot-dinner'
+                selected: true
+            - assertVisible:
+                id: 'health-recipe-log-slot-breakfast'
+                selected: false
+            - assertVisible:
+                id: 'health-recipe-log-day'
+                text: 'Today'
+            - assertVisible:
+                id: 'health-recipe-log-preview'
+                text: 'One entry of 260 kcal.*for 1 serving\.'
+
+            # --- Day stepper: forward-disabled-on-today, then a real round
+            #     trip (FOOD-151). The forward tap first proves the guard is
+            #     BEHAVIOURAL (a disabled Pressable is a no-op on this build,
+            #     not just a `enabled:` filter Maestro can see — same as the
+            #     empty-library check in recipes-build-and-scale.yaml).
+            # Local-only: `logDate`/`setLogDate` (HealthRecipesScreen.tsx) is
+            # plain component state — the stepper never calls the network.
+            - tapOn:
+                id: 'health-recipe-log-next-day'
+            - assertVisible:
+                id: 'health-recipe-log-day'
+                text: 'Today'
+            - tapOn:
+                id: 'health-recipe-log-prev-day'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-recipe-log-day'
+                  text: 'Yesterday'
+                timeout: 10000
+            - tapOn:
+                id: 'health-recipe-log-next-day'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-recipe-log-day'
+                  text: 'Today'
+                timeout: 10000
+
+            # --- Meal-slot picker really moves the destination (FOOD-152) --
+            # Local-only: `logSlot`/`setLogSlot` (HealthRecipesScreen.tsx) is
+            # plain component state until the Log tap below.
+            - tapOn:
+                id: 'health-recipe-log-slot-breakfast'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-recipe-log-slot-breakfast'
+                  selected: true
+                timeout: 10000
+            - assertVisible:
+                id: 'health-recipe-log-slot-dinner'
+                selected: false
+            # `handleLogRecipe` → `logRecipeToDiary` (healthFoodStorage.ts)
+            # re-asks `/recipes/:id/scale` (non-mutating, see above) then
+            # `addMealEntry` → `POST /health/nutrition/entries` (health.ts),
+            # 201 — the real diary write this leg and its read-back below are
+            # about.
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+            - tapOn:
+                id: 'health-recipe-log-button'
+                text: 'Log 1 serving of Maestro Loggable Bowl to Breakfast on Today'
+
+            # --- The write, and the read-back in the real diary (FOOD-153) -
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-recipe-log-message'
+                timeout: 15000
+            - assertVisible:
+                id: 'health-recipe-log-message'
+                text: 'Logged 1 serving of Maestro Loggable Bowl.*to Breakfast on Today\.'
+            - runFlow:
+                file: ../subflows/e2e-verify-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+                  E2E_VERIFY_METHOD: POST
+                  E2E_VERIFY_PATH: /nutrition/entries
+                  E2E_VERIFY_STATUS: '201'
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+            # Live run 2026-08-02 hung 924s here: go-health-nutrition.yaml's
+            # first call is dismiss-weight-keyboard.yaml's optional
+            # `tapOn: {text: 'Done'}`, which a concurrent session's Metro
+            # Fast Refresh (mid-remount "Refreshing..." banner) stalled far
+            # past a normal instant no-op — same root cause already fixed in
+            # health-goals-nutrition-and-activity.yaml.
+            - extendedWaitUntil:
+                notVisible: 'Refreshing...'
+                timeout: 20000
+            - runFlow: subflows/go-health-nutrition.yaml
+            - scrollUntilVisible:
+                element:
+                  text: 'Maestro Loggable Bowl'
+                direction: DOWN
+                timeout: 20000
+                visibilityPercentage: 10
+            - assertVisible:
+                id: 'health-meal-group-breakfast'
+
+            # --- Teardown: only the `Maestro ` rows, never a member's own --
+            - runFlow: subflows/health-clear-maestro-meals.yaml
+            - assertNotVisible: 'Maestro Loggable Bowl'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-recipe-log-section'
+          commands:
+            - assertVisible:
+                id: 'health-recipe-scale-unavailable'
+
+      # --- Teardown: the recipe, then its ingredient — either branch ------
+      # `deleteRecipe`/`deleteFood` (healthFoodStorage.ts) →
+      # `DELETE /health/recipes/:id` / `DELETE /health/custom-foods/:id`
+      # (health-food.ts), 200 each.
+      - runFlow: subflows/go-health-recipes.yaml
+      - scrollUntilVisible:
+          element:
+            text: 'Delete Maestro Loggable Bowl'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-recipe-delete-.*'
+          text: 'Delete Maestro Loggable Bowl'
+      - extendedWaitUntil:
+          visible: 'Delete recipe'
+          timeout: 15000
+      - assertVisible: 'Remove "Maestro Loggable Bowl"?'
+      - tapOn:
+          text: 'Delete'
+      - extendedWaitUntil:
+          notVisible: 'Open Maestro Loggable Bowl.*'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /recipes/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - runFlow: subflows/go-health-food.yaml
+      - scrollUntilVisible:
+          element:
+            text: 'Delete Maestro Loggable Rice'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-delete-.*'
+          text: 'Delete Maestro Loggable Rice'
+      - extendedWaitUntil:
+          visible: 'Delete food'
+          timeout: 15000
+      - tapOn:
+          text: 'Delete'
+      - extendedWaitUntil:
+          notVisible: 'Delete Maestro Loggable Rice'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /custom-foods/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Back to the Health tab ------------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

@@ -1,0 +1,309 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home-projects
+  - regression
+# Matrix: HOUSE-HPROJ-SURF-001 (attach a project material to a surface → budget)
+#
+# The one path this feature exists for, end to end, and the first Maestro flow
+# to enter the Surface Studio at all:
+#
+#   a material in the project's list  →  put on a measured surface  →  its money
+#   in the project's budget
+#
+# Every assertion below is a thing that was broken or absent before: the studio
+# could only invent a finish from scratch, and the takeoff pushed name-deduped
+# copies back into the materials list rather than pricing the material the
+# member had actually chosen.
+#
+# NOT read-only, deliberately. The feature IS a write — it moves money into the
+# project's estimate — and a read-only flow could only assert that the button
+# exists. It reuses the shared E2E project rather than creating one per run, for
+# the reason `open-home-project-hub.yaml` documents at length.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-home-project-hub.yaml
+
+# ---- a material to attach ------------------------------------------------
+#
+# Added manually rather than from a link: the link importer needs the network
+# and a shop that answers, and what this flow is about is what happens to a
+# material AFTER it is in the list. A manual row also exercises the harder
+# branch — it states no colour, so `materialFromSelection` refuses it and the
+# studio has to fall back to the pre-filled form instead of applying silently.
+- repeat:
+    times: 4
+    while:
+      notVisible:
+        id: 'materials-add-fab'
+    commands:
+      - tapOn:
+          id: 'hub-tab-materials'
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: 'materials-add-fab'
+    timeout: 15000
+# Let the list finish arriving before the guard below decides whether this
+# material is already here. Deciding mid-render reads "not there" and adds a
+# second copy, into a household every other House flow shares.
+- waitForAnimationToEnd:
+    timeout: 5000
+# `.*…*.` everywhere this name is matched, and it is load-bearing rather than
+# defensive. Every row that carries it is an ACCESSIBLE CONTAINER: React Native
+# collapses the children into one node, so the hierarchy holds no `text` at all
+# — only `accessibilityText: 'cube-outline, E2E Surface Tile, $12.00, Edit …'`.
+# Maestro matches a text selector against the WHOLE string, so the bare name
+# matches nothing. On this guard that failure is the expensive one: it would
+# read "not visible" on every run and add the material again each time.
+- runFlow:
+    when:
+      notVisible: '.*E2E Surface Tile.*'
+    commands:
+      - tapOn:
+          id: 'materials-add-fab'
+      - extendedWaitUntil:
+          visible:
+            id: 'materials-add-menu'
+          timeout: 10000
+      - tapOn:
+          id: 'materials-add-manual'
+      - extendedWaitUntil:
+          visible:
+            id: 'materials-manual-sheet'
+          timeout: 10000
+      - tapOn:
+          id: 'add-selection-input'
+      - inputText: 'E2E Surface Tile'
+      - tapOn:
+          id: 'add-selection-price'
+      - inputText: '12'
+      # No `hideKeyboard`: this sheet uses a custom input and Maestro cannot
+      # dismiss it ("Couldn't hide the keyboard"). The save button sits above
+      # the keyboard, so it does not need to be dismissed — proven by
+      # `home-projects-material-add`, which saves from the same sheet.
+      - tapOn:
+          id: 'materials-manual-save'
+- extendedWaitUntil:
+    visible: '.*E2E Surface Tile.*'
+    timeout: 15000
+
+# ---- a measured room -----------------------------------------------------
+#
+# Tapped in a `repeat … while notVisible`, not once, and this is not flake
+# insurance — it is the fix for a reproducible miss. The hub's tabs are pills in
+# a horizontal ScrollView sitting eight points apart (`plans [111..173]`,
+# `materials [181..268]`), and the "Add material" FAB animates in underneath
+# them as the Materials tab settles. Maestro resolves the coordinates, the
+# layout shifts, and the tap lands on the neighbouring pill: it reports
+# COMPLETED, the section never changes, and the failure surfaces fifteen seconds
+# later as "open-surface-studio is not visible" — pointing at the Plans tab,
+# which was never opened.
+- waitForAnimationToEnd:
+    timeout: 5000
+- repeat:
+    times: 4
+    while:
+      notVisible:
+        id: 'open-surface-studio'
+    commands:
+      - tapOn:
+          id: 'hub-tab-plans'
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: 'open-surface-studio'
+    timeout: 15000
+- tapOn:
+    id: 'open-surface-studio'
+# A project that has never been measured opens on the room starter; one that has
+# opens straight onto the tabs. Both are valid states for this flow to arrive
+# in, so the room is created only when there is none.
+#
+# The branch is decided on the SHAPE PRESET, not on the "Create the room"
+# button. Both belong to the starter, but the button is below the fold on a
+# 6.1" screen — the presets, the unit picker, three dimension wheels and a live
+# preview sit above it — and Maestro's `visible` means on screen. Branching on
+# `room-start` therefore skipped the whole block on a project that WAS showing
+# the starter, and the flow then waited thirty seconds for tabs that could not
+# appear because nobody had created the room.
+- extendedWaitUntil:
+    visible:
+      id: 'room-preset-rectangle'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'room-preset-rectangle'
+    commands:
+      - tapOn:
+          id: 'room-preset-rectangle'
+      - scrollUntilVisible:
+          element:
+            id: 'room-start'
+          direction: DOWN
+          timeout: 15000
+          # Centre it: the floating tab bar covers the bottom of the viewport and
+          # Maestro measures visibility against the screen, not against what
+          # overlays it, so a "visible" CTA down there can still take the tap on
+          # the tab bar and switch tabs instead.
+          centerElement: true
+      - tapOn:
+          id: 'room-start'
+- extendedWaitUntil:
+    visible:
+      id: 'surface-tab-surfaces'
+    timeout: 30000
+
+# ---- attach the material to a surface ------------------------------------
+- repeat:
+    times: 4
+    while:
+      notVisible:
+        id: 'surface-strip'
+    commands:
+      - tapOn:
+          id: 'surface-tab-surfaces'
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: 'surface-strip'
+    timeout: 15000
+# The shortcut only renders when the project HAS materials, which is exactly
+# what the block above guaranteed — so `scrollUntilVisible` FAILING here is a
+# real failure and not a skip: it would mean the studio never saw the material.
+# It has to be scrolled to rather than asserted in place: the surface strip, the
+# label row, the plan locator and the canvas come first, and the canvas alone
+# ends below the fold.
+- scrollUntilVisible:
+    element:
+      id: 'surface-apply-material'
+    direction: DOWN
+    timeout: 20000
+    # Centre it: the floating tab bar covers the bottom of the viewport and
+    # Maestro measures visibility against the screen, not against what
+    # overlays it, so a "visible" CTA down there can still take the tap on
+    # the tab bar and switch tabs instead.
+    centerElement: true
+- tapOn:
+    id: 'surface-apply-material'
+- extendedWaitUntil:
+    visible:
+      id: 'material-editor-from-project'
+    timeout: 15000
+# By name, not by testID: the option's testID carries the selection's id, which
+# is minted per household and cannot be written into a flow file.
+- tapOn: '.*E2E Surface Tile.*'
+# A manual material states no colour, so the conversion refuses and the form
+# arrives pre-filled with the kind's starting colour instead — the refusal
+# `material-to-finish.ts` documents, doing what it is for. Saving is what puts
+# the finish on the surface.
+#
+# Scrolled to, because the save button is the LAST thing in a long sheet: the
+# project strip, the palette, the swatch preview, name, type, a thirty-swatch
+# colour grid, photo, size, joint, layout, waste and price all sit above it.
+- scrollUntilVisible:
+    element:
+      id: 'material-save'
+    direction: DOWN
+    timeout: 20000
+    # Centre it: the floating tab bar covers the bottom of the viewport and
+    # Maestro measures visibility against the screen, not against what
+    # overlays it, so a "visible" CTA down there can still take the tap on
+    # the tab bar and switch tabs instead.
+    centerElement: true
+- tapOn:
+    id: 'material-save'
+# The sheet closing is the signal, NOT the surface strip coming back: reaching
+# the save button scrolled the page down, so the strip is off-screen behind the
+# sheet and asserting it would fail on a save that worked perfectly. The tab row
+# above the body is fixed, which is why the next step can tap it regardless of
+# where the body is scrolled to.
+- extendedWaitUntil:
+    notVisible:
+      id: 'material-save'
+    timeout: 15000
+
+# ---- the money -----------------------------------------------------------
+# `Room | Surfaces | Takeoff` are three pills eight points apart, so the tap
+# lands on the neighbour exactly as it does on the hub's tabs — it reports
+# COMPLETED and the section never changes. The marker is a takeoff LINE rather
+# than the button: a line exists only once a finish is on a surface, so this
+# also asserts the attach actually reached the takeoff, and its id carries the
+# material's id, hence the regex.
+- repeat:
+    times: 4
+    while:
+      notVisible:
+        id: 'takeoff-line-.*'
+    commands:
+      - tapOn:
+          id: 'surface-tab-takeoff'
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: 'takeoff-line-.*'
+    timeout: 15000
+# The CTA sits under the summary block and every priced line, so it is scrolled
+# to rather than asserted in place.
+- scrollUntilVisible:
+    element:
+      id: 'takeoff-send-to-budget'
+    direction: DOWN
+    timeout: 20000
+    # Centre it: the floating tab bar covers the bottom of the viewport and
+    # Maestro measures visibility against the screen, not against what
+    # overlays it, so a "visible" CTA down there can still take the tap on
+    # the tab bar and switch tabs instead.
+    centerElement: true
+- tapOn:
+    id: 'takeoff-send-to-budget'
+# The confirmation names what changed. "Budget updated" is the title in every
+# branch — materials added, lines corrected, or already matching — so asserting
+# it does not pin the flow to one of the three.
+- extendedWaitUntil:
+    visible: 'Budget updated'
+    timeout: 60000
+- tapOn: 'OK'
+
+# ---- and it is in the project's budget -----------------------------------
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'home-project-hub-title'
+    timeout: 20000
+# The loop's marker is the target-budget field: the FIRST thing in the Budget
+# section and, more to the point, one the accessibility tree actually carries.
+# Two likelier-looking markers do not work. "Add a line" sits below the target,
+# contingency and category blocks, off screen. The "Current budget · Materials"
+# category row is on screen and still absent from the hierarchy — it renders as
+# plain Views whose testID never surfaces — so a loop waiting on either taps the
+# tab four times over a section that is already open, then fails.
+- repeat:
+    times: 4
+    while:
+      notVisible:
+        id: 'home-project-target-budget'
+    commands:
+      - tapOn:
+          id: 'hub-tab-budget'
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: 'home-project-target-budget'
+    timeout: 15000
+# The label the promote writes is "<material> — <surfaces>", which is the whole
+# point of routing the money through the takeoff: a budget read a month later
+# says which surface the money is for without opening the room.
+- scrollUntilVisible:
+    element:
+      text: '.*E2E Surface Tile.*'
+    direction: DOWN
+    timeout: 20000

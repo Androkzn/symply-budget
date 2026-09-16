@@ -1,0 +1,6 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+- setAirplaneMode: disabled

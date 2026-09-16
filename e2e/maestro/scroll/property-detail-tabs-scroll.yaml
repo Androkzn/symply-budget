@@ -1,0 +1,58 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:scroll
+  - readonly
+  - regression
+# Matrix: HOUSE-SCROLL-019
+---
+# Property detail tabs — switch Overview / Tax / Assessment / Members and scroll.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-profile.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-household-members'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'settings-row-household-members'
+- extendedWaitUntil:
+    visible: 'My Properties'
+    timeout: 20000
+- runFlow:
+    when:
+      visible: 'My Properties'
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: 'Active'
+          direction: DOWN
+          timeout: 15000
+          optional: true
+      - tapOn:
+          text: 'Active'
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'property-detail-screen'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'property-detail-screen'
+    commands:
+      - tapOn:
+          id: 'filter-tab-overview'
+      - scrollUntilVisible:
+          element:
+            id: 'property-detail-scroll'
+          direction: DOWN
+          timeout: 15000
+          optional: true
+      - tapOn:
+          id: 'filter-tab-tax'
+      - tapOn:
+          id: 'filter-tab-assessment'
+      - tapOn:
+          id: 'filter-tab-members'

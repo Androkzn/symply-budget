@@ -1,0 +1,83 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+# Matrix: HOUSE-MM-005 — invitee picks up the household key and leaves the
+# paused state (TRD §8.3 bootstrap).
+#
+# The wrapped HDK lands in this device's mailbox at approval time, and
+# `tryAcceptHdkFromMailbox` runs inside a sync. Sync is retried a few times
+# because the deposit and this flow are not synchronised — the owner's
+# `${LF_SYNC_NOW}` in mm-04 and this device's poll are two independent clocks.
+#
+# This is the HDK handshake gate: until it passes, this device holds ciphertext
+# it cannot open, and every later phase would fail for that reason rather than
+# for anything about convergence.
+#
+# ONE SURFACE. The wait ("Waiting for approval…" is the submit button's own
+# title while `wait.awaiting`, HouseJoinScreen.tsx:519) and `${LF_SYNC_NOW}` are
+# both on the combined Device sync screen, so an attempt never leaves it.
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-open-lf-settings.yaml
+# TWELVE, not six. Each pass costs ~15s, so six gave up after about ninety
+# seconds — and the deposit this flow is waiting for landed three minutes after
+# the approval on run 20260905-105636 (see mm-04). Waiting is cheap here; a
+# false "the key never arrived" is not, because it points at the handshake
+# instead of at the clock.
+- repeat:
+    times: 12
+    commands:
+      - runFlow:
+          when:
+            visible: '.*Waiting for approval….*'
+          commands:
+            # The sync control lives at the TOP of the card — off-window
+            # children are not tappable, so bring it into view first.
+            - scrollUntilVisible:
+                element:
+                  id: '${LF_SYNC_NOW}'
+                direction: UP
+                timeout: 10000
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 1500
+            - tapOn:
+                id: '${LF_SYNC_NOW}'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 12000
+            - tapOn:
+                text: '^OK$'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 3000
+# Enrolment done: the join button is live again, so writes are unpaused.
+#
+# Scroll first — the join panel sits at the fold, so at the default offset the
+# button is off-viewport and the assert fails for a reason that has nothing to
+# do with enrolment.
+- scrollUntilVisible:
+    element:
+      id: '${LF_JOIN_HOUSEHOLD}'
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- assertVisible:
+    id: '${LF_JOIN_HOUSEHOLD}'
+- assertNotVisible: '.*Waiting for approval….*'
+# NOT WAITING IS NOT THE SAME AS LET IN.
+#
+# The wait also ends when the invite is revoked, expires, or the member is
+# removed — `HouseJoinWaitingPanel` swaps the digits for an outcome panel and
+# `wait.awaiting` goes false, so the two assertions above pass on a device that
+# was never approved. That is not hypothetical: on run 20260905-102733 the
+# invite had been revoked mid-run and this flow reported PASS.
+#
+# `house-join-outcome-panel` renders for exactly those three failures, so its
+# ABSENCE is what separates "approved" from "the wait ended badly".
+- assertNotVisible:
+    id: 'house-join-outcome-panel'

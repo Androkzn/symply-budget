@@ -1,0 +1,4 @@
+#!/bin/bash
+# Quick deploy to DEV environment
+cd "$(dirname "$0")"
+./scripts/deploy-code-only.sh --env=dev "$@"

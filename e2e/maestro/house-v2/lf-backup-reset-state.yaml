@@ -1,0 +1,56 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Put Backup & Restore back to its resting state: automatic backup OFF.
+#
+# WHY THIS EXISTS
+# ---------------
+# Maestro has no `finally`. A flow that arms the schedule and turns it off at
+# the end only cleans up if every step in between passed — and `lf-021` proved
+# the point on its first run: it failed at the phrase sheet, so the toggle stayed
+# ON and every sibling flow afterwards met a LONGER screen than it expected
+# (the schedule rows push RESTORE FROM ELSEWHERE further down), which is exactly
+# how `lf-012` then ran out of scroll budget.
+#
+# So cleanup is a PRECONDITION, not a postcondition: any flow that needs the
+# resting screen runs this first and is immune to how the previous one ended.
+#
+# Every step is conditional — this must be a no-op on an already-clean screen,
+# and must never fail a flow that called it defensively.
+- runFlow:
+    when:
+      visible:
+        id: 'house-backup-screen'
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'house-backup-auto-toggle'
+          direction: DOWN
+          centerElement: true
+          timeout: 20000
+          optional: true
+      # `house-backup-frequency-row` renders ONLY while the schedule is on, so
+      # its presence is the switch's state without reading the switch.
+      - runFlow:
+          when:
+            visible:
+              id: 'house-backup-frequency-row'
+          commands:
+            - tapOn:
+                id: 'house-backup-auto-toggle'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'house-backup-frequency-row'
+                timeout: 15000
+            - waitForAnimationToEnd:
+                timeout: 2000
+      # Scroll back to the top so the caller starts where it expects to.
+      - scrollUntilVisible:
+          element:
+            id: 'house-backup-status-card'
+          direction: UP
+          centerElement: true
+          timeout: 20000
+          optional: true

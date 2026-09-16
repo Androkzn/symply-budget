@@ -1,0 +1,28 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Opens the Savings section. Savings is a default-pinned Budget bottom tab
+# (resolveEffectiveTabs → index/planning/spending/savings/settings), so tap
+# tab-savings → BudgetNavigator section="savings" → SavingsView (savings-view).
+# Deep link first — tab bar taps flake on iOS 26 after long suite runs.
+- openLink: simplebudget:///budget?activeView=savings
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- runFlow: budget-dismiss-welcome-if-needed.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow:
+    when:
+      notVisible:
+        id: 'savings-view'
+    commands:
+      - runFlow: ../subflows/go-budget-tab.yaml
+      - tapOn:
+          id: 'tab-savings'
+          retryTapIfNoChange: true
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-view'
+    timeout: 90000

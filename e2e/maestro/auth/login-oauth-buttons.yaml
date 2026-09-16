@@ -1,0 +1,26 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - readonly
+  - regression
+# Matrix: HOUSE-AUTH-019
+---
+# OAuth buttons render only when configured — assert login chrome without dead gaps.
+- runFlow: ../subflows/launch-logged-out.yaml
+- assertVisible:
+    id: 'auth-sign-in-email'
+- runFlow:
+    when:
+      visible:
+        id: 'auth-sign-in-apple'
+    commands:
+      - assertVisible:
+          id: 'auth-sign-in-apple'
+- runFlow:
+    when:
+      visible:
+        id: 'auth-sign-in-google'
+    commands:
+      - assertVisible:
+          id: 'auth-sign-in-google'

@@ -1,0 +1,29 @@
+appId: ${APP_ID}
+tags:
+  - util
+---
+# Assert NO network call matches — for actions that should be a no-op (e.g.
+# tapping Cancel on a destructive-action confirm), OR (with E2E_VERIFY_STATUS
+# set) that a call to this path never came back with a specific status —
+# e.g. asserting an authenticated GET never 401'd, even though a LATER retry
+# on the same path succeeded (a plain e2e-verify-network check matches the
+# most recent ring-buffer entry, so it can't see an earlier failed attempt
+# that a silent retry papered over). Sets e2e-verify-badge to PASS when
+# nothing matched, FAIL when a call fired anyway.
+# Env: E2E_VERIFY_METHOD (optional), E2E_VERIFY_PATH (required),
+#      E2E_VERIFY_STATUS (optional — narrows to calls with this status only),
+#      E2E_VERIFY_EXACT (optional 'true' — require an exact URL match instead
+#      of substring; needed for a bare collection route like /households,
+#      which substring-matches every nested sub-resource too).
+- runFlow:
+    when:
+      true: ${E2E_VERIFY_STATUS != null && E2E_VERIFY_STATUS != ''}
+    commands:
+      - openLink: ${E2E_APP_SCHEME}://e2e-verify-no-network?method=${E2E_VERIFY_METHOD}&path=${E2E_VERIFY_PATH}&status=${E2E_VERIFY_STATUS}&exact=${E2E_VERIFY_EXACT}
+- runFlow:
+    when:
+      true: ${E2E_VERIFY_STATUS == null || E2E_VERIFY_STATUS == ''}
+    commands:
+      - openLink: ${E2E_APP_SCHEME}://e2e-verify-no-network?method=${E2E_VERIFY_METHOD}&path=${E2E_VERIFY_PATH}&exact=${E2E_VERIFY_EXACT}
+- waitForAnimationToEnd:
+    timeout: 2000

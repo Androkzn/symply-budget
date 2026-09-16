@@ -1,0 +1,522 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:onboarding
+  - readonly
+  - regression
+# Matrix: HEALTH-ONB-001 … HEALTH-ONB-022, plus 023…027 (new — see documents/engineering/testing/matrices/health.md)
+---
+# Onboarding NUX: ChildWelcomeScreen ("Get Started") → the five-step GOALS
+# mini-flow — About you → Weight → Nutrition → Activity → Water, all sharing
+# `OnboardingStepScreen` — → the shared EssentialPermissions (notifications +
+# Health's own reminder toggles) → HealthKitPermission → Home.
+#
+# ABOUT YOU MOVED TO THE FRONT (it used to be the last GOALS step). Gender,
+# age, height and activity level are what `suggestGoals()` needs to turn
+# into a personalised calorie/step/water suggestion, and every step from
+# Nutrition onward reads it via `useSuggestedGoals()` — a member who fills
+# these in first sees a real "Suggested for you" banner on each later step
+# instead of a blank field. This flow types a real starting weight on the
+# Weight step (not just a goal type) specifically so those banners have
+# something to show — the earlier version of this flow left every field but
+# one blank, which never exercised the suggestion path at all.
+#
+# Shaped like language/onboarding.yaml, not house/onboarding/funnel.yaml: a
+# SOFT, session-preserving launch (no clearState, no clearKeychain, no
+# e2e-logout) — the shared E2E account is already onboarded on most sims, so
+# Path A below only runs for real against a genuinely fresh account, and this
+# flow is a harmless confirm-we're-on-Home no-op otherwise. Building a
+# force-logged-out entry point (à la House's launch-onboarding.yaml, which
+# clears Keychain) was deliberately skipped: every other Health flow shares
+# ONE signed-in session, and destroying it here would strand them, for a path
+# that — on the current shared account — cannot exercise anything the softer
+# launch doesn't already reach.
+#
+# EVERY FIELD ON EVERY STEP IS SKIPPABLE BY DESIGN (see each screen's own
+# header comment), so Path A below deliberately leaves most fields untouched
+# and drives forward mostly via the header's forward arrow — that IS the
+# behaviour under test, not a shortcut around it. It types into exactly the
+# fields needed to exercise the features this flow exists to prove: the
+# About-you biometrics + activity-level info sheet, a real starting weight (so
+# the suggestion banners downstream have data), the default percent-mode +
+# "Quick presets" info sheet on Nutrition, the water unit switcher, and the
+# reminder toggles unique to Health on EssentialPermissions.
+- launchApp:
+    clearState: false
+    permissions:
+      all: allow
+      faceid: allow
+- runFlow: subflows/connect-health-metro.yaml
+- runFlow: subflows/health-dismiss-expo-dev-chrome.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'login-screen'
+    commands:
+      - runFlow: subflows/health-login-if-needed.yaml
+
+# =====================================================================
+# Path A — the NUX is showing: walk the whole mini-flow for real.
+# =====================================================================
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-get-started'
+    commands:
+      - tapOn:
+          id: 'onboarding-get-started'
+
+      # ---------------------------------------------------------------
+      # Step 1/7 — About you (HEALTH-ONB-012, 023, 024) — gender, age,
+      # height, activity level, and the activity-level explanation sheet.
+      # ---------------------------------------------------------------
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-biometrics-screen'
+          timeout: 30000
+      - assertVisible:
+          id: 'onboarding-health-goals-biometrics-screen-header'
+      - assertVisible:
+          id: 'onboarding-health-goals-biometrics-screen-dots'
+      # Gender is now a dropdown well — tap it open, pick a row on the native
+      # wheel, tap Done (HEALTH-ONB-012).
+      - tapOn:
+          id: 'onboarding-health-goals-gender'
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-gender-picker'
+          timeout: 10000
+      - tapOn: 'Female'
+      - tapOn: 'Done'
+      - assertVisible:
+          id: 'onboarding-health-goals-gender'
+          text: 'Female'
+      - tapOn:
+          id: 'onboarding-health-goals-age-input'
+      - inputText: '32'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'About you'
+
+      # Height, typed via the wheel's "Enter manually" escape hatch — the
+      # SAME path the age field above and every other numeric field in this
+      # flow already uses (HEALTH-ONB-023). The picker also carries a
+      # metric/imperial unit-system switcher in its `accessory` slot
+      # (HEALTH-ONB-029) — exercised here, then switched back to metric
+      # before typing, so the rest of this step's assertions (178 cm) still
+      # hold.
+      - tapOn:
+          id: 'onboarding-health-goals-height-input'
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-height-input-picker'
+          timeout: 10000
+      - assertVisible:
+          id: 'onboarding-health-goals-unit-system-metric'
+          selected: true
+      - tapOn:
+          id: 'onboarding-health-goals-unit-system-imperial'
+      - assertVisible:
+          id: 'onboarding-health-goals-unit-system-imperial'
+          selected: true
+      - tapOn:
+          id: 'onboarding-health-goals-unit-system-metric'
+      - assertVisible:
+          id: 'onboarding-health-goals-unit-system-metric'
+          selected: true
+      - tapOn:
+          id: 'onboarding-health-goals-height-input-picker-manual'
+      - tapOn:
+          id: 'onboarding-health-goals-height-input'
+      - inputText: '178'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'About you'
+      - assertVisible:
+          id: 'onboarding-health-goals-height-input'
+          text: '178'
+
+      # Activity level — also a dropdown well now (same wheel mechanism as
+      # gender above), a real pick needed for every downstream suggestion,
+      # plus its own explanation sheet (HEALTH-ONB-024).
+      - tapOn:
+          id: 'onboarding-health-goals-activity-level'
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-activity-level-picker'
+          timeout: 10000
+      - tapOn: 'Moderately active'
+      - tapOn: 'Done'
+      - assertVisible:
+          id: 'onboarding-health-goals-activity-level'
+          text: 'Moderately active'
+      - tapOn:
+          id: 'onboarding-health-goals-activity-level-info-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-activity-level-info-content'
+          timeout: 10000
+      - assertVisible: 'Moderate exercise or sports 3–5 days a week.'
+      # Checkable steps/minutes metric per level (HEALTH-ONB-024b) — lets
+      # someone match against a number instead of guessing from the wording
+      # alone; figures are the same ones `STEPS_BY_LEVEL`/`MINUTES_BY_LEVEL`
+      # use for the post-onboarding suggestion targets.
+      - assertVisible: 'roughly 8,000–10,000 steps a day'
+      - assertVisible: '~45 min of movement most days'
+      - tapOn:
+          id: 'bottom-sheet-overlay'
+          point: '50%, 20%'
+      - assertNotVisible:
+          id: 'onboarding-health-goals-activity-level-info-content'
+
+      # Every field on this step now has its own "why fill this in" info
+      # sheet (HEALTH-ONB-028) — one representative check on gender; age and
+      # height wire the identical `InfoButton` slot.
+      - tapOn:
+          id: 'onboarding-health-goals-gender-info-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-gender-info-content'
+          timeout: 10000
+      - tapOn:
+          id: 'bottom-sheet-overlay'
+          point: '50%, 20%'
+      - assertNotVisible:
+          id: 'onboarding-health-goals-gender-info-content'
+
+      # Bottom "Continue" here, for parity with the forward arrow used on
+      # every step below (HEALTH-ONB-012, moved from the old last-step spot).
+      - tapOn:
+          id: 'onboarding-health-goals-biometrics-screen-continue'
+
+      # ---------------------------------------------------------------
+      # Step 2/7 — Weight (HEALTH-ONB-009) — a real starting weight this
+      # time, not just the goal type, so `useSuggestedGoals()` has all five
+      # inputs by the time Nutrition/Activity/Water are reached.
+      # ---------------------------------------------------------------
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-weight-screen'
+          timeout: 15000
+      - tapOn:
+          id: 'onboarding-health-goals-weight-type-lose'
+      - assertVisible:
+          id: 'onboarding-health-goals-weight-type-lose'
+          selected: true
+      - tapOn:
+          id: 'onboarding-health-goals-starting-weight-input'
+      # Waits on the manual-entry button itself (not the sheet's wheel), since
+      # the wheel splits into whole + decimal Pickers when `splitDecimal` is on
+      # (see NumberWheelPickerSheet) — the manual-entry testID is the one
+      # element guaranteed to exist either way, and it's what gets tapped next.
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-starting-weight-input-picker-manual'
+          timeout: 10000
+      - tapOn:
+          id: 'onboarding-health-goals-starting-weight-input-picker-manual'
+      - tapOn:
+          id: 'onboarding-health-goals-starting-weight-input'
+      - inputText: '80'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Weight goal'
+      - tapOn:
+          id: 'onboarding-health-goals-weight-screen-forward'
+
+      # ---------------------------------------------------------------
+      # Step 3/7 — Nutrition (HEALTH-ONB-001 … 008, 019 … 022) — same
+      # content as before the reorder, now reached from Weight instead of
+      # first. The "Suggested for you" banner (HEALTH-ONB-025) proves the
+      # reorder's whole point: About-you + a real starting weight is enough
+      # for a personalised suggestion to appear here.
+      # ---------------------------------------------------------------
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-nutrition-screen'
+          timeout: 30000
+      # Shared header chrome: back arrow, brand logo, forward arrow — the
+      # step dots (a separate row below the header, not between the arrows)
+      # are their OWN assertion, not nested inside `-header`.
+      - assertVisible:
+          id: 'onboarding-health-goals-nutrition-screen-header'
+      - assertVisible:
+          id: 'onboarding-health-goals-nutrition-screen-back'
+      - assertVisible:
+          id: 'onboarding-health-goals-nutrition-screen-forward'
+      - assertVisible:
+          id: 'onboarding-health-goals-nutrition-screen-dots'
+
+      # A real "Suggested for you" banner, not a placeholder (HEALTH-ONB-025).
+      # `extendedWaitUntil`, not a bare assert: `useSuggestedGoals()` reads the
+      # just-saved weight goal back over the network, so the banner renders a
+      # beat after the screen itself does.
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-nutrition-suggestion'
+          timeout: 15000
+
+      # Percent mode is the default (not Grams) — HEALTH-ONB-002.
+      - assertVisible:
+          id: 'onboarding-health-goals-macro-mode-percent'
+          selected: true
+
+      # "Quick presets" info sheet — real citations, not a magic-number wall
+      # of text (HEALTH-ONB-003). Opens as a bottom sheet sized to its own
+      # content, not a fixed screen fraction.
+      - tapOn:
+          id: 'onboarding-health-goals-macro-preset-info-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-macro-preset-info-content'
+          timeout: 10000
+      - assertVisible:
+          id: 'onboarding-health-goals-macro-preset-info-balanced-bar'
+      - assertVisible:
+          id: 'onboarding-health-goals-macro-preset-info-lowCarb-bar'
+      - assertVisible:
+          id: 'onboarding-health-goals-macro-preset-info-highProtein-bar'
+      - assertVisible:
+          id: 'onboarding-health-goals-macro-preset-info-sources'
+      # Dismiss by tapping the backdrop above the (short, content-sized) sheet.
+      - tapOn:
+          id: 'bottom-sheet-overlay'
+          point: '50%, 20%'
+      - assertNotVisible:
+          id: 'onboarding-health-goals-macro-preset-info-content'
+
+      # Tapping "Balanced" fills all three percent fields (HEALTH-ONB-004).
+      - tapOn:
+          id: 'onboarding-health-goals-macro-percent-preset-balanced'
+      - assertVisible:
+          id: 'onboarding-health-goals-protein-percent-input'
+          text: '30'
+      - assertVisible:
+          id: 'onboarding-health-goals-carbs-percent-input'
+          text: '40'
+      - assertVisible:
+          id: 'onboarding-health-goals-fat-percent-input'
+          text: '30'
+
+      # A daily calorie target — via the wheel picker's "Enter manually"
+      # escape hatch, the same path HealthGoalsNutritionScreen.test.tsx drives
+      # (HEALTH-ONB-005). Overwrites whatever the suggestion banner above
+      # filled, same as any other preset/typed value on this screen.
+      - tapOn:
+          id: 'onboarding-health-goals-calories-input'
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-calories-picker'
+          timeout: 10000
+      - tapOn:
+          id: 'onboarding-health-goals-calories-picker-manual'
+      - tapOn:
+          id: 'onboarding-health-goals-calories-input'
+      - inputText: '2000'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Calories & nutrition'
+      - assertVisible:
+          id: 'onboarding-health-goals-calories-input'
+          text: '2000'
+
+      # "Custom week" reveals the seven per-day rows, then hides them again
+      # without losing the flat target above (HEALTH-ONB-006).
+      - tapOn:
+          id: 'onboarding-health-goals-calorie-mode-custom'
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-week'
+          timeout: 10000
+      - tapOn:
+          id: 'onboarding-health-goals-calorie-mode-all'
+      - assertNotVisible:
+          id: 'onboarding-health-goals-week'
+
+      # Per-weekday MACRO plan (0139) — the protein/carbs/fat sibling of the
+      # per-weekday calorie plan just above, same shared `HealthMacroWeekEditor`
+      # the in-app Goals screen uses (`HEALTH-GOALS-123…129`,
+      # `health-goals-nutrition-and-activity.yaml`). Turning it on seeds every
+      # day from the Balanced preset already applied at HEALTH-ONB-004 (30/40/30
+      # of the 2,000 kcal set at HEALTH-ONB-005 → 150P/200C/67F) — asserted here
+      # independently of that step, not assumed (HEALTH-ONB-019).
+      - tapOn:
+          id: 'onboarding-health-goals-macro-week-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-macro-week-body'
+          timeout: 10000
+      - tapOn:
+          id: 'onboarding-health-goals-macro-week-day-mon'
+      - assertVisible:
+          id: 'onboarding-health-goals-macro-week-protein-input'
+          text: '150'
+      - assertVisible:
+          id: 'onboarding-health-goals-macro-week-carbs-input'
+          text: '200'
+      - assertVisible:
+          id: 'onboarding-health-goals-macro-week-fat-input'
+          text: '67'
+
+      # Editing Monday only touches Monday (HEALTH-ONB-020).
+      - tapOn:
+          id: 'onboarding-health-goals-macro-week-protein-input'
+      - eraseText
+      - inputText: '180'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Calories & nutrition'
+      - assertVisible:
+          id: 'onboarding-health-goals-macro-week-protein-input'
+          text: '180'
+
+      # Switching to Tuesday shows ITS OWN (still seeded) split, and switching
+      # back to Monday shows the edit is still there — per-day isolation, not a
+      # shared draft (HEALTH-ONB-021).
+      - tapOn:
+          id: 'onboarding-health-goals-macro-week-day-tue'
+      - assertVisible:
+          id: 'onboarding-health-goals-macro-week-protein-input'
+          text: '150'
+      - tapOn:
+          id: 'onboarding-health-goals-macro-week-day-mon'
+      - assertVisible:
+          id: 'onboarding-health-goals-macro-week-protein-input'
+          text: '180'
+
+      # Toggling off hides the block again, same "reveal then hide, nothing
+      # forced" rule the per-day CALORIE plan proved above (HEALTH-ONB-022).
+      - tapOn:
+          id: 'onboarding-health-goals-macro-week-toggle'
+      - assertNotVisible:
+          id: 'onboarding-health-goals-macro-week-body'
+
+      # Advance via the header's forward arrow, not the bottom button — both
+      # drive the SAME onContinue (HEALTH-ONB-007), so this also proves the
+      # arrow independently of `HealthGoalsNutritionScreen.test.tsx`, which
+      # only ever presses the bottom "Continue".
+      - tapOn:
+          id: 'onboarding-health-goals-nutrition-screen-forward'
+
+      # ---------------------------------------------------------------
+      # Step 4/7 — Activity (HEALTH-ONB-010, 026) — typed, presets left
+      # alone (their numeric values are asserted by the in-app Goals E2E
+      # flow; this one only needs to prove the step itself advances). The
+      # suggestion banner is visible here too (activity level alone is
+      # enough for it), but left untapped — Nutrition already proved
+      # "Use suggested" works, and this step's OWN typed-value coverage is
+      # the thing left to prove.
+      # ---------------------------------------------------------------
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-activity-screen'
+          timeout: 15000
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-activity-suggestion'
+          timeout: 15000
+      - tapOn:
+          id: 'onboarding-health-goals-steps-input'
+      - inputText: '9000'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Activity'
+      - assertVisible:
+          id: 'onboarding-health-goals-steps-input'
+          text: '9000'
+      - tapOn:
+          id: 'onboarding-health-goals-activity-screen-forward'
+
+      # ---------------------------------------------------------------
+      # Step 5/7 — Water (HEALTH-ONB-011, 027) — the unit switcher (mL / L /
+      # cups / fl oz), a typed amount, and the millilitre cross-reference
+      # caption that appears once a non-mL unit is picked.
+      # ---------------------------------------------------------------
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-health-goals-water-screen'
+          timeout: 15000
+      - tapOn:
+          id: 'onboarding-health-goals-water-unit-cups'
+      - assertVisible:
+          id: 'onboarding-health-goals-water-unit-cups'
+          selected: true
+      - tapOn:
+          id: 'onboarding-health-goals-water-input'
+      - inputText: '9'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'Water'
+      - assertVisible:
+          id: 'onboarding-health-goals-water-ml'
+      - tapOn:
+          id: 'onboarding-health-goals-water-screen-forward'
+
+      # ---------------------------------------------------------------
+      # Step 6/7 — EssentialPermissions: notifications + Health's OWN
+      # reminder toggles, defaulted ALL ON (HEALTH-ONB-013 … 015). Skipped
+      # entirely if the OS already answered (granted/denied) before this
+      # ever ran — `checked` gates a brief loading state, not a screen.
+      # ---------------------------------------------------------------
+      - runFlow:
+          when:
+            visible:
+              id: 'onboarding-essential-permissions-screen'
+          commands:
+            - assertVisible:
+                id: 'onboarding-notification-permission-card'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'onboarding-reminder-toggles'
+                commands:
+                  - assertVisible:
+                      id: 'onboarding-reminder-toggle-meals'
+                  - assertVisible:
+                      id: 'onboarding-reminder-toggle-water'
+                  - assertVisible:
+                      id: 'onboarding-reminder-toggle-weigh-in'
+            - tapOn:
+                id: 'onboarding-essential-permissions-screen-forward'
+
+      # ---------------------------------------------------------------
+      # Step 7/7 — HealthKitPermission, the true last step (HEALTH-ONB-016).
+      # "Continue" resolves onDone directly — never blocked on connecting.
+      # ---------------------------------------------------------------
+      - runFlow:
+          when:
+            visible:
+              id: 'onboarding-healthkit-permission-screen'
+          commands:
+            - tapOn:
+                id: 'onboarding-healthkit-permission-screen-forward'
+
+      # Onboarding complete → Dashboard, the first pinned tab (HEALTH-ONB-017).
+      # The launch tab always follows tabs[0] — Dashboard leads the bar,
+      # confirmed with product 2026-07-28.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+
+# =====================================================================
+# Path B — already onboarded: land on / confirm the first tab (HEALTH-ONB-018).
+# =====================================================================
+- runFlow:
+    when:
+      notVisible:
+        id: 'onboarding-get-started'
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 60000
+- assertVisible:
+    id: 'health-home-screen'

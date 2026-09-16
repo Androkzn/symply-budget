@@ -1,0 +1,26 @@
+appId: ${APP_ID}
+tags:
+  - util
+  - app:health
+---
+# Point the Expo Dev Client at Health Metro (:8085) — ONLY when it is actually
+# sitting on the dev-launcher screen.
+#
+# ios/SymplyEcosystem/AppDelegate.swift already pins com.symply.health →
+# localhost:8085 in DEBUG on every launch, so this deep link is a no-op in the
+# normal case. Firing it unconditionally was NOT harmless: it makes EXDevLauncher
+# tear down the running RN runtime and build a second one, and the re-run of
+# AppContext.registerNativeModules() re-registers expo-notifications'
+# PushTokenModule against the process-global NotificationCenterManager, whose
+# delegate array still holds the freed delegate from runtime #1 → EXC_BAD_ACCESS
+# on the JS thread. That crash (and the per-flow runtime rebuild) is what made
+# `health-home-screen` never appear.
+- runFlow:
+    when:
+      visible: 'DEVELOPMENT SERVERS'
+      true: ${E2E_METRO_DEVCLIENT_URL != null && E2E_METRO_DEVCLIENT_URL != ''}
+    commands:
+      - openLink: ${E2E_METRO_DEVCLIENT_URL}
+      - waitForAnimationToEnd:
+          timeout: 15000
+      - runFlow: health-dismiss-expo-dev-chrome.yaml

@@ -1,0 +1,174 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:plan
+  - mutation
+  - regression
+  - smoke
+# Matrix: BUDGET-plan (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-PLAN-001
+- runFlow: ../subflows/budget-go-planning.yaml
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-planned'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- assertVisible:
+    id: 'budget-item-title'
+- assertVisible:
+    id: 'budget-item-description'
+- assertVisible:
+    id: 'budget-item-cost-exact'
+- assertVisible:
+    id: 'budget-item-category-picker'
+- tapOn:
+    id: 'budget-item-category-picker'
+- assertVisible:
+    id: 'budget-item-category-search'
+# Dismiss the category sheet before scrolling the long form below.
+- tapOn:
+    id: 'budget-item-category-close'
+# The category picker expands inline (search + options), pushing the cost-mode
+# chips below the fold — dismiss the keyboard and scroll them into view.
+- hideKeyboard:
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-cost-mode-range'
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: 'budget-item-cost-mode-range'
+- assertVisible:
+    id: 'budget-item-cost-min'
+- assertVisible:
+    id: 'budget-item-cost-max'
+- tapOn:
+    id: 'budget-item-cost-mode-exact'
+- tapOn:
+    id: 'budget-item-priority-high'
+# The "When" chips + Save sit lower in the long form — scroll each into view.
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-when-this-month'
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: 'budget-item-when-asap'
+- tapOn:
+    id: 'budget-item-when-this-week'
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-when-specific-date'
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: 'budget-item-when-specific-date'
+# Selecting "Specific date" AUTO-OPENS the Target date sheet
+# (BudgetItemFormScreen.handleWhenModeChange -> setShowDatePicker(true)), and a
+# presented sheet takes the trigger button underneath it out of the
+# accessibility tree. Asserting the button BEFORE dismissing the sheet was
+# therefore a race this flow only won when the assert beat the modal animation
+# — it lost on 2026-08-22 (screenshot: the Target date sheet fully covering the
+# form). Dismiss first, then assert the button is back.
+- tapOn:
+    text: 'Done'
+    optional: true
+# …and once the sheet is gone the button still is not on screen: it renders
+# BELOW the When chip rows, past the fold on an iPhone viewport, and
+# `assertVisible` only sees the visible viewport. Scroll to it rather than
+# assert blind — that was the second half of this failure on 2026-08-22.
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-specific-date-picker'
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: 'budget-item-specific-date-picker'
+- tapOn:
+    id: 'budget-item-when-this-month'
+
+# When "More" sheet — all 8 options (BUDGET-PLAN-046/047)
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-when-more'
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: 'budget-item-when-more'
+# The sheet is a transparent Modal with animationType="slide" — let it land
+# before anything reads the tree.
+- waitForAnimationToEnd:
+    timeout: 5000
+# Wait for the FIRST row before asserting the rest. `assertVisible` is a
+# one-shot snapshot of the accessibility tree, and on iOS 26 that tree is
+# briefly EMPTY while a modal sheet is presenting — captured 2026-08-22, where
+# the failure screenshot showed the sheet fully drawn with all 8 rows while the
+# hierarchy dump held nothing but the app shell and the status bar. Snapshotting
+# into that window fails on a sheet that is plainly on screen; extendedWaitUntil
+# retries until the tree is populated, and the seven asserts below then read a
+# settled tree.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-when-sheet-asap'
+    timeout: 15000
+- assertVisible:
+    id: 'budget-item-when-sheet-asap'
+- assertVisible:
+    id: 'budget-item-when-sheet-this-week'
+- assertVisible:
+    id: 'budget-item-when-sheet-next-week'
+- assertVisible:
+    id: 'budget-item-when-sheet-this-month'
+- assertVisible:
+    id: 'budget-item-when-sheet-next-month'
+- assertVisible:
+    id: 'budget-item-when-sheet-next-year'
+- assertVisible:
+    id: 'budget-item-when-sheet-when-possible'
+- assertVisible:
+    id: 'budget-item-when-sheet-specific-date'
+- tapOn:
+    id: 'budget-item-when-close'
+
+# Save is a header action now, and only renders once the form is dirty — the
+# chip taps above (priority / cost mode / when) are enough to reveal it.
+- assertVisible:
+    id: 'budget-item-form-save-header'
+# Back up to the title field to enter text.
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-title'
+    direction: UP
+    timeout: 10000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: 'E2E test spending'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: '50'
+# The ScreenHeader back button (real id: nav-back-button) lives in the fixed
+# header above the keyboard, so it's tappable without a flaky hideKeyboard on
+# iOS. The old `budget-item-form-cancel` id is a phantom the source never renders.
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-planned-spendings'
+    timeout: 45000
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

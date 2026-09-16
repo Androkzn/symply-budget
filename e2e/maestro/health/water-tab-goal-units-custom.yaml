@@ -1,0 +1,433 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:water
+  - mutation
+  - regression
+# Matrix: HEALTH-WATER-108 … HEALTH-WATER-115
+---
+# The Water tab's other half: the ml/oz display choice, the custom-amount field
+# with its ± steps, and the goal editor (presets, a typed figure, and cancel).
+#
+# WHY THIS FLOW EXISTS, separately from water-tab-presets-and-log.yaml. The two
+# own the same screen, but this one drives the three controls that CHANGE STATE
+# THE OTHER FLOW DEPENDS ON — the goal (which the "to go" caption is computed
+# from) and the unit (which every volume on screen is rendered in). Splitting
+# them means a goal regression fails here, next to the goal editor, instead of
+# looking like a preset regression. It runs immediately AFTER the presets flow
+# because it borrows the preset buttons to put a volume on screen, and a broken
+# preset should fail in the flow that owns it.
+#
+# THE PROPERTY UNDER TEST, in one sentence: `oz` is a DISPLAY choice only. The
+# same drink must read "500 ml" or "17 oz" depending on a chip, while the stored
+# figure never moves — which is why the flow ends by switching back to ml and
+# asserting the ORIGINAL string returns.
+#
+# STATE ASSUMPTIONS
+#   * Session as in every Health flow (gated body; skips without one).
+#   * Starts by draining today so the totals it asserts are its own.
+#   * The goal is a SHARED effective-dated row that Home's cup target also reads
+#     (2,000 ml = 8 cups). This flow moves it and MUST put it back — the default
+#     is what home-note-and-water-edges.yaml asserts as "/ 8 cups".
+#   * The unit itself is assumed to start on ml, even though THIS flow is the
+#     only one that ever moves it (HEALTH-WATER-110/111 below). A run that
+#     died between those two rows — before the ml switch-back — leaves the
+#     shared account on oz with nothing left to undo it, and HEALTH-WATER-108
+#     runs before 110 ever gets a chance to fix that. So the clean slate below
+#     forces ml explicitly rather than trusting the previous run's teardown —
+#     reproduced 2026-08-02: the custom-amount field read "2" (one oz-sized
+#     step) instead of "50" (one ml-sized step) on the first `+` tap.
+#
+# TEARDOWN: unit back to ml, goal back to 2,000 ml, every logged drink deleted.
+- runFlow: subflows/launch-health.yaml
+- runFlow: subflows/go-health-water.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-water-screen'
+    commands:
+      # --- Clean slate ------------------------------------------------------
+      # Force ml first — see the STATE ASSUMPTIONS note above. Harmless no-op
+      # PUT via `handleUnit` (`HealthWaterScreen.tsx`) if a prior run already
+      # left it on ml; its network call is outside every matrix window below.
+      - tapOn:
+          id: 'health-water-unit-ml'
+      # Real `DELETE /health/water/entries/:id` taps, but 0–12 optional fires —
+      # left unwrapped, same reasoning as every other bulk drain loop in this
+      # suite (see water-tab-presets-and-log.yaml).
+      - repeat:
+          times: 12
+          commands:
+            - tapOn:
+                id: 'health-water-delete-.*'
+                index: 0
+                optional: true
+            - tapOn:
+                text: 'Remove'
+                optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-log-empty'
+          timeout: 20000
+
+      # --- The custom amount steps by 50 ml (HEALTH-WATER-108) --------------
+      # 50 ml is the donor wheel's stride. The field starts EMPTY (placeholder),
+      # so the first + lands on exactly one step.
+      # LOCAL ONLY: `health-water-custom-plus`/`-minus` only call `setCustom`
+      # (`HealthWaterScreen.tsx`) — no network call happens until
+      # `health-water-custom-add` is pressed (HEALTH-WATER-109 below).
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-108
+      - tapOn:
+          id: 'health-water-custom-plus'
+      - assertVisible:
+          id: 'health-water-custom-input'
+          text: '50'
+      - repeat:
+          times: 3
+          commands:
+            - tapOn:
+                id: 'health-water-custom-plus'
+      - assertVisible:
+          id: 'health-water-custom-input'
+          text: '200'
+      # …and the − step floors at zero rather than going negative.
+      - repeat:
+          times: 6
+          commands:
+            - tapOn:
+                id: 'health-water-custom-minus'
+      - assertNotVisible:
+          id: 'health-water-custom-input'
+          text: '-50'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- A typed custom amount is logged (HEALTH-WATER-109) ---------------
+      # inputText into a decimal-pad field, then the numeric keypad is dismissed
+      # through the shared subflow — Maestro's `hideKeyboard` hard-fails on this
+      # build's decimal pad (see subflows/dismiss-health-keypad.yaml), and the
+      # keypad occludes the Add button.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-109
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-custom-input'
+      - inputText: '750'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: CUSTOM AMOUNT
+      - tapOn:
+          id: 'health-water-custom-add'
+      - extendedWaitUntil:
+          visible: '750 ml'
+          timeout: 20000
+      - assertVisible: '1 entry'
+      # The field clears after a successful add, so a second tap cannot
+      # accidentally double-log the same amount.
+      - assertNotVisible:
+          id: 'health-water-custom-input'
+          text: '750'
+      # `handleAddCustom` → `handleAdd` → `addWaterAmount` →
+      # `POST /health/water/entries` (`HealthWaterScreen.tsx`).
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- ml → oz is DISPLAY ONLY (HEALTH-WATER-110, 111) ------------------
+      # 750 ml = 25.4 fl oz → rendered as whole ounces past 10 ("25 oz"), because
+      # a decimal on a figure that came from counting glasses is false precision.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-110
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-unit-oz'
+      # 2026-08-02: failed here — plain `assertVisible: '17 oz'` (the Bottle
+      # quick-add tile restating itself in the new unit) timed out after its
+      # default ~16s retry, yet the failure screenshot
+      # (water-tab-goal-units-custom-step-806) shows "17 oz" sitting right
+      # there on screen, under a blue "Refreshing…" banner across the status
+      # bar — same signature already root-caused in
+      # activity-goals-and-session-edit.yaml: that banner is React Native's
+      # DevLoadingView, which Metro only shows when it pushes a Fast Refresh
+      # to this connected Debug simulator because a watched file changed on
+      # disk. `PUT /health/goals` from the tap above was already 200
+      # (step-802) before this ever started, so the write path is innocent —
+      # a concurrent session bumping brands/symply-health/brand.cjs and
+      # regenerating brand/token files mid-run triggered the remount, which
+      # re-fetches everything and isn't bounded by any fixed duration. The
+      # "25 oz" and "not 750 ml" checks right below share the same exposure
+      # (they just didn't lose the race this run) — gate the whole block on
+      # the banner clearing rather than bumping a timeout that's chasing the
+      # wrong target.
+      - extendedWaitUntil:
+          notVisible: 'Refreshing...'
+          timeout: 20000
+      - extendedWaitUntil:
+          visible: '25 oz'
+          timeout: 10000
+      - assertNotVisible: '750 ml'
+      # The preset TILES restate themselves in the chosen unit too, so the
+      # member is never asked to add "250 ml" while the log says ounces.
+      - assertVisible: '17 oz'
+      # `handleUnit` → `saveWaterUnit` → `PUT /health/goals` with
+      # `water_unit` (`healthWaterStorage.ts`) — the choice is server-synced
+      # (0140), not device-local.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # Switching back restores the ORIGINAL string — proof the stored figure
+      # never moved. A conversion that round-trips lossily would show 749 or 751.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-111
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-unit-ml'
+      - extendedWaitUntil:
+          visible: '750 ml'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- The goal editor (HEALTH-WATER-112, 113, 114) ---------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-112
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-edit-goal'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-goal-editor'
+          timeout: 10000
+      - assertVisible: 'DAILY GOAL'
+      # Cancel first: an editor that is dismissed must write nothing.
+      - tapOn:
+          id: 'health-water-goal-cancel'
+      - assertNotVisible:
+          id: 'health-water-goal-editor'
+      # `health-water-goal-cancel` calls `setEditingGoal(false)` directly
+      # (`HealthWaterScreen.tsx`) — only Save/a preset chip calls
+      # `handleSaveGoal` → `setWaterGoalMl` → `PUT /health/goals`.
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # A preset chip saves immediately and closes the editor. 3,000 ml against
+      # 750 ml logged is still short, so the caption stays "to go".
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-113
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-edit-goal'
+      - tapOn:
+          id: 'health-water-goal-preset-3000'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-water-goal-editor'
+          timeout: 10000
+      - assertVisible: 'of 3.0 L'
+      - assertVisible:
+          id: 'health-water-remaining'
+          text: '.*to go.*'
+      # A preset chip's `onPress` calls `handleSaveGoal(ml)` directly →
+      # `setWaterGoalMl` → `PUT /health/goals` with `daily_water_ml`.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # A goal the member can actually reach — proving the caption FLIPS rather
+      # than only ever counting down. 500 ml goal vs 750 ml logged = reached.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-114
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-edit-goal'
+      - tapOn:
+          id: 'health-water-goal-input'
+      - inputText: '500'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: DAILY GOAL
+      - tapOn:
+          id: 'health-water-goal-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-remaining'
+            text: 'Goal reached'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Teardown (HEALTH-WATER-115) --------------------------------------
+      # Goal back to the 2,000 ml default — home-note-and-water-edges.yaml
+      # asserts "/ 8 cups", which IS this row divided by 240 — and every drink
+      # this flow logged deleted.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-115
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-edit-goal'
+      - tapOn:
+          id: 'health-water-goal-preset-2000'
+      - extendedWaitUntil:
+          visible: 'of 2.0 L'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Bulk optional drain loop — real DELETE per fired tap, 0–12 count, left
+      # unwrapped for the same reason as the clean-slate drain above.
+      - repeat:
+          times: 12
+          commands:
+            - tapOn:
+                id: 'health-water-delete-.*'
+                index: 0
+                optional: true
+            - tapOn:
+                text: 'Remove'
+                optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-log-empty'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml

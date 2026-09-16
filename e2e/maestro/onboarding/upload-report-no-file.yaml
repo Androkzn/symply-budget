@@ -1,0 +1,35 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:onboarding
+  - readonly
+  - regression
+# Matrix: HOUSE-ONB-024
+#
+# Runs only on an account with AI access. The report step feeds a model, so it
+# is dropped from onboarding entirely for a member without one (`src/features/
+# house/onboarding/aiSteps.ts`) — and the fleet E2E account is such a member, so
+# `onboarding-upload-report-button` is absent and the guarded body below is a
+# no-op. That is the correct outcome, not a silent pass: `upload-report.yaml`
+# carries the assertion that the step was dropped rather than shown broken.
+---
+- runFlow: ../subflows/launch-onboarding.yaml
+- runFlow: ../subflows/skip-onboarding-if-onboarded.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-get-started'
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'onboarding-upload-report-button'
+          commands:
+            - tapOn:
+                id: 'onboarding-upload-report-button'
+            - runFlow:
+                when:
+                  visible: 'Please create a home first'
+                commands:
+                  - tapOn: 'OK'
+                  - assertVisible: 'Skip for Now'

@@ -1,0 +1,88 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:garden
+  - readonly
+  - regression
+# Matrix: HOUSE-GARD-026 (the AI site-plan reader is offered, and only where it can work)
+---
+# THE AI SHORTCUT'S PLACEMENT, which is the part a test can actually pin down.
+#
+# WHAT THIS ASSERTS AND WHY IT STOPS THERE. Tapping the control opens the system
+# photo picker — a process outside the app that Maestro cannot drive reliably —
+# and completing it would then call a real vision model, costing money and
+# returning something different every run. Neither belongs in a suite. The
+# model's own output is covered where it is deterministic: `normalizeVisionDraft`
+# in Vitest for what comes back, `fitAnalyzedPlanToLot` in Jest for where it
+# lands on the lot.
+#
+# What is left is worth a flow on its own, because it is a placement decision
+# that is easy to undo by accident: the reader is offered in STEP TWO and
+# nowhere else. That is not cosmetic. It needs a traced lot to fit its answer
+# onto — the model returns coordinates normalized to a sheet of paper, and
+# `fitAnalyzedPlanToLot` maps them onto the lot the member drew. Offered in step
+# one, before a lot exists, its output would be anchored to nothing.
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-GARD-026
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-garden-map-wizard.yaml
+
+# STEP ONE: not offered. The lot does not exist yet.
+- assertVisible:
+    id: 'garden-map-wizard-panel-lot'
+- assertNotVisible:
+    id: 'garden-map-wizard-ai-draft'
+
+- tapOn:
+    id: 'garden-map-wizard-next'
+- extendedWaitUntil:
+    visible:
+      id: 'garden-map-wizard-panel-areas'
+    timeout: 15000
+
+# STEP TWO: offered, with copy that says what it wants and what it will do.
+- assertVisible:
+    id: 'garden-map-wizard-ai-draft'
+# Regex, not a bare literal. iOS MERGES a Touchable's children into ONE
+# accessibility string, so this control can surface as
+# "Draft from a site plan, Have a survey, site plan or aerial shot? …" — and Maestro
+# matches the WHOLE string. The literal passed in one run and failed in the
+# next on the same build, which is exactly what intermittent merging looks
+# like. The id above proves the card exists; this proves the COPY is right,
+# without depending on how iOS decided to group it that time.
+- assertVisible: '.*Draft from a site plan.*'
+
+# While a trace is in progress the panel belongs to the trace — the reader would
+# have nowhere to put its answer and the control must stand down.
+- tapOn:
+    id: 'garden-map-wizard-zone-house'
+- extendedWaitUntil:
+    visible: '.*Tracing house.*'
+    timeout: 8000
+- assertNotVisible:
+    id: 'garden-map-wizard-ai-draft'
+- tapOn:
+    id: 'garden-map-wizard-draw-cancel'
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible:
+    id: 'garden-map-wizard-ai-draft'
+
+# STEP THREE: not offered either — by then the areas are settled and the panel
+# belongs to the feature library.
+- tapOn:
+    id: 'garden-map-wizard-next'
+- extendedWaitUntil:
+    visible:
+      id: 'garden-map-wizard-panel-elements'
+    timeout: 20000
+- assertNotVisible:
+    id: 'garden-map-wizard-ai-draft'
+
+- runFlow: ../subflows/exit-garden-map-wizard.yaml
+- assertVisible:
+    id: 'garden-plans-screen'

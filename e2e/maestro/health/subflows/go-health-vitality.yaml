@@ -1,0 +1,37 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Switch to the Vitality tab (route health-vitality, label Vitality, header
+# "Men's Health").
+#
+# Unlike Nutrition / Activity / Trends there is NO `tab-health-vitality` to tap:
+# Vitality ships `defaultHidden` in brands/symply-health/brand.cjs, so it lives
+# in the More hub's "MORE TABS" section until the user pins it. Routing through
+# the hub is the point — an unpinned tab that cannot be reached is a lost feature.
+- runFlow: go-more.yaml
+# The overflow rows sit at the TOP of the More screen, so a preceding flow may
+# have left the list scrolled past them. Probe both directions before tapping;
+# the tap itself is the hard proof, not the scroll.
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-health-vitality'
+    direction: UP
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-health-vitality'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- tapOn:
+    id: 'more-tab-health-vitality'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-vitality-screen'
+    timeout: 30000

@@ -1,0 +1,153 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+  - feature:local-first
+  - feature:two-device
+---
+# Boot Symply Health into a signed-in Home session on THIS suite's Metro.
+#
+# Same shape as `../health/subflows/launch-health.yaml`, with two differences
+# that matter here and only here:
+#   1. it routes through `td-connect-metro.yaml` / `td-dismiss-chrome.yaml`, so
+#      the device attaches to `${TD_METRO_PORT}` rather than the single-device
+#      suite's :8085;
+#   2. it NEVER passes `clearState` / `clearKeychain`. The local-first ledger and
+#      its DEK live in this device's SQLite file + Keychain
+#      (`symply-health-local-first.db` / `health.localFirst.dek.v1`), so wiping
+#      state here would silently reset the very thing the suite asserts on.
+#
+# SAME ACCOUNT ON BOTH DEVICES. This is the personal-household shape (plan §1.2 /
+# §6): one user, N devices. `E2E_LOGIN_URL` is IDENTICAL on A and B — unlike the
+# Budget MM suite this was ported from, where the two devices are two different
+# people. Do not "fix" this by seeding a second account.
+- launchApp:
+    permissions:
+      all: allow
+      faceid: allow
+- runFlow: td-connect-metro.yaml
+- runFlow: td-dismiss-chrome.yaml
+- runFlow: td-dismiss-stale-alerts.yaml
+# A cold Metro serves the first bundle only when a device asks for it, and the
+# dev client shows a black screen with a spinner while that download runs.
+- extendedWaitUntil:
+    visible:
+      id: 'health-home-screen'
+    timeout: 120000
+    optional: true
+# Recover to Home from ANY tab — a preceding flow may have left this device on
+# Nutrition / Activity / Body / an overflow tab. `tab-index` is the Health Home
+# tab button and is present on every signed-in tab screen.
+- runFlow:
+    when:
+      visible:
+        id: 'tab-index'
+      notVisible:
+        id: 'health-home-screen'
+    commands:
+      - tapOn:
+          id: 'tab-index'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+          optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'login-screen'
+    commands:
+      - runFlow: ../health/subflows/health-login-if-needed.yaml
+      - runFlow: td-dismiss-chrome.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-agree-terms'
+    commands:
+      - tapOn:
+          id: 'onboarding-agree-terms'
+      - tapOn:
+          id: 'onboarding-get-started'
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - runFlow: ../health/subflows/push-through-health-onboarding.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: 'health-home-screen'
+      true: ${E2E_LOGIN_URL != null && E2E_LOGIN_URL != ''}
+    commands:
+      - runFlow: td-connect-metro.yaml
+      - openLink: ${E2E_LOGIN_URL}
+      - waitForAnimationToEnd:
+          timeout: 15000
+      - runFlow: td-dismiss-chrome.yaml
+      - runFlow:
+          when:
+            visible:
+              id: 'login-screen'
+          commands:
+            - runFlow: ../health/subflows/health-login-if-needed.yaml
+      - runFlow:
+          when:
+            visible:
+              id: 'onboarding-agree-terms'
+          commands:
+            - tapOn:
+                id: 'onboarding-agree-terms'
+            - tapOn:
+                id: 'onboarding-get-started'
+            - waitForAnimationToEnd:
+                timeout: 8000
+            - runFlow: ../health/subflows/push-through-health-onboarding.yaml
+# Final wait, RETRIED rather than one long block: the dev client intermittently
+# comes up BLANK (EXDevLauncher logs "bundle scheme is file - unable to connect
+# to sharedPackageConnection") and nothing above recovers it, because every
+# recovery step keys on a screen that never renders. A hard relaunch clears it.
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-home-screen'
+          commands:
+            - launchApp:
+                stopApp: true
+                permissions:
+                  all: allow
+                  faceid: allow
+            - runFlow: td-connect-metro.yaml
+            - runFlow: td-dismiss-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-home-screen'
+                timeout: 45000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'tab-index'
+                  notVisible:
+                    id: 'health-home-screen'
+                commands:
+                  - tapOn:
+                      id: 'tab-index'
+                      retryTapIfNoChange: true
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'health-home-screen'
+                      timeout: 20000
+                      optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'login-screen'
+                commands:
+                  - runFlow: ../health/subflows/health-login-if-needed.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'health-home-screen'
+    timeout: 60000
+- runFlow: ../health/subflows/dismiss-health-home-cards.yaml

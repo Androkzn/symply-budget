@@ -1,0 +1,56 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:households
+  - readonly
+  - regression
+# Matrix: PLAT-HH-014, PLAT-HH-045
+---
+- runFlow: subflows/launch-platform.yaml
+- runFlow: ../subflows/open-profile.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-household-members'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'settings-row-household-members'
+- extendedWaitUntil:
+    visible: 'My Properties'
+    timeout: 20000
+- assertVisible: 'My Properties'
+- tapOn:
+    text: 'Active'
+    optional: true
+- runFlow:
+    when:
+      visible: 'Active'
+    commands:
+      - tapOn:
+          point: '50%,45%'
+- runFlow:
+    when:
+      notVisible:
+        id: 'property-detail-screen'
+    commands:
+      - tapOn:
+          point: '50%,45%'
+- extendedWaitUntil:
+    visible:
+      id: 'property-detail-screen'
+    timeout: 20000
+- tapOn: 'Members'
+- tapOn:
+    id: 'property-members-manage-button'
+- extendedWaitUntil:
+    visible:
+      id: 'household-members-screen'
+    timeout: 20000
+- assertVisible: 'Members'
+- assertVisible:
+    text: 'Active Members'
+    optional: true
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: household-members-screen-scroll-end

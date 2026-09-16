@@ -1,0 +1,44 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:notifications
+  - readonly
+  - regression
+# Matrix: PLAT-NOTIF-018, PLAT-NOTIF-023, PLAT-NOTIF-025
+---
+- launchApp:
+    clearState: true
+    clearKeychain: false
+    permissions:
+      notifications: deny
+      all: allow
+      faceid: allow
+- runFlow: subflows/launch-platform.yaml
+- runFlow: ../subflows/open-notifications.yaml
+- assertVisible:
+    id: 'notifications-screen'
+# The shared `PermissionCard` (src/components/common/PermissionCard.tsx) —
+# whether the pre-set OS denial reads as `not-requested` (Allow) or `denied`
+# (Open Settings) is a simulator/OS-version quirk, so both branches are
+# accepted; the never-dismissible card (a deliberate difference from the old
+# bespoke banner it replaced) means there is nothing to re-check afterward.
+#
+# REWRITTEN 2026-07-30: `layout="compact"` unifies the old separate
+# `-request` / `-settings` testIDs into one `-action` button (label alone
+# now tells Allow from Open Settings apart), matching the compact banner
+# rollout across every ambient/settings PermissionCard placement.
+- runFlow:
+    when:
+      visible:
+        id: 'notifications-permission-card'
+    commands:
+      - assertVisible: 'Notifications'
+      - assertVisible:
+          id: 'notifications-permission-card-action'
+- runFlow:
+    when:
+      notVisible:
+        id: 'notifications-permission-card'
+    commands:
+      - assertVisible:
+          id: 'notifications-screen'

@@ -1,0 +1,56 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+# Matrix: BUDGET-MM-022 (part b) — the delete stuck here, and the peer's delete
+# arrived. Runs on BOTH devices AT THE SAME TIME, after the runner has confirmed
+# the native alert on each (see mm-22a).
+#
+# A delete is the one op that has to *remove* something on the peer rather than
+# add or patch it, so it is the case a projection layer most easily gets wrong:
+# nothing looks broken locally when a tombstone fails to travel.
+#
+# env: MM_SECTION, MM_TITLE, MM_PEER_SECTION, MM_PEER_TITLE
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# The row this device deleted is gone from this device.
+- extendedWaitUntil:
+    notVisible: '.*${MM_TITLE}.*'
+    timeout: 20000
+- runFlow: ../subflows/budget-sync-pulse.yaml
+- waitForAnimationToEnd:
+    timeout: 6000
+
+# Wait for the peer's deletion to reach this device.
+- runFlow:
+    when:
+      true: ${MM_PEER_SECTION == 'planning'}
+    commands:
+      - runFlow: ../subflows/budget-go-planning.yaml
+- runFlow:
+    when:
+      true: ${MM_PEER_SECTION == 'spending'}
+    commands:
+      - runFlow: ../subflows/go-budget-tab.yaml
+      - tapOn:
+          id: 'tab-spending'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-spendings'
+          timeout: 20000
+- repeat:
+    times: 20
+    commands:
+      - runFlow:
+          when:
+            visible: '.*${MM_PEER_TITLE}.*'
+          commands:
+            - runFlow: ../subflows/budget-sync-pulse.yaml
+            - waitForAnimationToEnd:
+                timeout: 6000
+            - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    notVisible: '.*${MM_PEER_TITLE}.*'
+    timeout: 30000
+- assertNotVisible: '.*${MM_PEER_TITLE}.*'

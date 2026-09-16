@@ -1,0 +1,100 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:contractors
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-CONT-001
+---
+# WHAT THIS PROVES
+# ----------------
+# On a local-first House build, opening the Contractors tab of the Labor Hub
+# serves the roster from the on-device ledger and issues NO GET against the
+# household's `/contractors` routes.
+#
+# `contractorsApi` is wrapped by `createHouseLocalProxy` (src/api/contractors.ts:511)
+# with NO `remoteMethods` and `strict` left at its default `true`, so under
+# local-first there is no contractors path that is remote by design — every
+# reachable method either resolves in localContractorsApi.ts or rejects with
+# `HouseLocalUnsupportedError`. A single GET on `/contractors` is therefore
+# always a defect, never a legitimate call.
+#
+# WHY THAT MATTERS
+# ----------------
+# This is the failure mode localApiProxy.ts's header calls the worst one
+# available here: a gap that silently routes to the server. The Worker holds
+# only ciphertext for a local-first household, so a fallthrough returns 200 with
+# an empty list, the roster renders empty-and-correct, and nobody finds out
+# until a member notices their contractors are gone. Nothing on this screen
+# distinguishes "served from the ledger" from "server said none" — ONLY THE
+# ABSENCE OF THE NETWORK CALL DOES, which is what this flow asserts.
+#
+# The most likely way this regresses is someone adding `strict: false` to the
+# contractors proxy to unblock a mid-port method. That turns every unported
+# method into a silent server read, and this flow is what fails.
+#
+# PRECONDITION (self-contained)
+# -----------------------------
+# A signed-in House session on a local-first build. Nothing else: the flow does
+# not require a seeded contractor, because an EMPTY roster served from the
+# ledger is exactly as valid as a populated one — the assertion is about the
+# absence of a request, not about the rows. `launch-logged-in.yaml` establishes
+# the session from any starting state, so this flow runs ALONE and in ANY order.
+#
+# The clear-log comes from e2e-matrix-before BEFORE navigation, so the ring
+# buffer is clean at the moment the mount-time roster read would have fired.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-LF-CONT-001
+- runFlow: ../subflows/open-contractors.yaml
+- assertVisible:
+    id: 'contractors-screen'
+
+# Select the Contractors tab — this is the surface backed by
+# `contractorsApi.getAll` / `getAllVisits`.
+- tapOn:
+    id: 'contractors-tab-contractors'
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# Scroll the roster so a lazily-rendered section cannot dodge its own read.
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: contractors-screen-scroll-end
+
+# THE ASSERTION. `/contractors` substring-matches every nested contractors
+# route too (`/contractors/visits`, `/contractors/documents`,
+# `/contractors/ai-lookup`), which is deliberate — all of them are local or
+# throwing, so none of them may appear.
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_VERIFY_METHOD: GET
+      E2E_VERIFY_PATH: /contractors
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 5000
+
+# DoD H7 — no method identifier in front of a member on this surface.
+- assertNotVisible: 'contractorsApi\.'
+- assertNotVisible: 'is not available offline yet'
+
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

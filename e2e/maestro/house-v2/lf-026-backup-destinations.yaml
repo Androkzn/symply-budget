@@ -1,0 +1,134 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: HOUSE-LF-026 — Backup destinations + the inline archive list
+#
+# "Back up now" opens an in-app sheet rather than going straight to the iOS
+# share sheet, so the whole save path is drivable from Maestro.
+#
+# Drives the one destination needing no OS UI and no network — "This device",
+# which writes the sealed archive into app Documents/house-backups/. Google
+# Drive (OAuth consent) and Files/Share (native share sheet) stay assertion-only:
+# Maestro cannot dismiss either.
+#
+# ISOLATION: leaves one archive on the device. That is deliberate — LF-024 needs
+# one to delete, and a device with no archive is the state LF-007 already covers.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-026
+- runFlow: lf-backup-open-backup-screen.yaml
+# Maestro has no `finally`, so a previous flow that failed mid-way can leave the
+# schedule armed and the screen longer than this one expects. Cleanup is a
+# precondition here, not a postcondition — see lf-backup-reset-state.yaml.
+- runFlow: lf-backup-reset-state.yaml
+
+# --- The destination sheet ----------------------------------------------------
+- tapOn:
+    id: 'house-backup-now'
+- extendedWaitUntil:
+    visible:
+      id: 'house-backup-destination-sheet'
+    timeout: 10000
+- assertVisible:
+    id: 'house-backup-to-device'
+- assertVisible:
+    id: 'house-backup-to-files'
+- assertVisible:
+    id: 'house-backup-to-share'
+# The "which one should I pick?" explainer ships with the choices — the
+# survives-losing-the-phone distinction is the whole point of the sheet, and the
+# attachments note is the Q15 fact nobody would otherwise guess.
+- assertVisible:
+    id: 'house-backup-destination-sheet-notes'
+# Cancel first: the sheet must be escapable without creating anything.
+- tapOn:
+    id: 'house-backup-destination-sheet-cancel'
+- extendedWaitUntil:
+    notVisible:
+      id: 'house-backup-destination-sheet'
+    timeout: 8000
+
+# --- Save to this device (real archive, no OS UI) -----------------------------
+- tapOn:
+    id: 'house-backup-now'
+- extendedWaitUntil:
+    visible:
+      id: 'house-backup-to-device'
+    timeout: 10000
+- tapOn:
+    id: 'house-backup-to-device'
+# Argon2 seals the archive on-device — slow on a loaded simulator. The freshly
+# minted phrase is shown once, in its own sheet, and is never copied for the
+# member. The seal runs in the task slot, so this sheet can arrive after they
+# have wandered off and come back.
+- extendedWaitUntil:
+    visible:
+      id: 'house-recovery-phrase-sheet'
+    timeout: 180000
+- assertVisible:
+    id: 'house-recovery-phrase-word-1'
+- assertVisible:
+    id: 'house-recovery-phrase-word-12'
+# The three places the phrase can go, the same three the backup itself offers —
+# Drive first, because it is the only one that survives losing the phone.
+- assertVisible:
+    id: 'house-recovery-phrase-save-drive'
+- assertVisible:
+    id: 'house-recovery-phrase-save-device'
+- assertVisible:
+    id: 'house-recovery-phrase-share'
+# Where the file went is its own card with its own Open button — "where is my
+# file" and "write these words down" are two jobs that used to share a paragraph.
+- assertVisible:
+    id: 'house-backup-location-where'
+- tapOn:
+    id: 'house-recovery-phrase-done'
+- extendedWaitUntil:
+    notVisible:
+      id: 'house-recovery-phrase-sheet'
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# --- The archive is listed inline, not behind two more sheets ------------------
+- scrollUntilVisible:
+    element:
+      text: 'YOUR BACKUPS'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- assertNotVisible:
+    id: 'house-backup-empty'
+# The status card must have caught up: an archive exists, so the answer to "am
+# I safe" is no longer "No backup yet".
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-status-title'
+    direction: UP
+    centerElement: true
+    timeout: 15000
+- assertVisible:
+    text: 'Backed up|Protected'
+
+# --- Restoring from elsewhere is a plain row, no nested picker to discover -----
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-restore-sources'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- assertVisible:
+    id: 'house-backup-restore-drive'
+- assertVisible:
+    id: 'house-backup-restore-files'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

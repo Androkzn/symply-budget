@@ -1,0 +1,136 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:garden
+  - mutation
+  - regression
+# Matrix: HOUSE-GARD-010 (edit name cancel path), HOUSE-GARD-011 (edit objects cancel path).
+# Destructive saves/deletes are skipped — flows cancel or back out without persisting.
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-GARD-010
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-gardening.yaml
+- assertVisible:
+    id: 'garden-plans-screen'
+- runFlow:
+    when:
+      visible:
+        id: 'garden-plan-card-.*'
+    commands:
+      - tapOn:
+          id: 'garden-plan-card-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'garden-plan-viewer-edit-button'
+          timeout: 25000
+# HOUSE-GARD-010 — edit name (cancel without save) — verify the typed name
+# never got persisted (no PATCH .../garden-plans/{id}).
+- runFlow:
+    when:
+      visible:
+        id: 'garden-plan-viewer-edit-button'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'garden-plan-viewer-edit-button'
+          timeout: 8000
+      - tapOn:
+          id: 'garden-plan-viewer-edit-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'garden-plan-edit-name'
+          timeout: 10000
+      - tapOn:
+          id: 'garden-plan-edit-name'
+      - extendedWaitUntil:
+          visible:
+            id: 'garden-plan-name-input'
+          timeout: 10000
+      - tapOn:
+          id: 'garden-plan-name-input'
+      - inputText: ' E2E'
+      - tapOn:
+          id: 'garden-plan-name-cancel'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: PATCH
+            E2E_VERIFY_PATH: /garden-plans/
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+# HOUSE-GARD-011 — edit objects (cancel without save/delete) — verify no
+# PUT .../garden-plans/{id}/objects fired.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'garden-plan-viewer-edit-button'
+          timeout: 8000
+      - tapOn:
+          id: 'garden-plan-viewer-edit-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'garden-plan-edit-objects'
+          timeout: 10000
+      - tapOn:
+          id: 'garden-plan-edit-objects'
+      - extendedWaitUntil:
+          visible:
+            id: 'garden-edit-save-cancel'
+          timeout: 15000
+      - tapOn:
+          id: 'garden-edit-save-cancel'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /objects
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+# Only back out if we're not already on garden-plans-screen (no garden plan
+# seeded for this test account → the edit sections above were skipped
+# entirely → nothing was drilled into → an unconditional back-tap here pops
+# the whole Garden stack to Home instead of landing back on this screen).
+- runFlow:
+    when:
+      notVisible:
+        id: 'garden-plans-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- assertVisible:
+    id: 'garden-plans-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

@@ -1,0 +1,140 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Expo Dev Client chrome that blocks Maestro taps on Debug builds.
+# Safe no-ops when already on the real Budget app surface.
+# Repeat a few times — iOS stacks "Open in …?" over Dev Launcher / Dev Menu.
+- repeat:
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            visible: 'Login Failed'
+          commands:
+            - tapOn:
+                text: 'OK'
+                optional: true
+            - tapOn:
+                text: 'Cancel'
+                optional: true
+      - runFlow:
+          when:
+            visible: 'Open'
+          commands:
+            - tapOn: 'Open'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      # Native iOS system alerts (not Expo dev-chrome), same "safe no-op
+      # dismissal loop" pattern already fixed for House/Health — a fresh
+      # install/first-login stacks these UIAlertControllers with no testID.
+      - runFlow:
+          when:
+            visible: 'Save Password?'
+          commands:
+            - tapOn: 'Not Now'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Enable Face ID?'
+          commands:
+            - tapOn: 'Not Now'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Would Like to Send You Notifications'
+          commands:
+            - tapOn: "Don.t Allow"
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Continue'
+          commands:
+            - tapOn: 'Continue'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'DEVELOPMENT SERVERS'
+          commands:
+            - tapOn:
+                text: '.*8082.*'
+                optional: true
+            - tapOn:
+                text: '.*:8082'
+                optional: true
+            - tapOn:
+                text: '.*localhost.*8082.*'
+                optional: true
+            - tapOn:
+                text: '127.0.0.1'
+                optional: true
+            - tapOn:
+                text: 'http.*'
+                optional: true
+            - tapOn:
+                point: '50%,38%'
+                optional: true
+            - openLink: ${E2E_METRO_DEVCLIENT_URL}
+            - waitForAnimationToEnd:
+                timeout: 15000
+      # React Native's built-in Element/Perf Inspector (opened via the dev
+      # menu's "Toggle element inspector") — a persistent bottom overlay
+      # ("Tap something to inspect it" / Inspect / Touchables) that CAPTURES
+      # touches for inspection instead of passing them to the app, silently
+      # breaking every subsequent tapOn/assertVisible until dismissed. Once
+      # toggled on it stays on across screens/flows (not tied to one dev-menu
+      # popup) — reproduced: an unrelated "element not found" mid-suite traced
+      # back to this being left on from an earlier stray tap. Back does NOT
+      # dismiss it (verified live via adb) — it's a toggle, not a sheet, so it
+      # has to be turned off the same way it was turned on: reopen the dev
+      # menu (Android's KEYCODE_MENU=82, Maestro key name "Remote Menu" —
+      # verified live via adb this reliably opens Expo's dev-client menu) and
+      # tap "Toggle element inspector" again, then close the menu.
+      - runFlow:
+          when:
+            visible: 'Tap something to inspect it'
+          commands:
+            - pressKey: 'Remote Menu'
+            - extendedWaitUntil:
+                visible: 'Toggle element inspector'
+                timeout: 5000
+                optional: true
+            - tapOn:
+                text: 'Toggle element inspector'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 1500
+            - runFlow:
+                when:
+                  visible: 'Reload'
+                commands:
+                  - pressKey: Back
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Reload'
+          commands:
+            # Coordinate tap on the sheet's own X first (works when the
+            # geometry matches what 92%,11% was calibrated against); Back is
+            # the fallback since it reliably dismisses this sheet regardless
+            # of screen size/density — seen missing the X on Android where
+            # this menu opened unexpectedly mid-flow (budget-consistency-golden,
+            # budget-plan-delete, budget-spend-mutations, budget-savings-recurring).
+            - tapOn:
+                point: '92%,11%'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+            - runFlow:
+                when:
+                  visible: 'Reload'
+                commands:
+                  - pressKey: Back
+                  - waitForAnimationToEnd:
+                      timeout: 2000

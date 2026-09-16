@@ -1,0 +1,30 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - mutation
+  - regression
+# Matrix: HOUSE-AUTH-031
+---
+# Active sessions list + revoke — guarded until Profile exposes sessions UI.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-AUTH-031
+- runFlow: ../subflows/open-profile.yaml
+- assertVisible:
+    id: 'profile-screen'
+- runFlow:
+    when:
+      visible: 'Active Sessions'
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: 'Active Sessions'
+          direction: DOWN
+          timeout: 15000
+      - tapOn: 'Active Sessions'
+- runFlow: ../subflows/e2e-matrix-after.yaml

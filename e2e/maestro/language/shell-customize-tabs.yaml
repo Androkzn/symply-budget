@@ -1,0 +1,113 @@
+appId: com.symply.language
+tags:
+  - app:language
+  - feature:shell
+  - regression
+  - mutation
+---
+# SHELL-002/003/004/006/012/013/015 + MORE-018 — tab overflow customization.
+- runFlow: subflows/launch-language.yaml
+- runFlow: subflows/go-more.yaml
+- tapOn:
+    id: 'more-customize-tabs'
+- extendedWaitUntil:
+    visible: 'Customize Tabs'
+    timeout: 20000
+# Locked Learn tab shows Required (More is always pinned but not listed in SHOWN TABS).
+- assertVisible:
+    id: 'customize-tabs-screen'
+- assertVisible: 'Learn'
+- assertVisible: 'Required'
+# Start from brand defaults so a prior partial run cannot leave the bar full.
+- tapOn: 'Reset to Defaults'
+- extendedWaitUntil:
+    visible: 'Reset tabs?'
+    timeout: 10000
+- tapOn: 'Reset'
+- waitForAnimationToEnd:
+    timeout: 4000
+# Make room, then pin Assessment + Dialogue (SHELL-004/006/012, MORE-018).
+- tapOn:
+    id: 'tab-customize-remove-chat'
+- tapOn:
+    id: 'tab-customize-remove-language-plan'
+- extendedWaitUntil:
+    visible:
+      id: 'tab-customize-add-language-assessment'
+    timeout: 10000
+- tapOn:
+    id: 'tab-customize-add-language-assessment'
+- tapOn:
+    id: 'tab-customize-add-language-dialogue'
+- extendedWaitUntil:
+    visible:
+      id: 'customize-tabs-save'
+    timeout: 10000
+- tapOn:
+    id: 'customize-tabs-save'
+- extendedWaitUntil:
+    notVisible:
+      id: 'customize-tabs-screen'
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 4000
+- runFlow: subflows/go-learn.yaml
+- waitForAnimationToEnd:
+    timeout: 4000
+- extendedWaitUntil:
+    visible:
+      id: 'tab-language-assessment'
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: 'tab-language-dialogue'
+    timeout: 30000
+- assertVisible:
+    id: 'language-learn-screen'
+- assertVisible:
+    id: 'tab-settings'
+# Persistence across relaunch (SHELL-013).
+- stopApp
+- launchApp:
+    clearState: false
+- runFlow: subflows/language-recover-learn-persist-tabs.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+# Re-focus Learn so the tab bar is stable before persistence asserts.
+- runFlow: subflows/go-learn.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'tab-language-assessment'
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: 'tab-language-dialogue'
+    timeout: 60000
+# Cold deep link to Dialogue (SHELL-015) — recover session, then route.
+- stopApp
+- launchApp:
+    clearState: false
+- runFlow: subflows/language-recover-learn-persist-tabs.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+- openLink: simplelanguage://language-dialogue
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-dialogue-screen'
+    commands:
+      - tapOn:
+          id: 'tab-language-dialogue'
+          retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'language-dialogue-screen'
+    timeout: 120000
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplelanguage
+      APP_ID: com.symply.language

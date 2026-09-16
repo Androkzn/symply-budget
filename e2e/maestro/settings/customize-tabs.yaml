@@ -1,0 +1,55 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:settings
+  - readonly
+  - regression
+# Matrix: HOUSE-SETT-004…009, 022 (customize tabs + appearance theme entry)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-settings-tab.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-customization'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'settings-row-customization'
+# DEAD GATE FIXED: both waits here targeted TabCustomizationScreen ('Customize Tabs' /
+# `customize-tabs-screen`, src/screens/settings/TabCustomizationScreen.tsx:296,310),
+# which House never registers — `settings-row-customization` navigates to
+# 'Customization' (SettingsScreen.tsx:565 → SettingsNavigator.tsx:234 →
+# CustomizationScreen), whose LAYOUT rows are 'Home Screen' and 'Navigation'
+# (CustomizationScreen.tsx:85,92). Both waits were optional, so the flow silently
+# verified nothing about the customization entry point at all.
+- extendedWaitUntil:
+    visible: '.*Home Screen.*'
+    timeout: 20000
+- assertVisible: '.*Navigation.*'
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+# Appearance is NOT on this screen any more. House's More tab is the
+# overflow-tabs hub (MORE TABS / CUSTOMIZATION / INSIGHTS) and PREFERENCES moved
+# behind the header gear, so the two rows this flow covers now live on two
+# screens: Customization stays here — it is the other half of "change what this
+# app shows me" — and Appearance is on the settings hub.
+#
+# Open the hub by its own route rather than scrolling for a row that is gone.
+# The previous version of this block scrolled UP, then DOWN, then asserted; both
+# directions would now search a screen that does not contain the target.
+- runFlow: ../subflows/go-house-settings.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-appearance'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- assertVisible:
+    id: 'settings-row-appearance'
+- tapOn:
+    id: 'settings-row-appearance'
+- assertVisible:
+    id: 'appearance-screen'
+- tapOn:
+    id: 'nav-back-button'

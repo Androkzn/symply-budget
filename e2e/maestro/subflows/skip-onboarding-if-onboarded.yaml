@@ -1,0 +1,13 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Shared E2E account is already onboarded — treat Home as a pass for onboarding-only flows.
+- runFlow:
+    when:
+      visible:
+        id: 'home-up-next-section'
+    commands:
+      - assertVisible:
+          id: 'home-up-next-section'

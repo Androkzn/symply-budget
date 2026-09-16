@@ -1,0 +1,43 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:households
+  - readonly
+  - regression
+# Matrix: HOUSE-HH-* (see documents/engineering/testing/matrices/house.md)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-profile.yaml
+- assertVisible:
+    id: 'profile-screen'
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-household-members'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'settings-row-household-members'
+- extendedWaitUntil:
+    visible:
+      id: 'household-management-screen'
+    timeout: 20000
+- assertVisible: 'My Properties'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: household-management-screen-scroll-end
+- runFlow:
+    when:
+      visible:
+        id: 'household-add-property'
+    commands:
+      - tapOn:
+          id: 'household-add-property'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - tapOn:
+          text: 'Cancel'
+          optional: true

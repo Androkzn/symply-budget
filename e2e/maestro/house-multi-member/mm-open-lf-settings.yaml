@@ -1,0 +1,59 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:multi-member
+---
+# Open the House local-first "Device sync" surface.
+#
+# CONTRACT, NOT DISCOVERY. ${LF_SETTINGS_ROW} and ${LF_SYNC_CARD} are ids the
+# H3 §5.1 surface must ship. The runner supplies the defaults and the doc lists
+# them; if they are ever renamed, override the two env vars rather than editing
+# 8 flows.
+#
+# Two routes are tried, in the order a member would find them:
+#   1. PROFILE → the device-sync row. It used to be on the More tab; House's
+#      settings moved behind the header gear and the enrolment rows moved to
+#      Profile, next to Sign out (see HouseSyncSharingSection);
+#   2. the deep link ${E2E_APP_SCHEME}://device-sync, which mounts the same
+#      screen as its own root route.
+# Both are optional; the closing wait is what decides.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-leave-task-form.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: '${LF_SYNC_CARD}'
+    commands:
+      - runFlow: ../subflows/open-profile.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'profile-screen'
+          timeout: 30000
+      - scrollUntilVisible:
+          element:
+            id: '${LF_SETTINGS_ROW}'
+          direction: DOWN
+          centerElement: true
+          timeout: 15000
+          optional: true
+      - tapOn:
+          id: '${LF_SETTINGS_ROW}'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2500
+- runFlow:
+    when:
+      notVisible:
+        id: '${LF_SYNC_CARD}'
+    commands:
+      - openLink: ${E2E_APP_SCHEME}://device-sync
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - runFlow: mm-dismiss-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: '${LF_SYNC_CARD}'
+    timeout: 30000
+- assertVisible:
+    id: '${LF_SYNC_CARD}'

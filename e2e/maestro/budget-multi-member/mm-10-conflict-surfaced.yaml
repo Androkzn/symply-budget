@@ -1,0 +1,59 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+# Matrix: BUDGET-MM-010 — the device that discarded an incoming edit says so
+# (BR-044: never let an auto-merge drop someone's change silently).
+#
+# Runs on the device that WON the field, because that is the replica which can
+# prove a write was discarded without causality tracking: it received an op
+# older than its own value. The losing device adopts the winner's value with no
+# conflict marker — see the known limitation in the V2 implementation notes.
+#
+# The notice is asserted on Device Sync, not on the dashboard. It used to live
+# in SyncStatusBanner, which rendered only on a Maestro-armed dev build — so
+# BR-044 was in practice satisfied for nobody: a member on a Release build had
+# no surface at all. Moving it onto the screen that already owns "Sync now" made
+# it member-facing and let the banner go (2026-08-16).
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 20000
+# Pulse from Device Sync itself: the sync deep link does not navigate, so the
+# notice stays on screen between pulses and the guard below short-circuits as
+# soon as it appears. The peer's op can need several rounds to arrive.
+- runFlow: ../subflows/budget-open-sync.yaml
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-sync-conflicts'
+          commands:
+            - runFlow: ../subflows/budget-sync-pulse.yaml
+            - waitForAnimationToEnd:
+                timeout: 10000
+            - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-sync-conflicts'
+    timeout: 20000
+- assertVisible:
+    id: 'budget-sync-conflicts'
+# Acknowledge it, so the next run asserts a conflict THIS run produced rather
+# than a running total left behind by an earlier one — the ledger persists
+# across runs on both simulators, and nothing else clears the log.
+- tapOn:
+    id: 'budget-sync-conflicts-ack'
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-sync-conflicts'
+    timeout: 10000

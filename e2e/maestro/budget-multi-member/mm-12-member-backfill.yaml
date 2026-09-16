@@ -1,0 +1,43 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+  - feature:enrolment
+# Matrix: BUDGET-MM-012 — a brand-new member receives the budget that existed
+# BEFORE it was invited, without anyone asking it to.
+#
+# The suite already proves the household KEY arrives (mm-05) and that a spending
+# written AFTER the join reaches the peer (mm-06 → mm-07). Neither covers what a
+# joiner actually cares about: the budget that was already there. That history
+# does not travel as ops — the log is compacted behind a checkpoint — it travels
+# as a CHECKPOINT, installed by `tryInstallLatestCheckpoint('bootstrap')` when
+# the orchestrator sees an empty version vector.
+#
+# NO MANUAL SYNC ANYWHERE IN THIS FLOW. That absence is the assertion.
+# mm-07 pumps `budget-sync-pulse` until the peer's row shows up, which is right
+# for its question ("do ops merge?") and wrong for this one: a tap on "Sync now"
+# would prove the data can be fetched, not that joining fetches it. So this flow
+# only ever WAITS — if the row appears, the device went and got it by itself.
+#
+# env: MM_TITLE — the spending the owner recorded BEFORE minting the invite.
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and swallows
+# every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 30000
+# Generous, because this waits on the background sync cadence rather than
+# driving it: enrolment completes, the next ordinary sync run finds an empty
+# version vector, and only then does the bootstrap fetch and install. Three
+# minutes is slack for that whole chain, not an expectation that it is slow.
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 180000
+- assertVisible: '.*${MM_TITLE}.*'

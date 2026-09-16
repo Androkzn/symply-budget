@@ -1,0 +1,23 @@
+# Maestro workspace config — Symply Language E2E runs sequentially on one sim.
+# Brand `symply-language`, bundle id com.symply.language, scheme simplelanguage://.
+# Language authenticates against the LIVE donor /api/v1 (see languageClient audit).
+excludeTags:
+  - util
+flows:
+  - '*.yaml'
+executionOrder:
+  continueOnFailure: true
+  flowsOrder:
+    - onboarding
+    - language-auth-validation
+    - shell-customize-tabs
+    - shell-tutor-draft
+    - learn-home
+    - assessment
+    - dialogue
+    - plan
+    - review
+    - tutor
+    - more-settings
+    - more-reset-learning
+    - more-sign-out

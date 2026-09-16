@@ -1,0 +1,110 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:plan
+  - mutation
+  - regression
+# Matrix: BUDGET-PLAN-074..077 (see documents/engineering/testing/matrices/budget.md)
+# Sub-budgets manager (BudgetSubBudgetsScreen), reached via deep link (scroll on
+# Budget Settings is flaky on iOS 26). Exercises the full lifecycle:
+#   add a per-category cap (Coffee $50) → assert the row + resolved $50.00 cap
+#   render → remove it (tests the remove UI + leaves no trace) → back to Budget.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-PLAN-074
+- runFlow: ../subflows/budget-open-sub-budgets.yaml
+- assertVisible:
+    id: 'budget-sub-budgets-screen'
+
+# Open the add-sub-budget editor.
+- tapOn:
+    id: 'budget-sub-budget-add'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-sub-budget-category-picker'
+    timeout: 15000
+
+# Pick a category via the nested picker (search → tap by name).
+# The category picker is a 2nd RN Modal presented over the editor Modal — racy on
+# iOS-26. Let the editor sheet settle, then re-tap the picker until the search
+# field presents (defeats both the mid-slide tap-miss and slow 2nd-modal present).
+- waitForAnimationToEnd:
+    timeout: 3000
+- repeat:
+    while:
+      notVisible:
+        id: 'budget-sub-budget-category-search'
+    times: 3
+    commands:
+      - tapOn:
+          id: 'budget-sub-budget-category-picker'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-sub-budget-category-search'
+    timeout: 15000
+- tapOn:
+    id: 'budget-sub-budget-category-search'
+- inputText: 'Coffee'
+- tapOn:
+    text: '.*Coffee & Snacks.*'
+    optional: true
+
+# Enter a dollar cap and save.
+- tapOn:
+    id: 'budget-sub-budget-value'
+- inputText: '50'
+- hideKeyboard:
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1000
+- tapOn:
+    id: 'budget-sub-budget-save'
+
+# The new cap renders in the list, with the resolved $50.00 cap shown.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-sub-budgets-list'
+    timeout: 20000
+- assertVisible:
+    text: '.*Coffee & Snacks.*'
+- assertVisible:
+    text: '.*\$50.*'
+
+# ── Remove the cap we just created (tests the remove UI + leaves no trace) ──
+- tapOn:
+    text: '.*Coffee & Snacks.*'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-sub-budget-remove'
+    timeout: 15000
+- tapOn:
+    id: 'budget-sub-budget-remove'
+# Native confirm alert ("Remove sub-budget" → "Remove").
+- tapOn:
+    text: 'Remove'
+- extendedWaitUntil:
+    notVisible:
+      text: '.*Coffee & Snacks.*'
+    timeout: 20000
+    optional: true
+
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000
+    optional: true
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

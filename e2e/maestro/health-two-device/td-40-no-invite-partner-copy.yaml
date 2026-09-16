@@ -1,0 +1,115 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+  - feature:privacy
+  - regression
+# Matrix: HEALTH-TD-040 — no invite-partner copy on ANY Health screen.
+#
+# A Health household is one user with N devices (plan §1.2). There is nobody to
+# invite, and He5's DoD says so in as many words: "no invite-member strings in
+# Health Settings". This is a PRODUCT assertion, not a cosmetic one — a screen
+# offering to invite a member is describing a product that does not exist, and on
+# a health record it is also a data-sharing promise the app cannot keep
+# (Appendix C).
+#
+# THE FAILURE MODE THIS CATCHES IS A PORT, NOT A DESIGN CHOICE. The whole
+# local-first stack came from Budget and House, where "invite a member" is
+# correct copy. `controlPlaneClient.ts`'s own header spells out the rule for the
+# strings it owns, but nothing enforces it on a screen someone assembles later by
+# copying `BudgetHouseholdScreen`. This flow is that enforcement.
+#
+# ⚠️ THE FORBIDDEN LIST IS SPECIFIC ON PURPOSE — a blanket `(?i)partner` would be
+# WRONG. `HealthVitalityScreen` legitimately renders "Sex with a partner"
+# (`health-vitality-partner-sex`), which is a domain field about the member's own
+# life, not an invitation. Vitality is walked below precisely so that carve-out
+# is visible rather than achieved by not looking.
+#
+# The positive counterpart lives in td-02: the enrolment screen must SAY
+# "Add your other device". Absence alone would also be satisfied by a screen that
+# says nothing at all.
+---
+- runFlow: td-launch.yaml
+
+# --- Home ---------------------------------------------------------------
+- assertVisible:
+    id: 'health-home-screen'
+- assertNotVisible: '(?i).*invite.*'
+- assertNotVisible: '(?i).*household member.*'
+- assertNotVisible: '(?i).*add member.*'
+- assertNotVisible: '(?i).*join household.*'
+
+# --- More hub, top to bottom. The densest copy surface in the app, and the
+#     one a household screen would most plausibly be bolted onto. ----------
+- runFlow: ../health/subflows/go-more.yaml
+- assertNotVisible: '(?i).*invite.*'
+- assertNotVisible: '(?i).*household member.*'
+- assertNotVisible: '(?i).*add member.*'
+- assertNotVisible: '(?i).*join household.*'
+- runFlow: ../health/subflows/health-scroll-more-down.yaml
+- assertNotVisible: '(?i).*invite.*'
+- assertNotVisible: '(?i).*household member.*'
+- assertNotVisible: '(?i).*add member.*'
+- assertNotVisible: '(?i).*join household.*'
+# The one row that talks about where data lives must keep talking about
+# DEVICES, not people.
+- assertVisible: 'Private to your account, synced across your devices'
+
+# --- Weight -------------------------------------------------------------
+- runFlow: ../health/subflows/go-health-weight.yaml
+- assertNotVisible: '(?i).*invite.*'
+- assertNotVisible: '(?i).*household member.*'
+
+# --- Nutrition ----------------------------------------------------------
+- runFlow: ../health/subflows/go-health-nutrition.yaml
+- assertNotVisible: '(?i).*invite.*'
+- assertNotVisible: '(?i).*household member.*'
+
+# --- Activity -----------------------------------------------------------
+- runFlow: ../health/subflows/go-health-activity.yaml
+- assertNotVisible: '(?i).*invite.*'
+- assertNotVisible: '(?i).*household member.*'
+
+# --- Water --------------------------------------------------------------
+- runFlow: ../health/subflows/go-health-water.yaml
+- assertNotVisible: '(?i).*invite.*'
+- assertNotVisible: '(?i).*household member.*'
+
+# --- Body ---------------------------------------------------------------
+- runFlow: ../health/subflows/go-health-body.yaml
+- assertNotVisible: '(?i).*invite.*'
+- assertNotVisible: '(?i).*household member.*'
+
+# --- Habits -------------------------------------------------------------
+- runFlow: ../health/subflows/go-health-habits.yaml
+- assertNotVisible: '(?i).*invite.*'
+- assertNotVisible: '(?i).*household member.*'
+
+# --- Goals --------------------------------------------------------------
+- runFlow: ../health/subflows/go-health-goals.yaml
+- assertNotVisible: '(?i).*invite.*'
+- assertNotVisible: '(?i).*household member.*'
+
+# --- Notification settings ----------------------------------------------
+# The most likely place for a stray "a member added…" template to survive a
+# port, because notification copy is written far from the screen it fires on.
+- runFlow: ../health/subflows/go-health-notifications.yaml
+- assertNotVisible: '(?i).*invite.*'
+- assertNotVisible: '(?i).*household member.*'
+- assertNotVisible: '(?i).*a member.*'
+
+# --- Vitality — the carve-out, walked deliberately ----------------------
+# "Sex with a partner" IS expected here and is NOT an invitation. Asserting the
+# specific forbidden phrases (rather than the bare word) is what lets this
+# screen be checked at all instead of excluded.
+- runFlow: ../health/subflows/go-health-vitality.yaml
+- assertNotVisible: '(?i).*invite.*'
+- assertNotVisible: '(?i).*household member.*'
+- assertNotVisible: '(?i).*invite partner.*'
+- assertNotVisible: '(?i).*add member.*'
+
+# --- Trends -------------------------------------------------------------
+- runFlow: ../health/subflows/go-health-trends.yaml
+- assertNotVisible: '(?i).*invite.*'
+- assertNotVisible: '(?i).*household member.*'

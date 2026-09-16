@@ -1,0 +1,45 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - bootstrap
+---
+# Session prime — establish Home dashboard without stopApp (shared by retry runner).
+- runFlow:
+    when:
+      visible:
+        id: 'home-screen'
+    commands: []
+- runFlow:
+    when:
+      notVisible:
+        id: 'home-screen'
+    commands:
+      - openLink: ${E2E_APP_SCHEME}://
+      - runFlow: ../subflows/connect-house-metro.yaml
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - runFlow:
+          when:
+            notVisible:
+              id: 'home-screen'
+          commands:
+            - launchApp:
+                clearState: false
+            - runFlow: ../subflows/connect-house-metro.yaml
+            - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - openLink: ${E2E_LOGIN_URL}
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - runFlow: ../subflows/login-email-if-needed.yaml
+      - runFlow: ../subflows/go-home-tab.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-screen'
+    timeout: 120000
+- extendedWaitUntil:
+    notVisible:
+      id: 'auth-sign-in-email'
+    timeout: 30000
+    optional: true

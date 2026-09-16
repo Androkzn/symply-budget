@@ -1,0 +1,117 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-H7-P4-002
+---
+# WHAT THIS PROVES
+# ----------------
+# Opening a task the AI flagged as needing a pro makes TaskDetailScreen call
+# `tasksApi.getTaskQuotes` on mount (TaskDetailScreen.tsx:162, gated on
+# `task.needs_contractor`). Under House local-first that method is P4 — the
+# local implementation rejects with `HouseLocalUnsupportedError`
+# (localTasksApi.ts:1081) — so the request must never reach the Worker.
+#
+# WHY THAT MATTERS
+# ----------------
+# This is the single failure mode localApiProxy.ts calls "the worst failure mode
+# available here": a gap that silently routes to the server. The Worker holds
+# only ciphertext for a local-first household, so a fallthrough returns 200 with
+# an empty list, the quotes section renders empty-and-correct, and the defect is
+# invisible until a member notices data missing. Nothing in the UI distinguishes
+# "rejected locally" from "server said none" — only the ABSENCE OF THE NETWORK
+# CALL does, which is what this flow asserts.
+#
+# Assertions:
+#   1. No GET matched `/households/:hh/tasks/:id/quotes` while the detail screen
+#      was open (e2e-verify-badge PASS). A `strict: false` regression on the
+#      tasks proxy, or a re-pointed remote method, fails here.
+#   2. DoD H7: none of the three quote identifiers is on screen.
+#
+# GUARD: `task-detail-find-contractors` renders under exactly the same
+# `task.needs_contractor` condition that triggers the quotes load, so its
+# visibility is the honest signal that `getTaskQuotes` actually fired. When no
+# contractor task exists on the device, the verification block no-ops instead of
+# passing vacuously against a task that never called the method.
+#
+# The clear-log comes from e2e-matrix-before BEFORE navigation, so the ring
+# buffer is clean when the mount-time quotes call would have been made. The
+# verify runs after the modal is closed — e2e-verify-badge is unreachable to
+# Maestro while a native modal covers the root view.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-H7-P4-002
+- runFlow: ../subflows/open-task-detail.yaml
+- assertVisible:
+    id: 'task-detail-screen'
+
+# DoD H7 — the identifiers must never be in front of a member, contractor task
+# or not.
+- assertNotVisible: 'tasks\.getTaskQuotes'
+- assertNotVisible: 'tasks\.requestTaskQuotes'
+- assertNotVisible: 'tasks\.compareTaskQuotesWithAI'
+- assertNotVisible: 'is not available offline yet'
+
+- runFlow:
+    when:
+      visible:
+        id: 'task-detail-find-contractors'
+    commands:
+      # A contractor task IS open, so getTaskQuotes has run. Scroll the quotes
+      # region into view before asserting nothing leaked into it.
+      - scrollUntilVisible:
+          element:
+            id: 'task-detail-find-contractors'
+          direction: DOWN
+          timeout: 10000
+          optional: true
+      - assertNotVisible: 'tasks\.getTaskQuotes'
+      - assertVisible:
+          id: 'task-detail-find-contractors'
+      - tapOn:
+          id: 'task-detail-close'
+          optional: true
+      - extendedWaitUntil:
+          notVisible:
+            id: 'task-detail-screen'
+          timeout: 8000
+          optional: true
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: GET
+            E2E_VERIFY_PATH: /quotes
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+# CLOSE THE MODAL UNCONDITIONALLY — same defect as
+# `h7-p4-purchase-suggestion-no-false-success`, same cause: `task-detail-close`
+# (line 77) sits INSIDE a `when:` guard, so when that branch does not run the
+# native task-detail modal stays over the tab bar. `go-home-tab` then taps
+# nothing, reports COMPLETED, and the flow fails on `home-screen` — in teardown,
+# for a reason unrelated to what it proves.
+#
+# Both flows in this family failed this way on the first device run of the
+# suite (2026-08-15), with their real assertions PASSING. `optional: true`
+# because the guarded branch legitimately closes the sheet when it does run.
+- tapOn:
+    id: 'task-detail-close'
+    optional: true
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

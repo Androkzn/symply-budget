@@ -1,0 +1,647 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:food
+  - mutation
+  - regression
+# Matrix: HEALTH-FOOD-101 … HEALTH-FOOD-102, HEALTH-FOOD-105 … HEALTH-FOOD-112
+---
+# Foods tab — the donor's food database, rebuilt on the deployed parity-phase-P2
+# routes (`/health/custom-foods`, `/health/foods/search`, `/health/custom-foods/
+# :id/use`). Unlike Nutrition and Activity this surface is BACKEND-backed: every
+# figure the rows print is one the Worker derived from `base_*_per_100`, and the
+# screen never re-does that arithmetic. See `healthFoodStorage`.
+#
+# The tab ships `defaultHidden`, so this flow enters through the More hub rather
+# than the tab bar (subflows/go-health-food.yaml).
+#
+# GATED / SKIPS-GRACEFULLY: the body is wrapped in
+# `runFlow: when: visible: health-home-screen` so it runs only when the installed
+# app already holds a session (same contract as nutrition-log-meal.yaml).
+#
+# ROW SELECTORS: a food row's testID carries the server-minted id
+# (`health-food-row-cf_…`), which no flow can know in advance, and an `.*` id
+# pattern would tap whichever row happens to sort first. The row ACTIONS carry a
+# deterministic accessibility label instead — `Edit Maestro Oats`,
+# `Delete Maestro Oats` — so every per-row tap below targets the label. Maestro
+# matches a label as one WHOLE string, so `Delete Maestro Oats` can never be
+# satisfied by the confirm alert's own `Delete` button, nor the reverse.
+#
+# ORDERING TRAP: "Log to today" runs BEFORE the food is favourited. A favourite
+# is a suggestion reason, so favouriting first can float the same food into the
+# USUALLY AT card — whose row carries the SAME `Log <name> to <slot>` label as
+# the list row, leaving the tap ambiguous.
+#
+# TEARDOWN: the food is deleted, and the diary row that "Log" wrote is deleted
+# from the Nutrition tab — leaving it behind would collide with
+# nutrition-log-meal.yaml, which asserts its own day is clean. `use_count`
+# cannot be un-bumped, but it is invisible in the UI and a fresh food id is
+# minted on every run, so nothing leaks into the next one.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-FOOD-105
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Opens from the More hub, not the tab bar (HEALTH-FOOD-105) -----
+      - runFlow: subflows/go-health-food.yaml
+      # TIMEOUT WAS 15000, TOO SHORT FOR THE SCREEN'S OWN WORST CASE.
+      # Reproduced live 2026-08-02: this wait FAILED with the screenshot showing
+      # "Foods" + the header's ActivityIndicator only — no Refreshing… banner,
+      # so this was NOT a Fast Refresh remount (ruled out first, per this
+      # flow's own diagnostic playbook). `health-food-screen` (the container)
+      # was already visible per the prior step; SEARCH itself is gated behind
+      # HealthSectionScreen's `loading` prop and is not in the tree at all
+      # until it flips — HealthFoodLibraryScreen.tsx renders ONLY the spinner
+      # while `loading`. `loading` only clears once `hydrate()`'s
+      # `Promise.all([loadFoods(), loadFoodSuggestions()])` settles, and
+      # `loadFoods` → `readThrough` is network-FIRST: it awaits the live
+      # `listCustomFoods()` call (default `ENV.TIMEOUTS.API_REQUEST` = 30000ms)
+      # before ever falling back to cache. So the screen's own legitimate
+      # worst-case landing time is up to ~30s — double the 15s this wait
+      # budgeted — and the failing run's step window shows zero
+      # custom-foods/foods-suggestions network entries either completing or
+      # failing, meaning the request was still in flight when Maestro's clock
+      # ran out, not stuck or erroring. This suite run is concurrent with a
+      # second full Maestro session AND a brand.cjs rebuild loop on this same
+      # machine (this session's established "severe load" pattern — see
+      # e.g. `maestro-ios26-reduced-load-fix`), which is enough to push a
+      # normally-fast request past 15s without ever approaching the app's own
+      # 30s ceiling. 35000ms clears that ceiling with headroom instead of
+      # masking a real bug — there is no loading-state bug here to mask.
+      - extendedWaitUntil:
+          visible: 'SEARCH'
+          timeout: 35000
+      - assertVisible: 'Foods'
+      - assertVisible: 'LOG TO'
+      # NOT a bare `assertVisible: 'MY FOODS'` here — reproduced live
+      # 2026-08-02: the Add Food redesign grew what renders above the food
+      # list (SEARCH / USUALLY AT <time> / LOG TO / ADD FOOD form,
+      # HealthFoodLibraryScreen.tsx) enough that MY FOODS is no longer
+      # guaranteed on screen right after landing with no scroll — 'Foods' +
+      # 'LOG TO' already prove the landing, and the very next block below
+      # (HEALTH-FOOD-106) already scrolls to `health-food-screen-scroll-end`
+      # before it needs MY FOODS itself, so this check was both redundant and
+      # the one place in this flow that skipped the scroll the rest of it
+      # already does.
+      # The tab is reachable but NOT pinned — the hub is the only door.
+      - assertNotVisible:
+          id: 'tab-health-food'
+
+      # --- The library is in exactly one of two states (HEALTH-FOOD-106) --
+      # A re-run inherits whatever the account already holds, so neither branch
+      # can be a precondition. Both branches assert, so neither is vacuous.
+      # The scroll-end sentinel is the cheapest way to bring the MY FOODS card
+      # into view whichever state it is in.
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-screen-scroll-end'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'health-food-empty'
+          commands:
+            - assertVisible: 'No foods yet. Add one above and it will be one tap away next time.'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-food-empty'
+          commands:
+            - assertVisible:
+                id: 'health-food-row-.*'
+
+      # --- Create a food with its macros (HEALTH-FOOD-101) ----------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-name-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'health-food-name-input'
+      - inputText: 'Maestro Oats'
+      - tapOn:
+          id: 'health-food-brand-input'
+      - inputText: 'Maestro Mill'
+      # NOT `hideKeyboard` — it hard-FAILS intermittently on this build
+      # regardless of keyboard type (reproduced 2026-08-01 on this exact text
+      # field; `dismiss-health-keypad.yaml`'s own header documents the same
+      # command failing on a text keyboard in one run after succeeding on the
+      # previous one). 'ADD FOOD' is the non-touchable card label directly
+      # above this field (HealthFoodLibraryScreen.tsx) — safe per that
+      # subflow's anchor contract.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+
+      # --- The unit row is not cosmetic (HEALTH-FOOD-107) -----------------
+      # `g` is the default, so the only way to prove the control is to move OFF
+      # it and back. The portion field ships pre-filled with 100 and is left
+      # alone — typing would append to it.
+      - tapOn:
+          id: 'health-food-unit-ml'
+      - assertVisible:
+          id: 'health-food-unit-ml'
+          selected: true
+      - assertNotVisible:
+          id: 'health-food-unit-g'
+          selected: true
+      - tapOn:
+          id: 'health-food-unit-g'
+      - assertVisible:
+          id: 'health-food-unit-g'
+          selected: true
+
+      - tapOn:
+          id: 'health-food-calories-input'
+      - inputText: '155'
+      - tapOn:
+          id: 'health-food-protein-input'
+      - inputText: '5'
+      - tapOn:
+          id: 'health-food-carbs-input'
+      - inputText: '27'
+      - tapOn:
+          id: 'health-food-fat-input'
+      - inputText: '3'
+      # The decimal pad covers the save button.
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `handleSave` → `createFood` (healthFoodStorage.ts) →
+      # `POST /health/custom-foods` (health-food.ts), 201.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-save-button'
+
+      # The row lands under MY FOODS, which sits below the form — so the
+      # read-back scrolls rather than asserting blind. `scrollUntilVisible`
+      # polls, so it is also the wait for the write to land.
+      - scrollUntilVisible:
+          element:
+            text: 'Maestro Oats · Maestro Mill'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /custom-foods
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # The macro line is the SERVER's answer for the stored portion, not an
+      # echo of the form — asserting it exactly is what makes the per-100 basis
+      # observable from the device.
+      - assertVisible: '100 g · 155 kcal · 5P / 27C / 3F'
+      # The form left edit mode (it was never in it) and cleared.
+      - assertNotVisible:
+          id: 'health-food-cancel-edit'
+
+      # --- Log it into today's diary (HEALTH-FOOD-108) --------------------
+      # The LOG TO picker defaults to whatever slot the SERVER named for this
+      # time of day, so the slot is pinned explicitly — otherwise the Log
+      # button's label (`Log <name> to <slot>`) is not knowable in advance.
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-slot-lunch'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-food-slot-lunch'
+      - assertVisible:
+          id: 'health-food-slot-lunch'
+          selected: true
+      - scrollUntilVisible:
+          element:
+            text: 'Log Maestro Oats to Lunch'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `handleLog` → `logFoodToDiary` (healthFoodStorage.ts) fires TWO real
+      # writes: `POST /health/custom-foods/:id/use` (usage bump, 200) then
+      # `addMealEntry` → `POST /health/nutrition/entries` (health.ts), 201 —
+      # the actual diary row this leg's assertions and HEALTH-FOOD-112's
+      # teardown are about, so that is the call verified below.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-log-.*'
+          text: 'Log Maestro Oats to Lunch'
+      # The banner names the slot it landed in. Both the online and the offline
+      # branch of `logFoodToDiary` open with "Added", and neither carries a raw
+      # error string.
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-message'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-food-message'
+      - assertVisible: 'Added .*Lunch.*'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The diary really received it (HEALTH-FOOD-112) -----------------
+      # This leg is BOTH the read-back for FOOD-108 and the teardown for it:
+      # the entry is deleted from Nutrition so nutrition-log-meal.yaml still
+      # starts on a clean day.
+      - runFlow: subflows/go-health-nutrition.yaml
+      # DELETE NOW SITS BEHIND A "…" MENU, AND THE ID PREFIX WAS ALREADY
+      # WRONG. Reproduced live 2026-08-02, confirmed against source: this is
+      # the NUTRITION DIARY row (`HealthMealDetail.tsx`), whose delete chip
+      # is `health-meal-menu-delete-<id>` — `health-food-delete-*` (what this
+      # tap used before this fix) is the FOODS LIBRARY screen's own per-row
+      # action (`HealthFoodLibraryScreen.tsx`, correctly used later in this
+      # same file's HEALTH-FOOD-111 teardown) and was never the right id here
+      # even before the 2026-08-01 refactor (8f1f0ef2) additionally folded
+      # Edit/Move/Delete behind one "more" button
+      # (`health-meal-more-<id>`, accessibilityLabel `Actions for <name>`).
+      # The "Delete Maestro Oats" label itself does not exist in the tree
+      # until that menu is opened, so scrolling for it directly (the old
+      # approach) can never find it either — scroll for the row's own
+      # always-visible name text instead.
+      # `deleteMealEntry` (healthNutritionStorage.ts) → `healthApi.deleteEntry`
+      # → `DELETE /health/entries/:id` (health.ts), 200.
+      - scrollUntilVisible:
+          element:
+            text: 'Maestro Oats'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-meal-more-.*'
+          text: 'Actions for Maestro Oats'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-meal-menu-.*'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-meal-menu-delete-.*'
+          text: 'Delete Maestro Oats'
+      - extendedWaitUntil:
+          notVisible: 'Delete Maestro Oats'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # Re-entering the tab remounts the screen at scroll-top, which is the only
+      # deterministic scroll position this flow has.
+      - runFlow: subflows/go-health-food.yaml
+      # 'SEARCH', not 'MY FOODS' — see HEALTH-FOOD-105's comment above. Same
+      # 35000ms budget for the same reason: this remount re-runs the identical
+      # `hydrate()` network-first load, so it carries the identical up-to-30s
+      # worst case.
+      - extendedWaitUntil:
+          visible: 'SEARCH'
+          timeout: 35000
+
+      # --- Favourite + the filter segments (HEALTH-FOOD-109) --------------
+      # `handleFavorite` → `setFoodFavorite` → `updateCustomFood`
+      # (healthFoodStorage.ts) → `PUT /health/custom-foods/:id`
+      # (health-food.ts), 200.
+      - scrollUntilVisible:
+          element:
+            text: 'Favourite Maestro Oats'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-favorite-.*'
+          text: 'Favourite Maestro Oats'
+      # The star flips its own label, which is the read-back — the icon alone
+      # would prove nothing to assistive tech or to this flow.
+      - extendedWaitUntil:
+          visible: 'Unfavourite Maestro Oats'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /custom-foods/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # The filter chip taps from here on are local-only: `filter` state
+      # applied by `viewFoods`/`applyFoodFilter` (healthFoodStorage.ts) over
+      # the already-loaded `foods` array — no request per tap.
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-filter-favorites'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-food-filter-favorites'
+      - assertVisible:
+          id: 'health-food-filter-favorites'
+          selected: true
+      - scrollUntilVisible:
+          element:
+            text: 'Maestro Oats · Maestro Mill'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-filter-all'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-food-filter-all'
+      - assertVisible:
+          id: 'health-food-filter-all'
+          selected: true
+
+      # --- Search is the user's OWN library (HEALTH-FOOD-102) -------------
+      # A miss says it is a miss. "Nothing here" after a search that matched
+      # nothing reads as data loss; naming the cause does not.
+      # NOT network-verified below: `query` drives `searchFoods()`
+      # (healthFoodStorage.ts), a REAL `GET /health/foods/search` call on every
+      # change — but it is a read, not a mutation, so it is out of scope for
+      # the clear-log/verify-network treatment this flow applies elsewhere.
+      - tapOn:
+          id: 'health-food-search-input'
+      - inputText: 'zzqqxx'
+      - hideKeyboard
+      # The filter segments are replaced by the clear button while a query is
+      # active — a real state change, not a cosmetic one.
+      - assertVisible:
+          id: 'health-food-search-clear'
+      - assertNotVisible:
+          id: 'health-food-filter-all'
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-search-empty'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'No food in your library matches that.'
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-search-clear'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-food-search-clear'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-food-filter-all'
+          timeout: 15000
+      # …and a hit returns the row.
+      - tapOn:
+          id: 'health-food-search-input'
+      - inputText: 'Maestro'
+      - hideKeyboard
+      - scrollUntilVisible:
+          element:
+            text: 'Maestro Oats · Maestro Mill'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-search-clear'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-food-search-clear'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-food-filter-all'
+          timeout: 15000
+
+      # --- Edit, and the cancel that abandons it (HEALTH-FOOD-110) --------
+      - scrollUntilVisible:
+          element:
+            text: 'Edit Maestro Oats'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-food-edit-.*'
+          text: 'Edit Maestro Oats'
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-cancel-edit'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'EDIT FOOD'
+      # Cancel drops back to add mode — the abandoned edit writes nothing.
+      # No `updateFood`/`PUT /health/custom-foods/:id` call should fire.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-cancel-edit'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-food-cancel-edit'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /custom-foods/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible: 'ADD FOOD'
+
+      - scrollUntilVisible:
+          element:
+            text: 'Edit Maestro Oats'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-food-edit-.*'
+          text: 'Edit Maestro Oats'
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-calories-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-food-calories-input'
+      - eraseText
+      - inputText: '200'
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `handleSave` (editingId set) → `updateFood` (healthFoodStorage.ts) →
+      # `PUT /health/custom-foods/:id` (health-food.ts), 200.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-save-button'
+      # Same portion, new energy — and the row is re-derived, not patched in
+      # place: the whole macro line is asserted, not just the number that moved.
+      - scrollUntilVisible:
+          element:
+            text: '100 g · 200 kcal · 5P / 27C / 3F'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /custom-foods/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertNotVisible:
+          id: 'health-food-cancel-edit'
+
+      # --- Teardown: delete the food (HEALTH-FOOD-111) --------------------
+      # Deleting asks first. The alert is a nested modal, so it is waited for
+      # rather than asserted straight after the tap.
+      # `handleDelete` (confirmed) → `deleteFood` (healthFoodStorage.ts) →
+      # `DELETE /health/custom-foods/:id` (health-food.ts), 200.
+      - scrollUntilVisible:
+          element:
+            text: 'Delete Maestro Oats'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-delete-.*'
+          text: 'Delete Maestro Oats'
+      - extendedWaitUntil:
+          visible: 'Delete food'
+          timeout: 15000
+      - assertVisible: 'Remove "Maestro Oats" from your library?'
+      - tapOn:
+          text: 'Delete'
+      - extendedWaitUntil:
+          notVisible: 'Maestro Oats · Maestro Mill'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /custom-foods/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Back to the Health tab ----------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

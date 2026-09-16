@@ -1,0 +1,293 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - mutation
+  - regression
+# Matrix: BUDGET-SAVE-029 / BUDGET-SAVE-047 / BUDGET-SAVE-048 /
+#         BUDGET-SAVE-050 / BUDGET-SAVE-051
+#
+# The savings entry form's own behaviour, none of it previously driven on a
+# device (all five rows were satisfied by `SavingsEntryForm.test.tsx`, which
+# mocks `savingsApi` and renders the form outside the navigator):
+#
+#   • control inventory — amount, currency chips, month/date picker, member
+#     picker, source chips, description and notes all present (SAVE-047/048);
+#   • a zero amount is REFUSED and the form stays open (SAVE-051) — the failure
+#     mode that matters is a save that silently closes having written nothing;
+#   • Cancel leaves without writing (SAVE-029);
+#   • "Save & add another" persists and KEEPS the form open, ready for the next
+#     entry in the same month (SAVE-050) — proved by saving a second entry from
+#     the still-open form and finding both on the list.
+#
+# `bonus` is the source throughout so the cleanup drain is scoped to
+# `savings-income-source-bonus` and cannot touch real income.
+#
+# MUTATING but self-cleaning and re-entrant.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget
+      E2E_MATRIX_ROW: BUDGET-SAVE-050
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-income'
+- runFlow:
+    file: ../subflows/budget-savings-force-subtab.yaml
+    env:
+      E2E_SUBTAB: income
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 20000
+- runFlow:
+    file: ../subflows/budget-savings-drain-income-source.yaml
+    env:
+      E2E_INCOME_SOURCE: bonus
+
+# =============== control inventory + zero-amount refusal ===============
+# Rewind to the Add button before tapping it. "Add / Copy / Import (AI)" sits
+# at the TOP of the Income tab, above the entries list, so once the list has
+# been scrolled it is off screen and the tap silently misses — the form never
+# opens and it surfaces later as "savings-entry-form is visible" being false
+# (2026-08-26: screenshot shows the Income tab correctly selected with the
+# entries list scrolled past the button row entirely).
+- scrollUntilVisible:
+    element:
+      id: 'savings-add-income'
+    direction: UP
+    timeout: 15000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-add-income'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-form'
+    timeout: 20000
+- assertVisible: 'Add income'
+- assertVisible:
+    id: 'savings-entry-amount'
+# Income has no free-text name — its label is derived from member + source, so
+# the spending-only Name field must NOT be here.
+- assertNotVisible:
+    id: 'savings-entry-label'
+- assertVisible:
+    id: 'savings-entry-currency-USD'
+- assertVisible:
+    id: 'savings-entry-currency-EUR'
+- assertVisible:
+    id: 'savings-entry-date-picker'
+
+# --- A literal zero is refused. Done FIRST, while the amount field is still on
+# screen, because scrolling back UP to it afterwards is not reliable: RN
+# gesture-handler ScrollViews under iOS 26 + Maestro often refuse an upward
+# `scrollUntilVisible` (observed 2026-08-22 on Budget-B — the inventory below
+# passed and the flow then failed climbing back to the amount field). Ordering
+# the flow so it only ever scrolls DOWN removes the problem instead of papering
+# over it with a coordinate-swipe fallback.
+#
+# `persistEntry` treats 0 cents as "no amount", so the save must abort and the
+# form must still be here afterwards. A form that CLOSED would mean an entry
+# was written, or silently dropped.
+- tapOn:
+    id: 'savings-entry-amount'
+- inputText: '0'
+- assertVisible:
+    id: 'savings-entry-amount'
+    text: '0'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'savings-entry-form-save-header'
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: 'savings-entry-form'
+- assertVisible: 'Add income'
+
+# --- The rest of the control inventory, all of it BELOW the amount field.
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-member-picker'
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+- assertVisible:
+    id: 'savings-entry-member-picker'
+# The source chips sit BELOW the member picker — scroll to them in their own
+# right rather than assuming centring the picker brought them on screen too.
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-source-payroll'
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+- assertVisible:
+    id: 'savings-entry-source-payroll'
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-description'
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+- assertVisible:
+    id: 'savings-entry-description'
+# Spending-only controls stay absent in income mode. `savings-entry-notes` is
+# inside a `{!isIncome && ...}` block — income's free-text field is
+# `savings-entry-description` (asserted above), and the two are NOT the same
+# control, so asserting notes here would be asserting the spending form.
+- assertNotVisible:
+    id: 'savings-entry-notes'
+- assertNotVisible:
+    id: 'savings-entry-category-picker'
+
+# ======================= Cancel writes nothing =======================
+- tapOn:
+    id: 'savings-entry-form-cancel'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 20000
+- assertNotVisible:
+    id: 'savings-entry-form'
+
+# ================== Save & add another (SAVE-050) ==================
+# Rewind to the Add button before tapping it. "Add / Copy / Import (AI)" sits
+# at the TOP of the Income tab, above the entries list, so once the list has
+# been scrolled it is off screen and the tap silently misses — the form never
+# opens and it surfaces later as "savings-entry-form is visible" being false
+# (2026-08-26: screenshot shows the Income tab correctly selected with the
+# entries list scrolled past the button row entirely).
+- scrollUntilVisible:
+    element:
+      id: 'savings-add-income'
+    direction: UP
+    timeout: 15000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-add-income'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-form'
+    timeout: 20000
+- tapOn:
+    id: 'savings-entry-amount'
+- inputText: '88'
+# Assert what the field actually holds, the moment it is typed and while it is
+# still on screen. `inputText` can drop or duplicate characters, and the money
+# figure is what every later assertion in this flow is pegged to — catching a
+# bad value here names the cause instead of surfacing three steps later as a
+# mysterious "row not found".
+- assertVisible:
+    id: 'savings-entry-amount'
+    text: '88'
+- hideKeyboard:
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-source-bonus'
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+- tapOn:
+    id: 'savings-entry-source-bonus'
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-form-save-add-another'
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+- tapOn:
+    id: 'savings-entry-form-save-add-another'
+# The whole point of the control: the entry is written and the form STAYS. It
+# also keeps member + source for the next one, so only the amount is retyped.
+- waitForAnimationToEnd:
+    timeout: 4000
+- assertVisible:
+    id: 'savings-entry-form'
+- assertVisible: 'Add income'
+# Climbing BACK to the amount field is the one upward scroll this flow cannot
+# design away — "Save & add another" lives below it and leaves the form parked
+# at the bottom. Upward `scrollUntilVisible` is unreliable on RN
+# gesture-handler ScrollViews under iOS 26 + Maestro, so fall back to explicit
+# coordinate swipes when it does not move, mirroring the DOWN-direction
+# fallback budget-savings-irregular-income.yaml already carries for this form.
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-amount'
+    direction: UP
+    timeout: 10000
+    centerElement: true
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'savings-entry-amount'
+    commands:
+      - swipe:
+          start: 50%, 28%
+          end: 50%, 78%
+          duration: 800
+      - swipe:
+          start: 50%, 28%
+          end: 50%, 78%
+          duration: 800
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-amount'
+    timeout: 15000
+- tapOn:
+    id: 'savings-entry-amount'
+- eraseText: 16
+- inputText: '99'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'savings-entry-form-save-header'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 25000
+
+# --- Both entries are on the list: the first came from "Save & add another"
+# (which did not close the form), the second from the header Save (which did).
+- scrollUntilVisible:
+    element:
+      id: 'savings-income-source-bonus'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 5
+    centerElement: true
+- assertVisible: '.*\$88.*'
+- assertVisible: '.*\$99.*'
+- assertVisible: '.*Bonus.*'
+
+# --- Cleanup: drain every bonus row this flow created.
+- runFlow:
+    file: ../subflows/budget-savings-drain-income-source.yaml
+    env:
+      E2E_INCOME_SOURCE: bonus
+- scrollUntilVisible:
+    element:
+      id: 'savings-income-source-bonus'
+    direction: DOWN
+    timeout: 10000
+    visibilityPercentage: 5
+    optional: true
+    centerElement: true
+- assertNotVisible:
+    id: 'savings-income-source-bonus'
+- assertNotVisible: '.*\$88.*'
+- assertNotVisible: '.*\$99.*'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

@@ -1,0 +1,4 @@
+#!/bin/bash
+# Quick wrapper for code-only deployment
+cd "$(dirname "$0")"
+./scripts/deploy-code-only.sh "$@"

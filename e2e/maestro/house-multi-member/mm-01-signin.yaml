@@ -1,0 +1,167 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+# Matrix: HOUSE-MM-001 — sign the named member in on this device.
+#
+# Runs on BOTH simulators with different credentials (the orchestrator swaps
+# E2E_EMAIL / E2E_PASSWORD / E2E_LOGIN_URL per device), so each device is a
+# genuinely different household member rather than one account twice.
+#
+# Always signs out first: the local ledger is device-scoped, and a device that
+# is still signed in as the OTHER member would reuse that member's session and
+# quietly turn a two-member test into a one-member one.
+#
+# This is also each device's FIRST Maestro invocation, i.e. where the XCUITest
+# driver cold-starts. The runner deliberately runs it serially for that reason
+# (see the concurrency note in run-house-multi-member-sync.sh) — nothing about
+# sync is asserted here, so serialising costs nothing.
+---
+- launchApp:
+    permissions:
+      all: allow
+      faceid: allow
+- openLink: ${E2E_METRO_DEVCLIENT_URL}
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow: connect-mm-metro.yaml
+- runFlow: mm-dismiss-dev-chrome.yaml
+# Clear any alert a previous RUN left on this device — it survives launchApp
+# (no clearState) and would swallow every tap in this flow.
+- runFlow: mm-dismiss-stale-alerts.yaml
+# A cold Metro serves the first bundle only when a device asks for it, and the
+# dev client shows a black screen with a spinner while that download runs. Give
+# it room before deciding the app is broken.
+- extendedWaitUntil:
+    visible:
+      id: 'home-screen'
+    timeout: 120000
+    optional: true
+- runFlow: mm-dismiss-dev-chrome.yaml
+- openLink: ${E2E_APP_SCHEME}://e2e-logout
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow: mm-dismiss-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'login-screen'
+    timeout: 60000
+    optional: true
+# The real email form. `login-email-if-needed.yaml` is House's proven sign-in
+# subflow: it advances email→password with the email field's own "next" return
+# key, because tapping the password field directly is flaky on iOS 26 and
+# merges the password INTO the email.
+- runFlow: ../subflows/login-email-if-needed.yaml
+- runFlow: mm-dismiss-dev-chrome.yaml
+# GIVE A WIPED DEVICE A HOME BEFORE ANY PHASE ASSERTS ON ONE.
+#
+# House is local-first and the ledger lives on the device, so a simulator that
+# was erased — which is every device the size guard reclaims, and both of this
+# suite's on a fresh provision — signs in fine and then shows "Your homes are
+# not on this phone yet", listing the account's homes as "Waiting for the key to
+# this phone". The member is asked to approve from another phone, restore a
+# backup, or start fresh; a CI device has no second phone and no recovery
+# phrase, so "Start a new, empty home" is its only route.
+#
+# It is NOT enough that mm-01 passed without this: the recovery screen is
+# rendered after the ledger has been read and found empty, which lands AFTER
+# `home-screen` appears. On 2026-09-05 that put it on top of device A during
+# mm-13 — the flow matched `tasks-add-fab` in the tree behind it, tapped, and
+# `add-task-sheet` never opened, which reads as a broken Add Task button.
+#
+# ROLE-DEPENDENT, and getting it wrong is silent. The recovery screen's three
+# buttons are three different outcomes:
+#   owner  → "Start a new, empty home"    mints a household THIS device owns
+#   joiner → "Set up from my other phone" opens Device sync, where mm-03 joins
+# Taking the owner's route on device B would give B its OWN household; B would
+# then never enrol into A's, the two devices would sit in different homes, and
+# every later sync assertion would fail against an app that was working
+# correctly. The runner injects MM_RECOVERY per device.
+- runFlow:
+    when:
+      true: ${MM_RECOVERY == 'start-new'}
+    commands:
+      - runFlow: ../subflows/house-adopt-or-start-home.yaml
+- runFlow:
+    when:
+      true: ${MM_RECOVERY != 'start-new'}
+    commands:
+      - runFlow: mm-recover-via-device-sync.yaml
+- runFlow: ../subflows/house-clear-address-gate.yaml
+- runFlow: mm-dismiss-dev-chrome.yaml
+- repeat:
+    times: 18
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'home-screen'
+          commands:
+            - runFlow: mm-dismiss-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'home-screen'
+                timeout: 5000
+                optional: true
+# ROLE-DEPENDENT, because "signed in" does not look the same for the two devices.
+#
+# The OWNER minted a household, so Home renders and is the right proof.
+#
+# The JOINER has NO home yet — that is the whole point of the phase that follows
+# — and House does not show Home to a device that holds no ledger. It shows
+# "Your homes are not on this phone yet", and mm-recover-via-device-sync has
+# just taken it from there to Device sync, which is where mm-03 needs it. So on
+# B the honest claim is "sign-in succeeded", i.e. the login screen is gone;
+# asserting `home-screen` there asserts an app state the product deliberately
+# does not offer, and fails a device that is exactly where it should be.
+- runFlow:
+    when:
+      true: ${MM_RECOVERY == 'start-new'}
+    commands:
+      - assertVisible:
+          id: 'home-screen'
+- runFlow:
+    when:
+      true: ${MM_RECOVERY != 'start-new'}
+    commands:
+      - assertNotVisible:
+          id: 'login-screen'
+
+# SIGNED IN IS NOT READY. The local ledger is provisioned asynchronously AFTER
+# the session lands, so `home-screen` renders while `isLocalHouseSessionOpen()`
+# is still false — and every flow after this one writes to that ledger.
+#
+# Losing that race does not look like a race. On run 20260905-101332 device A
+# reached Home, mm-13 opened the Add Task sheet, typed a title and tapped Add
+# three times; each tap landed and each one was refused with
+# `[AddTask] quickCreate failed House local-first session is not open` — a Metro
+# warning, with nothing on screen. The suite reported "add-task-sheet is not
+# visible" FAILED, i.e. a stuck sheet, and the same flow had passed on three
+# earlier runs that happened to win the race.
+#
+# `${LF_CREATE_INVITE}` is the cheapest positive proof: `HouseInviteBody` renders
+# it only when `gate.ready`, and `ready` IS `isLocalHouseSessionOpen()`
+# (enrolmentShared.tsx:99-120). Until then the surface shows
+# `lf-invite-gate-notice` instead. Two minutes, because a cold ledger on a loaded
+# machine is slow, not broken.
+#
+# OWNER ONLY. `${LF_CREATE_INVITE}` is proof that a local house SESSION is open,
+# and a joiner has no session to open — it holds no ledger until mm-05 delivers
+# the key. Running this on B asserts the invitee can mint invites, which is not
+# a thing the product offers and not a thing this suite wants; B's readiness is
+# proved by mm-03 reaching the Join panel instead.
+- runFlow:
+    when:
+      true: ${MM_RECOVERY == 'start-new'}
+    commands:
+      - runFlow: mm-open-lf-settings.yaml
+      - scrollUntilVisible:
+          element:
+            id: '${LF_CREATE_INVITE}'
+          direction: DOWN
+          centerElement: true
+          timeout: 120000
+          optional: true
+      - assertVisible:
+          id: '${LF_CREATE_INVITE}'

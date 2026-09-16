@@ -1,0 +1,15 @@
+appId: com.symply.kaizen
+---
+# Career hub (overflow route): stats header + setup card.
+# (Below-the-fold tool rows + scroll contract removed — require reliable scrolling.
+# See today-screen.yaml for the Maestro/iOS-26 scroll-limitation note.)
+- runFlow: subflows/launch-kaizen.yaml
+- openLink: kaizen:///kaizen-career
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-career-screen'
+    timeout: 20000
+- assertVisible: 'Career'
+- assertVisible: 'Skills'
+- assertVisible: 'Questions'
+- assertVisible: 'Opportunities'

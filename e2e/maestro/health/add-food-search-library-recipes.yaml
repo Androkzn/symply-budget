@@ -1,0 +1,420 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:nutrition
+  - mutation
+  - regression
+# Matrix: HEALTH-NUTR-320 … HEALTH-NUTR-327
+---
+# Add Food's Search / Library / Recipes segmented control — the second of
+# three flows closing the 2026-07-27 "Nutrition parity push" Maestro gap (see
+# `add-food-manual-entry.yaml`'s header for the full context).
+#
+# WHOSE DATA THIS FLOW DOES AND DOES NOT TOUCH. Library and Recipes read the
+# shared fleet account's OWN foods/recipes — content this flow does not own,
+# same problem `nutrition-meal-detail-tools.yaml` names for `HealthQuickAdd`'s
+# Favorites/Recent tabs ("the tab is asserted on its own selected state rather
+# than the rows behind it, because the library's contents belong to the
+# account"). This flow follows the same rule for Library and Recipes: tab
+# switching and structural assertions only, no tap on an EXISTING row. The one
+# real MUTATION in this flow — searching for a food and logging it — uses a
+# food THIS FLOW SEEDS ITSELF (`Maestro Search Food`, via the Foods screen's
+# own proven create form, the exact sequence `food-library-manage.yaml`
+# already uses) and deletes again at the end, so nothing here is left in a
+# member's library or diary.
+#
+# WHY SEEDING GOES THROUGH THE FOODS TAB, NOT ADD-FOOD'S OWN "+" HAND-OFF.
+# Library's "+" (`health-add-food-library-new`) and Recipes' "+"
+# (`health-add-food-recipes-new`) both push to `/health-food` / `/health-recipes`
+# — screens inside the `(tabs)` group, reached here from a screen OUTSIDE it
+# (`/health-add-food`), a cross-group push this repo has no prior Maestro
+# precedent for and `- back`'s landing spot from it is unverified without a
+# device run. The seed therefore goes through the PROVEN entry point
+# (`subflows/go-health-food.yaml`, already exercised end to end by
+# `food-library-manage.yaml`) and the two "+" buttons are still proven for
+# real below — just as a lighter LOAD-only hand-off-and-return, so a failure
+# there cannot cascade into losing the seeded fixture the MUTATION leg needs.
+#
+# STALE ADD-FOOD LIBRARY TAB. `HealthAddFoodScreen`'s own `library` state loads
+# once on mount (`useEffect(..., [])`) and is never refetched on focus, so a
+# food created via the Library "+" hand-off would NOT appear on the Library
+# tab of the SAME already-mounted Add-Food instance without a remount — which
+# is the other reason the fixture is searched for, not browsed for: `SEARCH`
+# calls `searchFoods()` fresh on every keystroke, straight against
+# `/foods/search`, with no such staleness.
+#
+# GATED / SKIPS-GRACEFULLY: same contract as nutrition-log-meal.yaml.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-NUTR-320
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Seed the fixture the Search leg needs, via the proven route -----
+      - runFlow: subflows/go-health-food.yaml
+      # 'SEARCH', NOT 'MY FOODS'. Same fix as food-library-portion-and-
+      # suggestions.yaml / recipes-*.yaml: the Add Food redesign grew what
+      # renders ABOVE the food list on this screen (SEARCH / USUALLY AT
+      # <time> / LOG TO / ADD FOOD form, HealthFoodLibraryScreen.tsx), so a
+      # landing check with no scroll can no longer reliably reach "MY FOODS"
+      # — 'SEARCH' is the section label the same landing check can still make
+      # with NO scroll, unconditional once the screen loads.
+      - extendedWaitUntil:
+          visible: 'SEARCH'
+          timeout: 15000
+      - tapOn:
+          id: 'health-food-name-input'
+      - inputText: 'Maestro Search Food'
+      # DISMISS HERE, BEFORE THE NUMERIC FIELD — NOT ONLY AFTER IT. Live
+      # failure 2026-08-02: this step used to jump straight from this
+      # alphanumeric field to `health-food-calories-input` with the QWERTY
+      # keyboard still up, and the report's own screenshot proved what
+      # happened — the calories tap never actually moved focus (the
+      # decimal pad never appeared; the QWERTY keyboard and its QuickType
+      # suggestion bar were still on screen), so the following `inputText:
+      # '140'` landed back in the STILL-focused name field, and the
+      # QuickType bar's own suggestion chip got swallowed into it too:
+      # "Maestro Search Food" became "Maestro Search Foodz140" (kcal left
+      # at its default `0`) instead of naming the food "Maestro Search
+      # Food" with 140 kcal, so nothing by that name was ever created and
+      # the later `assertVisible: 'Maestro Search Food'` had 12 swipes of
+      # nothing to find. This is the same class of bug this repo's
+      # `maestro-missing-hidekeyboard-wrong-field` note already names:
+      # tapping straight into a second field without letting the keyboard
+      # settle can type into the still-focused first one.
+      # `food-library-manage.yaml`'s own proven create sequence never makes
+      # this exact QWERTY→decimal-pad jump in one step either — it detours
+      # through `health-food-brand-input` and dismisses BEFORE the unit
+      # toggle, so by the time it reaches `health-food-calories-input` the
+      # keyboard has already fully closed and reopened once. Same fix here:
+      # dismiss and let the keyboard settle before tapping the calories
+      # field, so that tap opens a FRESH decimal pad rather than landing on
+      # stale QWERTY chrome.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - tapOn:
+          id: 'health-food-calories-input'
+      - inputText: '140'
+      # NOT `hideKeyboard` — the field above is numeric and that command
+      # HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `handleSave` (no `editingId` yet) calls `createFood`
+      # (healthFoodStorage.ts) → `healthFoodApi.createCustomFood` →
+      # POST /health/custom-foods, 201 (backend/src/routes/health-food.ts).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-save-button'
+      # RAW SWIPES, NOT `scrollUntilVisible`. Reproduced live 2026-08-02: this
+      # is a MUCH longer hop than it used to be — the Add Food redesign added
+      # SEARCH's own All/Favourites/Most-used filter row plus a full ADD FOOD
+      # create-form and FOOD DATABASE card above "MY FOODS"
+      # (HealthFoodLibraryScreen.tsx) — and the reported failure ("No visible
+      # element found: Maestro Search Food") is exactly the "ran its full
+      # timeout and moved zero pixels" failure mode `health-swipe-section-
+      # to.yaml`'s own header documents for `scrollUntilVisible` on long hops
+      # on this build. Same fix: repeat a raw swipe and stop as soon as the
+      # target is on screen. Inlined rather than that subflow because the
+      # target here is TEXT, not a testID (that subflow hardcodes `id:
+      # ${TARGET_ID}`).
+      - repeat:
+          times: 12
+          commands:
+            - runFlow:
+                when:
+                  notVisible: 'Maestro Search Food'
+                commands:
+                  - swipe:
+                      start: '50%,72%'
+                      end: '50%,32%'
+                      duration: 400
+                  - waitForAnimationToEnd:
+                      timeout: 700
+      - assertVisible: 'Maestro Search Food'
+      - assertVisible: '100 g · 140 kcal · 0P / 0C / 0F'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /custom-foods
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Enter Add Food from the Lunch group's "+" -----------------------
+      - runFlow:
+          file: subflows/go-health-add-food.yaml
+          env:
+            ADD_FOOD_SLOT: lunch
+      - assertVisible:
+          id: 'health-add-food-slot-lunch'
+          selected: true
+
+      # --- The tab picker cycles Search → Library → Recipes → Search, each
+      #     reporting `selected` (HEALTH-NUTR-320) --------------------------
+      - assertVisible:
+          id: 'health-add-food-tab-search'
+          selected: true
+      - tapOn:
+          id: 'health-add-food-tab-library'
+      - assertVisible:
+          id: 'health-add-food-tab-library'
+          selected: true
+      - assertVisible:
+          id: 'health-add-food-tab-search'
+          selected: false
+      - tapOn:
+          id: 'health-add-food-tab-recipes'
+      - assertVisible:
+          id: 'health-add-food-tab-recipes'
+          selected: true
+      - assertVisible:
+          id: 'health-add-food-tab-library'
+          selected: false
+      - tapOn:
+          id: 'health-add-food-tab-search'
+      - assertVisible:
+          id: 'health-add-food-tab-search'
+          selected: true
+      - assertVisible:
+          id: 'health-add-food-tab-recipes'
+          selected: false
+
+      # --- Search's idle state (HEALTH-NUTR-321) ---------------------------
+      - assertVisible: 'Search your own foods and the food database.'
+      - assertNotVisible:
+          id: 'health-add-food-search-clear'
+
+      # --- A guaranteed-miss query is an honest empty, not silence ---------
+      #     (HEALTH-NUTR-322) -------------------------------------------
+      - tapOn:
+          id: 'health-add-food-search-input'
+      - inputText: 'zzqqxxnonexistentfoodzzqqxx'
+      - assertVisible:
+          id: 'health-add-food-search-clear'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-add-food-search-empty'
+          timeout: 20000
+      - assertVisible: 'Nothing matches that.'
+
+      # --- Clearing returns the idle hint (HEALTH-NUTR-323) ----------------
+      - tapOn:
+          id: 'health-add-food-search-clear'
+      - assertNotVisible:
+          id: 'health-add-food-search-clear'
+      - assertVisible: 'Search your own foods and the food database.'
+
+      # --- A hit is found and logged straight to the diary (NUTR-324, -----
+      #     MUTATION) -------------------------------------------------------
+      - tapOn:
+          id: 'health-add-food-search-input'
+      - inputText: 'Maestro Search Food'
+      - extendedWaitUntil:
+          visible: 'Maestro Search Food'
+          timeout: 20000
+      # `handleLogLibraryFood` (HealthAddFoodScreen.tsx) calls `logFoodToDiary`
+      # (healthFoodStorage.ts) → `healthFoodApi.useCustomFood` →
+      # POST /health/custom-foods/:id/use, 200 (backend/src/routes/health-food.ts).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-add-food-search-food-.*-log'
+          text: 'Add Maestro Search Food to Lunch'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-add-food-message'
+          timeout: 15000
+      - assertVisible: 'Added .*Lunch.*'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /custom-foods/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - tapOn:
+          id: 'health-add-food-search-clear'
+
+      # --- Library tab's header and its "+" hand-off (HEALTH-NUTR-325) ----
+      - tapOn:
+          id: 'health-add-food-tab-library'
+      - assertVisible: 'YOUR FOOD LIBRARY'
+      - assertVisible: 'Sorted by most used'
+      - assertVisible:
+          id: 'health-add-food-library-new'
+      - tapOn:
+          id: 'health-add-food-library-new'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-food-screen'
+          timeout: 20000
+      - back
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-add-food-screen'
+          commands:
+            - runFlow:
+                file: subflows/go-health-add-food.yaml
+                env:
+                  ADD_FOOD_SLOT: lunch
+            - tapOn:
+                id: 'health-add-food-tab-library'
+
+      # --- Recipes tab is in exactly one of two states, and its own "+" ---
+      #     hand-off (HEALTH-NUTR-326). A re-run inherits whatever the
+      #     account already holds, so neither branch is a precondition and
+      #     both assert. When a recipe is present the row is expanded and
+      #     collapsed again — `scaleRecipe` is a read, not a write, so this
+      #     costs nothing to leave as found. -------------------------------
+      - tapOn:
+          id: 'health-add-food-tab-recipes'
+      - assertVisible:
+          id: 'health-add-food-recipe-count'
+      - runFlow:
+          when:
+            visible:
+              id: 'health-add-food-recipes-empty'
+          commands:
+            - assertVisible: 'No recipes yet. Build one from the foods you already track.'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-add-food-recipes-empty'
+          commands:
+            - assertVisible:
+                id: 'health-add-food-recipe-.*-toggle'
+            - tapOn:
+                id: 'health-add-food-recipe-.*-toggle'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-add-food-recipe-.*-plus'
+                timeout: 15000
+            - tapOn:
+                id: 'health-add-food-recipe-.*-plus'
+            - tapOn:
+                id: 'health-add-food-recipe-.*-minus'
+            # Collapse again — this flow only READS the account's own recipe.
+            - tapOn:
+                id: 'health-add-food-recipe-.*-toggle'
+      - assertVisible:
+          id: 'health-add-food-recipes-new'
+      - tapOn:
+          id: 'health-add-food-recipes-new'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-recipes-screen'
+          timeout: 20000
+      - back
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-add-food-screen'
+          commands:
+            - runFlow:
+                file: subflows/go-health-add-food.yaml
+                env:
+                  ADD_FOOD_SLOT: lunch
+
+      # --- Teardown: the diary row AND the seeded library food (NUTR-327) -
+      - back
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-screen'
+          timeout: 20000
+      - runFlow: subflows/health-refresh-nutrition-today.yaml
+      - runFlow: subflows/health-clear-maestro-meals.yaml
+      - assertNotVisible: 'Maestro Search Food'
+      - runFlow: subflows/go-health-food.yaml
+      # Raw swipes, not `scrollUntilVisible` — same long-hop fix as the mint
+      # step above, same reason.
+      - repeat:
+          times: 12
+          commands:
+            - runFlow:
+                when:
+                  notVisible: 'Delete Maestro Search Food'
+                commands:
+                  - swipe:
+                      start: '50%,72%'
+                      end: '50%,32%'
+                      duration: 400
+                  - waitForAnimationToEnd:
+                      timeout: 700
+      - tapOn:
+          id: 'health-food-delete-.*'
+          text: 'Delete Maestro Search Food'
+      - extendedWaitUntil:
+          visible: 'Delete food'
+          timeout: 15000
+      - assertVisible: 'Remove "Maestro Search Food" from your library?'
+      # `handleDelete`'s confirm calls `deleteFood` (healthFoodStorage.ts) →
+      # `healthFoodApi.deleteCustomFood` → DELETE /health/custom-foods/:id,
+      # 200 (backend/src/routes/health-food.ts).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          text: 'Delete'
+      - extendedWaitUntil:
+          notVisible: 'Maestro Search Food'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /custom-foods/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Back to the Health tab ------------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

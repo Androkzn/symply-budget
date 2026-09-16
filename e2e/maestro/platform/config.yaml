@@ -1,0 +1,22 @@
+# Maestro workspace config — shared platform shell (com.symply.house).
+excludeTags:
+  - util
+flows:
+  - '*.yaml'
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - household-members
+    - property-detail
+    - notification-settings-load
+    - auth-accept-invite
+    - subscription-pro-tier
+    - ai-access-profile-entry
+    - ai-access-scroll
+    - ai-access-consent
+    - ai-providers-controls
+    - ai-access-connect-cta
+    - ai-access-connect-guide
+    - ai-access-test-connection
+    - notifications-push-banner
+    - profile-avatar-upload

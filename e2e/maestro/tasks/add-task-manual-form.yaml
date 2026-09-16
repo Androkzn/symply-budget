@@ -1,0 +1,90 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:tasks
+  - mutation
+  - regression
+  - smoke
+# Matrix: HOUSE-tasks (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-TASK-011
+- runFlow: ../subflows/open-add-task-from-tasks.yaml
+- assertVisible:
+    id: 'add-task-input'
+- assertVisible:
+    id: 'add-task-personal-toggle'
+- tapOn:
+    id: 'add-task-personal-toggle'
+- tapOn:
+    id: 'add-task-manual-toggle'
+- waitForAnimationToEnd:
+    timeout: 3000
+- scrollUntilVisible:
+    element:
+      id: 'add-task-create-manual'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'add-task-create-manual'
+    timeout: 15000
+- assertVisible:
+    id: 'add-task-copy-existing'
+- assertVisible:
+    id: 'add-task-templates'
+- runFlow:
+    when:
+      visible:
+        id: 'bottom-sheet-close'
+    commands:
+      - tapOn:
+          id: 'bottom-sheet-close'
+- runFlow:
+    when:
+      visible:
+        id: 'add-task-sheet'
+    commands:
+      - swipe:
+          direction: DOWN
+          duration: 400
+      - tapOn:
+          id: 'bottom-sheet-overlay'
+          optional: true
+- extendedWaitUntil:
+    notVisible:
+      id: 'add-task-sheet'
+    timeout: 15000
+- assertVisible:
+    id: 'tasks-screen'
+
+# Local-first contract. `tasksApi` is wrapped by `createHouseLocalProxy`
+# (src/api/tasks.ts:759, no `remoteMethods`, `strict` default), so a task create
+# resolves to `localTasksApi.create` and POST /households/:id/tasks must never
+# be issued. This previously ran e2e-matrix-after with E2E_VERIFY_PATH set,
+# which asserts the POST DID reach the Worker — the exact fallthrough the
+# cutover has to prevent.
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /tasks
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 5000
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

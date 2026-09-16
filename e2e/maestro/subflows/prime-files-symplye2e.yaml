@@ -1,0 +1,60 @@
+appId: com.apple.DocumentsApp
+tags:
+  - util
+  - app:kaizen
+---
+# Prime the File Provider index + Recents so seeded docs appear in
+# UIDocumentPickerViewController during upload flows.
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: 'Browse'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Browse'
+    commands:
+      - tapOn: 'Browse'
+      - waitForAnimationToEnd:
+          timeout: 1500
+- runFlow:
+    when:
+      visible: 'On My (iPhone|iPad)'
+    commands:
+      - tapOn: 'On My (iPhone|iPad)'
+      - waitForAnimationToEnd:
+          timeout: 2000
+- runFlow:
+    when:
+      visible: 'Search'
+    commands:
+      - tapOn: 'Search'
+      - inputText: 'book.pdf'
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - tapOn:
+          text: 'book[.]pdf'
+          optional: true
+      - tapOn:
+          text: 'book.pdf'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+- runFlow:
+    when:
+      visible: 'Search'
+    commands:
+      - tapOn: 'Search'
+      - inputText: 'resume.pdf'
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - tapOn:
+          text: 'resume[.]pdf'
+          optional: true
+      - tapOn:
+          text: 'resume.pdf'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+- stopApp

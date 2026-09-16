@@ -1,0 +1,10 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- openLink: simplehouse://contractors?screen=Messages
+- extendedWaitUntil:
+    visible:
+      id: 'messages-screen'
+    timeout: 30000

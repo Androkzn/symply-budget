@@ -1,0 +1,82 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:multi-member
+  - feature:multi-property
+  - mutation
+# Precondition for HOUSE-MM-030 (H5): device A must hold a SECOND property.
+#
+# `PropertySwitcher` returns null when the account holds one property
+# (src/components/common/PropertySwitcher.tsx:41), so with a single property
+# there is no switcher to drive and the H5 phase cannot run at all.
+#
+# The second property is created with a STABLE name (no run timestamp) so it is
+# made once and reused by every later run — a timestamped name would leave a new
+# property behind on the shared test account on every execution. mm-11 cleanup
+# deliberately does NOT delete it: removing a property is destructive and the
+# suite has no business doing that on teardown.
+#
+# NO testIDs EXIST FOR THIS SHEET. HouseholdManagementScreen's Add/Edit Property
+# sheet carries none, so this drives it by the strings it actually renders:
+# the sheet title "Add Property" (:342), the name field's placeholder
+# "e.g., Main Home, Beach House" (:393) and the confirm "Add" (:349). That is
+# discovered text, not an invented selector — but it is more brittle than an id,
+# and giving that sheet testIDs is the single cheapest hardening available here.
+#
+# env: MM_PROPERTY_B — the name to create
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: ../subflows/open-profile.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-household-members'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'settings-row-household-members'
+- extendedWaitUntil:
+    visible:
+      id: 'household-management-screen'
+    timeout: 20000
+- assertVisible: 'My Properties'
+- runFlow:
+    when:
+      notVisible: '.*${MM_PROPERTY_B}.*'
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'household-add-property'
+          direction: DOWN
+          centerElement: true
+          timeout: 15000
+          optional: true
+      - tapOn:
+          id: 'household-add-property'
+      - extendedWaitUntil:
+          visible: 'Add Property'
+          timeout: 15000
+      - tapOn:
+          text: 'e.g., Main Home, Beach House'
+      - inputText: ${MM_PROPERTY_B}
+      - pressKey: Enter
+      - waitForAnimationToEnd:
+          timeout: 1500
+      # "Add" is the sheet's confirm; anchored so it cannot match "Add Property"
+      # (the title) or any other Add-something control on the screen behind.
+      - tapOn:
+          text: '^Add$'
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - runFlow: mm-dismiss-dev-chrome.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_PROPERTY_B}.*'
+    timeout: 30000
+- assertVisible: '.*${MM_PROPERTY_B}.*'
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000

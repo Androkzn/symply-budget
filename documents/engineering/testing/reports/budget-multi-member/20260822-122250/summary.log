@@ -1,0 +1,6 @@
+[mm] live report: /Users/andreitekhtelev/Desktop/Symply Ecosystem/Simply Ecosystem-budget/documents/engineering/testing/reports/budget-multi-member/20260822-122250/index.html (opens shortly, self-refreshes)
+[mm] === phase 1: enrolment (ordered) ===
+    PASS [A] mm-01-signin
+    FAIL [B] mm-01-signin
+[mm] FAIL FAST — stopping the run at 'mm-01-signin'
+[mm] stopping after first failure — skipping cleanup (fail fast)

@@ -1,0 +1,102 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- runFlow:
+    file: dismiss-stuck-sheet.yaml
+# Tasks tab is hidden by default in tab customization — deep link is the reliable path.
+- runFlow:
+    when:
+      visible:
+        id: 'tab-tasks'
+    commands:
+      - tapOn:
+          id: 'tab-tasks'
+          retryTapIfNoChange: true
+# POP A PUSHED SCREEN FIRST — a deep link does not dismiss one.
+#
+# `openLink` swaps the tab route underneath, but anything pushed on top stays
+# put, so the app never visibly moves and `tasks-screen` never appears. Seen in
+# `schedule-and-copy`: it was sitting on the copy-from-existing screen
+# (`nav-back-button` + `search-bar-input` in the hierarchy, no `tasks-screen`),
+# the deep link reported COMPLETED, and the wait then failed for 30s against a
+# screen that had never been left.
+#
+# Guarded on `tasks-screen` being absent, so this is a no-op once we are there,
+# and each tap is optional — a stack only two deep costs two cheap checks.
+- runFlow:
+    when:
+      notVisible:
+        id: 'tasks-screen'
+    commands:
+      # Keyed on the DESTINATION, not on `nav-back-button`. Guarding on the back
+      # button loses iterations whenever it is transiently absent mid-animation:
+      # on 2026-09-01 iterations 2 and 3 were both SKIPPED that way, the loop
+      # gave up early, and `schedule-and-copy` then failed on `tasks-screen is
+      # visible` while parked on `task-templates-screen` left by the flow before
+      # it. 5 rather than 3, for the same reason.
+      - repeat:
+          times: 5
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'tasks-screen'
+                commands:
+                  - tapOn:
+                      id: 'nav-back-button'
+                      optional: true
+                  - runFlow:
+                      when:
+                        visible: 'Discard'
+                      commands:
+                        - tapOn: 'Discard'
+                  - waitForAnimationToEnd:
+                      timeout: 1500
+
+- runFlow:
+    when:
+      notVisible:
+        id: 'tasks-screen'
+    commands:
+      - openLink: simplehouse://tasks
+      - waitForAnimationToEnd:
+          timeout: 4000
+# POP AGAIN AFTER THE DEEP LINK.
+#
+# The link swaps the tab route UNDERNEATH anything pushed (see the note above),
+# so a screen the first loop failed to clear is still on top afterwards — and
+# the tab swap can itself re-reveal one. Observed 2026-09-02: `schedule-and-copy`
+# began already parked on Copy Task (residue from its own previous run, which
+# had failed before reaching its cleanup), the first loop did not clear it, the
+# link reported COMPLETED, and the wait below then burned 30s against a screen
+# that had never been left — the exact failure the comment above describes,
+# recurring because the pop only ran on one side of the link.
+- runFlow:
+    when:
+      notVisible:
+        id: 'tasks-screen'
+    commands:
+      - repeat:
+          times: 5
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'tasks-screen'
+                commands:
+                  - tapOn:
+                      id: 'nav-back-button'
+                      optional: true
+                  - runFlow:
+                      when:
+                        visible: 'Discard'
+                      commands:
+                        - tapOn: 'Discard'
+                  - waitForAnimationToEnd:
+                      timeout: 1500
+- extendedWaitUntil:
+    visible:
+      id: 'tasks-screen'
+    timeout: 30000

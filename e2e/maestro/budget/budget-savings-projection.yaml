@@ -1,0 +1,140 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - readonly
+  - regression
+# Matrix: BUDGET-SAVE-123 — Savings → Projection sub-tab loads, its net-savings
+# trend chart renders one x-axis label per month, and the year stepper works.
+#
+# The Projection sub-tab had NO Maestro coverage at all: budget-savings-overview
+# walks Overview / Income / Monthly / Goals and stops there.
+#
+# What this flow can and cannot prove. Maestro reads the accessibility tree, so
+# it can assert a label exists for every month and that the chart is on screen —
+# it CANNOT measure x-positions and cannot see native text truncation (a label
+# clipped to "J…" still reports its full "Jan" to the tree). The two geometry
+# bugs this chart had — the label row missing gifted-charts' y-axis gutter, and
+# label boxes too narrow for a 12-month year — are guarded by unit tests in
+# src/components/ui/__tests__/AppBarChart.test.tsx. The screenshot below is what
+# carries the visual check into the run report.
+#
+# Non-mutating: switches sub-tabs, steps the year, scrolls. No writes.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-SAVE-123
+- runFlow: ../subflows/go-budget-savings.yaml
+
+- assertVisible:
+    id: 'filter-tab-projection'
+- tapOn:
+    id: 'filter-tab-projection'
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-projection-loading'
+    timeout: 45000
+    optional: true
+# Either data state is legitimate on the shared account: a year with entries
+# renders the projection, an untouched one renders the empty card.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-projection'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-projection-empty'
+    timeout: 15000
+    optional: true
+- assertVisible:
+    id: 'savings-view'
+# Projection is YEAR-scoped, so the header shows a bare year ("2026") rather
+# than "August 2026" — see YEAR_SCOPED_TABS in SavingsView.
+- assertVisible:
+    id: 'savings-period-label'
+
+# --- Hero, above the fold whenever the year has data ---
+- runFlow:
+    when:
+      visible:
+        id: 'savings-projection'
+    commands:
+      - assertVisible:
+          id: 'savings-projection-year-end'
+
+# --- Chart + month labels ---
+# The chart card sits BELOW the hero and the insight cards, so it has to be
+# scrolled to; it renders only when the year has bar data (`barData.length > 0`),
+# hence the optional scroll + conditional leg rather than a hard assert.
+- scrollUntilVisible:
+    element:
+      id: 'savings-projection-chart'
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'savings-projection-chart'
+    commands:
+      # The x-axis label row is at the BOTTOM of a tall card — scroll until the
+      # LAST month is on screen. Not a tautology: this fails the flow if the
+      # chart never renders a "Dec" label at all.
+      - scrollUntilVisible:
+          element:
+            text: 'Dec'
+          direction: DOWN
+          timeout: 15000
+      # One label per month, all in the same row. Maestro text matchers are
+      # full-string regexes, so 'Jan' hits the chart's label and never the
+      # "January" row of the Monthly-goals card below it.
+      - assertVisible: 'Jan'
+      - assertVisible: 'Jun'
+      - assertVisible: 'Dec'
+      # Visual review artifact: label row centred under its bars, month names
+      # unclipped. Neither is assertable from the accessibility tree.
+      - takeScreenshot: budget-savings-projection-chart
+
+# --- Year stepper (the month stepper steps YEARS on this tab) ---
+- tapOn:
+    id: 'savings-month-prev'
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: 'savings-period-label'
+- tapOn:
+    id: 'savings-month-next'
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: 'savings-view'
+
+# --- Scrollability: the tab reaches its bottom sentinel ---
+- scrollUntilVisible:
+    element:
+      id: 'budget-dashboard-scroll-end'
+    direction: DOWN
+    timeout: 20000
+    optional: true
+
+# Leave the section on its default sub-tab for whatever runs next.
+- scrollUntilVisible:
+    element:
+      id: 'filter-tab-overview'
+    direction: UP
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'filter-tab-overview'
+- assertVisible:
+    id: 'savings-view'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

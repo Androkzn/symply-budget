@@ -1,0 +1,199 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: HOUSE-LF-021 — Automatic backup (enable → run → disable)
+#
+# Auto-backup is foreground-driven: Argon2id sealing cannot finish inside an iOS
+# background window, so the scheduler runs a catch-up check when the app becomes
+# usable. That is what makes the whole feature drivable from Maestro — every
+# surface here is in-app UI, no OS sheet.
+#
+# Enabling uses the stored destination (default "This device"), so no picker
+# appears on the toggle. Drive/Dropbox stay assertion-only: both need an OAuth
+# consent screen Maestro cannot complete, and Dropbox is hidden entirely until a
+# brand ships an app key.
+#
+# ISOLATION: turns the schedule back OFF at the end. Leaving it armed would make
+# every later House flow pay for a surprise Argon2 seal on its first foreground.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-021
+- runFlow: lf-backup-open-backup-screen.yaml
+
+# The picker answers "which home" before anything below it means anything, and
+# the status card answers "am I safe" before any control is reachable.
+- assertVisible:
+    id: 'house-backup-property-picker'
+- assertVisible:
+    id: 'house-backup-status-card'
+- assertVisible:
+    id: 'house-backup-status-title'
+
+# --- Enable via the switch (direct manipulation, no modal chain) ---------------
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-auto-toggle'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+# `retryTapIfNoChange` is load-bearing here, not defensive padding.
+#
+# The switch is `disabled={isBusy || isRestoring || selectedId == null}`
+# (HouseBackupScreen.tsx), and a DISABLED React Native `Switch` swallows a tap
+# silently — no handler, no error, no state change. The screen is still busy for
+# a moment after it opens (it loads settings and the archive list), so a tap that
+# lands in that window does nothing and the run then fails on the phrase-sheet
+# assertion below, which reads as "the sheet is broken" and is really "the tap
+# never happened".
+#
+# Reproduced by hand 2026-08-26: tapping immediately after the scroll left the
+# toggle OFF with an empty log; tapping the same element once the screen had
+# settled enabled it and opened the sheet.
+- tapOn:
+    id: 'house-backup-auto-toggle'
+    retryTapIfNoChange: true
+# The one phrase this home's scheduled archives are sealed under is revealed
+# exactly once, at enable time — in its own sheet, word by word, with copying
+# left to the member rather than done for them.
+- extendedWaitUntil:
+    visible:
+      id: 'house-recovery-phrase-sheet'
+    timeout: 60000
+- assertVisible:
+    id: 'house-recovery-phrase-word-1'
+- assertVisible:
+    id: 'house-recovery-phrase-word-12'
+# The three places the phrase can go, the same three the backup itself offers.
+# Drive is the one that matters here: it is the only destination that survives
+# losing the phone, and House offered nothing but the share sheet until the app
+# was given its own destinations.
+- assertVisible:
+    id: 'house-recovery-phrase-save-drive'
+- assertVisible:
+    id: 'house-recovery-phrase-save-device'
+- assertVisible:
+    id: 'house-recovery-phrase-share'
+- tapOn:
+    id: 'house-recovery-phrase-done'
+- extendedWaitUntil:
+    notVisible:
+      id: 'house-recovery-phrase-sheet'
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 2000
+
+# Turning it on reveals the schedule rows — proves the toggle actually stuck.
+- extendedWaitUntil:
+    visible:
+      id: 'house-backup-frequency-row'
+    timeout: 10000
+- assertVisible:
+    id: 'house-backup-auto-destination-row'
+- assertVisible:
+    id: 'house-backup-show-phrase'
+
+# The stored phrase is readable again from the row — the same sheet, not an
+# alert. This is the row that makes "keep your own copy" honest rather than a
+# scolding: the device remembers it, and says so.
+- tapOn:
+    id: 'house-backup-show-phrase'
+- extendedWaitUntil:
+    visible:
+      id: 'house-recovery-phrase-words'
+    timeout: 15000
+- assertVisible:
+    id: 'house-recovery-phrase-word-12'
+- tapOn:
+    id: 'house-recovery-phrase-done'
+- extendedWaitUntil:
+    notVisible:
+      id: 'house-recovery-phrase-sheet'
+    timeout: 10000
+
+# --- Cadence is a picker, reachable in one tap from the row -------------------
+- tapOn:
+    id: 'house-backup-frequency-row'
+- extendedWaitUntil:
+    visible:
+      id: 'house-backup-frequency-sheet'
+    timeout: 10000
+- assertVisible:
+    id: 'house-backup-frequency-daily'
+- assertVisible:
+    id: 'house-backup-frequency-monthly'
+- tapOn:
+    id: 'house-backup-frequency-weekly'
+- waitForAnimationToEnd:
+    timeout: 2000
+
+# --- Destination picker offers only unattended targets ------------------------
+# `files` and `share` are absent by design: both open OS UI nobody would be
+# there to answer on a schedule.
+- tapOn:
+    id: 'house-backup-auto-destination-row'
+- extendedWaitUntil:
+    visible:
+      id: 'house-backup-auto-destination-sheet'
+    timeout: 10000
+- assertVisible:
+    id: 'house-backup-auto-dest-drive'
+- assertVisible:
+    id: 'house-backup-auto-dest-device'
+- assertNotVisible:
+    id: 'house-backup-to-share'
+- tapOn:
+    id: 'house-backup-auto-dest-device'
+- waitForAnimationToEnd:
+    timeout: 2000
+
+# --- Run it now (real Argon2 seal, no OS UI) ----------------------------------
+- tapOn:
+    id: 'house-backup-run-now'
+- extendedWaitUntil:
+    visible: 'Saved on this device[\s\S]*'
+    timeout: 180000
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# The archive lands in the inline list — restore is now one tap, not two sheets.
+- scrollUntilVisible:
+    element:
+      text: 'YOUR BACKUPS'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- assertNotVisible:
+    id: 'house-backup-empty'
+
+# --- Turn it back off so the run leaves no schedule behind --------------------
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-auto-toggle'
+    direction: UP
+    centerElement: true
+    timeout: 15000
+# Same disabled-switch race as the enable tap above — the screen is busy again
+# right after the backup this flow just triggered, so the turn-off tap can be
+# swallowed too, leaving a schedule behind on the shared test account.
+- tapOn:
+    id: 'house-backup-auto-toggle'
+    retryTapIfNoChange: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- extendedWaitUntil:
+    notVisible:
+      id: 'house-backup-frequency-row'
+    timeout: 10000
+- assertVisible:
+    id: 'house-backup-status-card'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

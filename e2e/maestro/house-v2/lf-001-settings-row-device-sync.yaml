@@ -1,0 +1,85 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-001
+---
+# NOTE ON THE SUBTITLE ASSERTION — WHOLE-ELEMENT TEXT
+# ---------------------------------------------------
+# `SettingItem` composes the icon, title, subtitle and chevron into ONE
+# accessibility string:
+#   "sync-outline, Device sync, Share this home, approve devices, and see what
+#    synced, chevron-forward"
+# Maestro matches a regex against an element's WHOLE text, so the bare subtitle
+# never matches. Wrapped in `.*` deliberately — the same trap that made
+# `mm-04-owner-approve` assert a bare "Device approved" against a full sentence.
+# WHAT THIS PROVES
+# ----------------
+# The Settings tab renders `settings-row-device-sync` inside the ACCOUNT
+# section. That row is the only way a member who does not know a deep link
+# exists can reach the local-first enrolment surface at all.
+#
+# WHY THAT MATTERS
+# ----------------
+# The whole House V2 local-first engine shipped in H4/H6/H9 and was green the
+# entire time — and completely unreachable, because no screen linked to it. A
+# member could not invite a partner, could not approve a device, could not find
+# out why an edit of theirs had been replaced. The engine being correct is not
+# the same as the feature existing; this row is the difference, and it is one
+# `isHouseBrand() && isHouseLocalFirst()` guard away from disappearing again
+# without a single unit test noticing (`isHouseLocalFirst()` is false under Jest
+# by design — flag.ts:29 — so no Jest SettingsScreen suite can see these rows).
+#
+# TEXT IS PART OF THE CONTRACT HERE, deliberately. The section header is
+# asserted as text because there is no testID on it and because the matrix row's
+# Expected column names it: the row must sit under ACCOUNT, next to Household &
+# Members, not be stranded in an unrelated section where nobody looks for it.
+# The three local-first rows had their own THIS HOME'S DEVICES header until
+# 2026-09-01; that header no longer exists, so asserting it is now a failure.
+#
+# ISOLATION: needs only a signed-in House device. Does not touch the enrolment
+# surface, so it neither inherits nor leaves screen state; the closing
+# go-home-tab parks the app where every sibling flow expects to start.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-001
+- runFlow: ../subflows/open-profile.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'profile-screen'
+    timeout: 30000
+
+# ACCOUNT is asserted BEFORE the scroll, at the top of the unscrolled list where
+# the header is guaranteed on screen — after `centerElement` has pulled the row
+# into the middle, whether the header is still rendered depends on the device's
+# height and on how many optional rows this brand/build put above it.
+- assertVisible: 'ACCOUNT'
+
+# Not optional: a row that cannot be scrolled to is a row a member cannot reach,
+# which is the exact defect this flow exists to catch.
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-device-sync'
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- assertVisible:
+    id: 'settings-row-device-sync'
+- assertVisible: '.*Share this home.*'
+# The neighbour that pins the row to the ACCOUNT group rather than to whatever
+# section happens to follow it: Invite & home renders immediately above.
+- assertVisible:
+    id: 'settings-row-house-invite'
+
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

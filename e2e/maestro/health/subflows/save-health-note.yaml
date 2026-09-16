@@ -1,0 +1,23 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Blur the daily note field so onBlur persists to MMKV.
+- scrollUntilVisible:
+    element:
+      text: 'PRIVACY'
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 10
+    optional: true
+- tapOn:
+    text: 'PRIVACY'
+    optional: true
+- tapOn:
+    id: 'health-note-keyboard-done'
+    optional: true
+- hideKeyboard:
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1000

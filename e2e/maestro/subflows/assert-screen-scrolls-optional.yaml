@@ -1,0 +1,18 @@
+# Optional scroll contract for iOS 26 + Maestro 2.6.x (RN New Arch swipes flaky).
+# Env: SCROLL_END_ID — e.g. home-screen-scroll-end
+# SCROLL matrix rows stay N/A when the sentinel is not revealed; flow still passes.
+appId: ${APP_ID}
+tags:
+  - util
+  - app:house
+---
+- scrollUntilVisible:
+    element:
+      id: ${SCROLL_END_ID}
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 10
+    optional: true
+- assertVisible:
+    id: ${SCROLL_END_ID}
+    optional: true

@@ -1,0 +1,19 @@
+appId: com.symply.kaizen
+---
+# Book reader — deep-linked without a chapterId shows the unavailable state.
+# (With a real chapter, the WebView reader + highlight/quiz actions render.)
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/book-reader
+- extendedWaitUntil:
+    visible: 'Reader'
+    timeout: 20000
+- assertVisible: 'This chapter is no longer available.'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

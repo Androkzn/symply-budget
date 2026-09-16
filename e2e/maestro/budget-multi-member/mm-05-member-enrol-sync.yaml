@@ -1,0 +1,55 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+# Matrix: BUDGET-MM-005 — invitee picks up the household key and leaves the
+# paused state (TRD §8.3 bootstrap).
+#
+# The wrapped HDK lands in this device's mailbox at approval time, and
+# `tryAcceptHdkFromMailbox` runs inside a sync. Sync is retried a few times
+# because the deposit and this run are not synchronised.
+#
+# The paused state shows on Invite & Household (the Join button reads "Waiting
+# for approval…"), and Sync now lives on Device Sync — so each retry checks one
+# screen and acts on the other.
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- repeat:
+    times: 6
+    commands:
+      - runFlow: ../subflows/budget-open-invite.yaml
+      - runFlow:
+          when:
+            visible: 'Waiting for approval…'
+          commands:
+            - runFlow: ../subflows/budget-open-sync.yaml
+            - tapOn:
+                id: 'budget-settings-sync-now'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 12000
+            # Unconditional: Maestro cannot see a native alert (iOS renders it in its
+            # own window), so gating the dismissal on `visible: 'OK'` skips it and the
+            # alert then swallows every later step. An optional tap is a no-op when
+            # absent.
+            - tapOn:
+                text: '^OK$'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 3000
+# Enrolment done: the join button is live again, so writes are unpaused.
+- runFlow: ../subflows/budget-open-invite.yaml
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-join-household'
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- assertVisible:
+    id: 'budget-settings-join-household'
+- assertNotVisible: 'Waiting for approval…'

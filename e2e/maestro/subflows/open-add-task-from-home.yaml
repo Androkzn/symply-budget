@@ -1,0 +1,30 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- runFlow: go-home-tab.yaml
+# Scroll to it — Home is taller than the screen.
+#
+# `home-up-next-add-task` renders unconditionally inside `home-up-next-section`
+# (`HomeScreen.tsx:388`), but that section sits below the Mira brief and the
+# status strip, so on a phone it starts off-screen. Tapping it straight after
+# `go-home-tab` failed with "Element not found" on a Home screen that was
+# rendering it perfectly well, which reads as a missing affordance and is not.
+- scrollUntilVisible:
+    element:
+      id: 'home-up-next-add-task'
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 50
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-up-next-add-task'
+    timeout: 10000
+- tapOn:
+    id: 'home-up-next-add-task'
+- extendedWaitUntil:
+    visible:
+      id: 'add-task-sheet'
+    timeout: 15000

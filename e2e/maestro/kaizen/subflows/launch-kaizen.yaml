@@ -1,0 +1,39 @@
+appId: com.symply.kaizen
+---
+# Boot Symply Kaizen into a signed-in Today session (no clearState — keeps session).
+- runFlow: ensure-network-enabled.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: 'kaizen-today-screen'
+    commands:
+      - openLink: kaizen://today
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - extendedWaitUntil:
+          visible:
+            id: 'kaizen-today-screen'
+          timeout: 45000
+          optional: true
+      - runFlow:
+          when:
+            notVisible:
+              id: 'kaizen-today-screen'
+          commands:
+            - openLink: ${E2E_LOGIN_URL}
+            - waitForAnimationToEnd:
+                timeout: 8000
+            - openLink: ${E2E_SETUP_URL}
+            - waitForAnimationToEnd:
+                timeout: 12000
+            - openLink: kaizen://today
+            - waitForAnimationToEnd:
+                timeout: 8000
+      - runFlow: kaizen-dismiss-expo-dev-chrome.yaml
+      - runFlow: kaizen-login-if-needed.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-today-screen'
+    timeout: 120000
+- runFlow: kaizen-ensure-profile.yaml
+- runFlow: dismiss-wake-card-if-needed.yaml

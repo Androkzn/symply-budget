@@ -1,0 +1,49 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Open Health notification settings (route `health-notifications`, header
+# "Notifications").
+#
+# There is NO `tab-health-notifications` and there never will be: the route is
+# registered in `ROUTABLE_TAB_SCREENS` but deliberately kept OUT of the brand's
+# `tabs` pool (`app/(tabs)/health-notifications.tsx` header) because it is a
+# settings page, not a section. It resolves to `href: null` — reachable by push
+# and by deep link, invisible to the bottom bar and to "Customize Tabs". So the
+# ONLY way in is the More hub's PREFERENCES row.
+- runFlow: go-more.yaml
+# The row sits in PREFERENCES, below ACCOUNT and the tab list, so it is always
+# below the fold on a phone. Both directions are probed — a preceding flow may
+# have left the hub scrolled past it — and both are `optional` so a hub that
+# already shows the row does not fail on a no-op scroll. (Maestro cannot
+# reliably scroll RN New-Arch ScrollViews on iOS 26; `scrollUntilVisible` with
+# `optional: true` degrades to "already visible" instead of hard-failing.)
+- scrollUntilVisible:
+    element:
+      id: 'health-setting-notifications'
+    direction: UP
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'health-setting-notifications'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- tapOn:
+    id: 'health-setting-notifications'
+    retryTapIfNoChange: true
+# Waited on with `extendedWaitUntil` against a control INSIDE the screen: the
+# first paint blocks on `loadNotificationPreferences()`, which is a network
+# read-through, so the shell can be mounted for a beat before the groups exist.
+- extendedWaitUntil:
+    visible:
+      id: 'health-notifications-screen'
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'health-notifications-group-delivery'
+    timeout: 30000

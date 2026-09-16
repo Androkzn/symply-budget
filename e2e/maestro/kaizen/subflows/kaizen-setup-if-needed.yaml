@@ -1,0 +1,21 @@
+appId: com.symply.kaizen
+---
+# Dev-only Kaizen onboarding bypass — see src/services/e2e-kaizen-setup.ts.
+- runFlow:
+    when:
+      notVisible:
+        id: 'kaizen-today-screen'
+    commands:
+      - openLink: ${E2E_SETUP_URL}
+      - waitForAnimationToEnd:
+          timeout: 12000
+      - openLink: kaizen://today
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - runFlow: dismiss-welcome-if-needed.yaml
+      - runFlow: dismiss-biometric-prompt-if-needed.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'kaizen-today-screen'
+          timeout: 120000
+

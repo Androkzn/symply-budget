@@ -1,0 +1,34 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Dismiss the keyboard on a Health SECTION screen (Nutrition / Activity /
+# Trends / Body / Habits / Cycle / Vitality / Foods / Recipes / Fridge /
+# Injuries / Weight).
+#
+# WHY NOT `hideKeyboard`. Maestro's own command hard-FAILS on this build's
+# decimal pad — "Couldn't hide the keyboard. This can happen if the app uses a
+# custom input or doesn't expose a standard dismiss action" — and a hard failure
+# fails the whole flow. Reproduced deliberately on 2026-07-26: in one run the
+# SAME flow dismissed the text keyboard with `hideKeyboard` two steps earlier
+# and then failed on the numeric one. That is the intermittency the matrix
+# recorded against `activity-log-workout`: it is not random, it is the keyboard
+# TYPE. Every numeric field in this feature is `decimal-pad` on iOS.
+#
+# Two dismissals, both optional, because either one alone is enough and neither
+# can hard-fail:
+#   1. the floating "Done" pill iOS draws above a keyboard with no return key;
+#   2. a tap on a non-interactive label — every section ScrollView carries
+#      `keyboardShouldPersistTaps="handled"`, which is exactly the RN contract
+#      that makes a tap on non-touchable content dismiss the keyboard.
+#
+# CALLERS MUST PASS `KEYPAD_ANCHOR` — a static, non-touchable string on the
+# screen and ABOVE the focused field (a card's section label is the usual
+# choice). Passing a touchable's label would press it.
+- tapOn:
+    text: 'Done'
+    optional: true
+- tapOn:
+    text: '${KEYPAD_ANCHOR}'
+    optional: true

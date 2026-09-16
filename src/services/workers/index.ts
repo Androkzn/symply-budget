@@ -1,0 +1,1 @@
+export { backgroundSync } from './BackgroundSync';

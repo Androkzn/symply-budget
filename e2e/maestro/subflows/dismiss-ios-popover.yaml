@@ -1,0 +1,66 @@
+appId: ${APP_ID}
+tags:
+  - util
+  - app:house
+---
+# Close a leftover iPad popover (Photos / Files picker), if one is up.
+#
+# WHY THIS EXISTS. Apple's system pickers present differently by form factor:
+# full-screen sheets on iPhone, but FLOATING POPOVERS on iPad. The House flows
+# were written against the iPhone presentation, so their selection taps
+# (`pick-photo-from-library.yaml` taps `15%,25%`) land in the iPad popover's
+# SIDEBAR instead of on a photo. Nothing is selected, the popover never closes,
+# and — because these pickers run OUT OF PROCESS and own the accessibility tree
+# while presented — every subsequent app testID becomes unreachable.
+# Observed 2026-09-01: `mira-gaps` failed with "Element not found:
+# mira-chat-overflow-menu" while that button was plainly visible on screen,
+# because the Photos popover was still up.
+#
+# WHY THIS IS NOT A BLIND TAP. Detection is a real queryable node:
+# `PopoverDismissRegion` ("dismiss popup") is published in the hierarchy even
+# though the popover's CONTENTS are not. So this block only runs when a popover
+# is genuinely present, and it verifies the popover is gone afterwards.
+#
+# We do NOT tap `PopoverDismissRegion` by id: its bounds are the whole screen
+# ([-834,-1210][1668,2420]), so Maestro would tap its CENTRE — which is inside
+# the popover, hitting a photo or a sidebar row. We tap above the panel instead
+# (the popover occupies roughly 23%-77% of the height on an iPad sheet), which
+# is the chat transcript — inert.
+#
+# This deliberately does NOT blind-swipe. `pick-document-from-files.yaml`
+# records what that costs: on 2026-08-15 blind swipes drove a Budget run out of
+# the receipt screen into Settings -> AI provider -> "Change key", a screen with
+# a Save button, while the log showed only "element not found" warnings.
+- runFlow:
+    when:
+      visible:
+        id: 'PopoverDismissRegion'
+    commands:
+      - tapOn:
+          point: '50%,10%'
+      - waitForAnimationToEnd:
+          timeout: 2000
+      # Second attempt: some popovers need the outside tap repeated once the
+      # first one only defocuses a sidebar row.
+      - runFlow:
+          when:
+            visible:
+              id: 'PopoverDismissRegion'
+          commands:
+            - tapOn:
+                point: '50%,8%'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      # Fail loudly rather than let the next command grope at an app whose
+      # accessibility tree is still owned by the picker.
+      # `extendedWaitUntil`, not a bare `assertNotVisible`: XCUITest can keep the
+      # region node in the tree for a beat after the popover has actually gone,
+      # and this subflow is reached by 11 flows (five of them Budget), so a
+      # stale-node false-fail would be an expensive way to be right. Still a HARD
+      # failure on timeout — deliberately NOT `optional`, because that reverts to
+      # the original bug: a silently-owned accessibility tree surfacing as
+      # "element not found" on an unrelated step 20 seconds later.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'PopoverDismissRegion'
+          timeout: 5000

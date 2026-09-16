@@ -1,0 +1,117 @@
+appId: com.symply.language
+tags:
+  - app:language
+  - feature:learn
+  - readonly
+  - regression
+  - smoke
+# Matrix: LANGUAGE-learn (see documents/engineering/testing/matrices/)
+---
+# Learn home: streak card, 3 daily-goal checkboxes, 4 nav cards.
+- stopApp
+- launchApp:
+    clearState: false
+- runFlow: subflows/connect-language-metro.yaml
+- runFlow: subflows/language-dismiss-expo-dev-chrome.yaml
+- runFlow: subflows/language-login-if-needed.yaml
+- runFlow: subflows/language-onboarding-if-needed.yaml
+- runFlow: subflows/language-restore-default-tabs.yaml
+- runFlow: subflows/go-learn.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'language-learn-scroll'
+    timeout: 120000
+- assertVisible:
+    id: 'language-learn-screen'
+- assertVisible: 'A little every day — keep your streak going.'
+- swipe:
+    start: 50%, 70%
+    end: 50%, 35%
+    duration: 400
+- scrollUntilVisible:
+    element:
+      text: 'Review vocabulary'
+    direction: DOWN
+    timeout: 60000
+    speed: 40
+    visibilityPercentage: 30
+- scrollUntilVisible:
+    element:
+      text: 'Conversation practice'
+    direction: DOWN
+    timeout: 60000
+    speed: 40
+    visibilityPercentage: 30
+- scrollUntilVisible:
+    element:
+      text: 'Talk to your tutor'
+    direction: DOWN
+    timeout: 30000
+    speed: 40
+    visibilityPercentage: 30
+- extendedWaitUntil:
+    visible:
+      id: 'language-learn-daily-goals'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'language-learn-daily-goals'
+    direction: DOWN
+    timeout: 30000
+    speed: 40
+    visibilityPercentage: 30
+- extendedWaitUntil:
+    visible:
+      id: 'language-learn-goal-speak'
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: 'language-learn-goal-learn'
+    timeout: 20000
+- tapOn:
+    id: 'language-learn-goal-speak'
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    id: 'language-learn-goal-learn'
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    text: 'Conversation practice'
+- extendedWaitUntil:
+    visible:
+      id: 'language-dialogue-screen'
+    timeout: 30000
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'language-learn-screen'
+    timeout: 30000
+- tapOn:
+    id: 'header-profile'
+- extendedWaitUntil:
+    visible:
+      id: 'profile-screen'
+    timeout: 30000
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'language-learn-screen'
+    timeout: 30000
+- tapOn:
+    id: 'header-notifications'
+- extendedWaitUntil:
+    visible:
+      id: 'notifications-screen'
+    timeout: 30000
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'language-learn-screen'
+    timeout: 30000

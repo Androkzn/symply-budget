@@ -1,0 +1,113 @@
+# NBR-005 — create a home and the people in it, in one pass.
+#
+# The flow the whole feature exists for, and the one that proves the inline
+# people editor: a member holds one thought — "the Wilsons, number 42, Sarah and
+# Tom" — and must be able to put all of it down without leaving the form.
+#
+# The label carries a run marker so a re-run does not silently assert against
+# the row the previous run left behind. `nbr-008` deletes it again.
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:neighbours
+  - regression
+# Matrix: HOUSE-NBR-007 (create), HOUSE-NBR-008 (occupants), HOUSE-NBR-009 (flags)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-neighbours.yaml
+- tapOn:
+    id: 'neighbours-add-fab'
+- tapOn:
+    id: 'neighbours-add-map'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-pick-confirm'
+    timeout: 20000
+- tapOn:
+    id: 'neighbour-pick-confirm'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-form-screen'
+    timeout: 20000
+
+- tapOn:
+    id: 'neighbour-form-label'
+- inputText: 'E2E Wilsons'
+
+# No `hideKeyboard` anywhere in this suite. It fails outright on this app's
+# inputs — "Couldn't hide the keyboard … doesn't expose a standard dismiss
+# action" — and a failed `hideKeyboard` aborts the flow rather than warning.
+# Nothing here needs it: the chips sit directly under the label field, well
+# clear of the keyboard, and anything further down is reached by scrolling to
+# it, which moves it out from behind the keyboard anyway.
+
+# The relation chips: a tap must select, and the selection is what the map pin
+# is tinted by.
+- tapOn:
+    id: 'neighbour-form-relation-next_door'
+
+# One occupant, through the sheet.
+- tapOn:
+    id: 'neighbour-form-add-person'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-person-sheet'
+    timeout: 15000
+- tapOn:
+    id: 'neighbour-person-name'
+- inputText: 'Sarah Wilson'
+- tapOn:
+    id: 'neighbour-person-phone'
+- inputText: '6045550142'
+# Save is the last element of a tall scrolling sheet, so with the keyboard up it
+# sits below the fold. A bare tap reports "not found"; a `when: visible` guard
+# skips it silently, which reads as a passing flow that saved nothing.
+- scrollUntilVisible:
+    element:
+      id: 'neighbour-person-save'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'neighbour-person-save'
+
+# Back on the form, the person is listed rather than merely accepted.
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-form-person-0'
+    timeout: 15000
+# Regex: the occupant row is read as one string — "Sarah Wilson · main contact,
+# Adult · 6045550142, Remove Sarah Wilson" — so the exact phrase matches no node
+# on its own.
+- assertVisible: '.*Sarah Wilson · main contact.*'
+
+# The spare-key flag — the fact this feature is most useful for.
+- scrollUntilVisible:
+    element:
+      id: 'neighbour-form-spare-key'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'neighbour-form-spare-key-switch'
+
+- scrollUntilVisible:
+    element:
+      id: 'neighbour-form-save'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'neighbour-form-save'
+
+# Landing back on the map with the row in the list is the real assertion: a save
+# that returns to a map the member cannot find their new neighbour on has not
+# finished.
+- extendedWaitUntil:
+    visible:
+      id: 'neighbours-screen'
+    timeout: 20000
+- tapOn:
+    id: 'neighbours-view-toggle'
+- extendedWaitUntil:
+    # Regex: the card is one accessible button and its label carries the
+    # relation and badges too, so a bare name matches no node.
+    visible: '.*E2E Wilsons.*'
+    timeout: 20000

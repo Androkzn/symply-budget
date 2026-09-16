@@ -1,0 +1,5 @@
+FAIL [Budget-B] budget-savings-income-crud
+PASS [Budget-B] budget-savings-entry-controls
+FAIL [Budget-B] budget-savings-monthly-crud
+FAIL [Budget-B] budget-savings-projection-targets
+FAIL [Budget-B] budget-savings-year-history

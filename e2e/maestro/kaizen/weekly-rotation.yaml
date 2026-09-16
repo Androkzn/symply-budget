@@ -1,0 +1,58 @@
+appId: com.symply.kaizen
+---
+# Weekly rotation — a focus per weekday. Type into a day field and confirm the
+# entry renders (saveWeeklyRotation fires on blur; the value stays in state).
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/rotations
+- extendedWaitUntil:
+    visible: 'Weekly rotation'
+    timeout: 20000
+- assertVisible: 'Focus by day'
+- assertVisible: 'Mon'
+- assertVisible: 'Sun'
+# Matrix: KAIZEN-SYS-101 — Monday focus saves on blur (kaizen_weekly_rotations
+# UPSERT). Kaizen is local-first, so this uses e2e-verify-persist (the
+# persist-buffer sibling of e2e-verify-network) instead of a network check.
+- runFlow:
+    file: ../subflows/e2e-clear-log.yaml
+    env:
+      APP_ID: com.symply.kaizen
+      E2E_APP_SCHEME: kaizen
+- runFlow:
+    file: ../subflows/e2e-tag-matrix.yaml
+    env:
+      APP_ID: com.symply.kaizen
+      E2E_APP_SCHEME: kaizen
+      E2E_MATRIX_ROW: KAIZEN-SYS-101
+# Interaction: focus Monday's field and type (placeholder "Focus" is ambiguous — anchor on Mon).
+- tapOn: 'Mon'
+- tapOn: 'Focus'
+- inputText: 'Ship the release'
+- extendedWaitUntil:
+    visible: 'Ship the release'
+    timeout: 15000
+    optional: true
+# Force blur off the Focus field (saveWeeklyRotation fires on blur) before
+# verifying — nothing before this deterministically blurs it.
+- tapOn: 'Sun'
+- runFlow:
+    file: ../subflows/e2e-verify-persist.yaml
+    env:
+      APP_ID: com.symply.kaizen
+      E2E_APP_SCHEME: kaizen
+      E2E_VERIFY_STORE: kaizen_weekly_rotations
+      E2E_VERIFY_OPERATION: upsert
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 5000
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

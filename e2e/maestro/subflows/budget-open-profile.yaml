@@ -1,0 +1,72 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Opens Profile and scrolls SYNC & SHARING into view.
+#
+# Device Sync, Backup & Restore, Households, Invite & Household and Export moved
+# here off Budget Settings: they answer which copies of the budget exist and who
+# holds them, which is an account-and-device question. Settings keeps what shapes
+# the budget itself.
+#
+# Deep link rather than the header avatar: the avatar is chrome that other
+# sheets can cover, and every other Budget subflow reaches its screen this way.
+- waitForAnimationToEnd:
+    timeout: 1500
+- openLink: simplebudget://profile
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'profile-screen'
+    timeout: 20000
+    optional: true
+# openLink right after app boot/login can be dropped if the navigation container
+# isn't fully ready yet (deep link fired before onReady) — retry once if the
+# first attempt silently no-op'd (same finding as open-profile.yaml).
+- runFlow:
+    when:
+      notVisible:
+        id: 'profile-screen'
+    commands:
+      - openLink: simplebudget://profile
+      - extendedWaitUntil:
+          visible:
+            id: 'profile-screen'
+          timeout: 20000
+# SYNC & SHARING sits below the avatar and the subscription card, so it is off
+# the fold on a phone — scrolled into view here so a caller's first tap is not a
+# blind one. OPTIONAL on purpose: this subflow is "get me to Profile", used by
+# flows that have nothing to do with the section (sign-out lives here too), and
+# the section is absent entirely when the app runs with local-first off. Every
+# flow that IS about the section asserts its own row right after calling this,
+# which is what makes a missing section fail there and not silently here.
+# Callers wanting a row further down (Export is last of five) scroll to it.
+#
+# Anchor on the first ROW, never on budget-local-first-sync-card. That testID is
+# the section's outer View — it wraps the SYNC & SHARING heading, the blurb AND
+# all five rows — so `visibilityPercentage: 10` against it is satisfied the
+# moment the heading peeks above the tab bar, with every row still below the
+# fold. The scroll then no-ops, and because it is `optional` it no-ops SILENTLY.
+# Profile grew a subscription card + Unlock AI button, which pushed the section
+# far enough down for exactly that to happen: budget-local-first-settings landed
+# on an unscrolled Profile and failed `budget-settings-backup-status` after 17s
+# while the three assertions above it passed (observed 2026-09-05, and the same
+# failure is in the 2026-08-23 report at 4m 23s). centerElement keeps the rows
+# BELOW the first one on screen too, which is what callers assert next.
+#
+# The row anchor is also the safer element to address at all: sync-card is a
+# bare <View> carrying only a testID, and iOS does not reliably publish those to
+# XCUITest — an anchor Maestro cannot see makes an `optional` scroll dead code
+# that still reports success (House hit exactly this on house-recover-home-screen,
+# a testID on a plain absoluteFill View, while its Jest test passed on the React
+# tree). budget-settings-sync-link is a pressable Card with accessibilityRole
+# 'button', so it is published. Prefer a row/control over a layout wrapper.
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-sync-link'
+    direction: DOWN
+    centerElement: true
+    visibilityPercentage: 10
+    timeout: 20000
+    optional: true

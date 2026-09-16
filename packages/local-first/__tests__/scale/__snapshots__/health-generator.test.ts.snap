@@ -1,0 +1,67 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`health corpus — composition > pins per-table row counts at 1y / 5y / 10y 1`] = `
+{
+  "10y": {
+    "bodyMeasurements": 248,
+    "habitLogs": 20972,
+    "healthEntries": 9376,
+    "healthGoals": 31,
+    "nutritionEntries": 13684,
+    "userHabits": 11,
+    "waterEntries": 17748,
+    "weightEntries": 3997,
+  },
+  "1y": {
+    "bodyMeasurements": 17,
+    "habitLogs": 2098,
+    "healthEntries": 928,
+    "healthGoals": 4,
+    "nutritionEntries": 1385,
+    "userHabits": 8,
+    "waterEntries": 1787,
+    "weightEntries": 401,
+  },
+  "5y": {
+    "bodyMeasurements": 132,
+    "habitLogs": 10500,
+    "healthEntries": 4672,
+    "healthGoals": 16,
+    "nutritionEntries": 6806,
+    "userHabits": 9,
+    "waterEntries": 8852,
+    "weightEntries": 1995,
+  },
+}
+`;
+
+exports[`health corpus — composition > pins the scale ids the recorder stamps on every record 1`] = `
+[
+  {
+    "adults": 1,
+    "ops": 9942,
+    "rows": 6628,
+    "years": 1,
+  },
+  {
+    "adults": 1,
+    "ops": 29739,
+    "rows": 19826,
+    "years": 3,
+  },
+  {
+    "adults": 1,
+    "ops": 49473,
+    "rows": 32982,
+    "years": 5,
+  },
+  {
+    "adults": 1,
+    "ops": 99101,
+    "rows": 66067,
+    "years": 10,
+  },
+]
+`;
+
+exports[`health corpus — determinism > pins the corpus fingerprint 1`] = `"5c5ed6aa37882346"`;

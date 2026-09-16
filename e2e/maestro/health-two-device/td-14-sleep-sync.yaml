@@ -1,0 +1,125 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+  - feature:sleep
+  - mutation
+# Matrix: HEALTH-TD-014 — Wave A table 4/8 continued: `healthEntries`
+# (`health_entries`), SLEEP half. Activity is td-13.
+#
+# WHY A SEPARATE FLOW. `health_entries` carries an `entry_type` discriminator and
+# the two halves have completely different surfaces: activity lives on the
+# Activity tab with a full edit/delete triad, sleep lives on the HOME dashboard
+# widget (`health-home-widget-sleep`) and `healthSleepStorage.ts` writes it as
+# `entry_type: 'sleep'`. The DoD names "health entries incl. activity+sleep", and
+# a suite that only drove workouts would leave the discriminator untested.
+#
+# ⚠️ SLEEP HAS NO EDIT AND NO DELETE AFFORDANCE. There is no
+# `health-sleep-edit-*` and no `health-sleep-delete-*` anywhere in
+# `HealthHomeWidgets.tsx` — logging the same date again OVERWRITES. So:
+#   create  — first value of the day, peer must see it
+#   modify  — same-date re-log, peer must adopt the NEW value (this is the
+#             last-writer-wins path, exercised across two devices)
+#   delete  — NOT AVAILABLE on this surface. The `health_entries` tombstone is
+#             covered by td-13's workout delete and by td-30. The runner does
+#             not schedule a delete phase for this file; if it ever does, this
+#             flow fails loudly rather than passing an unasserted phase.
+#
+# env: TD_ROLE, TD_PHASE (create|modify), TD_VALUE / TD_VALUE2 (hours),
+#      TD_EXPECT
+---
+- runFlow: td-launch.yaml
+- assertTrue: ${TD_PHASE == 'create' || TD_PHASE == 'modify'}
+
+# ==========================================================================
+# WRITE — device A
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'write'}
+    commands:
+      - runFlow: ../health/subflows/go-health-home.yaml
+      - runFlow:
+          file: ../health/subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-sleep-input
+            HOME_ANCHOR: bottom
+      - tapOn:
+          id: 'health-sleep-input'
+      - eraseText: 8
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'create'}
+          commands:
+            - inputText: ${TD_VALUE}
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'modify'}
+          commands:
+            - inputText: ${TD_VALUE2}
+      # The sleep field has its own keyboard accessory rather than the shared
+      # section keypad dismissal — it is a Home WIDGET, not a section screen.
+      - tapOn:
+          id: 'health-sleep-keyboard-done'
+          optional: true
+      - runFlow:
+          file: ../health/subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'SLEEP'
+      - tapOn:
+          id: 'health-log-sleep-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-sleep-last-value'
+            text: '.*${TD_EXPECT}.*'
+          timeout: 30000
+      - assertVisible:
+          id: 'health-sleep-last-value'
+          text: '.*${TD_EXPECT}.*'
+      - runFlow: td-sync-nudge.yaml
+
+# ==========================================================================
+# OBSERVE — device B
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'observe'}
+    commands:
+      # FOCUS_ID is the INPUT, not the readout: `focus-health-home.yaml` closes
+      # with a HARD `assertVisible: ${FOCUS_ID}`, and `health-sleep-last-value`
+      # does not render at all until a value exists — on the create phase B has
+      # none yet, so anchoring on it would fail the scroll before the poll ever
+      # ran. `health-sleep-input` is always mounted in the widget.
+      - runFlow: ../health/subflows/go-health-home.yaml
+      - runFlow:
+          file: ../health/subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-sleep-input
+            HOME_ANCHOR: bottom
+      - repeat:
+          times: 20
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-sleep-last-value'
+                    text: '.*${TD_EXPECT}.*'
+                commands:
+                  - runFlow: td-sync-nudge.yaml
+                  - runFlow: ../health/subflows/go-health-home.yaml
+                  - runFlow:
+                      file: ../health/subflows/focus-health-home.yaml
+                      env:
+                        FOCUS_ID: health-sleep-input
+                        HOME_ANCHOR: bottom
+      - extendedWaitUntil:
+          visible:
+            id: 'health-sleep-last-value'
+            text: '.*${TD_EXPECT}.*'
+          timeout: 45000
+      # On the modify phase this is the cross-device LWW statement: B held the
+      # earlier value for this same date and has adopted A's newer one.
+      - assertVisible:
+          id: 'health-sleep-last-value'
+          text: '.*${TD_EXPECT}.*'

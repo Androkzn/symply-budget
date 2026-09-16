@@ -1,0 +1,94 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:onboarding
+  - readonly
+  - regression
+# Matrix: HOUSE-onboarding (see documents/engineering/testing/matrices/)
+#
+# The flow BRANCHES at the AI step, and this file walks both halves.
+#
+# `UploadReport` and `FloorPlan` need a model behind them, so `AIProviderScreen`
+# decides whether they are part of the flow at all (`src/features/house/
+# onboarding/aiSteps.ts`). The fleet E2E account has no AI entitlement, so the
+# default path here is the SHORT one — Welcome → CreateHousehold → SpaceSetup →
+# AIProvider(skip) → GarbageSetup → done — and onboarding finishes on the
+# garbage screen rather than on the floor plan. The long path is still walked
+# when entitlement happens to be present, which is why every step below stays
+# guarded rather than assuming its screen is next.
+#
+# The old `when: visible: 'Skip for Now'` guards cannot tell these screens apart
+# — SpaceSetup, AIProvider, UploadReport and GarbageSetup all carry that exact
+# label — so each step is now identified by a testID or by its own title.
+---
+- runFlow: ../subflows/launch-onboarding.yaml
+- runFlow: ../subflows/skip-onboarding-if-onboarded.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-get-started'
+    commands:
+      # Step 0 — Welcome: agree to terms + Get Started.
+      - tapOn:
+          id: 'onboarding-agree-terms'
+      - tapOn:
+          id: 'onboarding-get-started'
+      # Step 1 — CreateHousehold.
+      - extendedWaitUntil:
+          visible: 'Create Home'
+          timeout: 30000
+      # Target the field, not its label. `testID` is spread straight onto the RN
+      # TextInput (src/components/ui/TextInput.tsx:45), while "Home Name" is a
+      # sibling <Text> (:67-74) — tapping it focuses nothing, so the inputText
+      # below had no field to land in.
+      - tapOn:
+          id: 'onboarding-create-home-name'
+      - inputText: 'E2E Test Home'
+      - hideKeyboard
+      # By id, not by the "Create Home" label. The wizard can be walked
+      # backwards now, and this same button reads "Save & Continue" whenever a
+      # home already exists — a re-visit UPDATES rather than minting a second
+      # home, so the label follows what it will actually do. Its id does not
+      # move.
+      - tapOn:
+          id: 'onboarding-create-home-submit'
+      # Step 2 — SpaceSetup (Skip).
+      - runFlow:
+          when:
+            visible: 'Skip for Now'
+          commands:
+            - tapOn: 'Skip for Now'
+      # Step 3 — AIProvider. Skipped by the E2E account, which drops steps 4
+      # and 6 from the rest of this run. An entitled account never renders this
+      # screen at all — it forwards itself — so the guard is what keeps both
+      # paths walkable from one file.
+      - runFlow:
+          when:
+            visible:
+              id: 'onboarding-ai-provider-skip'
+          commands:
+            - tapOn:
+                id: 'onboarding-ai-provider-skip'
+      # Step 4 — UploadReport (Skip). Reached only with AI access.
+      - runFlow:
+          when:
+            visible: 'Upload Your Inspection Report'
+          commands:
+            - tapOn: 'Skip for Now'
+      # Step 5 — GarbageSetup (Skip). Always present.
+      - extendedWaitUntil:
+          visible: 'Set Up Garbage Collection'
+          timeout: 30000
+      - tapOn: 'Skip for Now'
+      # Step 6 — FloorPlan (Skip & Finish). Reached only with AI access; without
+      # it, GarbageSetup finished onboarding itself and Home is already up.
+      - runFlow:
+          when:
+            visible: 'Skip & Finish Setup'
+          commands:
+            - tapOn: 'Skip & Finish Setup'
+      # Both paths land here.
+      - extendedWaitUntil:
+          visible:
+            id: 'home-up-next-section'
+          timeout: 90000

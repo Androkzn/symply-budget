@@ -1,0 +1,35 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:floorplan
+  - readonly
+  - regression
+# Matrix: HOUSE-FP-006 — calibrateScale has no UI call site; readonly list smoke only.
+# FP-007…012 mutations → e2e/maestro/floor-plans/floor-plans-mutations.yaml.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-house-settings.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-floor-plans'
+    direction: DOWN
+    timeout: 15000
+# This row sits near the bottom of the list, right above the fixed tab bar.
+# Tapping immediately after scrollUntilVisible can compute the tap point before
+# scroll momentum settles, landing on the tab bar underneath instead of the row
+# (root-caused in floor-plans-mutations.yaml:24-30). Let it settle first.
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    id: 'settings-row-floor-plans'
+- extendedWaitUntil:
+    visible:
+      id: 'floor-plans-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'floor-plans-add-button'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: floor-plans-screen-scroll-end
+    optional: true

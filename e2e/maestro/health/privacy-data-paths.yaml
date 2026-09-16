@@ -1,0 +1,43 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:privacy
+  - readonly
+  - regression
+# Matrix: HEALTH-PRIV-014, HEALTH-PRIV-015
+---
+- runFlow: subflows/launch-health.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-PRIV-014
+      - assertNotVisible: 'Export'
+      - assertNotVisible: 'Download my data'
+      - assertNotVisible: 'Share data'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-PRIV-015
+      - runFlow: subflows/go-more.yaml
+      - runFlow: subflows/health-scroll-more-down.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'health-sign-out'
+          direction: DOWN
+          timeout: 30000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible:
+          id: 'health-sign-out'
+      - assertNotVisible: 'Delete my health data'
+      - assertNotVisible: 'Reset health data'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml

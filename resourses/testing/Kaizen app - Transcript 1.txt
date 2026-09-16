@@ -1,0 +1,296 @@
+14:01:39 --> 14:01:41
+Andrei Tekhtelev: Yeah, sounds good.
+
+14:01:41 --> 14:01:43
+Mia Watson: Okay, enjoy. Bye.
+
+14:01:42 --> 14:01:44
+Andrei Tekhtelev: Thank you.
+
+14:01:42 --> 14:01:44
+Geoff Affleck: Okay.
+
+14:01:44 --> 14:01:45
+Geoff Affleck: Thanks, Pia.
+
+14:01:45 --> 14:01:47
+Geoff Affleck: Hey, Andre, nice to meet you.
+
+14:01:47 --> 14:01:50
+Andrei Tekhtelev: Nice to meet you too. How are you?
+
+14:01:48 --> 14:01:52
+Geoff Affleck: Yeah. Good, thanks. Where are you based out of?
+
+14:01:52 --> 14:01:56
+Andrei Tekhtelev: Uh, Vancouver specifically, sorry.
+
+14:01:55 --> 14:01:58
+Geoff Affleck: Ah, okay, nice. Is it hot out there right now?
+
+14:01:59 --> 14:02:01
+Andrei Tekhtelev: Oh yeah, quite a bit.
+
+14:02:00 --> 14:02:02
+Geoff Affleck: Mm-hmm.
+
+14:02:02 --> 14:02:04
+Geoff Affleck: Yep.
+
+14:02:03 --> 14:02:05
+Andrei Tekhtelev: What about you?
+
+14:02:04 --> 14:02:06
+Geoff Affleck: All right. I'm in North Vancouver.
+
+14:02:06 --> 14:02:08
+Andrei Tekhtelev: Oh!
+
+14:02:07 --> 14:02:08
+Geoff Affleck: Yeah.
+
+14:02:08 --> 14:02:11
+Andrei Tekhtelev: It's it's.
+
+14:02:11 --> 14:02:16
+Andrei Tekhtelev: Do you have the office in the downtown?
+
+14:02:15 --> 14:02:17
+Geoff Affleck: Yes, our office is downtown.
+
+14:02:17 --> 14:02:18
+Andrei Tekhtelev: Okay.
+
+14:02:17 --> 14:02:18
+Geoff Affleck: Yep.
+
+14:02:18 --> 14:02:22
+Geoff Affleck: Yeah, so, uh, working from home today, though.
+
+14:02:23 --> 14:02:37
+Geoff Affleck: Um, alright, well, let's get into it. So, what these, uh, interviews generally look like is I'll spend about 45 minutes asking my questions. Uh, I want to get some more information about your work experience, your, uh, projects you've worked on, things like that.
+
+14:02:37 --> 14:02:43
+Geoff Affleck: At the 45 minute mark, I will stop asking questions and you can ask me any questions you have.
+
+14:02:43 --> 14:02:51
+Geoff Affleck: You can ask about the product, the team, the technology, the role, the company, anything. And then we'll take it from there.
+
+14:02:51 --> 14:02:53
+Andrei Tekhtelev: Okay, sounds good.
+
+14:02:51 --> 14:03:02
+Geoff Affleck: Okay. So I'd love to hear more about your background. Please tell me, you know, just kind of about your career in software and what led you up to your current application with Scalepad.
+
+14:03:02 --> 14:03:10
+Andrei Tekhtelev: So I'm a full stack software engineer with more than 6 years of experience building.
+
+14:03:10 --> 14:03:22
+Andrei Tekhtelev: production web, native mobile application, and AWS serverless systems. My recent work at step.co has been across.
+
+14:03:22 --> 14:03:39
+Andrei Tekhtelev: Multiple languages like React, Next.js, TypeScript, Node.js, Swift, SwiftUI, even Kotlin. And for sure, like GraphQL, APIs, and we are heavily using AWS infrastructure.
+
+14:03:39 --> 14:03:41
+Andrei Tekhtelev: For, um…
+
+14:03:41 --> 14:03:59
+Andrei Tekhtelev: our products. So, and we also, like, heavily using AI-powered workflows. So, one of the major tasks for me on a day-to-day basis is, like.
+
+14:03:59 --> 14:04:15
+Andrei Tekhtelev: creating and updating, improving our agentic workflows. We're a small team. We have around, not around, four full-stack software engineers, and I was the first engineer.
+
+14:04:15 --> 14:04:29
+Andrei Tekhtelev: engineer, uh, in this project, and, uh, first half… one and a half year, uh, I was a solo developer, and was responsible, literally, for… for everything, starting from even developing the requirements, and…
+
+14:04:31 --> 14:04:51
+Andrei Tekhtelev: finally deployed and monitoring, uh, on the production level. So, yeah, uh, we're using AI quite a lot, just because of, uh, we're a small team, and we cannot waste time, uh, for manual operations, so we're trying to automate as much as possible, but, uh, again.
+
+14:04:51 --> 14:04:56
+Andrei Tekhtelev: Supervising of AI, it's a major part.
+
+14:04:56 --> 14:04:58
+Geoff Affleck: Interesting.
+
+14:04:56 --> 14:05:17
+Andrei Tekhtelev: that can like ensure this consistency, quality and stability of our code and products. So I'm strongest in environments where engineers basically own features end to end from unclear requirements and technical design through like implementation.
+
+14:05:17 --> 14:05:22
+Andrei Tekhtelev: Testing, deployment, monitoring, and further improvements.
+
+14:05:22 --> 14:05:23
+Geoff Affleck: Cool.
+
+14:05:22 --> 14:05:25
+Andrei Tekhtelev: So, yep.
+
+14:05:23 --> 14:05:25
+Geoff Affleck: Okay.
+
+14:05:25 --> 14:05:31
+Andrei Tekhtelev: And, um, what else? Uh, um, yeah, uh, as I mentioned, I used…
+
+14:05:31 --> 14:05:32
+Andrei Tekhtelev: What?
+
+14:05:32 --> 14:05:37
+Andrei Tekhtelev: heavily AI tools on a day-to-day basis for…
+
+14:05:37 --> 14:05:42
+Andrei Tekhtelev: development purposes, but mostly for our products.
+
+14:05:43 --> 14:05:45
+Andrei Tekhtelev: Uh, AMP features.
+
+14:05:45 --> 14:05:57
+Geoff Affleck: OK. I'd love to hear more about your time at STEP. That's quite interesting. So you were engineer number one. Was it a brand new product at that time? So were you the founder? Or how did that all get started?
+
+14:05:57 --> 14:06:06
+Andrei Tekhtelev: Initially, I joined this startup two and a half years ago.
+
+14:06:07 --> 14:06:25
+Andrei Tekhtelev: team that was responsible for developing and delivering the product completely failed. They spent almost one year to develop a React Native product and wasn't able to deliver anything to production during this year.
+
+14:06:25 --> 14:06:30
+Andrei Tekhtelev: Uh, and yeah, I was hired, and my main goal was, uh.
+
+14:06:31 --> 14:06:41
+Andrei Tekhtelev: deliver like something as soon as possible. So we started working with a web application highly optimized for mobile users.
+
+14:06:41 --> 14:06:56
+Andrei Tekhtelev: So, I already have a pretty, um, extended experience in this area. Uh, so, it's… it wasn't fully, um, progressive web application, but partially at that point. Um, so, uh…
+
+14:06:56 --> 14:07:00
+Andrei Tekhtelev: Just as I remember in a…
+
+14:07:01 --> 14:07:04
+Andrei Tekhtelev: one or two months, I was able to deliver first, uh.
+
+14:07:04 --> 14:07:06
+Andrei Tekhtelev: Uh, production version.
+
+14:07:07 --> 14:07:18
+Andrei Tekhtelev: Uh, I reused entire backend site from AWS, and just, uh, like, uh, apply and reuse, uh, this, uh…
+
+14:07:18 --> 14:07:27
+Andrei Tekhtelev: Backend patterns to our application, then we start developing native application, iOS native application in parallel.
+
+14:07:28 --> 14:07:37
+Andrei Tekhtelev: Then we started public web application and now I'm working on native Android application as well.
+
+14:07:38 --> 14:07:39
+Andrei Tekhtelev: Um, okay.
+
+14:07:41 --> 14:07:49
+Andrei Tekhtelev: And so my career in this case.
+
+14:07:50 --> 14:07:53
+Andrei Tekhtelev: Was pretty straightforward.
+
+14:07:53 --> 14:07:59
+Andrei Tekhtelev: Do everything, develop everything, test everything. Yeah.
+
+14:07:57 --> 14:07:58
+Geoff Affleck: Mm-hmm.
+
+14:07:59 --> 14:08:08
+Geoff Affleck: Cool. And tell me a bit more about the design. So you talked about the front end being initially fully web.
+
+14:08:08 --> 14:08:12
+Geoff Affleck: Uh, web app. But the backend, what was the API structure like?
+
+14:08:13 --> 14:08:22
+Andrei Tekhtelev: In terms of API structure, we are using DynamoDB.
+
+14:08:20 --> 14:08:22
+Geoff Affleck: Okay.
+
+14:08:23 --> 14:08:26
+Andrei Tekhtelev: And amplify right now.
+
+14:08:25 --> 14:08:27
+Geoff Affleck: Mm-hmm.
+
+14:08:26 --> 14:08:34
+Andrei Tekhtelev: Uh, for, like, managing our tables, uh, Lambda functions, we're heavily using Lambda functions.
+
+14:08:34 --> 14:08:40
+Andrei Tekhtelev: Um, and, uh, half a year ago, uh, I, um.
+
+14:08:40 --> 14:08:50
+Andrei Tekhtelev: performed, like, huge refactoring, and we moved almost all logic to backend side, because our plan was to expand.
+
+14:08:50 --> 14:08:52
+Andrei Tekhtelev: to different platforms.
+
+14:08:52 --> 14:09:07
+Andrei Tekhtelev: All our functionality. So I made a huge refactoring and moved to like, right now I think we have almost 150 different Lambda functions.
+
+14:09:07 --> 14:09:09
+Geoff Affleck: Mmhm.
+
+14:09:08 --> 14:09:10
+Andrei Tekhtelev: Now that, um…
+
+14:09:10 --> 14:09:16
+Andrei Tekhtelev: support our functionality. Initially, it was like, maybe 30 or.
+
+14:09:16 --> 14:09:17
+Geoff Affleck: Mmhm.
+
+14:09:16 --> 14:09:23
+Andrei Tekhtelev: 40. So it helped a lot when I decided to redesign this.
+
+14:09:23 --> 14:09:38
+Andrei Tekhtelev: Uh, approach, uh, to mostly backend side, uh, it reduces complexity, uh, and, uh, like, uh, rewriting code in many, in many places. Observability.
+
+14:09:38 --> 14:09:41
+Andrei Tekhtelev: It's a… it's a very…
+
+14:09:41 --> 14:09:48
+Andrei Tekhtelev: Important point here because with AWS and Lambda functions, you have a lot of tools.
+
+14:09:48 --> 14:09:55
+Andrei Tekhtelev: to make, uh, observable errors, warnings, and, uh, improve behavior if…
+
+14:09:55 --> 14:10:01
+Andrei Tekhtelev: We are talking about like Lambdas that's responsible for using AI for our products.
+
+14:10:02 --> 14:10:06
+Andrei Tekhtelev: And yeah, that.
+
+14:10:05 --> 14:10:14
+Geoff Affleck: Cool. And so you talked about using Amplify. So do you only use Dynamo, or do you also have a relational database in place?
+
+14:10:14 --> 14:10:18
+Andrei Tekhtelev: Oh, no, we use just DynamoDB tables.
+
+14:10:17 --> 14:10:26
+Geoff Affleck: Okay, and how do you, like, how complex is your database? What's the, like, do you only have one Dynamo table, or do you have multiple tables?
+
+14:10:25 --> 14:10:30
+Andrei Tekhtelev: Oh, yeah, we decided to use multiple tables approach.
+
+14:10:30 --> 14:10:36
+Andrei Tekhtelev: Well, it was a kind of legacy thing, because, uh, like, um…
+
+14:10:36 --> 14:10:41
+Andrei Tekhtelev: I redesigned it completely to one table.
+
+14:10:41 --> 14:10:43
+Andrei Tekhtelev: Was it, like…
+
+14:10:43 --> 14:10:58
+Andrei Tekhtelev: Could be a very big switch and we just keep using old legacy structure of multiple dynamic data tables, reusing a lot of…
+
+14:11:00 --> 14:11:09
+Andrei Tekhtelev: Global secondary indexes for optimizing queries or using nested objects.
+
+14:11:09 --> 14:11:12
+Andrei Tekhtelev: That we fetched together…
+
+14:11:12 --> 14:11:14
+Andrei Tekhtelev: So basically, yeah.
+
+14:11:13 --> 14:11:17
+Geoff Affleck: Okay. Have you had any challenges working with Dynamo?

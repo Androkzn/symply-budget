@@ -1,0 +1,50 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-011
+---
+# WHAT THIS PROVES
+# ----------------
+# Restore is reachable from Settings, in one row, and the row it is reachable
+# from is the Backup one.
+#
+# WHY THAT MATTERS
+# ----------------
+# House used to ship TWO rows — "Backup & export" and "Restore from a backup" —
+# on the reasoning that restore is rare and destructive and should not hide
+# behind a screen called "Backup". What actually happened is that the two halves
+# drifted: archives this app had just written were listed on the Backup screen
+# and unreachable from the Restore one, so restoring your own backup meant
+# hunting the file in Files first. Budget answers this with one screen whose
+# archive list restores on tap; House now matches it.
+#
+# So the assertion is a pair: the Backup row exists, and the Restore row does
+# NOT — a second doorway coming back is the regression this guards.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-011
+- runFlow: ../subflows/open-profile.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'profile-screen'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-house-backup'
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- assertVisible:
+    id: 'settings-row-house-backup'
+- assertNotVisible:
+    id: 'settings-row-house-restore'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

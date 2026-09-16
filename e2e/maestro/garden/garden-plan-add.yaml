@@ -1,0 +1,45 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:garden
+  - readonly
+  - regression
+# Matrix: HOUSE-garden (see documents/engineering/testing/matrices/)
+---
+# GardenPlansScreen → add flow entry. Taps the (testID'd) add button to reach the garden-
+# plan creation surface (GardenPlanUploadScreen, header "Add yard plan"), then returns.
+# NOTE: the full boundary→generate pipeline (confirmBoundaryDraft + generateFromBoundaryDraft)
+# and the upload path use Mapbox + native pickers and expose no testIDs — not automatable
+# beyond this entry point.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-gardening.yaml
+- assertVisible:
+    id: 'garden-plans-screen'
+- assertVisible:
+    id: 'garden-plans-add-button'
+- tapOn:
+    id: 'garden-plans-add-button'
+# WRONG LITERAL: 'Create Garden Plan' is the step label on GardenPlanAddressScreen
+# (GardenPlanAddressScreen.tsx:117) — a DIFFERENT screen. `handleAdd` navigates to
+# GardenPlanUpload (GardenPlansScreen.tsx:130), whose header reads "Add yard plan"
+# (GardenPlanUploadScreen.tsx:410). Because the old wait was `optional: true`, the
+# mismatch never failed — it just made the whole flow vacuous. Navigation here is
+# deterministic, so this is now a hard wait.
+- extendedWaitUntil:
+    visible: 'Add yard plan'
+    timeout: 20000
+# OVER-POP GUARD: GardenPlansScreen renders its header with
+# `showBackButton={router.canGoBack()}` (GardenPlansScreen.tsx:594), true when the
+# list was reached by deep link — so gating on the BUTTON rather than on WHERE WE
+# ARE popped the Garden stack out to Home and the assert below went red for a
+# teardown reason.
+- runFlow:
+    when:
+      notVisible:
+        id: 'garden-plans-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- assertVisible:
+    id: 'garden-plans-screen'

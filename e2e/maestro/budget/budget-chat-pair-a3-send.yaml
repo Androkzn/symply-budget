@@ -1,0 +1,106 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:budget-chat
+  - pair
+  - pair:a
+  - mutation
+  - regression
+# Matrix: BUDGET-BCHAT-PAIR-004
+#
+# ── Two-member Budget chat, stage A3 (device A / member A) ───────────────────
+# Member A opens household chat, creates the run's room and sends the first
+# message. Everything here is asserted from A's own point of view; whether the
+# message actually REACHED the other member is stage B2's job.
+#
+# ${PAIR_ROOM_NAME} / ${PAIR_MSG_A} carry a per-run token so assertions can never
+# match a room or message left behind by a previous run on the shared account.
+#
+# Env: PAIR_HOUSEHOLD_ID, PAIR_ROOM_NAME, PAIR_MSG_A.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-BCHAT-PAIR-004
+- openLink: simplebudget:///
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- runFlow: ../subflows/budget-recover-dashboard.yaml
+- runFlow: ../subflows/budget-open-chat-rooms.yaml
+- assertVisible:
+    id: 'chat-rooms-screen'
+- runFlow:
+    file: ../subflows/budget-create-chat-room.yaml
+    env:
+      ROOM_NAME: ${PAIR_ROOM_NAME}
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-input'
+    timeout: 30000
+- tapOn:
+    id: 'chat-room-input'
+- inputText: ${PAIR_MSG_A}
+- runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: 'chat-room-send'
+- extendedWaitUntil:
+    visible: '.*${PAIR_MSG_A}.*'
+    timeout: 20000
+    optional: true
+# Maestro can drop the first onChangeText on iOS New Arch, leaving the CONTROLLED
+# composer empty so Send is a silent no-op (handleSend returns on an empty body).
+# Erase + retype + re-send if the body never landed — same recovery the existing
+# budget-chat-message / budget-chat-extended flows use.
+- runFlow:
+    when:
+      notVisible: '.*${PAIR_MSG_A}.*'
+    commands:
+      - tapOn:
+          id: 'chat-room-input'
+      - eraseText
+      - inputText: ${PAIR_MSG_A}
+      - runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - tapOn:
+          id: 'chat-room-send'
+      - extendedWaitUntil:
+          visible: '.*${PAIR_MSG_A}.*'
+          timeout: 20000
+- assertVisible: '.*${PAIR_MSG_A}.*'
+# A's own message must render as an OUTGOING bubble on A's device. Asserted by id
+# rather than body text so the sent/received direction is actually proven — the
+# mirror-image assertion (`chat-msg-theirs-.*`) runs on B's device in stage B2.
+- extendedWaitUntil:
+    visible:
+      id: 'chat-msg-mine-.*'
+    timeout: 20000
+- assertVisible:
+    id: 'chat-msg-mine-.*'
+# Backend truth: the send really hit POST /budget-chat-rooms/:id/messages.
+- runFlow:
+    file: ../subflows/e2e-verify-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /messages
+      E2E_VERIFY_STATUS: '201'
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 10000
+- runFlow: ../subflows/budget-exit-chat.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

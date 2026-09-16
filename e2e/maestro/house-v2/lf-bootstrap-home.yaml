@@ -1,0 +1,15 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:local-first
+---
+# Get a freshly-erased device to a usable Home.
+#
+# `launch-logged-in` already owns this whole path — accept terms, sign in,
+# mint or adopt a household, clear the full-screen address gate — and it is what
+# every House flow starts from. Reimplementing an onboarding walk here would be
+# a second copy of the most fragile sequence in the suite.
+- runFlow: ../subflows/launch-logged-in.yaml
+- assertVisible:
+    id: 'home-screen'

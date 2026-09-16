@@ -1,0 +1,338 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:habits
+  - mutation
+  - regression
+# Matrix: HEALTH-HABIT-101 … HEALTH-HABIT-112
+---
+# Habits tab — add a habit, drive it from its detail sheet, delete it.
+#
+# WHY THIS FLOW EXISTS. `more-overflow-body-habits.yaml` proves the More hub
+# ROUTES to Habits; it owns the hub, not the screen. Everything on this screen —
+# the quick-add row and its disabled gate, the per-habit detail sheet, the tick
+# in BOTH directions, and the delete confirmation both cancelled and confirmed —
+# has no other device coverage.
+#
+# REWRITTEN 2026-07-26 for the donor-parity port. The previous version addressed
+# rows by `health-habit-toggle-custom-.*` and asserted the caption "No streak
+# yet"; neither exists now. Three things changed and each one broke a step:
+#   * A row's testID is its SERVER id (`habit_<random>`), never a `custom-*`
+#     placeholder — the optimistic id is only alive for one frame.
+#   * The caption is now the SCHEDULE ("Every day"), with the streak appended
+#     only once there is one.
+#   * Per-row delete moved into the detail sheet (and the archived section), so
+#     a member cannot destroy a habit's history with one stray tap on the list.
+# The flow therefore addresses its own habit by NAME through the row's
+# accessibility label ("Open <name>"), which is unique, stable, and independent
+# of whatever id the server mints.
+#
+# STATE. A habit stores the DAYS it was completed on, so ticking and unticking
+# the same day is genuinely reversible — which is what makes the both-directions
+# assertions safe to run against the shared fleet account.
+#
+# TEARDOWN. The flow mints its own habit and deletes it in the last leg, so
+# nothing it writes survives the run. It never touches a seeded habit: those are
+# the fixture the other Habits assertions depend on.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-HABIT-101
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Opens from the More hub, not the tab bar (HEALTH-HABIT-101) -----
+      - runFlow: subflows/go-health-habits.yaml
+      - assertVisible: 'Habits'
+      # Reachable but NOT pinned — the hub is the only door.
+      - assertNotVisible:
+          id: 'tab-health-habits'
+
+      # --- The day card and the daily summary render (HEALTH-HABIT-102) ---
+      # The date selector is what lets a forgotten day still be ticked, so its
+      # label is a scored element rather than chrome.
+      - assertVisible:
+          id: 'health-habits-day-label'
+          text: 'Today'
+      - assertVisible:
+          id: 'health-habits-ring'
+      - assertVisible:
+          id: 'health-habits-done-today'
+      - assertVisible:
+          id: 'health-habits-completion'
+      - assertVisible:
+          id: 'health-habits-best-streak'
+      # The note explains the ring's DENOMINATOR. It reads one way or the other
+      # depending on what the account holds, so it is asserted as present.
+      - assertVisible:
+          id: 'health-habits-scheduled-note'
+      - assertVisible: 'ADD A HABIT'
+
+      # --- The add button is gated on a non-empty name (HEALTH-HABIT-103) --
+      # `draft.trim().length === 0` disables it. Asserted BEHAVIOURALLY: RN maps
+      # a Pressable's `disabled` to an accessibility trait Maestro's `enabled`
+      # filter does not match on this build, and pressing a disabled Pressable
+      # is a no-op — so pressing it and proving nothing was filed tests the gate
+      # itself rather than a reflection of it.
+      - scrollUntilVisible:
+          element:
+            id: 'health-habit-add-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-habit-add-button'
+      - assertNotVisible: 'E2E evening walk'
+
+      # --- Typing a name arms it (HEALTH-HABIT-104) ------------------------
+      - tapOn:
+          id: 'health-habit-name-input'
+      - inputText: 'E2E evening walk'
+      - hideKeyboard
+
+      # --- Adding files a habit on the default schedule (HEALTH-HABIT-105) -
+      # REAL mutation: addHabit() -> healthApi.createHabit() -> POST
+      # /health/habits (healthHabitsStorage.ts, src/api/health.ts).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-habit-add-button'
+      - extendedWaitUntil:
+          visible: 'E2E evening walk'
+          timeout: 15000
+      # The field is cleared after a successful add, so the gate closes again —
+      # asserted on the FIELD, which is the state the gate reads.
+      - assertVisible:
+          id: 'health-habit-name-input'
+          text: ''
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/habits
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The row opens its detail sheet (HEALTH-HABIT-106) ---------------
+      # Addressed by the row's accessibility label rather than by id: the id is
+      # server-minted and unknowable from here, while the name is this flow's own.
+      - tapOn: 'Open E2E evening walk'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-detail'
+          timeout: 15000
+      # A quick-added habit takes the default schedule, and the sheet says so in
+      # words rather than leaving the member to infer it.
+      - assertVisible:
+          id: 'health-habit-detail-schedule'
+          text: 'Every day'
+      - assertVisible:
+          id: 'health-habit-detail-current'
+      - assertVisible:
+          id: 'health-habit-detail-best'
+
+      # --- The tick starts a streak (HEALTH-HABIT-107) ---------------------
+      # REAL mutation: toggleHabitToday() -> healthApi.toggleHabit() -> POST
+      # /health/habits/:id/toggle (healthHabitsStorage.ts, src/api/health.ts).
+      # `health-habit-detail` is an RN <Modal> (HealthHabitDetailScreen.tsx),
+      # which occludes the root-mounted e2e-verify-badge exactly like House's
+      # TaskDetailScreen (see E2EVerifyBadge.tsx's own KNOWN LIMITATION note) —
+      # so every verified action below closes the sheet before asserting the
+      # badge, then reopens it for the next one, mirroring
+      # tasks/task-detail-mutations.yaml's own close-verify-reopen pattern.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-habit-detail-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-detail-current'
+            text: '1'
+          timeout: 15000
+      - tapOn:
+          id: 'health-habit-detail-close'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-habit-detail'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /toggle
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - tapOn: 'Open E2E evening walk'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-detail'
+          timeout: 15000
+
+      # --- …and unticking gives it back (HEALTH-HABIT-108) -----------------
+      # The same control in the OTHER direction. `toggleHabitToday` removes the
+      # day key on the second call, and a regression that made it idempotent-on
+      # would pass every one-way test. A habit stores DAYS, not a counter, so
+      # this restores the exact prior state rather than decrementing toward it.
+      # REAL mutation, same endpoint as HEALTH-HABIT-107 above (POST
+      # /health/habits/:id/toggle) — verified again independently since this is
+      # its own distinct user gesture.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-habit-detail-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-detail-current'
+            text: '0'
+          timeout: 15000
+      - tapOn:
+          id: 'health-habit-detail-close'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-habit-detail'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /toggle
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - tapOn: 'Open E2E evening walk'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-detail'
+          timeout: 15000
+
+      # --- Delete asks first, and Cancel means cancel (HEALTH-HABIT-109) ---
+      # The destructive path is an Alert. Cancelling it must leave the habit
+      # exactly where it was — the case a "tap Delete, assert gone" test never
+      # covers.
+      # Verified as a NO-OP: deleteHabit() -> healthApi.deleteHabit() -> DELETE
+      # /health/habits/:id must NOT fire when Cancel is tapped.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-habit-detail-delete'
+      - extendedWaitUntil:
+          visible: 'Delete habit'
+          timeout: 15000
+      - assertVisible: 'Remove "E2E evening walk" and its history?'
+      - tapOn: 'Cancel'
+      - extendedWaitUntil:
+          notVisible: 'Delete habit'
+          timeout: 15000
+      - assertVisible:
+          id: 'health-habit-detail'
+      - tapOn:
+          id: 'health-habit-detail-close'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-habit-detail'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/habits/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - tapOn: 'Open E2E evening walk'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-detail'
+          timeout: 15000
+
+      # --- Confirming removes it + teardown (HEALTH-HABIT-110) -------------
+      # REAL mutation: deleteHabit() -> healthApi.deleteHabit() -> DELETE
+      # /health/habits/:id (healthHabitsStorage.ts, src/api/health.ts).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-habit-detail-delete'
+      - extendedWaitUntil:
+          visible: 'Delete habit'
+          timeout: 15000
+      - tapOn: 'Delete'
+      # Deleting from the sheet has to CLOSE the sheet: it is resolved by id out
+      # of the list, and leaving it up would strand the member on a habit that
+      # no longer exists. That close is also what makes the badge reachable
+      # again, so the verify below needs no extra tap of its own.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-habit-detail'
+          timeout: 15000
+      - assertNotVisible: 'E2E evening walk'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/habits/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The seeded habits are untouched (HEALTH-HABIT-111) --------------
+      # The delete removed ONE row, not the list. Asserted on a starter habit's
+      # name rather than its id, for the same reason as above.
+      - assertVisible: 'Sleep 7+ hours'
+
+      # --- Back to the Health tab (HEALTH-HABIT-112) -----------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

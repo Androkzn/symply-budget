@@ -1,0 +1,1089 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:vitality
+  - mutation
+  - regression
+# Matrix: HEALTH-VITALITY-120 … HEALTH-VITALITY-134
+---
+# Vitality tab — EVERY scale row and EVERY toggle on the screen, driven.
+#
+# WHY THIS FLOW EXISTS. `vitality-log-and-score.yaml` owns the screen's shape:
+# it opens the tab, pins the score card's two-branch invariant, the four
+# sub-score tiles, the two conditional rows and the kegel round trip. What it
+# does NOT do is drive the controls — of the eighteen interactive elements on
+# `HealthVitalityScreen` it touched five, and the ten `HealthScaleRow`s were
+# asserted but never tapped. That was the largest single control gap in the app
+# (5/18). This flow closes it.
+#
+# Splitting rather than extending, for the reason the two nutrition flows were
+# split: one flow covering both halves would be long enough that a mid-run
+# XCUITest driver drop would cost the whole surface.
+#
+# ## What "driving a control" means here
+#
+# A scale row set to ONE value cannot tell a working control from a hard-coded
+# default, so every scale is driven to at least TWO different levels and one is
+# driven to both ENDS of its range (1 and 10). Every toggle is flipped ON and
+# then OFF again — a toggle driven one way would pass even if `onChange` had
+# been made idempotent-on.
+#
+# ## The strongest assertion in this flow is the DERIVED one
+#
+# Two of the donor's four sub-scores are pure functions of controls on this
+# screen and of nothing else:
+#
+#     energyScore = energyLevel * 10
+#     mentalScore = mentalClarity * 5 + mood * 5 - (stressLevel - 5) * 3
+#
+# so after setting energy / clarity / mood / stress this flow can predict the
+# tiles exactly. Asserting `Energy: 40` and then `Energy: 70` proves the segment
+# tap reached the MODEL, not merely the row's own `n/10` label — a regression
+# that repainted the track without persisting would pass a label-only test.
+# `sexualHealthScore` and `erectionScore` are deliberately NOT asserted on an
+# absolute value: both subtract for the ISSUE toggles, which live on a shared
+# account this flow does not own.
+#
+# The two derived assertions each cost a scroll to the top of the screen and
+# back, so they are batched: one trip proves Energy AND Mental together.
+#
+# ## Scrolling
+#
+# `subflows/health-swipe-section-to.yaml`, never a bare `scrollUntilVisible`:
+# measured on 2026-07-26, `scrollUntilVisible` moves a Health section list ZERO
+# pixels on a long hop and this screen is eight cards tall. See that subflow's
+# header for the reproduction.
+#
+# ## Keyboard
+#
+# `health-vitality-kegel-input` is `keyboardType="number-pad"`. Maestro's
+# `hideKeyboard` HARD-FAILS on this build's numeric keyboards, so the keypad is
+# dismissed with `subflows/dismiss-health-keypad.yaml`.
+#
+# ## RE-RUNNABILITY
+#
+# There is no "delete today's entry" affordance — the screen upserts one row per
+# day — so teardown is about the controls whose state INVERTS on a second run:
+#
+#   * every toggle this flow flips is flipped back, and the two conditional rows
+#     are asserted GONE again, because `vitality-log-and-score.yaml` opens by
+#     asserting both are absent;
+#   * the kegel field is returned to empty;
+#   * libido and energy are left on 8 and 7 — the values the sibling flow set
+#     and asserts — so the two flows are order-independent within a run;
+#   * the remaining scales keep their last level. A scale has no "unset" and
+#     re-tapping the same segment is idempotent, so that is not residue. This is
+#     the same contract the matrix records for Cycle's mood/energy.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-VITALITY-120
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- The tab opens from the More hub (HEALTH-VITALITY-120) ----------
+      - runFlow: subflows/go-health-vitality.yaml
+      - assertVisible: "Men's Health"
+      - assertVisible:
+          id: 'health-vitality-screen'
+
+      # =================================================================
+      # DRIVE
+      # =================================================================
+      # --- Libido crosses all three hint bands (HEALTH-VITALITY-121) -----
+      # `libidoDescription` has three bands (<5, 5–7, >=8). Driving one value
+      # cannot tell a live hint from a constant, so the row is walked across all
+      # three, upward, and left on 8 — the level the sibling flow asserts.
+      # Every scale/toggle tap below is its own `HealthScaleRow`/`HealthToggleRow
+      # onChange` → `persist` (HealthVitalityScreen.tsx) → `saveVitalityEntry`
+      # (healthVitalityStorage.ts) → `healthApi.saveMensHealth` → PUT
+      # /health/mens-health/entries, 200 — the same write path
+      # `vitality-log-and-score.yaml` verifies. Each tap gets its OWN
+      # clear-log/verify pair (rather than one clear-log per group) because the
+      # method+path+status spec cannot distinguish one value from the next — only
+      # a fresh ring buffer since the immediately preceding tap proves THIS tap
+      # fired its own request rather than reusing a stale match.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-libido-3'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-libido-3'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-libido-value'
+            text: '3/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible: 'Below average'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-libido-6'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-libido-value'
+            text: '6/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible: 'Normal range'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-libido-8'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-libido-value'
+            text: '8/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible: 'High drive'
+
+      # --- Desire takes two different levels (HEALTH-VITALITY-122) -------
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-desire-2'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-desire-value'
+            text: '2/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-desire-9'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-desire-value'
+            text: '9/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # =================================================================
+      # ACTIVITY
+      # =================================================================
+      # --- Solo is the OTHER gate on Satisfaction (HEALTH-VITALITY-123) --
+      # `(hadPartnerSex || hadMasturbation)` — the sibling flow proves the first
+      # disjunct, this one proves the second. A gate tested through one input
+      # only would survive the `||` being rewritten as either operand alone.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-solo'
+            SCROLL_DIR: down
+      # The row BELOW the conditional slot is on screen first, so the negative
+      # below means ABSENT rather than off the viewport.
+      - assertVisible:
+          id: 'health-vitality-orgasm'
+      - assertNotVisible:
+          id: 'health-vitality-satisfaction'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-solo'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-satisfaction'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-vitality-solo'
+          checked: true
+
+      # --- Satisfaction takes two levels, one of them the ceiling (124) --
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-satisfaction-4'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-satisfaction-value'
+            text: '4/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-satisfaction-10'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-satisfaction-value'
+            text: '10/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Orgasm flips on and back off (HEALTH-VITALITY-125) ------------
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-orgasm'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-orgasm'
+            checked: true
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-orgasm'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-orgasm'
+            checked: false
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # =================================================================
+      # ERECTION HEALTH
+      # =================================================================
+      # --- Quality takes BOTH ends of its range (HEALTH-VITALITY-126) ----
+      # 1 and 10 are the boundary values `HealthScaleRow` builds its segment
+      # list from (`Array.from({length: max})`), so an off-by-one in that list
+      # shows up here and nowhere else on the screen.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-quality-1'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-quality-1'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-quality-value'
+            text: '1/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-quality-10'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-quality-value'
+            text: '10/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Morning quality is reachable and takes two levels (127) -------
+      # The sibling flow proves the row APPEARS. This one proves the row that
+      # appears is a working control and not a disabled placeholder.
+      - assertNotVisible:
+          id: 'health-vitality-morning-quality'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-morning'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-morning-quality'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-morning-quality-3'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-morning-quality-value'
+            text: '3/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-morning-quality-8'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-morning-quality-value'
+            text: '8/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Erotic dream flips on and back off (HEALTH-VITALITY-128) ------
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-erotic-dream'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-erotic-dream'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-erotic-dream'
+            checked: true
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-erotic-dream'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-erotic-dream'
+            checked: false
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # =================================================================
+      # ENERGY & MIND — and the derived sub-scores
+      # =================================================================
+      # --- All five scales, each at two levels (HEALTH-VITALITY-129) -----
+      # Left on energy 4 / clarity 8 / mood 6 / sleep 5 / stress 5, which the
+      # donor formulas turn into Energy 40 and Mental 70 — asserted next.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-energy-4'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-energy-4'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-energy-value'
+            text: '4/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-clarity-3'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-clarity-value'
+            text: '3/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-clarity-8'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-clarity-value'
+            text: '8/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-mood-2'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-mood-value'
+            text: '2/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-mood-6'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-mood-value'
+            text: '6/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-sleep-9'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-sleep-value'
+            text: '9/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-sleep-5'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-sleep-value'
+            text: '5/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-stress-2'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-stress-value'
+            text: '2/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-stress-5'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-stress-value'
+            text: '5/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The taps reached the MODEL, not just the label (VITALITY-130) -
+      # energy 4 -> 4 * 10 = 40; clarity 8, mood 6, stress 5 -> 8*5 + 6*5 - 0
+      # = 70. The tiles carry a merged accessibility label, so they are matched
+      # on the whole string `Energy: 40`, not on a substring.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-sub-energy'
+            SCROLL_DIR: up
+      - assertVisible:
+          id: 'health-vitality-sub-energy'
+          text: 'Energy: 40'
+      - assertVisible:
+          id: 'health-vitality-sub-mental'
+          text: 'Mental: 70'
+
+      # --- …and they track a SECOND state (HEALTH-VITALITY-131) ----------
+      # energy 7 -> 70; stress 10 -> 8*5 + 6*5 - 15 = 55. Two states rule out a
+      # tile that happens to agree with the formula once by coincidence.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-energy-7'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-energy-7'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-energy-value'
+            text: '7/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-stress-10'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-stress-value'
+            text: '10/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-sub-energy'
+            SCROLL_DIR: up
+      - assertVisible:
+          id: 'health-vitality-sub-energy'
+          text: 'Energy: 70'
+      - assertVisible:
+          id: 'health-vitality-sub-mental'
+          text: 'Mental: 55'
+
+      # =================================================================
+      # KEGELS — the boundary the sibling flow does not reach
+      # =================================================================
+      # --- A figure above the ceiling is CLAMPED, not rejected (132) -----
+      # `clampKegelSets` caps at 50. The field must read back the clamped value,
+      # i.e. the stored number re-rendered — not the raw draft the user typed.
+      # `handleKegels` → `persist` → same PUT /health/mens-health/entries, 200
+      # write path as every scale/toggle above (also fires on the keypad-dismiss
+      # blur — `onBlur={handleKegels}` — hence clearing before the dismiss).
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-kegel-input'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-kegel-input'
+      - eraseText
+      - inputText: '99'
+      # NOT `hideKeyboard` — it hard-fails on this build's number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'KEGELS'
+      - tapOn:
+          id: 'health-vitality-kegel-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-kegel-input'
+            text: '50'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- An emptied field means zero, not "leave it alone" (VITALITY-133)
+      # This is also the teardown for the control: `clampKegelSets(NaN)` is 0,
+      # and 0 renders as the placeholder rather than a literal `0`.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-kegel-input'
+      - eraseText
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'KEGELS'
+      - tapOn:
+          id: 'health-vitality-kegel-save'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-vitality-kegel-input'
+            text: '50'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Not merely "no longer 50" — a field left holding any digit would pass
+      # that. The clamped-to-zero state renders the placeholder, i.e. no digits.
+      - assertNotVisible:
+          id: 'health-vitality-kegel-input'
+          text: '.*[0-9].*'
+
+      # =================================================================
+      # Teardown — every toggle back off (HEALTH-VITALITY-134)
+      # =================================================================
+      # `vitality-log-and-score.yaml` OPENS by asserting both conditional rows
+      # are absent, so leaving either gate on would fail the sibling flow rather
+      # than this one — the worst kind of residue.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-morning'
+            SCROLL_DIR: up
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-morning'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-vitality-morning-quality'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-vitality-morning'
+          checked: false
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-solo'
+            SCROLL_DIR: up
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-solo'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-vitality-satisfaction'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-vitality-solo'
+          checked: false
+
+      # --- Back to the Health tab ----------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

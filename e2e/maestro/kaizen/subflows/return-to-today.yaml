@@ -1,0 +1,8 @@
+appId: ${APP_ID}
+---
+# Reset the stack back to Today so the next flow's launch guard is a no-op.
+- openLink: kaizen://today
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-today-screen'
+    timeout: 20000

@@ -1,0 +1,34 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:contractors
+  - readonly
+  - regression
+# Matrix: HOUSE-contractors (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-contractors.yaml
+- assertVisible:
+    id: 'contractors-screen'
+- assertVisible:
+    id: 'contractors-tab-upcoming'
+- tapOn:
+    id: 'contractors-tab-quotes'
+- assertVisible:
+    id: 'contractors-tab-quotes'
+- tapOn:
+    id: 'contractors-tab-contractors'
+- assertVisible:
+    id: 'contractors-tab-contractors'
+- tapOn:
+    id: 'contractors-tab-projects'
+- assertVisible:
+    id: 'contractors-tab-projects'
+- tapOn:
+    id: 'contractors-tab-upcoming'
+# Scroll contract
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: contractors-screen-scroll-end
+

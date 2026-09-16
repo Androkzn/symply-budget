@@ -1,0 +1,17 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# Escape nested screens and land on Learn home.
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- runFlow: connect-language-metro.yaml
+- runFlow: language-dismiss-expo-dev-chrome.yaml
+- runFlow: language-login-if-needed.yaml
+- runFlow: language-restore-default-tabs.yaml
+- runFlow: go-learn.yaml

@@ -1,0 +1,88 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:pension
+  - mutation
+  - regression
+# Matrix: BUDGET-LF-010 — Registered/pension statement import ladder (local text)
+# Deep-links to PensionImport; analyzes TFSA text when the AI gate allows.
+# Does NOT commit. If AIAccessGate blocks, assert gate chrome and exit PASS.
+onFlowComplete:
+  - runFlow: ../subflows/budget-network-block-off.yaml
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-010
+- runFlow: ../subflows/budget-network-block-on.yaml
+- openLink: simplebudget:///?screen=PensionImport
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+# Retry deep link once (BudgetDeepLinkHandler can miss the first cold open).
+- runFlow:
+    when:
+      notVisible:
+        id: 'pension-import'
+    commands:
+      - openLink: simplebudget:///?screen=PensionImport
+      - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: 'pension-import'
+    timeout: 20000
+    optional: true
+# Gate path — entitlement/paywall instead of import form.
+- runFlow:
+    when:
+      notVisible:
+        id: 'pension-import'
+    commands:
+      - assertVisible: '.*[Uu]nlock.*|[Aa]I.*|[Ss]ubscri.*'
+      - runFlow: ../subflows/budget-network-block-off.yaml
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+          env:
+            E2E_APP_SCHEME: simplebudget
+# Import form path.
+- runFlow:
+    when:
+      visible:
+        id: 'pension-import'
+    commands:
+      - assertVisible:
+          id: 'pension-import-text'
+      - assertVisible:
+          id: 'pension-import-analyze'
+      - tapOn:
+          id: 'pension-import-text'
+      - inputText: 'TFSA balance $12,500.00 at TD'
+      - hideKeyboard:
+          optional: true
+      - tapOn:
+          id: 'pension-import-analyze'
+      - waitForAnimationToEnd:
+          timeout: 20000
+      - runFlow:
+          when:
+            visible: 'OK'
+          commands:
+            - tapOn:
+                text: 'OK'
+                optional: true
+      - assertVisible:
+          id: 'pension-import'
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - runFlow: ../subflows/budget-network-block-off.yaml
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+          env:
+            E2E_APP_SCHEME: simplebudget

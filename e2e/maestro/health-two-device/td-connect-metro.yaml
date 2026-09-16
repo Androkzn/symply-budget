@@ -1,0 +1,35 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+  - feature:local-first
+  - feature:two-device
+---
+# Point the Expo Dev Client at THIS suite's Metro — ONLY when it is actually
+# sitting on the dev-launcher screen.
+#
+# `ios/SymplyEcosystem/AppDelegate.swift` pins com.symply.health → localhost:8085
+# in DEBUG on every launch, which is the SINGLE-DEVICE suite's port. This suite
+# deliberately runs its own Metro (`TD_METRO_PORT`), so the deep link below is
+# the only thing that moves these two devices onto the right bundler.
+#
+# Firing it unconditionally is NOT harmless: it makes EXDevLauncher tear down
+# the running RN runtime and build a second one, and the re-run of
+# `AppContext.registerNativeModules()` re-registers expo-notifications'
+# PushTokenModule against the process-global NotificationCenterManager whose
+# delegate array still holds the freed delegate from runtime #1 → EXC_BAD_ACCESS
+# on the JS thread. That is why this is gated on 'DEVELOPMENT SERVERS'.
+#
+# env: TD_METRO_PORT, E2E_METRO_DEVCLIENT_URL (already carries the right URL)
+- runFlow:
+    when:
+      visible: 'DEVELOPMENT SERVERS'
+      true: ${E2E_METRO_DEVCLIENT_URL != null && E2E_METRO_DEVCLIENT_URL != ''}
+    commands:
+      - tapOn:
+          text: '.*${TD_METRO_PORT}.*'
+          optional: true
+      - openLink: ${E2E_METRO_DEVCLIENT_URL}
+      - waitForAnimationToEnd:
+          timeout: 15000
+      - runFlow: td-dismiss-chrome.yaml

@@ -1,0 +1,129 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:wishes
+  - mutation
+  - regression
+# Matrix: BUDGET-wishes (see documents/engineering/testing/matrices/)
+# Wishes (WishesView + AddWishModal + WishDetailScreen). Reached by deep link
+# because Wishes is NOT a default-pinned bottom tab (customizable-tabs model);
+# simplebudget:///wishes → app/(tabs)/wishes.tsx → section="wishes".
+# MUTATING: creates a wish (create → POST /wishes) and proves it renders as a
+# card, then opens the wish detail composer.
+#
+# NOTE (missing testIDs): the AddWishModal title/notes/cost inputs and its close
+# (X) button render NO testID (AddWishModal.tsx). The title input is autoFocus,
+# so inputText targets it without a tap; Save uses wish-modal-save. The created
+# card is opened by its title text (wish-card-<id> has a dynamic id).
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-WISH-001
+- openLink: simplebudget:///wishes
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'wishes-view'
+    timeout: 30000
+- extendedWaitUntil:
+    notVisible:
+      id: 'wishes-loading'
+    timeout: 60000
+    optional: true
+# WishesView lives inside BudgetScreen's outer ScrollView — scroll to expose header CTA.
+- scrollUntilVisible:
+    element:
+      id: 'wishes-new-button'
+    direction: UP
+    timeout: 20000
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'wishes-new-button'
+    direction: DOWN
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: 'wishes-new-button'
+    timeout: 30000
+- openLink: simplebudget://e2e-wish-draft?title=E2E%20Wish
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    id: 'wishes-new-button'
+    retryTapIfNoChange: true
+    optional: true
+- tapOn:
+    text: 'New'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'wish-modal-save'
+    timeout: 30000
+- tapOn:
+    id: 'wish-modal-title'
+- inputText: 'E2E Wish'
+- hideKeyboard:
+    optional: true
+- assertVisible:
+    id: 'wish-modal-add-photo'
+- tapOn:
+    id: 'wish-modal-save'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    notVisible:
+      id: 'wish-modal-save'
+    timeout: 90000
+# The `simplebudget://e2e-wish-draft` deep link that opens the add sheet is consumed
+# by the app's own Linking listener, but expo-router ALSO routes it → no match →
+# app/+not-found.tsx does `<Redirect href="/" />`, so the add sheet floats over Home
+# and the underlying focused screen is the dashboard, not Wishes. After the save
+# closes the sheet, re-focus the Wishes screen so its list (now including the newly
+# created wish) is the on-screen, asserted view.
+- openLink: simplebudget:///wishes
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'wishes-view'
+    timeout: 30000
+- extendedWaitUntil:
+    notVisible:
+      id: 'wishes-loading'
+    timeout: 60000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'wishes-first-card'
+    timeout: 90000
+- tapOn:
+    id: 'wishes-first-card'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'wish-detail-screen'
+    timeout: 30000
+- extendedWaitUntil:
+    notVisible:
+      id: 'wish-detail-loading'
+    timeout: 60000
+- scrollUntilVisible:
+    element:
+      id: 'wish-send-note'
+    direction: DOWN
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: 'wish-send-note'
+    timeout: 30000
+- assertVisible:
+    id: 'wish-add-photo'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

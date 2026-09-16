@@ -1,0 +1,234 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:habits
+  - mutation
+  - regression
+# Matrix: HEALTH-HABIT-125 … HEALTH-HABIT-131
+---
+# Habits tab — archive a habit, find it again, bring it back.
+#
+# WHY THIS FLOW EXISTS. Archive is the donor's only "deactivate" verb and it is
+# the one destructive-looking action in the tab that is NOT destructive. That
+# only holds if all three legs work:
+#
+#   1. Archiving removes the habit from the day's list AND from the ring's
+#      denominator (an archived habit is neither a win nor a miss).
+#   2. The archived habit is still REACHABLE — a habit you can hide but never
+#      bring back is a delete that lies about being reversible.
+#   3. Unarchiving restores it to the list with its history intact.
+#
+# A regression in (2) is invisible in every screenshot: the habit is simply
+# gone, the member assumes a bug or a lost record, and the only recovery is to
+# recreate it and lose the streak.
+#
+# STATE. The archived section only renders when there IS an archived habit, so
+# this flow mints its own rather than archiving a starter habit — archiving a
+# seeded one would remove it from every other Habits flow's fixture.
+#
+# TEARDOWN. Unarchive, then delete from the detail sheet. Nothing it writes
+# survives the run. It addresses its habit by NAME through the row's
+# accessibility label ("Open <name>"), because the row testID carries a
+# server-minted id this flow cannot know.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-HABIT-125
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-habits.yaml
+
+      # --- Mint the habit this flow owns (HEALTH-HABIT-125) ----------------
+      # REAL mutation: addHabit() -> healthApi.createHabit() -> POST
+      # /health/habits (healthHabitsStorage.ts, src/api/health.ts). On the
+      # main screen, not a modal, so a direct clear-log/verify/badge works.
+      - scrollUntilVisible:
+          element:
+            id: 'health-habit-name-input'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-habit-name-input'
+      - inputText: 'E2E archive me'
+      - hideKeyboard
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-habit-add-button'
+      - extendedWaitUntil:
+          visible: 'E2E archive me'
+          timeout: 15000
+      # No archived section yet — it renders only when something is in it.
+      - assertNotVisible:
+          id: 'health-habits-archived-toggle'
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/habits
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Archive it from its detail sheet (HEALTH-HABIT-126) -------------
+      # REAL mutation: setHabitArchived() -> updateHabit() -> healthApi.updateHabit()
+      # -> PUT /health/habits/:id (healthHabitsStorage.ts, src/api/health.ts).
+      # `health-habit-detail` is an RN <Modal> (HealthHabitDetailScreen.tsx)
+      # that occludes the root-mounted e2e-verify-badge (see
+      # E2EVerifyBadge.tsx's own KNOWN LIMITATION note and
+      # tasks/task-detail-mutations.yaml) — but archiving already closes the
+      # sheet itself below, so no extra close tap is needed here.
+      - tapOn: 'Open E2E archive me'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-detail'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-habit-detail-archive'
+      # Archiving takes the habit out of the list the sheet was opened from, so
+      # the sheet has to close — leaving it up strands the member on a row that
+      # is no longer there. That close is also what makes the badge reachable.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-habit-detail'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/habits/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- It leaves the day's list (HEALTH-HABIT-127) ---------------------
+      - assertNotVisible: 'Open E2E archive me'
+
+      # --- …but it is still reachable (HEALTH-HABIT-128) -------------------
+      # The section is COLLAPSED by default: an archived habit is history, not
+      # something to scroll past every day. Expanding it is what proves the
+      # archive is a drawer rather than a bin.
+      - scrollUntilVisible:
+          element:
+            id: 'health-habits-archived-toggle'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertNotVisible: 'E2E archive me'
+      - tapOn:
+          id: 'health-habits-archived-toggle'
+      - extendedWaitUntil:
+          visible: 'E2E archive me'
+          timeout: 15000
+
+      # --- Unarchive restores it (HEALTH-HABIT-129) ------------------------
+      # REAL mutation: setHabitArchived() -> updateHabit() -> healthApi.updateHabit()
+      # -> PUT /health/habits/:id. Triggered from the archived-section row on
+      # the MAIN screen (handleArchive wired directly in HealthHabitsScreen.tsx),
+      # not the modal, so a direct clear-log/verify/badge works here.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn: 'Unarchive E2E archive me'
+      - extendedWaitUntil:
+          visible: 'Open E2E archive me'
+          timeout: 15000
+      # With nothing archived any more, the whole section goes away again.
+      - assertNotVisible:
+          id: 'health-habits-archived-toggle'
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/habits/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Teardown: delete it from the detail sheet (HEALTH-HABIT-130) ----
+      # REAL mutation: deleteHabit() -> healthApi.deleteHabit() -> DELETE
+      # /health/habits/:id. Inside the `health-habit-detail` modal again, but
+      # the confirmed delete auto-closes the sheet (see habits-add-tick-delete.yaml's
+      # HEALTH-HABIT-110), so the badge is reachable right after the existing wait.
+      - tapOn: 'Open E2E archive me'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-detail'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-habit-detail-delete'
+      - extendedWaitUntil:
+          visible: 'Delete habit'
+          timeout: 15000
+      - tapOn: 'Delete'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-habit-detail'
+          timeout: 15000
+      - assertNotVisible: 'E2E archive me'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/habits/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The seeded habits are untouched (HEALTH-HABIT-131) --------------
+      - assertVisible: 'Sleep 7+ hours'
+
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

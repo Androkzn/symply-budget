@@ -1,0 +1,101 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: BUDGET-MM-002 — owner creates a household invite (BR-011).
+#
+# The invite code/secret/OOB word are logged dev-only as `[E2E-INVITE] …`; the
+# orchestrator scrapes that line off the Metro log and plays the human who
+# passes the code to the other member. The UI path stays the real one.
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+# Register this household + device on the control plane before inviting.
+#
+# Sync now lives on its own screen (Settings → Device Sync), reached by deep
+# link so no scrolling of the long settings screen is involved.
+- runFlow: ../subflows/budget-open-sync.yaml
+- tapOn:
+    id: 'budget-settings-sync-now'
+- waitForAnimationToEnd:
+    timeout: 10000
+# Unconditional: Maestro cannot see a native alert (iOS renders it in its own
+# window), so gating the dismissal on `visible: 'OK'` skips it and the alert
+# then swallows every later step. An optional tap is a no-op when absent.
+- tapOn:
+    text: '^OK$'
+    optional: true
+# Create the invite on the screen that owns it.
+#
+# "Create an invite" is the first control on Invite & Household, so it sits well
+# clear of the floating tab bar — which used to swallow this tap when the button
+# was buried in the settings card and the inline sync note shifted it down.
+- runFlow: ../subflows/budget-open-invite.yaml
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: 'budget-settings-create-invite'
+# The button reads "Generate QR code", and it means it: the invite is minted and
+# the code is on screen in the same tap. Both people are usually in the same
+# room, and a QR is the whole hand-off — the invitee's camera (ours or the
+# phone's) reads the same `simplebudget://lf-invite?…` link the share sheet
+# sends.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-invite-qr-sheet'
+    timeout: 30000
+- assertVisible:
+    id: 'budget-invite-qr'
+- assertVisible:
+    id: 'budget-invite-qr-share'
+# Dismissed before asserting the card, because the sheet covers it: the card is
+# the code/secret fallback for everyone not in the room, and the run below
+# scrapes those values off the Metro log either way.
+- tapOn:
+    id: 'bottom-sheet-close'
+- waitForAnimationToEnd:
+    timeout: 2000
+# The invite lands INLINE now — a card with the code, the secret, a Share
+# button and a way back to the QR — instead of an alert that dumped everything
+# on the clipboard and vanished. Nothing to dismiss, and the code stays on
+# screen for the rest of the flow.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-invite-created-panel'
+    timeout: 30000
+- assertVisible: 'Invite created'
+# Scroll to the code rather than assuming it is on screen.
+#
+# When somebody is already waiting, this screen opens with a "Waiting to join"
+# banner above everything — their name, device, code and the six digits to read
+# out — which pushes the invite card below the fold. That banner is the whole
+# point of the screen, so its presence is normal, not an edge case; asserting
+# the code point-in-time only worked while no claim happened to be pending.
+- scrollUntilVisible:
+    element:
+      id: 'budget-invite-code'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- assertVisible:
+    id: 'budget-invite-code'
+- assertVisible:
+    id: 'budget-invite-share'
+# There is nothing to memorise on this card any more, and that absence is the
+# point: verification is derived from the CLAIMING device's keys, so it cannot
+# exist before that device claims — and therefore cannot be forwarded along with
+# the invite.
+- assertNotVisible:
+    id: 'budget-invite-oob-correct'
+# The CREATE screen, not the hub. Minting moved onto a pushed screen of its own
+# when Invite & Household became a hub, and this assertion kept naming the hub —
+# so it asserted a screen the flow had deliberately navigated away from, on a
+# device where everything above had just passed.
+- assertVisible:
+    id: 'budget-invite-create-screen'

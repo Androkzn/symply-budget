@@ -1,0 +1,136 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+  - feature:enrolment
+  - mutation
+# Matrix: BUDGET-MM-013 — the owner records a spending BEFORE anyone is invited.
+#
+# The setup half of the backfill check (mm-12). Ordering is the entire point:
+# this row exists before the invite is minted, so it can only ever reach the
+# joiner as HISTORY — never as a live op the joiner happened to be online for.
+#
+# Lifted from mm-20's add sequence rather than mm-06's. mm-06 is dead (nothing
+# in the runner referenced it until this test did) and had never learned what
+# mm-20 did the hard way: Save runs on the JS thread, which here is frequently
+# mid-sync (AEAD + signatures + a whole-ledger persist), so the form can close
+# well after the first check. mm-06 asserted the form was gone almost
+# immediately and failed with the row perfectly valid and Save already tapped.
+#
+# env: MM_TITLE, MM_AMOUNT
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+# An abandoned item form from a previous flow/run hides the list entirely.
+- runFlow: mm-leave-item-form.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    when:
+      true: ${MM_SECTION == 'planning'}
+    commands:
+      - runFlow: ../subflows/budget-go-planning.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-planned-spendings'
+          timeout: 20000
+      - runFlow: ../subflows/budget-open-add-sheet.yaml
+      - tapOn:
+          id: 'budget-add-planned'
+- runFlow:
+    when:
+      true: ${MM_SECTION == 'spending'}
+    commands:
+      - tapOn:
+          id: 'tab-spending'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-spendings'
+          timeout: 20000
+      - runFlow: ../subflows/budget-open-add-sheet.yaml
+      - tapOn:
+          id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 25000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: ${MM_TITLE}
+# Do not hideKeyboard — on iOS 26 that has backgrounded the Expo client onto
+# SpringBoard (mm-20, both devices, 2026-08-12). Tap Exact (planning) or the
+# cost field itself; either dismisses the decimal pad without leaving the app.
+- tapOn:
+    id: 'budget-item-cost-mode-exact'
+    optional: true
+- runFlow: ../subflows/budget-relaunch-if-backgrounded.yaml
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-cost-exact'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: ${MM_AMOUNT}
+# Blur so onEndEditing flushes the native value into RN state before save.
+- tapOn:
+    id: 'budget-item-title'
+- waitForAnimationToEnd:
+    timeout: 1000
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-form-save-header'
+    direction: DOWN
+    timeout: 8000
+    optional: true
+- tapOn:
+    id: 'budget-item-form-save-header'
+- waitForAnimationToEnd:
+    timeout: 2500
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# Wait generously, and re-tap Save if the form is still up.
+#
+# Save runs on the JS thread, which is frequently mid-sync here (AEAD +
+# signatures + a whole-ledger persist), so the close can lag well past a first
+# check — observed with the form fully valid and Save ENABLED, simply not yet
+# actioned. Re-tapping is safe: the form is gone once it saves, so a second tap
+# only ever lands if the first did nothing.
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'budget-item-form'
+          commands:
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'budget-item-form'
+                timeout: 20000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-item-form'
+                commands:
+                  - tapOn:
+                      id: 'budget-item-form-save-header'
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-item-form'
+    timeout: 25000
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 20000
+- assertVisible: '.*${MM_TITLE}.*'
+# Push it out to the household so a checkpoint can include it. Unlike mm-12,
+# a manual pulse here is legitimate: this is SETUP, not the assertion.
+- runFlow: ../subflows/budget-sync-pulse.yaml
+- waitForAnimationToEnd:
+    timeout: 6000

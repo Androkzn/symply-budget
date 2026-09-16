@@ -1,0 +1,25 @@
+appId: com.symply.kaizen
+tags:
+  - destructive
+  - app:kaizen
+---
+# AUTH-015 — Sign Up is visible but fleet registration is disabled server-side.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+    permissions:
+      all: allow
+      faceid: allow
+- runFlow: subflows/dismiss-welcome-if-needed.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'auth-sign-in-email'
+    timeout: 120000
+- assertVisible: 'Sign Up'
+- tapOn:
+    id: 'auth-go-register'
+- extendedWaitUntil:
+    visible: 'Create Account'
+    timeout: 30000
+- assertVisible:
+    id: 'auth-register-submit'

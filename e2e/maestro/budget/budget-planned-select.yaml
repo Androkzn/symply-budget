@@ -1,0 +1,240 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:plan
+  - mutation
+  - regression
+# Matrix: BUDGET-PLAN-080..087 — planned multi-select UI, batch copy-to-month,
+# batch delete, plus the copy-sheet and delete-alert CANCEL paths.
+#
+# Seeds one planned item dated THIS MONTH (so it does not leak into other months),
+# exercises the selection toolbar + copy sheet UI, cancels once (no mutation),
+# then really copies it forward and batch-deletes both the copy (in the
+# destination month) and the original (back in the source month) to self-clean.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-PLAN-083
+- runFlow: ../subflows/budget-go-planning.yaml
+
+# --- Seed a planned item anchored to the current month ---
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-planned'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: 'E2E Sel Copy'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: '25'
+- hideKeyboard:
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-when-this-month'
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: 'budget-item-when-this-month'
+# Save moved into the header. hideKeyboard still flushes the last native
+# keystroke into React before the tap (the scroll used to do that).
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-form-save-header'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-planned-spendings'
+    timeout: 45000
+- extendedWaitUntil:
+    visible: '.*E2E Sel Copy.*'
+    timeout: 20000
+
+# --- Enter selection mode (BUDGET-PLAN-080) and verify the toolbar UI ---
+- assertVisible:
+    id: 'budget-planned-select'
+- tapOn:
+    id: 'budget-planned-select'
+- assertVisible:
+    id: 'budget-selection-toolbar'
+- assertVisible:
+    id: 'budget-selection-cancel'
+- assertVisible:
+    id: 'budget-selection-selectall'
+# Zero-state counter + the add row and Select button are hidden while selecting.
+- assertVisible: 'Select planned items'
+- assertNotVisible:
+    id: 'budget-planned-add-row'
+- assertNotVisible:
+    id: 'budget-planned-select'
+
+# --- Toggle the seeded row → counter "1 selected" (BUDGET-PLAN-081) ---
+- tapOn:
+    text: '.*E2E Sel Copy.*'
+- assertVisible: '1 selected'
+- assertVisible:
+    id: 'budget-batch-copy'
+- assertVisible:
+    id: 'budget-batch-delete'
+
+# --- Copy sheet UI + CANCEL path (BUDGET-PLAN-086, no mutation) ---
+- tapOn:
+    id: 'budget-batch-copy'
+- assertVisible:
+    id: 'budget-copy-month-sheet'
+- assertVisible:
+    id: 'budget-copy-year-prev'
+- assertVisible:
+    id: 'budget-copy-year-next'
+- assertVisible:
+    id: 'budget-copy-month-1'
+- assertVisible:
+    id: 'budget-copy-month-12'
+- assertVisible:
+    id: 'budget-copy-confirm'
+- tapOn:
+    id: 'budget-copy-cancel'
+- assertNotVisible:
+    id: 'budget-copy-month-sheet'
+# Still selected after cancelling the sheet.
+- assertVisible: '1 selected'
+
+# --- Really copy to the default (next) month (BUDGET-PLAN-083) ---
+- tapOn:
+    id: 'budget-batch-copy'
+- assertVisible:
+    id: 'budget-copy-month-sheet'
+- tapOn:
+    id: 'budget-copy-confirm'
+# View jumps to the destination month; the copy is visible + editable there.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-planned-spendings'
+    timeout: 30000
+# Copied row sorts to the bottom of the destination month (seeded last-day date),
+# so it can land below the fold — best-effort scroll it into view first.
+- scrollUntilVisible:
+    element:
+      text: '.*E2E Sel Copy.*'
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- extendedWaitUntil:
+    visible: '.*E2E Sel Copy.*'
+    timeout: 20000
+
+# --- Batch-delete CANCEL then confirm in the destination month (PLAN-085/087) ---
+- tapOn:
+    id: 'budget-planned-select'
+- tapOn:
+    text: '.*E2E Sel Copy.*'
+- assertVisible: '1 selected'
+- tapOn:
+    id: 'budget-batch-delete'
+# Cancel the confirm alert → the copy survives (BUDGET-PLAN-087).
+- tapOn: 'Cancel'
+- assertVisible: '.*E2E Sel Copy.*'
+# Now confirm the delete.
+- tapOn:
+    id: 'budget-batch-delete'
+- tapOn: 'Delete'
+- extendedWaitUntil:
+    notVisible: '.*E2E Sel Copy.*'
+    timeout: 20000
+
+# --- Return to the source month and batch-delete the original (cleanup) ---
+- tapOn:
+    id: 'budget-spendings-month-prev'
+- scrollUntilVisible:
+    element:
+      text: '.*E2E Sel Copy.*'
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- extendedWaitUntil:
+    visible: '.*E2E Sel Copy.*'
+    timeout: 20000
+# Delete EVERY remaining "E2E Sel Copy" in the source month, not just this run's
+# original: an earlier interrupted run can orphan copies, and a single delete would
+# leave those behind and fail the final notVisible check. The loop makes the flow
+# self-healing and idempotent — it re-enters selection mode and deletes until none
+# remain (mirrors the self-clean loop in budget-savings-irregular-income.yaml).
+#
+# TOCTOU guard: the outer `when: visible` gate can pass and then the row can still
+# be gone by the time the inner tap runs (list re-render / a previous pass's delete
+# landing late) — reproduced 2026-08-03, "Element not found: .*E2E Sel Copy.*" right
+# after selection mode was entered on an already-empty list. Make the select-row tap
+# optional and only drive the delete when a row actually got selected, cancelling
+# back out of selection mode otherwise so the next pass starts clean instead of
+# possibly stalling mid-selection.
+- repeat:
+    times: 25
+    commands:
+      # Defensive: dismiss a lingering "Delete planned spendings" confirm
+      # alert before starting this iteration. Reproduced 2026-08-04 (2.5h into
+      # a full-suite run): the previous iteration's `tapOn: 'Delete'` can land
+      # while the app is still mid-refetch, leaving the native alert on screen
+      # into the next iteration — which then blocks `tapOn: id:
+      # budget-planned-select` for its full timeout (no backend activity in
+      # that window — the tap target is genuinely covered, not a slow
+      # network). Sweeping any stale alert first makes this loop resilient to
+      # that regardless of whether the root cause is app-side refetch latency
+      # or Maestro/iOS driver flakiness under sustained load.
+      - runFlow:
+          when:
+            visible: 'Delete planned spendings'
+          commands:
+            - tapOn:
+                text: 'Delete'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: '.*E2E Sel Copy.*'
+          commands:
+            - tapOn:
+                id: 'budget-planned-select'
+            - tapOn:
+                text: '.*E2E Sel Copy.*'
+                optional: true
+            - runFlow:
+                when:
+                  visible: '1 selected'
+                commands:
+                  - tapOn:
+                      id: 'budget-batch-delete'
+                  - tapOn: 'Delete'
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-selection-toolbar'
+                commands:
+                  - tapOn:
+                      id: 'budget-selection-cancel'
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 1000
+- extendedWaitUntil:
+    notVisible: '.*E2E Sel Copy.*'
+    timeout: 20000
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /budget/items
+      E2E_VERIFY_STATUS: 201

@@ -1,0 +1,48 @@
+# Maestro workspace config — Kaizen E2E (serial runner in scripts/e2e/run-kaizen-suite.sh).
+excludeTags:
+  - util
+  - destructive
+flows:
+  - '*.yaml'
+executionOrder:
+  continueOnFailure: true
+  flowsOrder:
+    - all-hubs
+    - today-screen
+    - deep-links-smoke
+    - profile
+    - settings
+    - more-hub
+    - career-hub
+    - career-setup
+    - career-progress
+    - interview-pipeline
+    - assess-hub
+    - skill-assessment
+    - skill-detail
+    - practice-session
+    - attempt-history
+    - learn-hub
+    - learning-plan
+    - deep-work
+    - habit-stacks
+    - systems-hub
+    - system-config
+    - system-detail
+    - weekly-rotation
+    - memory
+    - insights
+    - reviews
+    - guide-screen
+    - guide-background-reply
+    - guide-offline-send
+    - books
+    - book-detail
+    - book-reader
+    - book-quiz
+    - books-offline-upload
+    - resume-review
+    - question-banks
+    - question-import
+    - notifications
+    - scroll-all-screens

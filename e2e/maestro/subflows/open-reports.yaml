@@ -1,0 +1,27 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- waitForAnimationToEnd:
+    timeout: 1500
+- openLink: simplehouse://reports
+- extendedWaitUntil:
+    visible:
+      id: 'reports-screen'
+    timeout: 15000
+    optional: true
+# openLink right after app boot/login can be dropped if the navigation
+# container isn't fully ready yet (deep link fired before onReady) — retry
+# once if the first attempt silently no-op'd (see open-gardening.yaml,
+# root-caused 2026-07-31).
+- runFlow:
+    when:
+      notVisible:
+        id: 'reports-screen'
+    commands:
+      - openLink: simplehouse://reports
+      - extendedWaitUntil:
+          visible:
+            id: 'reports-screen'
+          timeout: 20000

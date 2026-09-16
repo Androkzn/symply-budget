@@ -1,0 +1,23 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Force ONE Budget local-first sync (mailbox, then WebRTC if a peer is online).
+#
+# Replaces `tapOn: budget-sync-status`. That tap target was SyncStatusBanner, a
+# strip mounted on the dashboard only so these flows had something to tap — it
+# read "Synced 3m ago via mailbox", engine vocabulary aimed at nobody, and it
+# was removed 2026-08-16. The deep link is the better shape regardless: it runs
+# the same `runBudgetLocalSync()` without navigating, so the list a convergence
+# loop is watching stays on screen between pulses, and no `when: notVisible:`
+# guard has to compete with chrome appearing and disappearing above it.
+#
+# Fire-and-forget by design — the sync resolves asynchronously, so callers keep
+# their own `waitForAnimationToEnd` after this and re-pulse until the row they
+# are waiting for lands. The orchestrator logs [E2E-VERIFY] applied/deposited/
+# conflicts when it settles, which generate-report.mjs picks up.
+- openLink: simplebudget://e2e-budget-sync
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 2000

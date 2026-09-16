@@ -1,0 +1,91 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: HOUSE-MM-022 (part a) — this member deletes their own task.
+# Runs on BOTH devices AT THE SAME TIME.
+#
+# WHY THIS IS ONE MAESTRO FLOW AND BUDGET'S IS THREE STEPS DRIVEN BY idb
+# ---------------------------------------------------------------------
+# Budget's delete needed `scripts/e2e/lib/idb-row.sh` for two reasons, and
+# NEITHER applies to House:
+#
+#  1. **No swipe tray.** Budget deletes from a row's swipe actions, and Maestro's
+#     element-swipe is too short to uncover them. House tasks have no swipe tray
+#     at all — `NativeSwipeable` is imported only by three Budget views — so the
+#     delete is a plain button on the task detail modal (`task-detail-delete`).
+#  2. **The confirm is reachable.** Budget's confirm is a UIAlertController that
+#     XCUITest snapshots of the app window miss entirely. House raises the same
+#     KIND of alert (`Alert.alert('Delete Task', …)`,
+#     TaskDetailScreen.tsx:293-300), but the already-green
+#     `tasks/task-detail-mutations.yaml` waits for and taps its `Cancel` from
+#     Maestro, so on this build it IS in the hierarchy.
+#
+# The one hazard that remains: the button UNDER the alert is also labelled
+# "Delete" (TaskDetailScreen.tsx:805), so a bare `^Delete$` can re-tap the
+# button behind the alert and report COMPLETED while nothing happens. Two
+# guards: wait for the alert's own body text first (it exists nowhere else),
+# and re-tap in a loop that exits on the modal actually closing.
+#
+# env: MM_TITLE — the task this device deletes
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-go-tasks.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: '.*${MM_TITLE}.*'
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    text: '.*${MM_TITLE}.*'
+- extendedWaitUntil:
+    visible:
+      id: 'task-detail-screen'
+    timeout: 25000
+- scrollUntilVisible:
+    element:
+      id: 'task-detail-delete'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'task-detail-delete'
+# The alert BODY is unique to the alert — the word "Delete" is not.
+- extendedWaitUntil:
+    visible: '.*Are you sure you want to delete this task.*'
+    timeout: 15000
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'task-detail-screen'
+          commands:
+            - tapOn:
+                text: '^Delete$'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 3000
+- extendedWaitUntil:
+    notVisible:
+      id: 'task-detail-screen'
+    timeout: 25000
+- runFlow: mm-go-tasks.yaml
+# Gone from THIS device. The peer half is mm-22b.
+- extendedWaitUntil:
+    notVisible: '.*${MM_TITLE}.*'
+    timeout: 30000
+- assertNotVisible: '.*${MM_TITLE}.*'
+- runFlow: mm-sync-pulse.yaml

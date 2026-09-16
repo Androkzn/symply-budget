@@ -1,0 +1,47 @@
+name: Backend guards
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-guards.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/migrations/**'
+      - 'backend/drizzle.config.ts'
+      - 'backend/src/db/**'
+
+jobs:
+  migration-and-generate-guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Refuse edits to frozen migration 0017
+        working-directory: backend
+        run: npm run check:migrations:frozen
+
+      # Enforcing only where the incomplete glob can actually cause harm: a PR
+      # that adds a drizzle-GENERATED migration (those bring meta/ snapshots
+      # with them). Everywhere else this reports and passes — see the header of
+      # scripts/db-generate-guard.mjs for why the glob is deliberately narrow
+      # and why failing every backend PR over it was worse than not checking.
+      - name: Guard drizzle-kit generate config
+        working-directory: backend
+        run: |
+          if [ -n "${{ github.base_ref }}" ] && \
+             git diff --name-only "origin/${{ github.base_ref }}...HEAD" \
+               | grep -q '^backend/migrations/meta/'; then
+            echo "PR touches migrations/meta — enforcing."
+            npm run db:generate:guard
+          else
+            npm run db:generate:guard -- --advisory
+          fi

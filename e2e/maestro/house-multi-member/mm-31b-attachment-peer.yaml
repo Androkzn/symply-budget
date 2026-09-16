@@ -1,0 +1,66 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - feature:attachments
+# Matrix: HOUSE-MM-031 (part b) — the attachment reached the OTHER member.
+#
+# Runs on device B only, after mm-31a. The UI half asserts what a member would
+# see: opening the same task's edit form shows one photo (`1/5`) and a cover
+# thumbnail. The BYTE half is the runner's job — it checks that B's
+# `Library/Caches/lf-blobs/` gained a non-empty file, because a rendered
+# <Image> proves a row arrived, not that the ciphertext did (the precise failure
+# mode H6 exists to close; see the header of mm-31a).
+#
+# env: MM_PEER_TITLE — the task the owner attached to
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-go-tasks.yaml
+# The row itself is already here from phase 2; what has to arrive is the photo.
+- extendedWaitUntil:
+    visible: '.*${MM_PEER_TITLE}.*'
+    timeout: 30000
+- repeat:
+    times: 12
+    commands:
+      - runFlow: mm-sync-pulse.yaml
+      - runFlow: mm-dismiss-stale-alerts.yaml
+      - runFlow: mm-relaunch-if-backgrounded.yaml
+- runFlow: mm-go-tasks.yaml
+- tapOn:
+    text: '.*${MM_PEER_TITLE}.*'
+- extendedWaitUntil:
+    visible:
+      id: 'task-detail-screen'
+    timeout: 25000
+- tapOn:
+    id: 'task-detail-edit'
+- extendedWaitUntil:
+    visible:
+      id: 'task-form-title'
+    timeout: 25000
+- scrollUntilVisible:
+    element:
+      text: 'Photos'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- extendedWaitUntil:
+    visible: '1/5'
+    timeout: 45000
+- assertVisible: '1/5'
+- assertVisible: 'Task cover photo'
+# Leave the form WITHOUT saving — this device is a reader here, and a save would
+# mint an op that competes with the owner's for no reason.
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    text: '^Discard$'
+    optional: true
+- runFlow: mm-leave-task-form.yaml

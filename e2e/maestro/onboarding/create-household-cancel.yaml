@@ -1,0 +1,33 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:onboarding
+  - readonly
+  - regression
+# Matrix: HOUSE-ONB-006
+---
+- runFlow: ../subflows/launch-onboarding.yaml
+- runFlow: ../subflows/skip-onboarding-if-onboarded.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-get-started'
+    commands:
+      - tapOn:
+          id: 'onboarding-agree-terms'
+      - tapOn:
+          id: 'onboarding-get-started'
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-create-home-name'
+          timeout: 30000
+      - tapOn:
+          id: 'onboarding-create-home-name'
+      - inputText: 'E2E Cancel Home'
+      - hideKeyboard
+      - pressKey: back
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-get-started'
+          timeout: 30000
+          optional: true

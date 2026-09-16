@@ -1,0 +1,73 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:multi-member
+---
+# Clear any app alert left over from an earlier flow or an earlier RUN.
+#
+# These simulators are never launched with clearState (that would wipe the local
+# ledger this suite exists to test), so a native alert survives flow boundaries
+# and even whole runs. It is invisible to assertions — an iOS alert does not
+# remove the screen behind it from the view hierarchy, so `assertVisible` on a
+# background element still passes — while it silently swallows every tap and
+# keystroke aimed at that screen. Proven on the Budget pair: a stray "Join
+# requests" alert from one run left the next run's typing going nowhere, and the
+# failure surfaced three steps later as "the confirm dialog never appeared".
+#
+# Only dismissive buttons are tapped, never a confirming one. In particular
+# `^Delete$` is NEVER tapped here — House's task delete confirm uses exactly
+# that label, and a blanket dismissal would delete a row the suite is about to
+# assert on.
+#
+# `^Cancel$` IS THE SAME BUG AND IT SHIPPED. The outstanding-invites panel
+# renders one revoke button per live invite, and its label is exactly "Cancel"
+# (`house-invite-revoke-<shortCode>`, HouseInviteCreateScreen.tsx:536). Device A
+# sits on that panel for the whole enrolment chain, so this blanket tap
+# REVOKED THE INVITE THE SUITE WAS TESTING.
+#
+# It is worth being precise about how that presented, because nothing failed:
+# run 20260905-102733 minted 4FMANN, device B claimed it (`…/claim → 200`) and
+# derived SAS 294 072, then 85 seconds later the log shows
+# `POST /v2/households/…/invites/cbc7e9ba…/revoke → 200` from THIS tap. The
+# owner's pending list was then correctly empty, mm-04 took its "nothing
+# pending" branch and PASSED without approving anything, and mm-05 passed too
+# because a revoked invite also clears "Waiting for approval…". Three green
+# steps, no approval, no key.
+#
+# The tell in the log is that this tap COMPLETED while every neighbouring alert
+# tap WARNED — it matched a real button, not an alert.
+#
+# No blanket dismissal may use a label the app itself uses on a destructive
+# control. If an alert ever genuinely needs Cancel, tap it in that flow, on
+# purpose.
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          text: '^OK$'
+          optional: true
+      - tapOn:
+          text: '^Dismiss$'
+          optional: true
+      - tapOn:
+          text: '^Not Now$'
+          optional: true
+
+# THE ADDRESS GATE, cleared here because it is not an alert but behaves like the
+# worst one: `usePropertyAddressCaptureGate` (RootNavigator.tsx) mounts
+# CreateHouseholdScreen over the WHOLE app as the only route in its stack, so
+# there is no back button and every deep link this suite uses is swallowed.
+#
+# Local-first auto-mint seeds a household with NO state_province
+# (src/features/house/local/engine.ts:1666), so ANY device that reinstalls House
+# — which is every device this suite erases and re-provisions — lands here the
+# moment that household becomes current. On 2026-09-05 it took device A down
+# mid-run: mm-01-signin had already passed, then mm-13 died on
+# `tasks-screen is visible` with the gate filling the screen, which reads as a
+# broken Tasks tab rather than as a gate.
+#
+# Guarded inside the subflow on `address-capture-accept-invite` (it renders only
+# when the gate opened this screen), so this is a no-op whenever the gate is
+# down — which is why it is safe to hang off the helper every flow already calls.
+- runFlow: ../subflows/house-clear-address-gate.yaml

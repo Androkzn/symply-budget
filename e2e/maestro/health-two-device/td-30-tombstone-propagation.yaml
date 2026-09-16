@@ -1,0 +1,162 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+  - feature:weight
+  - mutation
+# Matrix: HEALTH-TD-030 — tombstone propagation, asserted NON-VACUOUSLY.
+#
+# WHY THIS EXISTS WHEN td-10 ALREADY DELETES A WEIGHT ROW.
+# td-10's delete phase asserts "the marker is not visible on B". That assertion
+# passes for two completely different reasons: the tombstone travelled, or the
+# row never reached B in the first place. A projection that silently dropped
+# every remote op would sail through it. The DoD bullet is "tombstone
+# propagation", not "absence", so this flow forces the order:
+#
+#   TD_STEP=seed     A logs a reading carrying TD_MARK
+#   TD_STEP=witness  B MUST render TD_MARK           ← the anti-vacuity gate
+#   TD_STEP=kill     A deletes that reading
+#   TD_STEP=verify   B MUST stop rendering TD_MARK
+#
+# The runner treats a `witness` failure as fatal and never runs `kill`, so a
+# suite that cannot deliver a create can never claim a delete.
+#
+# The Weight tab is the vehicle because `health-weight-entry-note` is the only
+# free-text field among the dated log tables — a numeric marker on the shared
+# fleet account is not unique enough to carry a four-step argument.
+#
+# env: TD_STEP (seed|witness|kill|verify), TD_MARK, TD_VALUE
+---
+- runFlow: td-launch.yaml
+- runFlow: ../health/subflows/go-health-weight.yaml
+
+# --- seed (device A) ------------------------------------------------------
+- runFlow:
+    when:
+      true: ${TD_STEP == 'seed'}
+    commands:
+      - repeat:
+          times: 8
+          commands:
+            - runFlow:
+                when:
+                  notVisible: 'LOG A WEIGHT'
+                commands:
+                  - scrollUntilVisible:
+                      element:
+                        id: 'health-weight-delete-.*'
+                      direction: DOWN
+                      timeout: 20000
+                      visibilityPercentage: 10
+                      optional: true
+                  - tapOn:
+                      id: 'health-weight-delete-.*'
+                      index: 0
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 1500
+                  - runFlow:
+                      file: ../health/subflows/health-swipe-section-to.yaml
+                      env:
+                        TARGET_ID: 'health-weight-entry-value'
+                        SCROLL_DIR: up
+      - scrollUntilVisible:
+          element:
+            text: 'LOG A WEIGHT'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'health-weight-entry-value'
+      - inputText: ${TD_VALUE}
+      - runFlow:
+          file: ../health/subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'LOG A WEIGHT'
+      - tapOn:
+          id: 'health-weight-entry-note'
+      - inputText: ${TD_MARK}
+      - runFlow:
+          file: ../health/subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'LOG A WEIGHT'
+      - tapOn:
+          id: 'health-weight-entry-save'
+      - extendedWaitUntil:
+          visible: '.*${TD_MARK}.*'
+          timeout: 30000
+      - assertVisible: '.*${TD_MARK}.*'
+      - runFlow: td-sync-nudge.yaml
+
+# --- witness (device B) — the gate that makes `verify` mean something -----
+- runFlow:
+    when:
+      true: ${TD_STEP == 'witness'}
+    commands:
+      - repeat:
+          times: 20
+          commands:
+            - runFlow:
+                when:
+                  notVisible: '.*${TD_MARK}.*'
+                commands:
+                  - runFlow: td-sync-nudge.yaml
+                  - runFlow: ../health/subflows/go-health-weight.yaml
+                  - scrollUntilVisible:
+                      element:
+                        text: '.*${TD_MARK}.*'
+                      direction: DOWN
+                      timeout: 8000
+                      visibilityPercentage: 10
+                      optional: true
+      - extendedWaitUntil:
+          visible: '.*${TD_MARK}.*'
+          timeout: 45000
+      # B is now HOLDING the row. Anything the delete step proves from here is
+      # a real removal rather than an absence that was always true.
+      - assertVisible: '.*${TD_MARK}.*'
+
+# --- kill (device A) ------------------------------------------------------
+- runFlow:
+    when:
+      true: ${TD_STEP == 'kill'}
+    commands:
+      - extendedWaitUntil:
+          visible: '.*${TD_MARK}.*'
+          timeout: 30000
+      - scrollUntilVisible:
+          element:
+            id: 'health-weight-delete-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'health-weight-delete-.*'
+          index: 0
+      - extendedWaitUntil:
+          notVisible: '.*${TD_MARK}.*'
+          timeout: 30000
+      - assertNotVisible: '.*${TD_MARK}.*'
+      - runFlow: td-sync-nudge.yaml
+
+# --- verify (device B) ----------------------------------------------------
+- runFlow:
+    when:
+      true: ${TD_STEP == 'verify'}
+    commands:
+      - repeat:
+          times: 20
+          commands:
+            - runFlow:
+                when:
+                  visible: '.*${TD_MARK}.*'
+                commands:
+                  - runFlow: td-sync-nudge.yaml
+                  - runFlow: ../health/subflows/go-health-weight.yaml
+      - extendedWaitUntil:
+          notVisible: '.*${TD_MARK}.*'
+          timeout: 45000
+      - assertNotVisible: '.*${TD_MARK}.*'

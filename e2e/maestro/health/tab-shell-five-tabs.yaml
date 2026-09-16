@@ -1,0 +1,109 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:home
+  - readonly
+  - regression
+# Matrix: HEALTH-TAB-004, HEALTH-TAB-005, HEALTH-TAB-006, HEALTH-TAB-007
+---
+# Symply Health ships a FIVE-tab bar: Dashboard · Weight · Nutrition · Activity ·
+# More, with Trends, Body, Habits, Water, Cycle and Vitality parked in the More
+# hub. This matches the Swift donor's own default lead position
+# (`[.dashboard, .meals, .weight, .workouts, .more]`, Dashboard first) — product
+# confirmed 2026-07-28 (see brands/symply-health/brand.cjs). This flow proves
+# every pinned tab exists, is labelled, and routes to its own screen — and that
+# none of the `defaultHidden` tabs is in the bar by default.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- the five pinned slots (HEALTH-TAB-004) -------------------------
+      - assertVisible:
+          id: 'tab-health-weight'
+      - assertVisible:
+          id: 'tab-health-nutrition'
+      - assertVisible:
+          id: 'tab-health-activity'
+      - assertVisible:
+          id: 'tab-index'
+      - assertVisible:
+          id: 'tab-settings'
+
+      # --- labels, not just IDs (HEALTH-TAB-005) --------------------------
+      # iOS auto-concatenates each tab's icon name into its accessibility label
+      # (e.g. "weight, Weight"), and Maestro's plain-string text match is a full
+      # match against that label, not a substring one — a bare 'Weight' fails
+      # against 'weight, Weight' even though the word is right there on screen.
+      # `.*X.*` is the established pattern for this elsewhere in the suite.
+      - assertVisible: '.*Weight.*'
+      - assertVisible: '.*Nutrition.*'
+      - assertVisible: '.*Activity.*'
+      - assertVisible: '.*Dashboard.*'
+
+      # --- defaultHidden tabs stay out of the bar (HEALTH-TAB-006) --------
+      # NOT optional: an optional negative can never fail, which is what made
+      # the old two-tab assertion vacuous.
+      # Trends moved into the pool when Weight took the 4th pinned slot; Body +
+      # Habits + Water + Cycle + Vitality all ship `defaultHidden` too — the bar
+      # is capped at five, so every one of them must live in the More hub instead.
+      - assertNotVisible:
+          id: 'tab-health-trends'
+      - assertNotVisible:
+          id: 'tab-health-body'
+      - assertNotVisible:
+          id: 'tab-health-habits'
+      - assertNotVisible:
+          id: 'tab-health-water'
+      - assertNotVisible:
+          id: 'tab-health-cycle'
+      - assertNotVisible:
+          id: 'tab-health-vitality'
+      # No foreign brand tab may leak into Health's bar.
+      - assertNotVisible:
+          id: 'tab-budget'
+      - assertNotVisible:
+          id: 'tab-my-home'
+
+      # --- each tab routes to its own screen ------------------------------
+      - tapOn:
+          id: 'tab-health-weight'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-weight-screen'
+          timeout: 30000
+      - tapOn:
+          id: 'tab-health-nutrition'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-screen'
+          timeout: 30000
+      - tapOn:
+          id: 'tab-health-activity'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-activity-screen'
+          timeout: 30000
+      - tapOn:
+          id: 'tab-settings'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-more-screen'
+          timeout: 30000
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+
+      # --- re-tapping the active tab is safe (HEALTH-TAB-007) -------------
+      - tapOn:
+          id: 'tab-index'
+      - assertVisible:
+          id: 'health-home-screen'

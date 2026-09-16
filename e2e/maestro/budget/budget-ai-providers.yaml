@@ -1,0 +1,113 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:ai-access
+  - readonly
+  - regression
+# Matrix: BUDGET-ai-providers (see documents/engineering/testing/matrices/)
+# Budget's own BYOK "AI Providers" control panel (shared app/ai-access/manage.tsx,
+# reached via Settings → AI Providers). Asserts the always-present surface — all
+# three providers, the [Providers | Usage] segmented control, and the Usage tab's
+# estimated-spend panel. When a provider is connected it also opens the inline
+# model dropdown (flagship tagged "MOST CAPABLE") and the per-provider detail
+# (usage + billing link). Non-mutating: opens/reads only — never selects a model
+# or flips the default toggle.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+# The Settings "AI assistance" row now lands on the shared /ai-access hub
+# (identical across every brand — see @components/ai/useAIAccessEntry). This
+# suite exercises the manage control-panel itself, so open it directly.
+- openLink: ${E2E_APP_SCHEME}:///ai-access/manage
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'ai-access-manage-screen'
+    timeout: 20000
+
+# All three providers are always listed (connected or not). Each provider title
+# sits inside the card's tappable Pressable, so its a11y node is the COMBINED
+# label ("Anthropic Claude" + tagline) — match a substring, not the full string.
+- assertVisible: '.*Anthropic Claude.*'
+- assertVisible: '.*OpenAI.*'
+- assertVisible: '.*Google Gemini.*'
+
+# The [Providers | Usage] segmented control.
+- assertVisible:
+    id: 'filter-tab-providers'
+- assertVisible:
+    id: 'filter-tab-usage'
+
+# Usage tab → estimated $/tokens panel (renders even with zero usage).
+- tapOn:
+    id: 'filter-tab-usage'
+- extendedWaitUntil:
+    visible:
+      id: 'ai-usage-panel-all'
+    timeout: 10000
+
+# Regression guard for the backend brand-gate bug fixed 2026-08-04:
+# GET /households/:id/ai-usage was scoped House-only via gateHomeApiPaths, so
+# Budget always got a 404 here that useAiUsage/AiUsagePanel silently swallowed
+# into an indistinguishable "$0.00 / 0 requests" empty state (see
+# backend/src/index.ts). Assert the real backend call, not just that the panel
+# rendered SOME state.
+- runFlow:
+    file: ../subflows/e2e-verify-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: GET
+      E2E_VERIFY_PATH: /ai-usage
+      E2E_VERIFY_STATUS: '200'
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+- tapOn:
+    id: 'filter-tab-providers'
+- extendedWaitUntil:
+    visible:
+      id: 'ai-access-manage-screen'
+    timeout: 10000
+
+# Connected path — only when a real key is stored for this account.
+- runFlow:
+    when:
+      visible:
+        id: 'ai-default-toggle-anthropic'
+    commands:
+      - tapOn:
+          id: 'ai-model-row-anthropic'
+      # Wrapped, because Maestro matches a regex against an element's WHOLE text
+      # and the flagship marker now rides on the option's accessibility label
+      # ("Claude Fable 5 MOST CAPABLE") rather than standing alone. The bare
+      # string never matched: the badge is a child of an accessibility element,
+      # so it was rendered but absent from the hierarchy entirely.
+      - assertVisible: '.*MOST CAPABLE.*'
+      - tapOn:
+          id: 'ai-model-row-anthropic'
+      - tapOn:
+          id: 'ai-provider-detail-row-anthropic'
+      - extendedWaitUntil:
+          visible:
+            id: 'ai-provider-detail-screen-anthropic'
+          timeout: 15000
+      - assertVisible:
+          id: 'ai-usage-panel-anthropic'
+      - assertVisible:
+          id: 'ai-billing-link-anthropic'
+
+# Not-connected path — the card offers a Connect CTA instead.
+- runFlow:
+    when:
+      notVisible:
+        id: 'ai-default-toggle-anthropic'
+    commands:
+      # The Connect CTA's a11y label is "Connect <provider>" — match a substring.
+      - assertVisible: '.*Connect.*'

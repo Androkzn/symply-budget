@@ -1,0 +1,304 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:exercises
+  - mutation
+  - regression
+  - smoke
+# Matrix: HEALTH-EXER-101 … HEALTH-EXER-108
+---
+# Workouts tab — the donor's `exercise_library`, rebuilt as a browse-and-pick
+# catalogue (88 seeded rows, migration 0123_health_exercise_library.sql).
+#
+# The catalogue, the favourite flag and the injury verdict all come from
+# `symply-health-api`; MMKV is only the offline snapshot. That is why the row ids
+# this flow taps are the SEEDED ones (`ex_plank`, `ex_box_breathing`, …) — they
+# are authored in the migration, not generated per user, so they are stable.
+#
+# Search hides the filter card by design (a query is its own filter), which makes
+# `health-exercises-filters` the cheap proof of which mode the screen is in.
+#
+# GATED / SKIPS-GRACEFULLY: the body is wrapped in
+# `runFlow: when: visible: health-home-screen` so it runs only when the installed
+# app already holds a session (same contract as nutrition-log-meal.yaml).
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-EXER-101
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- The library opens through the More hub (HEALTH-EXER-101) --------
+      - runFlow: subflows/go-health-exercises.yaml
+      - assertVisible: 'Workouts'
+      - assertVisible: 'SEARCH'
+      - assertVisible:
+          id: 'health-exercises-filters'
+      # The catalogue sits under four bands of filter chips, so on a handset both
+      # its heading and its first row are below the fold. Each scrollUntilVisible
+      # is the assertion — it fails if the list never arrives.
+      - scrollUntilVisible:
+          element:
+            text: 'EXERCISES'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            id: 'health-exercise-row-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+
+      # --- A search miss says so in words (HEALTH-EXER-102) ----------------
+      # The needle is deliberately unmatchable: no seeded name, alias, muscle or
+      # equipment token contains it.
+      # NOT network-verified below: `query` drives `searchExercises()`
+      # (healthExerciseStorage.ts), a REAL `GET /health/exercises?search=` call
+      # on every change — but it is a read, not a mutation, so it is out of
+      # scope for the clear-log/verify-network treatment this flow adds
+      # elsewhere (see the favouriting and teardown legs further down).
+      - scrollUntilVisible:
+          element:
+            id: 'health-exercises-search-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-exercises-search-input'
+      - inputText: 'zzqq'
+      - hideKeyboard
+      - extendedWaitUntil:
+          visible:
+            id: 'health-exercises-search-empty'
+          timeout: 20000
+      - assertVisible: 'No exercise matches that.'
+      - assertVisible: 'RESULTS'
+      # Searching replaces the filters rather than compounding with them.
+      - assertNotVisible:
+          id: 'health-exercises-filters'
+
+      # --- A search hit lists the movement (HEALTH-EXER-103) ---------------
+      - tapOn:
+          id: 'health-exercises-search-clear'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-exercises-filters'
+          timeout: 10000
+      - tapOn:
+          id: 'health-exercises-search-input'
+      - inputText: 'Plank'
+      - hideKeyboard
+      - extendedWaitUntil:
+          visible:
+            id: 'health-exercise-row-ex_plank'
+          timeout: 20000
+      # The row carries its own category · difficulty · muscle summary, so a row
+      # that rendered with an empty body fails here rather than looking fine.
+      - assertVisible:
+          id: 'health-exercise-meta-ex_plank'
+
+      # --- Favouriting a row is announced, not just tinted (HEALTH-EXER-104) -
+      # The star is icon-only: its accessibility label is the state. Normalise
+      # first — a previous run that died before its teardown would leave Plank
+      # already favourited and invert every assertion below.
+      # Real backend write either way: `handleFavorite` → `setExerciseFavorite`
+      # (healthExerciseStorage.ts) → `PUT /health/exercises/ex_plank/favorite`
+      # (healthExercises.ts), 200. `ex_plank` is the seeded id, so the path is
+      # asserted exactly rather than as a pattern.
+      - runFlow:
+          when:
+            visible:
+              text: 'Remove Plank from favourites'
+          commands:
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+            - tapOn:
+                id: 'health-exercise-favorite-ex_plank'
+            - extendedWaitUntil:
+                visible: 'Add Plank to favourites'
+                timeout: 10000
+            - runFlow:
+                file: ../subflows/e2e-verify-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+                  E2E_VERIFY_METHOD: PUT
+                  E2E_VERIFY_PATH: /exercises/ex_plank/favorite
+                  E2E_VERIFY_STATUS: '200'
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+      - assertVisible: 'Add Plank to favourites'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-exercise-favorite-ex_plank'
+      - extendedWaitUntil:
+          visible: 'Remove Plank from favourites'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /exercises/ex_plank/favorite
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The favourites chip narrows the catalogue (HEALTH-EXER-105) ------
+      # Local-only from here through HEALTH-EXER-107: `filter`/`favoritesOnly`
+      # is client state applied by `applyExerciseFilter`/`viewExercises`
+      # (healthExerciseStorage.ts) over the already-cached catalogue — no
+      # request fires per chip tap.
+      - tapOn:
+          id: 'health-exercises-search-clear'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-exercises-filters'
+          timeout: 10000
+      - tapOn:
+          id: 'health-exercises-filter-favorites'
+      # "Clear" only exists while a filter is active — the chip's own proof.
+      - assertVisible:
+          id: 'health-exercises-filter-clear'
+      # The list sits under four bands of chips, so the row is below the fold on
+      # a handset. scrollUntilVisible IS the assertion: it fails if the row never
+      # arrives.
+      - scrollUntilVisible:
+          element:
+            id: 'health-exercise-row-ex_plank'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-exercise-row-ex_plank'
+
+      # --- One chip filters, two chips compose (HEALTH-EXER-106) ------------
+      # Recovery holds exactly three seeded rows, none of which loads the chest,
+      # so muscle=chest AND category=recovery is an empty intersection — the
+      # honest proof that the chips AND rather than replace each other.
+      - scrollUntilVisible:
+          element:
+            id: 'health-exercises-filter-clear'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-exercises-filter-clear'
+      - assertNotVisible:
+          id: 'health-exercises-filter-clear'
+      - scrollUntilVisible:
+          element:
+            id: 'health-exercises-filter-category-recovery'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-exercises-filter-category-recovery'
+      # Recovery sorts Body Scan Relaxation · Box Breathing · Legs Up the Wall,
+      # so walking DOWN the list reaches them in that order.
+      - scrollUntilVisible:
+          element:
+            id: 'health-exercise-row-ex_box_breathing'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            id: 'health-exercise-row-ex_legs_up_wall'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            id: 'health-exercises-filter-muscle-chest'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-exercises-filter-muscle-chest'
+      - scrollUntilVisible:
+          element:
+            id: 'health-exercises-empty'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'No exercises match these filters. Clear one to see more.'
+
+      # --- Clear resets every band at once (HEALTH-EXER-107) ----------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-exercises-filter-clear'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-exercises-filter-clear'
+      - assertNotVisible:
+          id: 'health-exercises-filter-clear'
+      - assertNotVisible:
+          id: 'health-exercises-empty'
+
+      # --- Teardown: un-favourite Plank (HEALTH-EXER-108) -------------------
+      # The favourite is a SERVER row, so it outlives the process — leaving it
+      # set would change the catalogue's order for every later run.
+      - scrollUntilVisible:
+          element:
+            id: 'health-exercises-search-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-exercises-search-input'
+      - inputText: 'Plank'
+      - hideKeyboard
+      - extendedWaitUntil:
+          visible:
+            id: 'health-exercise-favorite-ex_plank'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-exercise-favorite-ex_plank'
+      - extendedWaitUntil:
+          visible: 'Add Plank to favourites'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /exercises/ex_plank/favorite
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - tapOn:
+          id: 'health-exercises-search-clear'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

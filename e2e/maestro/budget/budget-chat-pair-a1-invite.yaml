@@ -1,0 +1,95 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:budget-chat
+  - pair
+  - pair:a
+  - mutation
+  - regression
+# Matrix: BUDGET-BCHAT-PAIR-001
+#
+# ── Two-member Budget V2 chat, stage A1 (device A / member A) ────────────────
+# Budget V2 is local-first: each device owns one encrypted ledger bound to a
+# single household (`hh_local_…`). Two people share a budget by ENROLLING a
+# second device — the owner mints an invite code, the invitee redeems it, the
+# owner approves an out-of-band phrase. That enrolment is the only way to get two
+# members into one household, so it is where a two-member chat run has to start.
+#
+# This stage is the owner minting the code. The code/secret/OOB phrase are then
+# carried to device B by the orchestrator, which scrapes the dev-only
+# `[E2E-INVITE]` line the screen logs (BudgetInviteScreen) — standing in for
+# the human reading the code out over the phone. The values are also shown in
+# the alert and copied to the clipboard for a real user.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+# The whole local-first section is V2-only; its absence means the app is running
+# with EXPO_PUBLIC_BUDGET_LOCAL_FIRST=0 and this run is testing the wrong thing.
+# It sits on Profile now — SYNC & SHARING moved off Budget Settings.
+- runFlow: ../subflows/budget-open-profile.yaml
+- assertVisible:
+    id: 'budget-settings-invite-link'
+# Minting lives on its own screen now (Profile → Invite & Household).
+- runFlow: ../subflows/budget-open-invite.yaml
+- tapOn:
+    id: 'budget-settings-create-invite'
+    retryTapIfNoChange: true
+# Minting the invite is a control-plane round trip, and a successful one now
+# lands on the QR sheet — which covers the card this stage reads.
+- runFlow: ../subflows/budget-dismiss-invite-qr.yaml
+- extendedWaitUntil:
+    visible: 'Invite created'
+    timeout: 45000
+    optional: true
+- runFlow:
+    when:
+      notVisible: 'Invite created'
+    commands:
+      # A failed mint pops "Could not create invite" — surface that rather than
+      # letting the orchestrator scrape a stale code from an earlier run.
+      - assertNotVisible: 'Could not create invite'
+      - tapOn:
+          id: 'budget-settings-create-invite'
+          retryTapIfNoChange: true
+      - runFlow: ../subflows/budget-dismiss-invite-qr.yaml
+      - extendedWaitUntil:
+          visible: 'Invite created'
+          timeout: 45000
+- assertVisible: 'Invite created'
+- tapOn:
+    text: 'OK'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000
+# Backend truth: the code came from a real control-plane invite, not local state.
+- runFlow:
+    file: ../subflows/e2e-verify-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /invites
+      E2E_VERIFY_STATUS: '201'
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 10000
+# Leave the settings stack for the next stage. Best-effort on purpose: this
+# stage's result is already established by the assertions above, so failing it
+# on the way BACK to the dashboard would only add a failure mode, not coverage.
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- openLink: simplebudget:///
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- runFlow: ../subflows/budget-recover-dashboard.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 60000
+    optional: true

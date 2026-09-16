@@ -1,0 +1,118 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:budget-chat
+  - regression
+# Matrix: BUDGET-BCHAT-053..056 (see documents/engineering/testing/matrices/budget.md)
+# Dedicated AI Budget Assistant room — the pinned, undeletable, participant-locked,
+# mention-free chat (is_assistant). Proves the shared chat UI surfaces it:
+#   - the rooms list auto-shows "AI Budget Assistant" pinned on top with the
+#     "Assistant" chip (backend ensureAssistantRoom + is_assistant ordering);
+#   - opening it and sending a message with NO @assistant still posts (the room
+#     always routes to the assistant server-side — the AI reply itself needs a
+#     server key + entitlement, so we assert the SENT text, like budget-chat-assistant);
+#   - room settings hide "Delete room" and lock participants (undeletable / dedicated).
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-open-chat-rooms.yaml
+
+# The dedicated assistant room is auto-created by the backend on the first rooms
+# list and pinned first. Assert it renders with its name + "Assistant" chip.
+- extendedWaitUntil:
+    visible: '.*AI Budget Assistant.*'
+    timeout: 45000
+- assertVisible: '.*Assistant.*'
+
+# Open the pinned assistant room (it's always the first row).
+- tapOn:
+    id: 'chat-rooms-first-room'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-screen'
+    timeout: 60000
+- assertVisible: '.*AI Budget Assistant.*'
+
+# Send a message WITHOUT @assistant — the dedicated room answers every message,
+# so no mention is required. Assert the sent body renders (the send succeeded).
+- assertVisible:
+    id: 'chat-room-input'
+- tapOn:
+    id: 'chat-room-input'
+- inputText: 'How am I doing on my budget this month'
+- runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+- waitForAnimationToEnd:
+    timeout: 1500
+# This is the pinned, undeletable assistant room — it accumulates history
+# indefinitely across every run. A long scroll-heavy view can take a while to
+# settle, and a plain tapOn's default wait isn't enough (reproduced:
+# "chat-room-send" not found while the message list was still laying out).
+# extendedWaitUntil first, THEN tap, for real patience.
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-send'
+    timeout: 30000
+- tapOn:
+    id: 'chat-room-send'
+# NOT the same "Maestro drops the first onChangeText" race budget-chat-message.yaml
+# guards against — this room's account is AI-entitled, so a live reply starts
+# streaming in right after send, and continuous re-renders during that window
+# make a plain visibility check flaky. An erase+retype+resend retry here fires
+# mid-stream and fails retapping send — not a real "text didn't land" case
+# (reproduced: sent bubble + full AI reply both already rendered when this
+# "failed"). Just wait longer; nothing to retry.
+- extendedWaitUntil:
+    visible: '.*How am I doing on my budget this month.*'
+    timeout: 30000
+
+# Open room settings and prove the assistant room is undeletable + participant-locked.
+- hideKeyboard:
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-settings'
+    timeout: 20000
+- tapOn:
+    id: 'chat-room-settings'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-settings-screen'
+    timeout: 20000
+    optional: true
+# The header cog can miss its first tap mid-transition; re-tap and hard-assert.
+- runFlow:
+    when:
+      notVisible:
+        id: 'chat-room-settings-screen'
+    commands:
+      - hideKeyboard:
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-room-settings'
+          timeout: 15000
+      - tapOn:
+          id: 'chat-room-settings'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-room-settings-screen'
+          timeout: 20000
+# Undeletable: the Delete button is absent for the assistant room.
+- assertNotVisible:
+    id: 'chat-room-settings-delete'
+# No "Save participants" affordance either (participants are locked).
+- assertNotVisible:
+    id: 'chat-room-settings-save'
+# Dedicated 1:1 hint + participant toggle present-but-locked.
+- assertVisible: 'This is your private chat with the AI assistant — no one else can join.'
+# Clearing history stays available (the room persists, pinned on top).
+- assertVisible:
+    id: 'chat-room-settings-clear-history'
+
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- runFlow: ../subflows/budget-exit-chat.yaml

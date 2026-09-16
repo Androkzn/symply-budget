@@ -1,0 +1,20 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - regression
+# Matrix: BUDGET-SAVE-046 — savings month stepper refetches sub-tabs
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/go-budget-savings.yaml
+- assertVisible:
+    id: 'savings-month-prev'
+- assertVisible:
+    id: 'savings-month-next'
+- tapOn:
+    id: 'savings-month-prev'
+- tapOn:
+    id: 'savings-month-next'
+- assertVisible:
+    id: 'filter-tab-overview'

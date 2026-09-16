@@ -1,0 +1,72 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-003
+---
+# WHAT THIS PROVES
+# ----------------
+# `simplehouse://device-sync` opens the same Device sync surface without walking
+# the Settings stack — `app/device-sync.tsx` renders `HouseDeviceSyncScreen`
+# after its `isHouseBrand() && isHouseLocalFirst()` guard.
+#
+# WHY THAT MATTERS
+# ----------------
+# The Settings row is how a member FINDS this screen once. The deep link is how
+# everything else reaches it, and those callers have no fallback:
+#   * the invite link a partner is handed;
+#   * the push that says a device is waiting for approval;
+#   * the two-device E2E suite, whose mm-open-lf-settings.yaml tries the
+#     Settings row first and then falls back to exactly this URL.
+# expo-router derives the route path from the FILE NAME, so renaming
+# `app/device-sync.tsx` breaks every one of those at once while leaving the
+# Settings row — and therefore LF-001 and LF-002 — perfectly green. This flow is
+# the only thing that fails.
+#
+# The brand/flag redirect half of the route (`<Redirect href="/" />` for a
+# non-House brand or a flag-off build) is covered by
+# `app/__tests__/device-sync.route.test.tsx`; it cannot be reached from a House
+# device, which is what this flow runs on.
+#
+# ISOLATION: lf-leave-device-sync parks us on Home and PROVES the surface is
+# gone before the link is opened — otherwise "the card is visible" after
+# openLink would be indistinguishable from the card that was already there.
+# Deliberately does not use lf-open-device-sync: that helper opens this very
+# deep link, so delegating would make the flow assert on itself.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-003
+- runFlow: lf-leave-device-sync.yaml
+- assertNotVisible:
+    id: 'house-local-first-sync-card'
+
+- openLink: ${E2E_APP_SCHEME}://device-sync
+- waitForAnimationToEnd:
+    timeout: 4000
+# Expo Dev Client can put "Open in …?" over a scheme link on a Debug build.
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'house-local-first-sync-card'
+    timeout: 30000
+- assertVisible:
+    id: 'lf-sync-screen'
+- assertVisible:
+    id: 'house-settings-sync-now'
+# `lf-sync-screen` above IS the not-redirected assertion: the non-House / flag-off
+# branch renders `<Redirect href="/" />` and never mounts EnrolmentShell at all.
+# Home is deliberately not asserted absent — a pushed route over the tab stack
+# can leave the tab screen in the iOS hierarchy, which would make that a flake
+# rather than a finding.
+
+- runFlow: lf-leave-device-sync.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

@@ -1,0 +1,117 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: HOUSE-MM-020 — record something, then wait for the OTHER member's
+# change to arrive. Runs on BOTH devices AT THE SAME TIME.
+#
+# This flow is its own rendezvous. Each device does its half and then polls sync
+# until the peer's row shows up, so the two Maestro processes need no
+# coordination channel: whichever finishes first simply waits inside its own
+# poll loop. That is what makes concurrent driving safe here.
+#
+# env:
+#   MM_TITLE        the task THIS member creates (anchor + " v1")
+#   MM_PEER_TITLE   the task the OTHER member creates, awaited here
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-go-tasks.yaml
+- tapOn:
+    id: 'tasks-add-fab'
+- extendedWaitUntil:
+    visible:
+      id: 'add-task-sheet'
+    timeout: 20000
+# SHARED, not personal — this is the whole test.
+#
+# `add-task-personal-toggle` renders its CURRENT state, not the action:
+# "Personal (only me)" when personal, "Shared with household" when not
+# (AddTaskSheet.tsx:437). A personal task is scoped to one member and would
+# never reach the peer, so a suite that left this on would fail the peer
+# assertion while the app was behaving perfectly. Tap only when it reads
+# personal; the sheet is sticky across runs.
+- runFlow:
+    when:
+      visible: 'Personal \(only me\)'
+    commands:
+      - tapOn:
+          id: 'add-task-personal-toggle'
+      - waitForAnimationToEnd:
+          timeout: 1500
+- assertVisible: 'Shared with household'
+- tapOn:
+    id: 'add-task-input'
+- inputText: ${MM_TITLE}
+- hideKeyboard:
+    optional: true
+- runFlow: mm-relaunch-if-backgrounded.yaml
+- tapOn:
+    id: 'add-task-submit'
+- waitForAnimationToEnd:
+    timeout: 2500
+- runFlow: mm-dismiss-dev-chrome.yaml
+# Wait generously, and re-tap Add if the sheet is still up.
+#
+# The write runs on the JS thread, which is frequently mid-sync here (AEAD +
+# signatures + a whole-ledger persist), so the sheet close can lag well past a
+# first check — observed on Budget with the form fully valid and Save ENABLED,
+# simply not yet actioned. Re-tapping is safe: the sheet is gone once it saves,
+# so a second tap only ever lands if the first did nothing.
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'add-task-sheet'
+          commands:
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'add-task-sheet'
+                timeout: 20000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'add-task-sheet'
+                commands:
+                  - tapOn:
+                      id: 'add-task-submit'
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+- extendedWaitUntil:
+    notVisible:
+      id: 'add-task-sheet'
+    timeout: 25000
+- runFlow: mm-go-tasks.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 25000
+- assertVisible: '.*${MM_TITLE}.*'
+# Push this member's op out before moving on.
+- runFlow: mm-sync-pulse.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-relaunch-if-backgrounded.yaml
+
+# Now wait for the peer's task. The peer is working concurrently, so the first
+# rounds legitimately come back empty — that is the rendezvous, not a failure.
+- repeat:
+    times: 20
+    commands:
+      - runFlow:
+          when:
+            notVisible: '.*${MM_PEER_TITLE}.*'
+          commands:
+            - runFlow: mm-sync-pulse.yaml
+            - runFlow: mm-dismiss-stale-alerts.yaml
+            - runFlow: mm-relaunch-if-backgrounded.yaml
+            - runFlow: mm-go-tasks.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_PEER_TITLE}.*'
+    timeout: 30000
+# The peer's task — created on a device this one never touched — is here.
+- assertVisible: '.*${MM_PEER_TITLE}.*'

@@ -1,0 +1,198 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: BUDGET-MM-003 — the second member joins with the code they were given.
+#
+# env: MM_LINK — the invite link (code + secret), scraped from the owner's
+# device by the orchestrator, exactly as a real invitee would paste it.
+#
+# The join panel now lives on its own screen (Settings → Invite & Household),
+# reached by deep link. That removes the whole class of failures this flow used
+# to fight: the panel sat at the fold of a long settings screen, so every tap
+# needed a scroll + settle first, and a few points of content shift decided
+# whether the step passed.
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-open-join.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-join-panel'
+    timeout: 20000
+# Give the enrolment gate time to resolve BEFORE branching on it.
+#
+# `awaitingEnrolment` is derived from the local session, which opens
+# asynchronously after login. The screen can therefore render with the Join
+# button briefly ENABLED on a device that has in fact already claimed — the
+# guard below then takes the wrong branch, and the tap that follows lands on a
+# button that has since become disabled.
+- extendedWaitUntil:
+    visible: 'Waiting for approval'
+    timeout: 45000
+    optional: true
+
+# IDEMPOTENT: skip the join if this device has already claimed.
+#
+# A successful claim leaves the device in "pending enrolment" until the owner
+# approves — the Join button is then correctly disabled and reads "Waiting for
+# approval…". Re-running the suite must not treat that as a failure: the claim
+# is a once-per-device act, so the flow's job here is to ENSURE the device has
+# claimed, not to claim again.
+- runFlow:
+    when:
+      notVisible: 'Waiting for approval'
+    commands:
+      # ONE field: the pasted invite link carries the code AND the secret.
+      #
+      # The two-field version failed four different ways, all the same root cause —
+      # moving focus between two inputs is not reliable while the keyboard is up:
+      # the tap lands on a key, or on the control above, and `eraseText` then wipes
+      # whichever field still had focus. With a single field there is no focus
+      # change to get wrong. It is also the invite path the BRD actually specifies
+      # (QR / link), not a test-only shortcut.
+      #
+      # The dedicated "paste the link" field is gone — the panel is two fields
+      # now, and the code field splits a pasted link into both itself (and
+      # "Join household" re-parses it regardless). So the single-field property
+      # this flow depends on survives: the whole link goes in here.
+      - tapOn:
+          id: 'budget-settings-join-code'
+          retryTapIfNoChange: true
+      # Clear first: a previous attempt can leave a partial value in this field, and
+      # inputText APPENDS.
+      - eraseText: 120
+      - inputText: ${MM_LINK}
+      # Dismiss the keyboard via the RETURN key. Everything else was tried and does
+      # not work here: `hideKeyboard` reports COMPLETED without closing it, and
+      # tapping a title does nothing because the ScrollView is
+      # keyboardShouldPersistTaps="handled" with no keyboardDismissMode — a tap on a
+      # plain <Text> is not a "handled" tap. The field is single-line, so return
+      # blurs it and the keyboard actually goes away.
+      - pressKey: Enter
+      - waitForAnimationToEnd:
+          timeout: 2500
+      # If a stray tap DID open an alert, clear it before the decisive tap rather
+      # than letting the modal swallow it.
+      - runFlow: mm-dismiss-stale-alerts.yaml
+      - waitForAnimationToEnd:
+          timeout: 1500
+      # Re-establish the screen before the decisive tap.
+      #
+      # Something between typing the link and tapping Join can leave this screen —
+      # observed for real on the old settings screen: at tap time the device was on
+      # the Spending tab, so the button was genuinely absent and "element not found"
+      # pointed at the wrong thing. Cheaper to re-navigate than to keep hunting it.
+      # The JOIN screen, not the hub. Join moved onto a pushed screen of its own
+      # when Invite & Household became a hub, and this guard kept naming the hub
+      # — which is BEHIND the Join screen and therefore never visible from it. So
+      # the recovery fired on every run and re-navigated to a fresh Join screen,
+      # wiping the link that had just been typed. The flow then tapped "Join
+      # household" on two empty fields, got "Enter the code and the secret",
+      # skipped the confirm step, and still reported PASS because the two
+      # assertions that would have caught it are `(Optional)`. No claim ever
+      # reached the control plane, so the owner's approve flow had nothing to
+      # approve — the suite has not exercised enrolment since the split.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-join-screen'
+          commands:
+            - runFlow: ../subflows/budget-open-join.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'budget-settings-join-household'
+          direction: DOWN
+          centerElement: true
+          timeout: 10000
+          optional: true
+      # Let the scroll come to rest. scrollUntilVisible returns as soon as the element
+      # is in the tree, but iOS keeps decelerating afterwards — tapping into a moving
+      # list is what made this step miss.
+      - waitForAnimationToEnd:
+          timeout: 2500
+      - tapOn:
+          id: 'budget-settings-join-household'
+          retryTapIfNoChange: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+      # The one outcome that is NEVER legitimate, asserted hard.
+      #
+      # Everything else on this screen is optional on purpose — a device claims
+      # once, so a re-run can correctly find nothing pending (see the closing
+      # note). That tolerance is what let this flow report PASS while doing
+      # nothing at all: the link never reached the field, "Join household" was
+      # tapped on two empty inputs, and the only signals were `(Optional)`.
+      #
+      # This form error means the tap was made with no code and no secret. It
+      # cannot happen on a device that already enrolled, and it cannot happen on
+      # a device that just typed a valid link — so it fails the false green and
+      # nothing else.
+      - assertNotVisible: '.*Enter the code and the secret.*'
+      # The confirm is an IN-APP view, not a UIAlertController.
+      #
+      # iOS renders alerts in their own window; XCUITest snapshots the app window, so
+      # Maestro literally cannot see a native alert here — proven side by side with
+      # idb, which listed "Join household? / Cancel / Join" while `maestro hierarchy`
+      # showed only the screen behind it. Every assertion and every tap aimed at that
+      # alert was therefore hitting the button behind it.
+      #
+      # OPTIONAL on purpose: the enrolment gate resolves asynchronously, so this
+      # branch can be entered by a device that has in fact already claimed — its
+      # Join button then becomes disabled a moment later and no panel opens. That
+      # is not a failure; the closing assertion below is what decides.
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-settings-join-confirm-panel'
+          timeout: 30000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'budget-settings-join-confirm-panel'
+          commands:
+            - tapOn:
+                id: 'budget-settings-join-confirm'
+      # Outcome is inline text too, for the same reason.
+            - extendedWaitUntil:
+                visible:
+                  id: 'budget-settings-join-status'
+                timeout: 60000
+      # WAIT for the success wording rather than asserting it point-in-time. The
+      # claim returns, then `adoptJoinedHousehold` rewrites and persists the whole
+      # ledger and kicks off a sync — React re-renders the status after all of that,
+      # so a bare assertVisible fires too early even though the call already
+      # succeeded (observed: claim 200, status correct moments later).
+            - extendedWaitUntil:
+                # Substring match: Maestro selectors are regexes matched against the
+                # WHOLE element text, and this status is a full sentence
+                # ("Request sent. Ask the household owner to approve this device…").
+                # A bare 'Request sent' therefore never matches.
+                visible: '.*Request sent.*'
+                timeout: 60000
+            - waitForAnimationToEnd:
+                timeout: 2000
+
+# Writes stay paused until the owner approves — the button says so. Same race:
+# the gate flips inside the engine, and the button re-renders after.
+# End state: this device is attached to the household.
+#
+# Two legitimate outcomes, because a device claims ONCE and these simulators
+# keep their state between runs:
+#   * fresh device  -> claimed, now "Waiting for approval…"
+#   * already enrolled from an earlier run -> no pending state at all, and the
+#     Join panel simply sits there unused
+# Asserting only the first turns a correct app into a red suite on every re-run.
+# The enrolment itself is proved by mm-04 (owner approves) and mm-05 (the key
+# arrives and writes unpause), which cannot pass unless a claim really happened.
+- extendedWaitUntil:
+    visible: 'Waiting for approval…'
+    timeout: 60000
+    optional: true
+- assertVisible:
+    id: 'budget-settings-join-panel'

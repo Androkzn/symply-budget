@@ -1,0 +1,54 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:mortgage
+  - regression
+# Matrix: MORT-3xx — Renewal offer shopping: add a bank offer and see the
+# server-computed payment-saved-vs-incumbent. Assumes a mortgage exists
+# (mortgage-setup runs first in the suite). Navigates via the More hub and fills
+# the offer form by PLACEHOLDER text (field labels are not in Maestro's a11y tree).
+---
+- runFlow: ../subflows/budget-ensure-mortgage.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-view'
+    timeout: 20000
+
+- tapOn:
+    id: 'filter-tab-renewal'
+# RenewalCard renders only after the BE summary loads (it's gated on `summary`),
+# so wait for it rather than assert immediately.
+- extendedWaitUntil:
+    visible: 'Renewal window'
+    timeout: 15000
+- tapOn: 'Compare bank offers'
+- extendedWaitUntil:
+    visible:
+      text: 'Renewal offers'
+    timeout: 15000
+# The current-payment card renders only after listOffers resolves — wait for it.
+- extendedWaitUntil:
+    visible: 'Your current payment'
+    timeout: 20000
+
+# Add an offer from a lower-rate bank → it should show a monthly saving.
+- tapOn: 'RBC, Scotiabank…'
+- inputText: 'RBC'
+- tapOn: 'Renewal offers'
+- tapOn: '4.5'
+- inputText: '4.2'
+# The numeric keypad has no Done key and a header tap won't dismiss it on iOS-26,
+# occluding 'Add offer' and the offer card that renders below. Refocus the Bank
+# TEXT field (now showing 'RBC') so hideKeyboard works, then add the offer.
+- tapOn: 'RBC'
+- hideKeyboard:
+    optional: true
+- tapOn: 'Add offer'
+# The offer POSTs to the live staging Worker, then the list re-fetches — allow a
+# generous window for a cold staging round-trip before the new card renders.
+# The card renders "RBC · 4.2%" / "saves $223/mo" as single text nodes, and Maestro
+# matches the full string as a regex — so wrap the substrings in `.*`.
+- extendedWaitUntil:
+    visible: '.*RBC.*'
+    timeout: 45000
+- assertVisible: '.*saves.*'

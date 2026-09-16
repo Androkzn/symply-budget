@@ -1,0 +1,141 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:spend
+  - regression
+# Matrix: BUDGET-SPEND (see documents/engineering/testing/matrices/budget.md)
+# Receipt scan — PER-ITEM CATEGORY picker path. Reaches the scanner from the
+# Spent tab CTA, attaches a seeded receipt photo, runs Scan receipt, then drives
+# the per-card category control end-to-end: open the searchable picker on a line
+# item, clear it via "No category", reopen + search + reselect "Groceries", and
+# confirm the card reflects the choice. Read-only (does NOT save) so it stays
+# safe to run repeatedly.
+#
+# NOTE: gated behind AIAccessGate — if AI is not unlocked the screen renders a
+# paywall instead of budget-receipt-scan, so every scan/category assertion is
+# guarded (when: visible id: budget-receipt-save) and no-ops behind the gate.
+# The category control also only renders once the household's categories load,
+# so its assertions are optional to survive a slow/empty category fetch.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-scan-receipt'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-receipt-scan'
+    timeout: 15000
+    optional: true
+# Behind the AI gate: assert we stayed on the Spent tab, then stop.
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-receipt-scan'
+    commands:
+      - assertVisible:
+          id: 'budget-spendings'
+      # The Scan CTA now lives inside the header "+" sheet, which closed itself
+      # on the tap — so the proof we are still on the Spent tab is the "+".
+      - assertVisible:
+          id: 'budget-add-menu'
+# AI gate satisfied: scan then drive the category picker.
+- runFlow:
+    when:
+      visible:
+        id: 'budget-receipt-scan'
+    commands:
+      - assertVisible:
+          id: 'budget-receipt-gallery'
+      # Android has no CoreSimulator-equivalent host-side fixture seeding
+      # (scripts/e2e/seed-fixtures.sh is iOS-only) — the gallery is otherwise
+      # empty ("No photos yet"), so push the fixture in directly. iOS already
+      # has this seeded before the suite runs, so skip there to avoid
+      # duplicating the well-tested existing seeding path.
+      - runFlow:
+          when:
+            true: ${E2E_PLATFORM == 'android'}
+          commands:
+            - addMedia:
+                - ../../../resourses/testing/Budget app - Receip 1.png
+      - tapOn:
+          id: 'budget-receipt-gallery'
+      - runFlow: ../subflows/pick-photo-from-library.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-receipt-remove'
+          timeout: 20000
+          optional: true
+      - tapOn:
+          id: 'budget-receipt-scan-button'
+      # Extraction is a live AI call — allow generous time for the review list.
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-receipt-save'
+          timeout: 90000
+          optional: true
+      # If nothing extracted, the app alerts "Nothing found" — dismiss and bail.
+      - runFlow:
+          when:
+            visible: 'Nothing found'
+          commands:
+            - tapOn:
+                text: 'OK'
+                optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'budget-receipt-save'
+          commands:
+            # Each extracted line item exposes a per-item category control.
+            - assertVisible:
+                id: 'budget-receipt-category'
+                optional: true
+            # Open the first card's category picker → the searchable sheet opens.
+            - tapOn:
+                id: 'budget-receipt-category'
+                optional: true
+            - extendedWaitUntil:
+                visible:
+                  id: 'budget-receipt-category-search'
+                timeout: 8000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-receipt-category-search'
+                commands:
+                  # The "No category" and category options are listed.
+                  - assertVisible:
+                      id: 'budget-receipt-category-none'
+                  # Clear the category → card falls back to the placeholder.
+                  - tapOn:
+                      id: 'budget-receipt-category-none'
+                  - assertVisible: 'Select category'
+                  # Reopen, search, and reselect the default "Groceries" category.
+                  - tapOn:
+                      id: 'budget-receipt-category'
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'budget-receipt-category-search'
+                      timeout: 8000
+                  - tapOn:
+                      id: 'budget-receipt-category-search'
+                  - inputText: 'Grocer'
+                  - tapOn:
+                      text: 'Groceries'
+                      optional: true
+                  # Sheet closed and the card now shows a real category (no longer
+                  # the "Select category" placeholder). Save control still present.
+                  - assertVisible:
+                      id: 'budget-receipt-save'
+# Leave without committing.
+- tapOn:
+    id: 'nav-back-button'
+    optional: true

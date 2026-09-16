@@ -1,0 +1,84 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-005
+---
+# WHAT THIS PROVES — A NEGATIVE, ON PURPOSE
+# -----------------------------------------
+# On a household where nothing was overwritten, `house-sync-conflicts` is NOT on
+# the Device sync surface, and neither is the `lf-conflict-list` that follows it.
+# Both sit under `conflicts > 0` (HouseDeviceSyncScreen.tsx:107-123), reading
+# `useHouseSyncStatusStore`.
+#
+# WHY A NEGATIVE IS THE WHOLE POINT
+# ---------------------------------
+# BR-044 exists because a silent overwrite in a shared home is
+# indistinguishable from data loss: two people edit the same task, the merge
+# discards one intent, and without this line the member whose edit lost never
+# learns it happened. The proof that the line MEANS something is that it is
+# absent when nothing was replaced. A conflicts line that is always rendered —
+# a `conflicts >= 0`, a default-truthy prop, a summary that shows "0 changes
+# were overwritten" — is worse than no line at all: members learn to ignore it,
+# and the one time it matters they scroll past it. The positive half (the line
+# appears, names the discarded edits, and can be acknowledged) belongs to the
+# two-device suite, where a conflict can actually be manufactured.
+#
+# WHY THE ABSENCE IS NOT JUST "SCROLLED PAST"
+# -------------------------------------------
+# `assertNotVisible` on an element that is merely below the fold proves nothing.
+# The anchor assertions below are what close that: `house-settings-sync-now` is
+# the element IMMEDIATELY ABOVE the conflicts block in the same Card, so with
+# the button on screen the conflicts slot is on screen too. If it existed we
+# would be looking straight at it.
+#
+# WHY THIS FLOW DOES NOT TAP SYNC NOW
+# -----------------------------------
+# `conflicts` lives in an in-memory Zustand store (syncStatusStore.ts) that
+# starts at 0 every launch and is only raised by a sync run that actually merged
+# a peer's op over a local one. Running a sync here would be the one action that
+# could legitimately make the assertion fail, so the precondition the matrix
+# names — "a household with no merge conflicts" — is held by NOT syncing rather
+# than by hoping. LF-004 owns the sync tap.
+#
+# ISOLATION: single device, no peer writing concurrently. This is the one
+# genuine cross-run coupling in the section: if a two-device suite is mid-flight
+# against the same account, a real conflict can land and this flow will fail
+# CORRECTLY but confusingly. House suites for the same app are serialized for
+# exactly this class of reason.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-005
+- runFlow: lf-open-device-sync.yaml
+
+# Anchors: prove we are looking at the region the conflicts block renders into.
+- assertVisible:
+    id: 'house-local-first-sync-card'
+- assertVisible:
+    id: 'house-settings-sync-now'
+# And that the gate is open — a gated surface renders a notice INSTEAD of the
+# card body, so "no conflicts line" would be true for the wrong reason.
+- assertNotVisible:
+    id: 'lf-sync-gate-notice'
+
+# The assertion.
+- assertNotVisible:
+    id: 'house-sync-conflicts'
+- assertNotVisible:
+    id: 'lf-conflict-list'
+- assertNotVisible:
+    id: 'lf-conflict-dismiss-all'
+# The sentence the line would carry, in case the id is ever dropped while the
+# copy stays (a rename that keeps the defect invisible to an id-only check).
+- assertNotVisible: '.*were overwritten when two of you edited the same thing.*'
+
+- runFlow: lf-leave-device-sync.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

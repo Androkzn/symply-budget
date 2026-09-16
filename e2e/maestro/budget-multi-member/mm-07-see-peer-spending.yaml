@@ -1,0 +1,40 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+# Matrix: BUDGET-MM-007 — the OTHER member's spending shows up here after sync.
+#
+# This is the assertion the whole feature exists for: a row this device never
+# created appears in its list once the household ops merge.
+#
+# env: MM_TITLE — the peer's spending title.
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 20000
+# Sync a few times: the peer deposits into this device's mailbox, and the two
+# runs are not synchronised, so one poll can legitimately arrive empty.
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            notVisible: '.*${MM_TITLE}.*'
+          commands:
+            - runFlow: ../subflows/budget-sync-pulse.yaml
+            - waitForAnimationToEnd:
+                timeout: 10000
+            - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 20000
+- assertVisible: '.*${MM_TITLE}.*'

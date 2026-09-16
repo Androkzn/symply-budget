@@ -1,0 +1,211 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - mutation
+  - regression
+# Matrix: BUDGET-SAVE-004 — create a REGULAR-source income entry
+# (SavingsEntryForm, mode=income). The one-off/irregular create path is
+# budget-savings-irregular-income.yaml; the full create→edit→delete lifecycle
+# is budget-savings-income-crud.yaml.
+#
+# MUTATING and now SELF-CLEANING. It used to leave its entry behind on every
+# run: the shared E2E household accumulated one more $250 "Payroll" row each
+# time, inflating the Income total, the Overview net, the projection pace and
+# every cross-consistency figure downstream (BUDGET-SAVE-076). It also carried
+# a truncated `E2E_MATRIX_ROW: BUDGET-`, so its observability tag matched no
+# matrix row at all.
+#
+# CLEANUP ADDRESSING — why by amount, not by source. `payroll` is exactly what
+# the household's REAL income uses, so the source-scoped drain the other
+# savings flows use (budget-savings-drain-income-source.yaml) would delete live
+# data here. The entry is instead reopened by its amount, which is deliberately
+# an odd figure no realistic payroll row carries.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget
+      E2E_MATRIX_ROW: BUDGET-SAVE-004
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-income'
+- runFlow:
+    file: ../subflows/budget-savings-force-subtab.yaml
+    env:
+      E2E_SUBTAB: income
+- extendedWaitUntil:
+    visible:
+      id: 'savings-add-income'
+    timeout: 15000
+
+# --- Pre-clean: an aborted run can have left the entry behind, and a second
+# copy would make the tap-by-amount cleanup below ambiguous.
+- repeat:
+    times: 3
+    commands:
+      - scrollUntilVisible:
+          element: '.*\$263.*'
+          direction: DOWN
+          timeout: 8000
+          visibilityPercentage: 5
+          optional: true
+          centerElement: true
+      - runFlow:
+          when:
+            visible: '.*\$263.*'
+          commands:
+            - tapOn: '.*\$263.*'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-entry-form'
+                timeout: 20000
+            - scrollUntilVisible:
+                element:
+                  id: 'savings-entry-form-delete'
+                direction: DOWN
+                timeout: 10000
+                visibilityPercentage: 5
+                optional: true
+                centerElement: true
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'savings-entry-form-delete'
+                commands:
+                  - swipe:
+                      start: 50%, 78%
+                      end: 50%, 28%
+                      duration: 800
+                  - swipe:
+                      start: 50%, 78%
+                      end: 50%, 28%
+                      duration: 800
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-entry-form-delete'
+                timeout: 15000
+            - tapOn:
+                id: 'savings-entry-form-delete'
+            - extendedWaitUntil:
+                visible: 'Delete entry'
+                timeout: 10000
+            - tapOn: '^Delete$'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-income'
+                timeout: 20000
+
+# ============================ CREATE ============================
+# Rewind to the Add button before tapping it. "Add / Copy / Import (AI)" sits
+# at the TOP of the Income tab, above the entries list, so once the list has
+# been scrolled it is off screen and the tap silently misses — the form never
+# opens and it surfaces later as "savings-entry-form is visible" being false
+# (2026-08-26: screenshot shows the Income tab correctly selected with the
+# entries list scrolled past the button row entirely).
+- scrollUntilVisible:
+    element:
+      id: 'savings-add-income'
+    direction: UP
+    timeout: 15000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-add-income'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-form'
+    timeout: 15000
+# Income has no free-text label — member + source derive the row title, and the
+# default source is `payroll`, which is the regular-income path this row covers.
+- tapOn:
+    id: 'savings-entry-amount'
+- inputText: '263'
+- hideKeyboard:
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-form-save-header'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: 'savings-entry-form-save-header'
+# Back on the Income sub-view with the new entry rendered.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-view'
+    timeout: 20000
+# formatBudgetCurrency renders whole-dollar amounts WITHOUT cents (26300c
+# => "$263", not "$263.00"), and the amount lives inside a merged row a11y
+# label — so match on "$263" (cents dropped) and reveal the row first: the new
+# entry can land below the fold.
+- scrollUntilVisible:
+    element: '.*\$263.*'
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 5
+    centerElement: true
+- assertVisible: '.*\$263.*'
+- assertVisible: '.*Payroll.*'
+
+# ============================ CLEANUP ===========================
+- tapOn: '.*\$263.*'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-form'
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-form-delete'
+    direction: DOWN
+    timeout: 10000
+    visibilityPercentage: 5
+    optional: true
+    centerElement: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'savings-entry-form-delete'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+          duration: 800
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+          duration: 800
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-form-delete'
+    timeout: 15000
+- tapOn:
+    id: 'savings-entry-form-delete'
+- extendedWaitUntil:
+    visible: 'Delete entry'
+    timeout: 10000
+- tapOn: '^Delete$'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 25000
+# Sweep the list before the final check — `assertNotVisible` only sees the
+# current screen, so a survivor below the fold would pass it.
+- scrollUntilVisible:
+    element: '.*\$263.*'
+    direction: DOWN
+    timeout: 10000
+    visibilityPercentage: 5
+    optional: true
+    centerElement: true
+- assertNotVisible: '.*\$263.*'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

@@ -1,0 +1,47 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Leave the wizard WITHOUT saving, from ANY step, and land back on the garden list.
+#
+# USES THE HEADER ARROW, NOT THE FOOTER BUTTON, and the difference is the whole
+# reason this file needed a second pass. The two controls are not the same
+# action:
+#
+#   header `nav-back-button`  → `confirmExit` — leaves the WIZARD, from any step
+#   footer `garden-map-wizard-back` → `goBack`  — steps back one STEP, and only
+#                                                 exits when already on step one
+#
+# A teardown built on the footer button therefore worked from step one and hung
+# on steps two and three, where it silently walked backwards through the wizard
+# and then looked for a discard alert that was never going to appear. Every
+# `optional: true` in that version turned the hang into a green flow that had
+# quietly stopped testing anything.
+#
+# The wizard seeds a rectangle the instant it opens, so `lotRing` is never empty
+# and the discard alert is ALWAYS raised — there is no "nothing drawn yet" path
+# to fall through.
+#
+# TEARDOWN, NOT A TEST. The discard behaviour itself is asserted in
+# `garden-map-wizard-discard.yaml`, where it is the subject rather than cleanup.
+- runFlow: dismiss-garden-map-wizard.yaml
+
+# The wizard sat on top of `Add yard plan`, which sits on top of the list, so
+# discarding lands one screen short of where the calling flow started.
+- extendedWaitUntil:
+    visible: 'Add yard plan'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'garden-plans-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plans-screen'
+    timeout: 20000

@@ -1,0 +1,94 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Deletes every income row of ONE source type in the month currently shown by
+# Savings → Income, leaving the tab on the list. Idempotent: a no-op when there
+# are none, so it doubles as both the pre-clean and the closing sweep.
+#
+#   - runFlow:
+#       file: ../subflows/budget-savings-drain-income-source.yaml
+#       env:
+#         E2E_INCOME_SOURCE: freelance
+#
+# Scoped to one source on purpose. The shared E2E household holds real payroll
+# and rental income that no cleanup may touch, so each mutating savings flow
+# claims its own one-off source (`freelance`, `refund`, `bonus`, …) and drains
+# only that.
+#
+# Caller must already be on the Income sub-tab (`savings-income` visible).
+- scrollUntilVisible:
+    element:
+      id: 'savings-income-source-${E2E_INCOME_SOURCE}'
+    direction: DOWN
+    timeout: 10000
+    visibilityPercentage: 5
+    optional: true
+    centerElement: true
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'savings-income-source-${E2E_INCOME_SOURCE}'
+          commands:
+            - tapOn:
+                id: 'savings-income-source-${E2E_INCOME_SOURCE}'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-entry-form'
+                timeout: 20000
+            # "Delete entry" is the last control of a long form. scrollUntilVisible
+            # is unreliable on RN gesture-handler ScrollViews under iOS 26 +
+            # Maestro, so fall back to explicit coordinate swipes when it does
+            # not move — the same fallback budget-savings-irregular-income.yaml
+            # already carries for this exact form.
+            - scrollUntilVisible:
+                element:
+                  id: 'savings-entry-form-delete'
+                direction: DOWN
+                timeout: 10000
+                visibilityPercentage: 5
+                optional: true
+                centerElement: true
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'savings-entry-form-delete'
+                commands:
+                  - swipe:
+                      start: 50%, 78%
+                      end: 50%, 28%
+                      duration: 800
+                  - swipe:
+                      start: 50%, 78%
+                      end: 50%, 28%
+                      duration: 800
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-entry-form-delete'
+                timeout: 15000
+            - tapOn:
+                id: 'savings-entry-form-delete'
+            - extendedWaitUntil:
+                visible: 'Delete entry'
+                timeout: 10000
+            # '^Delete$' — the alert is TITLED "Delete entry", which an
+            # unanchored 'Delete' matches first, leaving the row undeleted.
+            - tapOn: '^Delete$'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-income'
+                timeout: 20000
+            # The list re-renders at the preserved scroll offset — nudge the next
+            # remaining row on screen so the loop's guard can see it.
+            - scrollUntilVisible:
+                element:
+                  id: 'savings-income-source-${E2E_INCOME_SOURCE}'
+                direction: DOWN
+                timeout: 8000
+                visibilityPercentage: 5
+                optional: true
+                centerElement: true

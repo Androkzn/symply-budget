@@ -1,0 +1,307 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:vitality
+  - mutation
+  - regression
+# Matrix: HEALTH-VITALITY-140 … HEALTH-VITALITY-148
+---
+# Vitality tab — the donor's GUIDED KEGEL TIMER (`KegelWorkoutView`).
+#
+# ## Why this flow exists
+#
+# The two existing Vitality flows predate the timer entirely: they know the
+# KEGELS card only as a number field and a Save button. The card now leads with
+# a live squeeze/relax countdown whose completion WRITES to the day's entry, and
+# not one of its controls — start, pause, reset, the three length chips — is
+# touched anywhere on a device.
+#
+# It is split off rather than bolted onto `vitality-log-and-score.yaml` for the
+# reason the nutrition pair was split, plus one specific to this surface: the
+# flow has to spend THIRTY REAL SECONDS standing still while a session runs. Any
+# driver drop during that window would otherwise cost the whole screen.
+#
+# ## What this flow proves that a unit test cannot
+#
+# The unit suite pins the reducer exactly (`vitality.kegel-session.test.tsx`):
+# 5s squeeze, 5s relax, 30 ticks to finish a 3-set session. What it CANNOT prove
+# is that the interval is actually wired to real wall-clock time on a device —
+# a reducer driven by `jest.advanceTimersByTime` is equally green whether the
+# component ticks every 1000ms, every 100ms, or never. So the assertion that
+# matters here is the one that costs the thirty seconds: after ~10s of real time
+# the session must be on set 2, and only after ~30s may it be complete. A timer
+# running at the wrong rate passes every unit test and fails this.
+#
+# ## STATE ASSUMPTIONS
+#
+# * A session is a fresh, idle component on every mount, so this flow needs no
+#   precondition beyond being on the tab.
+# * The kegel COUNT is shared with the day's entry and with the sibling flows.
+#   `vitality-log-and-score.yaml` leaves it at 0 and `vitality-scales-and-toggles
+#   .yaml` leaves it empty, so this flow assumes NOTHING about the starting
+#   figure — it asserts the completion by the timer's own readout and by the
+#   field becoming non-empty, never by an absolute total.
+# * The KEGELS card is behind the `trackKegels` preference. It ships ON and
+#   `vitality-section-preferences.yaml` restores it, but the card is asserted
+#   present before anything is tapped so a preference left off fails loudly here
+#   rather than as a confusing "element not found" mid-session.
+#
+# ## TEARDOWN
+#
+# A completed session ADDS its sets to the day, so this flow leaves a figure
+# behind. It clears the field back to empty at the end — the same terminal state
+# `vitality-scales-and-toggles.yaml` leaves and `vitality-log-and-score.yaml`
+# tolerates. The length chip is put back to 3, because it is the only control
+# here whose state survives a remount through the session and the sibling flows
+# read the "30s in total" summary line.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-VITALITY-140
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- The card and the timer are on the tab (HEALTH-VITALITY-140) ------
+      - runFlow: subflows/go-health-vitality.yaml
+      - assertVisible: "Men's Health"
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-kegel-timer'
+            SCROLL_DIR: down
+      - assertVisible:
+          id: 'health-vitality-card-kegels'
+      - assertVisible:
+          id: 'health-kegel-timer-ring'
+
+      # --- It opens IDLE and does not start itself (HEALTH-VITALITY-141) ----
+      # The donor's timer began the moment the card appeared, which meant opening
+      # the tab started an exercise nobody asked for. The readout is asserted,
+      # then asserted AGAIN after a wait, so "idle" means "not counting" rather
+      # than "happens to read 5 right now".
+      - assertVisible:
+          id: 'health-kegel-timer-phase'
+          text: 'SQUEEZE'
+      - assertVisible:
+          id: 'health-kegel-timer-seconds'
+          text: '5'
+      - assertVisible:
+          id: 'health-kegel-timer-progress'
+          text: 'Set 1 of 3'
+      # Reset only exists once there is something to reset.
+      - assertNotVisible:
+          id: 'health-kegel-timer-reset'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-kegel-timer-seconds'
+            text: '5'
+          timeout: 4000
+      - assertVisible:
+          id: 'health-kegel-timer-seconds'
+          text: '5'
+
+      # --- The session length is stated BEFORE it starts (VITALITY-142) -----
+      # Merged label, matched as the whole string. `·` is literal.
+      - assertVisible: '5s squeeze · 5s relax · 30s in total'
+
+      # --- Start runs the clock at real wall-clock speed (VITALITY-143) -----
+      # THE assertion this flow exists for. `extendedWaitUntil` polls, so a
+      # readout that never changes fails on timeout; the point is that it must
+      # not change too FAST either, which is what the paired negative below
+      # covers.
+      # LOCAL ONLY (every timer control below — start/pause/resume/length
+      # chip/reset): `handleStart`/`handlePause`/`handleReset`/`handleSets`
+      # (HealthKegelTimer.tsx) only call `setSession(...)` on the pure reducer
+      # in healthVitalityStorage.ts — no network until a session actually
+      # COMPLETES, which is verified at HEALTH-VITALITY-148 below.
+      - tapOn:
+          id: 'health-kegel-timer-start'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-kegel-timer-phase'
+            text: 'RELAX'
+          timeout: 9000
+      # Reset is offered as soon as there is progress to discard.
+      - assertVisible:
+          id: 'health-kegel-timer-reset'
+      # ~5s in: the FIRST set cannot be finished yet — a set is only credited
+      # after its release. A timer ticking faster than 1Hz would already be on
+      # set 2 here.
+      - assertVisible:
+          id: 'health-kegel-timer-progress'
+          text: 'Set 1 of 3'
+
+      # --- A set is credited only after its RELEASE (HEALTH-VITALITY-144) ---
+      - extendedWaitUntil:
+          visible:
+            id: 'health-kegel-timer-progress'
+            text: 'Set 2 of 3'
+          timeout: 9000
+      - assertVisible:
+          id: 'health-kegel-timer-phase'
+          text: 'SQUEEZE'
+
+      # --- Pause holds the count still (HEALTH-VITALITY-145) ----------------
+      # The same button is Pause while running. Held for four seconds — longer
+      # than a phase — so a clock that kept running would visibly move on.
+      - tapOn:
+          id: 'health-kegel-timer-start'
+      - assertVisible:
+          id: 'health-kegel-timer-progress'
+          text: 'Set 2 of 3'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-kegel-timer-progress'
+            text: 'Set 2 of 3'
+          timeout: 6000
+      - assertVisible:
+          id: 'health-kegel-timer-progress'
+          text: 'Set 2 of 3'
+      # …and the button now offers to RESUME rather than to start over, which is
+      # the difference between keeping the person's place and rewinding it.
+      - assertVisible: 'Resume'
+
+      # --- The length chips are LOCKED mid-session (HEALTH-VITALITY-146) ----
+      # Proven behaviourally, not by reading an `enabled:` attribute: the chip is
+      # tapped and the session must be unmoved. Changing the length in flight
+      # would silently redefine what "complete" meant, and the completed count is
+      # what gets logged.
+      - tapOn:
+          id: 'health-kegel-timer-start'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-kegel-timer-phase'
+            text: 'RELAX'
+          timeout: 9000
+      - tapOn:
+          id: 'health-kegel-timer-sets-10'
+      - assertVisible:
+          id: 'health-kegel-timer-progress'
+          text: 'Set 2 of 3'
+      - assertNotVisible:
+          id: 'health-kegel-timer-progress'
+          text: 'Set 1 of 10'
+
+      # --- Abandoning reports NOTHING (HEALTH-VITALITY-147) -----------------
+      # Reset must not credit the sets already held. The manual field is the
+      # visible proxy for what was written: it is read BEFORE the reset and must
+      # be unchanged after, because `onComplete` never fired.
+      - tapOn:
+          id: 'health-kegel-timer-reset'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-kegel-timer-progress'
+            text: 'Set 1 of 3'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-kegel-timer-seconds'
+          text: '5'
+      # Idle again, so Reset is gone.
+      - assertNotVisible:
+          id: 'health-kegel-timer-reset'
+      # The length chip was refused mid-session and the reset keeps the CHOSEN
+      # length, so the summary must still say 30s.
+      - assertVisible: '5s squeeze · 5s relax · 30s in total'
+
+      # --- A finished session logs its sets (HEALTH-VITALITY-148) -----------
+      # Thirty real seconds. `timeout: 45000` leaves headroom for a slow
+      # simulator without letting a stalled timer pass.
+      # Completion is the ONE real write in this flow: `HealthKegelTimer`'s
+      # `onComplete` → `handleSessionComplete` → `persist` (HealthVitalityScreen.tsx)
+      # → `saveVitalityEntry` (healthVitalityStorage.ts) →
+      # `healthApi.saveMensHealth` → PUT /health/mens-health/entries, 200.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-kegel-timer-start'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-kegel-timer-progress'
+            text: 'Session complete'
+          timeout: 45000
+      - assertVisible: '3 sets added to today.'
+      # The write reached the day: the manual field now holds a digit. Asserted
+      # as "some digit" rather than as an absolute total, because the starting
+      # figure belongs to the shared account and not to this flow.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-kegel-input'
+            text: '.*[0-9].*'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # …and the card's own header agrees with the field.
+      - assertVisible:
+          id: 'health-vitality-kegel-today'
+          text: '.*[0-9].* today'
+      # The button now offers a fresh session rather than a resume.
+      - assertVisible: 'Start again'
+
+      # --- Teardown: clear the count this flow added ------------------------
+      # `clampKegelSets(NaN)` is 0 and 0 renders as the placeholder, so an erased
+      # field is the terminal state the sibling flows expect. `handleKegels` →
+      # `persist` → same PUT /health/mens-health/entries, 200 write path as
+      # above (fires on the keypad-dismiss blur too — `onBlur={handleKegels}` —
+      # which is why the log is cleared before the dismiss, not just the tap).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-kegel-input'
+      - eraseText
+      # NOT `hideKeyboard` — it hard-fails on this build's number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'KEGELS'
+      - tapOn:
+          id: 'health-vitality-kegel-save'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-vitality-kegel-input'
+            text: '.*[0-9].*'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Back to the Health tab ------------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

@@ -1,0 +1,164 @@
+appId: com.symply.kaizen
+---
+# Sign Kaizen into a Today session on a STANDALONE build (no dev autologin, no
+# deep links). Handles: the iOS "Open in app?" prompt stack that maestro's
+# URL-scheme launch raises, email sign-in with the shared account, and first-run
+# onboarding (Build your system → Configure → Save) to reach the Today tab.
+- runFlow:
+    when:
+      notVisible:
+        id: 'kaizen-today-screen'
+    commands:
+      # 1) Drain any "Open in <app>?" confirmation prompts.
+      - runFlow: kaizen-dismiss-expo-dev-chrome.yaml
+      - repeat:
+          times: 6
+          commands:
+            - runFlow:
+                when:
+                  visible: 'Open'
+                commands:
+                  - tapOn: 'Open'
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+      # 2) Dev-build deep-link autologin (Metro / __DEV__). Prefer this — inputText
+      #    through the XCTest driver is flaky on iOS 26 (connection drops mid-type).
+      - runFlow:
+          when:
+            notVisible:
+              id: 'kaizen-today-screen'
+            visible:
+              id: 'login-screen'
+          commands:
+            - openLink: ${E2E_LOGIN_URL}
+            - repeat:
+                times: 4
+                commands:
+                  - runFlow:
+                      when:
+                        visible: 'Open'
+                      commands:
+                        - tapOn: 'Open'
+                        - waitForAnimationToEnd:
+                            timeout: 2000
+            - waitForAnimationToEnd:
+                timeout: 8000
+            - runFlow: kaizen-dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'kaizen-today-screen'
+                timeout: 45000
+                optional: true
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'login-screen'
+                timeout: 45000
+                optional: true
+      # 3) Email sign-in fallback when login screen still showing. Gate on
+      #    login-screen (auth root, always present) so this fires whether the form
+      #    is collapsed OR already expanded/corrupted.
+      - runFlow:
+          when:
+            visible:
+              id: 'login-screen'
+          commands:
+            - openLink: ${E2E_LOGIN_URL}
+            - waitForAnimationToEnd:
+                timeout: 8000
+            - runFlow: kaizen-dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'kaizen-today-screen'
+                timeout: 30000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'login-screen'
+                commands:
+                  # Expand the email form if collapsed (no-op if already open). Gate on
+                  # login-screen (the auth root, ALWAYS present) — NOT auth-sign-in-email,
+                  # which is only the collapsed button and DISAPPEARS once the form
+                  # expands, so gating the fill on it stranded recovery on an already
+                  # open/corrupted form.
+                  - tapOn:
+                      id: 'auth-sign-in-email'
+                      optional: true
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'auth-email-input'
+                      timeout: 15000
+                  - tapOn:
+                      id: 'auth-email-input'
+                  - eraseText: 50
+                  - inputText: ${E2E_EMAIL}
+                  # Advance to the password field with the email field's OWN "next"
+                  # return key (returnKeyType="next" + onSubmitEditing focuses the
+                  # password input). A tapOn auth-password-input here is flaky on
+                  # iOS-26: the tap lands with the email keyboard up, focus stays on
+                  # email, and the password inputText merges INTO the email field
+                  # (a.tekhtelev…Andrei123!). pressKey Enter moves focus reliably.
+                  - pressKey: Enter
+                  - inputText: ${E2E_PASSWORD}
+                  - tapOn:
+                      id: 'auth-sign-in-submit'
+                  - runFlow:
+                      when:
+                        visible: 'Login Failed'
+                      commands:
+                        - tapOn: 'OK'
+                        - waitForAnimationToEnd:
+                            timeout: 2000
+                  - extendedWaitUntil:
+                      notVisible:
+                        id: 'login-screen'
+                      timeout: 45000
+      # 4) Mid-setup: already past "Build your system", sitting on system-config.
+      - runFlow:
+          when:
+            visible: 'DAILY REPS'
+          commands:
+            - scrollUntilVisible:
+                element:
+                  text: 'Save & continue'
+                direction: DOWN
+                timeout: 8000
+                optional: true
+            - tapOn: 'Save & continue'
+            - waitForAnimationToEnd:
+                timeout: 8000
+      # 5) First-run onboarding: Build your system -> Continue -> Configure -> Save.
+      - runFlow:
+          when:
+            visible: 'Build your system'
+          commands:
+            - waitForAnimationToEnd:
+                timeout: 3000
+            - tapOn: 'Continue'
+            # Configure screen: BrandButton now sets accessibilityLabel = title, so
+            # the footer "Save & continue" is text-matchable. It sits below the fold
+            # of the catalog list, so scroll it into view before tapping.
+            - extendedWaitUntil:
+                visible: 'DAILY REPS'
+                timeout: 25000
+                optional: true
+            - scrollUntilVisible:
+                element:
+                  text: 'Save & continue'
+                direction: DOWN
+                timeout: 8000
+                optional: true
+            - tapOn: 'Save & continue'
+            - waitForAnimationToEnd:
+                timeout: 8000
+      - runFlow: dismiss-biometric-prompt-if-needed.yaml
+      # Dev-only onboarding bypass (Metro / __DEV__ builds).
+      - runFlow: kaizen-setup-if-needed.yaml
+      - runFlow: dismiss-welcome-if-needed.yaml
+      - openLink: ${E2E_LOGIN_URL}
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - extendedWaitUntil:
+          visible:
+            id: 'kaizen-today-screen'
+          timeout: 120000

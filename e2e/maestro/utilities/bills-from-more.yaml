@@ -1,0 +1,24 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:utilities
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-utilities (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- tapOn:
+    id: 'tab-settings'
+- tapOn:
+    id: 'settings-row-bills'
+- extendedWaitUntil:
+    visible:
+      id: 'utilities-screen'
+    timeout: 15000
+# Scroll contract
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: utilities-screen-scroll-end
+

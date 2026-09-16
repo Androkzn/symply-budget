@@ -1,0 +1,83 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:mortgage
+  - regression
+# Matrix: MORT-330 — CHANGE HISTORY: open a property's History timeline (which
+# always lists the origination "Mortgage started"), record a rate change via the
+# entry form, and confirm it lands on the timeline as "Rate change". Runs on a
+# booted Budget build (com.symply.budget). The change ledger is append-only, so
+# this appends a throwaway rate change to the shared account each run — harmless,
+# and the assertions stay idempotent. Fills the form by PLACEHOLDER text.
+---
+- runFlow: ../subflows/budget-ensure-mortgage.yaml
+
+# Open the History timeline from the Mortgage view's top-tab strip (History is
+# now a destination tab, not a CTA tile).
+- tapOn:
+    id: 'filter-tab-history'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-history-screen'
+    timeout: 15000
+# Origination is always present but sinks to the bottom of the newest-first
+# timeline as changes accumulate on the shared account — reveal it if off-screen.
+- runFlow:
+    when:
+      notVisible: 'Mortgage started'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+          duration: 800
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+          duration: 800
+- assertVisible: 'Mortgage started'
+
+# Record a rate change (default "Rate" tab; value field placeholder is 4.14).
+- tapOn:
+    id: 'mortgage-history-record'
+- extendedWaitUntil:
+    visible: 'Record a change'
+    timeout: 15000
+- tapOn: '4.14'
+- inputText: '4.14'
+- tapOn: 'Record a change' # dismiss keyboard via header
+# iOS-26 numeric keypad has no Done key; the sticky Save can stay occluded/below
+# the fold — reveal it via coordinate swipes (mirrors the mortgage-setup Save).
+- runFlow:
+    when:
+      notVisible:
+        id: 'mortgage-change-save'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+- tapOn:
+    id: 'mortgage-change-save'
+
+# Back on the timeline, the recorded change now shows.
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-history-screen'
+    timeout: 15000
+# The freshly recorded change lands at the TOP (newest-first); if we scrolled down
+# earlier to reveal origination, scroll back up before asserting.
+- runFlow:
+    when:
+      notVisible: 'Rate change'
+    commands:
+      - swipe:
+          start: 50%, 28%
+          end: 50%, 78%
+          duration: 800
+      - swipe:
+          start: 50%, 28%
+          end: 50%, 78%
+          duration: 800
+- assertVisible: 'Rate change'

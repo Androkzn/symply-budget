@@ -1,0 +1,21 @@
+appId: com.symply.kaizen
+---
+# Career progress — read-only 30-day practice signal. Assert the metric blocks.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/career-progress
+- extendedWaitUntil:
+    visible: 'Career progress'
+    timeout: 20000
+- assertVisible: 'Practice'
+- assertVisible: 'Reps completed'
+- assertVisible: 'Average score'
+- assertVisible: 'Next recommended'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

@@ -1,0 +1,16 @@
+# Open the Neighbours map from a cold or warm app.
+#
+# Deep link rather than tapping through My Home, for the reason every other
+# `open-*` subflow uses one: a flow that navigates by tapping is really testing
+# the navigation, and it fails for a reason that has nothing to do with what it
+# is about. `nbr-001` asserts the My Home entry point on purpose, once.
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- openLink: simplehouse://neighbours
+- extendedWaitUntil:
+    visible:
+      id: 'neighbours-screen'
+    timeout: 30000

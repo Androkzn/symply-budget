@@ -1,0 +1,78 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:settings
+  - readonly
+  - regression
+# Matrix: BUDGET-SETT-024/025 — Timeline + Year Setup screens
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-dismiss-welcome-if-needed.yaml
+# The long-term plan hangs off the MORE tab's INSIGHTS group now, not the
+# settings gear — it reads the budget rather than shaping it. That also retires
+# the swipe loop this flow needed to reach the last of three text links at the
+# foot of Budget Settings.
+- runFlow: ../subflows/budget-open-insights.yaml
+- tapOn:
+    id: 'settings-row-budget-timeline'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-timeline-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'budget-timeline-sync'
+# "Add Budget Item" is the last element in the timeline scroll — on a populated
+# account it starts below the fold, and assertVisible/tapOn do not auto-scroll.
+- scrollUntilVisible:
+    element:
+      id: 'budget-timeline-add-item'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+- repeat:
+    while:
+      notVisible:
+        id: 'budget-timeline-add-item'
+    commands:
+      - swipe:
+          start: 50%, 80%
+          end: 50%, 25%
+          duration: 800
+      - waitForAnimationToEnd:
+          timeout: 1000
+- assertVisible:
+    id: 'budget-timeline-add-item'
+- tapOn:
+    id: 'budget-timeline-add-item'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+# Item form → Timeline → Dashboard is a 2-deep native-stack push (the timeline
+# arrives by URL from the More tab, so Settings is no longer in the history).
+# Raw back-taps are still the unreliable way out on iOS 26 — return home through
+# the tab, then open the cap editor fresh.
+- runFlow: ../subflows/go-budget-tab.yaml
+# Year setup is offered from the cap editor, which is now its own screen.
+- runFlow: ../subflows/budget-open-monthly-caps.yaml
+- runFlow:
+    when:
+      visible:
+        text: 'Set up year'
+    commands:
+      - tapOn: 'Set up year'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-year-setup-screen'
+          timeout: 15000
+      - assertVisible:
+          id: 'budget-year-setup-save-all'
+      - assertVisible:
+          id: 'budget-year-setup-month-1'
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- tapOn:
+    id: 'nav-back-button'

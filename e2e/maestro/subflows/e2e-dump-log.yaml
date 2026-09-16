@@ -1,0 +1,8 @@
+appId: ${APP_ID}
+tags:
+  - util
+---
+# Dump network + persist + UI ring buffers to Metro console ([E2E-DUMP] lines).
+- openLink: ${E2E_APP_SCHEME}://e2e-dump-log
+- waitForAnimationToEnd:
+    timeout: 2000

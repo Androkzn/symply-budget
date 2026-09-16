@@ -1,0 +1,5 @@
+PASS [Budget-C] budget-prime-session
+PASS [Budget-C] budget-item-form
+PASS [Budget-C] budget-quick-add-tabs
+PASS [Budget-C] budget-spent-form
+FAIL [Budget-C] budget-spend-mutations

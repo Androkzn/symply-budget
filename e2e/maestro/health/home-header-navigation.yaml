@@ -1,0 +1,77 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:home
+  - readonly
+  - regression
+# Matrix: HEALTH-HOME-095, HEALTH-HOME-096
+---
+# The two header affordances on HealthHomeScreen are the ONLY routes out of the
+# Health tab that are not settings rows: the notification bell (→ /notifications)
+# and the avatar (→ /profile). Both are shared screens the Health brand inherits,
+# so this also proves the shared header renders (and routes) inside Health rather
+# than only inside House.
+#
+# The bell's screen issues a real Worker call (`GET /notifications/history`)
+# against symply-health-api, so the matrix-after verify pins its status — a
+# Health build pointed at the House data plane would 403 rather than 200.
+# The avatar's screen does NOT fetch: ProfileScreen renders from the rehydrated
+# auth store, so that half carries no verify spec by design.
+- runFlow: subflows/launch-health.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Bell → notifications (HEALTH-HOME-095) --------------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-HOME-095
+      - assertVisible:
+          id: 'header-notifications'
+      - tapOn:
+          id: 'header-notifications'
+      - extendedWaitUntil:
+          visible:
+            id: 'notifications-screen'
+          timeout: 30000
+      - assertNotVisible:
+          id: 'health-home-screen'
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+          env:
+            E2E_VERIFY_METHOD: GET
+            E2E_VERIFY_PATH: /notifications/history
+            E2E_VERIFY_STATUS: '200'
+
+      # --- Avatar → profile (HEALTH-HOME-096) ------------------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-HOME-096
+      - assertVisible:
+          id: 'header-profile'
+      - tapOn:
+          id: 'header-profile'
+      - extendedWaitUntil:
+          visible:
+            id: 'profile-screen'
+          timeout: 30000
+      - assertNotVisible:
+          id: 'health-home-screen'
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+      # No verify spec: the profile renders from the rehydrated auth store.
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml

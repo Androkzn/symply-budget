@@ -1,0 +1,75 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:spend
+  - readonly
+  - regression
+# Matrix: BUDGET-DASH-046 (see documents/engineering/testing/matrices/)
+# Quick add (BudgetQuickAddRow) — the strip at the top of the spent form is ONE
+# flat row of chips. The Recent/Popular tabs were removed on 2026-09-12: the
+# API still answers with both lists and the form folds them (recent first, then
+# popular, deduped by title) into a single horizontal strip.
+#
+# The strip is data-dependent: it only renders when the household has expense
+# history. When it is present this flow proves a chip is actually TAPPABLE —
+# the bug behind the merge was chips that rendered but did nothing (the local
+# ledger's suggestions carried no `amount`, and the form's handler bailed on
+# that). Save lives only in the header and only once the form is dirty, so
+# "Save appears after the tap" is the stable proof, independent of which
+# title-derived chip id happens to come first. Without history the flow no-ops
+# past the strip, guarded by `when: visible`.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-DASH-046
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'budget-quick-add-row'
+    commands:
+      # One strip, no tab bar.
+      - assertNotVisible:
+          id: 'budget-quick-add-tab-recent'
+      - assertNotVisible:
+          id: 'budget-quick-add-tab-popular'
+      - assertVisible:
+          id: 'budget-quick-add-section'
+      # A fresh form mounts no Save action …
+      - assertNotVisible:
+          id: 'budget-item-form-save-header'
+      # … and the first chip's tap must dirty it (name + amount prefilled).
+      - tapOn:
+          id: 'budget-quick-add-chip-.*'
+          index: 0
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-item-form-save-header'
+          timeout: 8000
+# Back discards the prefilled draft without a prompt (same as budget-item-form).
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

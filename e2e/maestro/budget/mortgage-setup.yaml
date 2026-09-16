@@ -1,0 +1,60 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:mortgage
+  - regression
+# Matrix: MORT-001 — Mortgage setup wizard creates a mortgage (or one already
+# exists) and the Mortgage view renders its overview (paid-off ring + KPI tiles).
+# Runs on a booted Budget build (com.symply.budget). Idempotent: tolerates an
+# existing mortgage on the shared test account. Navigates via the More hub (the
+# Mortgage tab is in the More overflow — see budget-open-mortgage.yaml), and fills
+# the form by PLACEHOLDER text (field labels are not in Maestro's a11y tree).
+---
+- runFlow: ../subflows/budget-open-mortgage.yaml
+
+# First run: no mortgage → walk the setup wizard (GV-1: 500k @ 5% fixed).
+- runFlow:
+    when:
+      visible:
+        id: 'mortgage-empty'
+    commands:
+      - tapOn: 'Set up mortgage'
+      - extendedWaitUntil:
+          visible:
+            text: 'Main home'
+          timeout: 10000
+      # Fill the fields BOTTOM-UP: payment → rate → principal → name. The numeric
+      # keypad has no Done key and can't be dismissed (`hideKeyboard` fails on it), and
+      # it occludes the lower ~40% of the screen — tapping a field UNDER the keypad
+      # lands on the keypad and drops the entry (this is why Payment stayed empty and
+      # create silently failed validation). By entering the LOWEST field first and
+      # moving UP, every next field is above the keypad and stays tappable, so no
+      # dismiss/scroll is ever needed. amort/term keep their defaults (25 / 5 years).
+      - tapOn: '2875.46'
+      - inputText: '2875.46'
+      - tapOn: '5.0'
+      - inputText: '5.0'
+      - tapOn: '500000'
+      - inputText: '500000'
+      - tapOn: 'Main home'
+      - inputText: 'Main home'
+      # Save is a header action (always on screen) — no scroll to the bottom button,
+      # which iOS-26 RN New-Arch does not scroll to reliably via Maestro swipes.
+      - tapOn:
+          id: 'mortgage-setup-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'mortgage-view'
+          timeout: 40000
+
+# Either path lands on the overview with real, engine-computed figures.
+- assertVisible:
+    id: 'mortgage-view'
+# The overview cards only render once the BE-computed summary resolves (a few
+# seconds after `mortgage-view` mounts). Wait for the paid-off ring's label, then
+# assert the KPI tiles — they render in the same pass once `summary` resolves.
+- extendedWaitUntil:
+    visible: 'paid off'
+    timeout: 20000
+- assertVisible: 'Total paid'
+- assertVisible: 'Payment'

@@ -1,0 +1,26 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- waitForAnimationToEnd:
+    timeout: 1500
+- openLink: simplehouse://gardening
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plans-screen'
+    timeout: 30000
+    optional: true
+# openLink right after app boot/login can be dropped if the navigation
+# container isn't fully ready yet (deep link fired before onReady) — retry
+# once via the tab bar if the first attempt silently no-op'd.
+- runFlow:
+    when:
+      notVisible:
+        id: 'garden-plans-screen'
+    commands:
+      - openLink: simplehouse://gardening
+      - extendedWaitUntil:
+          visible:
+            id: 'garden-plans-screen'
+          timeout: 20000

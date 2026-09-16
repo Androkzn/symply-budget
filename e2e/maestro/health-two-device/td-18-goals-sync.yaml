@@ -1,0 +1,163 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+  - feature:goals
+  - mutation
+# Matrix: HEALTH-TD-018 — Wave A table 8/8: `healthGoals` (`health_goals`).
+#
+# The second of the two DETERMINISTIC-id tables — `unique(user_id,
+# effective_date)`, one goal row per day-slot (schema.ts
+# `HEALTH_DETERMINISTIC_ID_TABLES`). In a PERSONAL household that unique key is
+# `(the only user, today)`, which means BOTH devices derive the SAME row id for
+# a goal saved today. That is the sharpest convergence case in the whole suite:
+# there is no "A's row" and "B's row" to merge, only one row two replicas both
+# claim to own.
+#
+# THE WEIGHT-GOAL CARD FOR ALL THREE PHASES. Goals are upserts — there is no row
+# list, no per-row edit and no per-row delete anywhere on `HealthGoalsScreen` —
+# so the triad is built from the one card that has a clear verb:
+#   create  `health-goals-target-input` = TD_VALUE  + `health-goals-weight-save`
+#   modify  `health-goals-target-input` = TD_VALUE2 + `health-goals-weight-save`
+#   delete  `health-goals-weight-clear` (fires immediately; no confirm alert)
+# The nutrition / activity / water cards write the same table through the same
+# `PUT /health/goals`; using one card keeps the assertion unambiguous.
+#
+# Goals is NOT a tab-pool member: it is a STACK push from the More hub's
+# PREFERENCES → "Goals and targets" (`health-setting-goals`), so the way back is
+# `nav-back-button`, never the tab bar.
+#
+# env: TD_ROLE, TD_PHASE, TD_VALUE / TD_VALUE2 (target kg), TD_EXPECT
+---
+- runFlow: td-launch.yaml
+
+# ==========================================================================
+# WRITE — device A
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'write'}
+    commands:
+      - runFlow: ../health/subflows/go-health-goals.yaml
+
+      - runFlow:
+          when:
+            true: ${TD_PHASE != 'delete'}
+          commands:
+            - runFlow:
+                file: ../health/subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: 'health-goals-target-input'
+                  SCROLL_DIR: down
+            - tapOn:
+                id: 'health-goals-target-input'
+            - eraseText: 12
+            - runFlow:
+                when:
+                  true: ${TD_PHASE == 'create'}
+                commands:
+                  - inputText: ${TD_VALUE}
+            - runFlow:
+                when:
+                  true: ${TD_PHASE == 'modify'}
+                commands:
+                  - inputText: ${TD_VALUE2}
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'WEIGHT GOAL'
+            - tapOn:
+                id: 'health-goals-weight-save'
+            # `saveWeightSection` → `healthApi.saveGoal` → PUT /health/goals.
+            # The banner is the screen's own success signal.
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-goals-message'
+                  text: 'Targets updated\.'
+                timeout: 30000
+            - assertVisible:
+                id: 'health-goals-target-input'
+                text: '.*${TD_EXPECT}.*'
+
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'delete'}
+          commands:
+            - runFlow:
+                file: ../health/subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: 'health-goals-weight-clear'
+                  SCROLL_DIR: down
+            - tapOn:
+                id: 'health-goals-weight-clear'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-goals-progress-empty'
+                timeout: 30000
+            - assertVisible:
+                id: 'health-goals-progress-empty'
+
+      - runFlow: td-sync-nudge.yaml
+
+# ==========================================================================
+# OBSERVE — device B
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'observe'}
+    commands:
+      - runFlow: ../health/subflows/go-health-goals.yaml
+      - runFlow:
+          when:
+            true: ${TD_PHASE != 'delete'}
+          commands:
+            - repeat:
+                times: 20
+                commands:
+                  - runFlow:
+                      when:
+                        notVisible:
+                          id: 'health-goals-target-input'
+                          text: '.*${TD_EXPECT}.*'
+                      commands:
+                        - runFlow: td-sync-nudge.yaml
+                        - runFlow: ../health/subflows/go-health-goals.yaml
+                        - runFlow:
+                            file: ../health/subflows/health-swipe-section-to.yaml
+                            env:
+                              TARGET_ID: 'health-goals-target-input'
+                              SCROLL_DIR: down
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-goals-target-input'
+                  text: '.*${TD_EXPECT}.*'
+                timeout: 45000
+            - assertVisible:
+                id: 'health-goals-target-input'
+                text: '.*${TD_EXPECT}.*'
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'delete'}
+          commands:
+            - repeat:
+                times: 20
+                commands:
+                  - runFlow:
+                      when:
+                        notVisible:
+                          id: 'health-goals-progress-empty'
+                      commands:
+                        - runFlow: td-sync-nudge.yaml
+                        - runFlow: ../health/subflows/go-health-goals.yaml
+                        - runFlow:
+                            file: ../health/subflows/health-swipe-section-to.yaml
+                            env:
+                              TARGET_ID: 'health-goals-weight-card'
+                              SCROLL_DIR: down
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-goals-progress-empty'
+                timeout: 45000
+            - assertVisible:
+                id: 'health-goals-progress-empty'

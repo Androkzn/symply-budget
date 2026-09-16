@@ -1,0 +1,62 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+# Matrix: BUDGET-MM-001 — sign the named member in on this device.
+#
+# Runs on BOTH simulators with different credentials (the orchestrator swaps
+# E2E_EMAIL / E2E_PASSWORD / E2E_LOGIN_URL per device), so each device is a
+# genuinely different household member rather than one account twice.
+#
+# Always signs out first: the local ledger is device-scoped, and a device that
+# is still signed in as the OTHER member would reuse that member's session.
+---
+- launchApp:
+    permissions:
+      all: allow
+      faceid: allow
+- openLink: ${E2E_METRO_DEVCLIENT_URL}
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow: connect-mm-metro.yaml
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# Clear any alert a previous RUN left on this device — it survives launchApp
+# (no clearState) and would swallow every tap in this flow.
+- runFlow: mm-dismiss-stale-alerts.yaml
+# A cold Metro serves the first bundle only when a device asks for it, and the
+# dev client shows a black screen with a spinner while that download runs. Give
+# it room before deciding the app is broken.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 120000
+    optional: true
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- openLink: simplebudget://e2e-logout
+- waitForAnimationToEnd:
+    timeout: 4000
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'login-screen'
+    timeout: 60000
+    optional: true
+- runFlow: ../subflows/budget-login-email-if-needed.yaml
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- repeat:
+    times: 18
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-screen'
+          commands:
+            - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'budget-screen'
+                timeout: 5000
+                optional: true
+- assertVisible:
+    id: 'budget-screen'

@@ -1,0 +1,29 @@
+# Dismiss the Reports upload-source sheet (From Device / cloud picker).
+appId: ${APP_ID}
+tags:
+  - util
+  - app:house
+---
+- extendedWaitUntil:
+    visible:
+      id: 'reports-upload-cancel'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'reports-upload-cancel'
+    commands:
+      - tapOn:
+          id: 'reports-upload-cancel'
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      visible: 'Cancel'
+      notVisible:
+        id: 'reports-upload-cancel'
+    commands:
+      - tapOn: 'Cancel'
+      - waitForAnimationToEnd:
+          timeout: 3000

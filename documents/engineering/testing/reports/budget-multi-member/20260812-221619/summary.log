@@ -1,0 +1,35 @@
+[mm] live report: /Users/andreitekhtelev/Desktop/Symply Ecosystem/Simply Ecosystem/documents/engineering/testing/reports/budget-multi-member/20260812-221619/index.html (opens shortly, self-refreshes)
+[mm] === phase 1: enrolment (ordered) ===
+    PASS [A] mm-01-signin
+    PASS [B] mm-01-signin
+    PASS [A] mm-02-owner-create-invite
+[mm] invite code=TG7JVS oob=ember
+    PASS [B] mm-03-member-join
+    PASS [A] mm-04-owner-approve
+    PASS [B] mm-05-member-enrol-sync
+[mm] === phase 2: both members create, each sees the other (PARALLEL) ===
+    PASS [A] mm-20-add-and-await-peer
+    PASS [B] mm-20-add-and-await-peer
+[mm] === phase 3: both members modify, each sees the other's edit (PARALLEL) ===
+    PASS [A] mm-21-modify-and-await-peer
+    PASS [B] mm-21-modify-and-await-peer
+[mm] === phase 4: concurrent edit of the SAME row → conflict resolution (PARALLEL) ===
+    PASS [A] mm-23-conflict-parallel
+    PASS [B] mm-23-conflict-parallel
+[mm] --- convergence check (reading both devices) ---
+[mm] attempt 1: A row=$94  B row=$94
+    PASS convergence — both devices show $94 (member's edit won)
+    PASS conflict surfaced to a member (BR-044)
+[mm] === phase 5: both members delete, each sees the removal (PARALLEL) ===
+    PASS [A] mm-22a-delete-open-confirm
+    PASS [B] mm-22a-delete-open-confirm
+[mm] both members delete their own row (idb gesture + native confirm)
+    [A] deleted 'MM Owner 20260812-221619'
+    [B] deleted 'MM Member 20260812-221619'
+    PASS [A] mm-22-delete-gesture
+    PASS [B] mm-22-delete-gesture
+    PASS [A] mm-22b-delete-verify-peer
+    PASS [B] mm-22b-delete-verify-peer
+[mm] === cleanup ===
+    PASS [A] mm-11-cleanup
+    PASS [B] mm-11-cleanup

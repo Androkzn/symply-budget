@@ -1,0 +1,33 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# Tutor tab (route `chat`, pinned by default — may move to More overflow after tab customization).
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-tutor-screen'
+    commands:
+      - openLink: ${E2E_APP_SCHEME}://chat
+      - runFlow: language-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+- tapOn:
+    id: 'tab-chat'
+    optional: true
+    retryTapIfNoChange: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-tutor-screen'
+    commands:
+      - runFlow: go-more.yaml
+      - tapOn:
+          id: 'more-tab-chat'
+          retryTapIfNoChange: true
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'language-tutor-screen'
+    timeout: 20000

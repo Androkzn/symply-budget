@@ -1,0 +1,45 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:budget
+  - readonly
+  - regression
+# Matrix: HOUSE-BUDGET-012 (unit backstop), read-only House budget tab smoke.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-clear-log.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+# e2e-clear-log's openLink can trigger iOS's "Open in …?" interstitial over
+# the Dev Client — dismiss it before the next deep link.
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- openLink: simplehouse://budget
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'budget-screen'
+    commands:
+      - assertVisible:
+          id: 'budget-screen'
+      # Screen mounted — confirm its own data actually loaded, not an empty shell.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: GET
+            E2E_VERIFY_PATH: /home-budget/monthly-overview
+            E2E_VERIFY_STATUS: '200'
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000

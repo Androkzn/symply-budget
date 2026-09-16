@@ -1,0 +1,65 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+  - feature:notifications
+# Matrix: HEALTH-TD-033 — the wake was CONSUMED, not surfaced, and B holds A's
+# row.
+#
+# READ td-32's HEADER FIRST. The delivery half of this DoD bullet is proven by
+# the runner (log grep for B's `/v2/push/register` and for the `health_sync_wake`
+# issued after A's deposit + a real `xcrun simctl push` of the payload). This
+# flow owns the client half, and it deliberately does NOT claim to distinguish
+# "converged because of the wake" from "converged because Maestro foregrounded
+# the app" — that distinction is not observable from the screen.
+#
+# What IS observable, and is asserted here, is the property only correct wake
+# handling produces: SILENCE. `handleHealthSyncWakeNotification` returns true so
+# the caller does not also route the payload as a domain notification —
+# "a wake carries no user-facing content — routing it as one would surface an
+# empty notification" (pushWake.ts). So a `health_sync_wake` that was mishandled
+# does not fail quietly; it shows up as a blank notification. Three assertions:
+#
+#   1. no notification banner is on screen after the push;
+#   2. the Notifications screen has no empty/contentless row;
+#   3. A's row is present on B.
+#
+# (3) alone would be a weak claim. (1)+(2) are what make it a statement about the
+# wake rather than about the foreground.
+#
+# env: TD_MARK — the habit A logged while B was parked
+---
+# Foreground B. `td-launch` does not clear state, so whatever the wake did to
+# the ledger while the app was backgrounded is still there.
+- runFlow: td-launch.yaml
+# 1 — the wake must not have painted anything. A `health_sync_wake` routed as a
+# domain notification renders with no title and no body.
+- assertNotVisible: 'health_sync_wake'
+# NOTE — there is deliberately no `id: notification-banner` assertion here.
+# An earlier draft had one. It could never fail: the app renders no element by
+# that id (an iOS push banner is OS chrome, not an app view, and Maestro cannot
+# target it by testID), and `assertNotVisible` on an id that never exists always
+# passes. A vacuous assertion inside a DoD flow is worse than no assertion — it
+# reads as coverage. The claim is carried by the text assertion above and by the
+# notification-list check below, both of which CAN fail.
+# 2 — and it must not be sitting in the notification list either.
+- runFlow: ../health/subflows/go-health-notifications.yaml
+- assertVisible:
+    id: 'health-notifications-screen'
+- assertNotVisible: 'health_sync_wake'
+# 3 — and the ledger converged.
+- runFlow: ../health/subflows/go-health-habits.yaml
+- repeat:
+    times: 20
+    commands:
+      - runFlow:
+          when:
+            notVisible: '.*${TD_MARK}.*'
+          commands:
+            - runFlow: td-sync-nudge.yaml
+            - runFlow: ../health/subflows/go-health-habits.yaml
+- extendedWaitUntil:
+    visible: '.*${TD_MARK}.*'
+    timeout: 60000
+- assertVisible: '.*${TD_MARK}.*'

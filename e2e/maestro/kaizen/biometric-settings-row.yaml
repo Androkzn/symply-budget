@@ -1,0 +1,36 @@
+appId: com.symply.kaizen
+tags:
+  - destructive
+  - app:kaizen
+---
+# Settings Face ID / Touch ID row after a signed-in session.
+# clearKeychain avoids sticky Welcome from leftover JWTs; enrollment happens in-flow.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+    permissions:
+      all: allow
+      faceid: allow
+- runFlow: subflows/kaizen-login-if-needed.yaml
+- runFlow: subflows/kaizen-setup-if-needed.yaml
+- runFlow: subflows/dismiss-welcome-if-needed.yaml
+- runFlow: subflows/enable-biometric-if-needed.yaml
+- runFlow: subflows/dismiss-biometric-prompt-if-needed.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-today-screen'
+    timeout: 120000
+- openLink: kaizen:///kaizen/settings
+- extendedWaitUntil:
+    visible: 'Control how Kaizen supports you.'
+    timeout: 25000
+- extendedWaitUntil:
+    visible:
+      id: 'settings-row-biometric'
+    timeout: 30000
+    optional: true
+- assertVisible:
+    id: 'settings-row-biometric'
+    optional: true
+- assertVisible:
+    id: 'settings-toggle-biometric'

@@ -1,0 +1,33 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:subscriptions
+  - readonly
+  - regression
+# Matrix: PLAT-SUB-010
+---
+- runFlow: subflows/launch-platform.yaml
+- runFlow: ../subflows/open-profile.yaml
+- assertVisible:
+    id: 'profile-screen'
+- runFlow:
+    when:
+      visible: 'PRO'
+    commands:
+      - assertVisible: 'PRO'
+      # PRO exposes the shared Manage/Cancel affordance (SubscriptionSection).
+      - assertVisible:
+          id: 'profile-manage-subscription-button'
+      # ...and nothing else: the card's "Manage AI access" button was removed
+      # (2026-09-03). Managing AI is Settings -> AI, whose row becomes "Manage
+      # AI access" once a key is connected. A tap block here would be a guarded
+      # block that can never run, so this asserts the absence instead.
+      - assertNotVisible: 'Manage AI access'
+- runFlow:
+    when:
+      visible: 'FREE'
+    commands:
+      - assertVisible: 'FREE'
+      # FREE must NOT show the manage-subscription affordance.
+      - assertNotVisible:
+          id: 'profile-manage-subscription-button'

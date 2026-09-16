@@ -1,0 +1,46 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# Expo Dev Client chrome that blocks Maestro taps on Debug builds.
+# Skip the flaky "Open" deep-link sheet — it has been crashing Debug builds mid-flow.
+- repeat:
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            visible: 'DEVELOPMENT SERVERS'
+          commands:
+            - tapOn:
+                text: '.*8084.*'
+                optional: true
+            - tapOn:
+                text: '.*:8084'
+                optional: true
+            - tapOn:
+                text: '.*localhost.*8084.*'
+                optional: true
+            - tapOn:
+                text: 'http.*'
+                optional: true
+            - tapOn:
+                point: '50%,38%'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 12000
+      - runFlow:
+          when:
+            visible: 'Continue'
+          commands:
+            - tapOn: 'Continue'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Reload'
+          commands:
+            - tapOn:
+                point: '92%,11%'
+            - waitForAnimationToEnd:
+                timeout: 2000

@@ -1,0 +1,9 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+- openLink: ${E2E_APP_SCHEME}://e2e-unblock-network
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 1500

@@ -1,0 +1,95 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+  - feature:local-first
+  - feature:two-device
+---
+# Expo Dev Client chrome, for a suite that runs its OWN Metro.
+#
+# Not `../health/subflows/health-dismiss-expo-dev-chrome.yaml`: that file taps
+# ":8085" rows in the dev-launcher's server list, which is the port the
+# single-device Health suite serves. Tapping it here would attach these two
+# devices to a DIFFERENT session's bundler — silently testing someone else's
+# bundle, or hanging on their reload. Every port match below is
+# `${TD_METRO_PORT}`, which the runner owns.
+#
+# ONE DELIBERATE DIVERGENCE FROM THE SINGLE-DEVICE FILE: the notifications
+# permission alert is ANSWERED WITH ALLOW, not "Don't Allow". The He12(partial)
+# DoD includes "push wake delivered A→B in the one-user household", and
+# `registerHealthLocalPushToken` (src/features/health/local/pushWake.ts) bails
+# early when `notificationService.hasPermission()` is false — so a denied
+# prompt does not fail anything loudly, it just makes the wake leg unprovable.
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            visible: 'Continue'
+          commands:
+            - tapOn: 'Continue'
+            - waitForAnimationToEnd:
+                timeout: 3000
+      - runFlow:
+          when:
+            visible: 'Login Failed'
+          commands:
+            - tapOn:
+                text: 'OK'
+                optional: true
+            - tapOn:
+                text: 'Cancel'
+                optional: true
+      - runFlow:
+          when:
+            visible: 'Open'
+          commands:
+            - tapOn: 'Open'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'DEVELOPMENT SERVERS'
+          commands:
+            - tapOn:
+                text: '.*${TD_METRO_PORT}.*'
+                optional: true
+            - tapOn:
+                text: '.*:${TD_METRO_PORT}'
+                optional: true
+            # The deep link encodes host+port explicitly, so it is
+            # authoritative even when nothing in the list matched.
+            - openLink: ${E2E_METRO_DEVCLIENT_URL}
+            - waitForAnimationToEnd:
+                timeout: 12000
+      - runFlow:
+          when:
+            visible: 'Reload'
+          commands:
+            - tapOn:
+                point: '92%,11%'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      # Native system alerts, not Expo chrome, but they belong in the same
+      # safe no-op dismissal loop — both block a fresh-account run outright.
+      - runFlow:
+          when:
+            visible: 'Save Password?'
+          commands:
+            - tapOn: 'Not Now'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Would Like to Send You Notifications'
+          commands:
+            - tapOn: 'Allow'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Apple Account Verification'
+          commands:
+            - tapOn: 'Not Now'
+            - waitForAnimationToEnd:
+                timeout: 2000

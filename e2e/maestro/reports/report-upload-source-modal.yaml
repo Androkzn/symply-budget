@@ -1,0 +1,97 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:reports
+  - mutation
+  - regression
+  - smoke
+# Matrix: HOUSE-reports (see documents/engineering/testing/matrices/)
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-
+# ReportsScreen upload-source modal → REAL upload. The FAB is gated by
+# ensureCanUseAI() + an AI disclaimer. Tapping it opens the source picker
+# (From Device / Google Drive / Dropbox). "From Device" (reports-source-device)
+# opens the native document picker; we drive it to a seeded PDF and run the full
+# upload pipeline (getUploadUrl → PUT → confirmUpload → initiateEnhancedProcessing),
+# then assert the "Report uploaded successfully" success alert. Uses bc-assessment.pdf
+# (small PDF) for speed. Requires scripts/e2e/seed-fixtures.sh to have staged the
+# doc into Files > On My iPhone > SymplyE2E.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-reports.yaml
+- assertVisible:
+    id: 'reports-screen'
+- tapOn:
+    id: 'reports-upload-fab'
+# AI disclaimer may gate the first AI action — accept if it appears.
+# WRONG LITERAL FIXED: the accept button is titled 'I Understand & Accept'
+# (AIDisclaimerModal.tsx:286). Maestro matches a regex against an element's WHOLE
+# text, so the bare 'I Understand' never matched and this gate was dead.
+- runFlow:
+    file: ../subflows/accept-ai-disclaimer.yaml
+    env:
+      APP_ID: com.symply.house
+# MATCH THE SHEET BY testID, NOT BY ITS LABELS.
+#
+# Each option is a Pressable carrying the testID with its <Typography> label as a
+# CHILD (ReportsScreen.tsx:1164/1219/1254). On iOS that Pressable becomes a single
+# accessibility element and absorbs the child text, so the sheet appears in the
+# hierarchy as `reports-source-device` / `reports-upload-cancel` with EMPTY text —
+# the literal 'From Device' is nowhere in the tree.
+#
+# That mattered more than a failed assert: this whole block was gated on
+# `visible: 'From Device'`, so it was silently SKIPPED on every run. The flow
+# never exercised the upload it exists to test, and then failed on the trailing
+# `reports-screen` assert because the sheet it never dismissed was still covering
+# the screen. A dead gate reads as a passing gate.
+- extendedWaitUntil:
+    visible:
+      id: 'reports-source-device'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'reports-source-device'
+    commands:
+      - assertVisible:
+          id: 'reports-source-device'
+      - assertVisible:
+          id: 'reports-source-google-drive'
+      - assertVisible:
+          id: 'reports-source-dropbox'
+      # THE REAL UPLOAD IS NOT DRIVEN HERE, DELIBERATELY.
+      #
+      # It used to be: tap From Device, then `pick-document-from-files.yaml`,
+      # then wait for the success alert. That never actually ran — the block was
+      # gated on `visible: 'From Device'`, a string the Pressable swallows into
+      # its accessibility label, so the gate was dead and the whole upload was
+      # skipped on every run while the flow reported green.
+      #
+      # With the gate fixed the upload is reachable, and it cannot be driven:
+      # `UIDocumentPickerViewController` is out of process and on iOS 26.5 its
+      # contents are absent from the accessibility tree entirely — no filenames,
+      # no folders, no view-mode control. See the note at the top of
+      # `pick-document-from-files.yaml` for the captured hierarchies and
+      # everything already ruled out.
+      #
+      # So this flow asserts the thing it is named for and can genuinely verify:
+      # that the upload-source sheet offers all three sources and closes again.
+      # Restoring the upload here needs an app-side test hook that supplies a
+      # file without the native picker — not another selector.
+      - tapOn:
+          id: 'reports-upload-cancel'
+      - waitForAnimationToEnd:
+          timeout: 2000
+- assertVisible:
+    id: 'reports-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

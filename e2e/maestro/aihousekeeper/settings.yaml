@@ -1,0 +1,22 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:aihousekeeper
+  - readonly
+  - regression
+# Matrix: HOUSE-aihousekeeper (see documents/engineering/testing/matrices/)
+---
+# AihousekeeperSettingsScreen — /aihousekeeper-settings. Persona/timing/channels prefs
+# (PATCH aihousekeeper settings). Asserts the screen mounts via a stable section title
+# ("Housekeeper") — the header itself is the dynamic persona name.
+# WARNING: aihousekeeper cluster suspected mount-time theme/hooks crash — may red-screen
+# until fixed (see audit §D / §0.4).
+- runFlow: ../subflows/launch-logged-in.yaml
+- openLink: simplehouse://aihousekeeper-settings
+- extendedWaitUntil:
+    visible:
+      id: 'aihousekeeper-settings-screen'
+    timeout: 45000
+- extendedWaitUntil:
+    visible: 'HOUSEKEEPER'
+    timeout: 30000

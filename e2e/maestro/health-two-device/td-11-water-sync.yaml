@@ -1,0 +1,202 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+  - feature:water
+  - mutation
+# Matrix: HEALTH-TD-011 — Wave A table 2/8: `waterEntries` (`water_entries`).
+#
+# THE WATER TAB, NOT THE HOME COUNTER. Home's `health-water-plus` and Nutrition's
+# `health-nutrition-water-plus` can only ever mean one cup (240 ml), so every
+# entry they write is the same volume and no marker can be unique. The Water tab
+# is the only surface that logs a real volume (`health-water-custom-input` +
+# `health-water-custom-add`), which is what makes the run-unique amounts below
+# possible.
+#
+# ⚠️ WHAT "MODIFY" MEANS HERE, AND WHY IT IS NOT AN EDIT.
+# `HealthWaterScreen` has NO per-entry edit affordance — the only `edit` id on
+# the screen is `health-water-edit-goal`, which is the daily GOAL, a different
+# table (`healthGoals`, covered by td-18). So the modify leg logs a SECOND,
+# distinct volume and requires the peer's projected day total to move with it.
+# That is still a real modification of observable state driven by a real op, and
+# it is the strongest statement this screen's surface supports. If He3 lands an
+# entry editor, replace this leg with the edit — do not leave both.
+#
+# env: TD_ROLE, TD_PHASE, TD_MARK (unused — water has no free-text field),
+#      TD_VALUE (create ml), TD_VALUE2 (modify ml), TD_EXPECT (e.g. "537 ml")
+---
+- runFlow: td-launch.yaml
+
+# ==========================================================================
+# WRITE — device A
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'write'}
+    commands:
+      - runFlow: ../health/subflows/go-health-water.yaml
+
+      # --- create ---------------------------------------------------------
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'create'}
+          commands:
+            - scrollUntilVisible:
+                element:
+                  id: 'health-water-custom-input'
+                direction: DOWN
+                timeout: 20000
+                visibilityPercentage: 10
+                optional: true
+            - tapOn:
+                id: 'health-water-custom-input'
+            - inputText: ${TD_VALUE}
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'CUSTOM AMOUNT'
+            - tapOn:
+                id: 'health-water-custom-add'
+            - extendedWaitUntil:
+                visible: '.*${TD_VALUE} ml.*'
+                timeout: 30000
+            - assertVisible: '.*${TD_VALUE} ml.*'
+
+      # --- modify (second distinct volume — see the header) ---------------
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'modify'}
+          commands:
+            - scrollUntilVisible:
+                element:
+                  id: 'health-water-custom-input'
+                direction: DOWN
+                timeout: 20000
+                visibilityPercentage: 10
+                optional: true
+            - tapOn:
+                id: 'health-water-custom-input'
+            - inputText: ${TD_VALUE2}
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'CUSTOM AMOUNT'
+            - tapOn:
+                id: 'health-water-custom-add'
+            - extendedWaitUntil:
+                visible: '.*${TD_VALUE2} ml.*'
+                timeout: 30000
+            - assertVisible: '.*${TD_VALUE2} ml.*'
+
+      # --- delete ---------------------------------------------------------
+      # `handleDelete` only calls `deleteWaterEntry` from the Alert's 'Remove'
+      # branch, and the alert body names the volume
+      # (`Remove ${formatVolume(...)} from today?`). That is the only way to
+      # tell WHICH row a `health-water-delete-.*` tap opened, because the rows
+      # carry server-minted ids and no text of their own. So: open a row's
+      # alert, and confirm ONLY if the body names this run's volume — otherwise
+      # cancel and try the next index. Unrolled rather than looped because
+      # Maestro cannot parameterise `index:` inside `repeat`.
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'delete'}
+          commands:
+            - extendedWaitUntil:
+                visible: '.*${TD_VALUE2} ml.*'
+                timeout: 30000
+            - scrollUntilVisible:
+                element:
+                  id: 'health-water-delete-.*'
+                direction: DOWN
+                timeout: 20000
+                visibilityPercentage: 10
+                optional: true
+            - tapOn:
+                id: 'health-water-delete-.*'
+                index: 0
+            - runFlow:
+                when:
+                  visible: 'Remove ${TD_VALUE2} ml from today\?'
+                commands:
+                  - tapOn: 'Remove'
+            - runFlow:
+                when:
+                  notVisible: 'Remove ${TD_VALUE2} ml from today\?'
+                commands:
+                  - tapOn:
+                      text: '^Cancel$'
+                      optional: true
+                  - tapOn:
+                      id: 'health-water-delete-.*'
+                      index: 1
+                      optional: true
+                  - runFlow:
+                      when:
+                        visible: 'Remove ${TD_VALUE2} ml from today\?'
+                      commands:
+                        - tapOn: 'Remove'
+            - runFlow:
+                when:
+                  visible: 'Remove ${TD_VALUE2} ml from today\?'
+                commands:
+                  - tapOn: 'Remove'
+            - tapOn:
+                text: '^Cancel$'
+                optional: true
+            - extendedWaitUntil:
+                notVisible: '.*${TD_VALUE2} ml.*'
+                timeout: 30000
+            - assertNotVisible: '.*${TD_VALUE2} ml.*'
+
+      - runFlow: td-sync-nudge.yaml
+
+# ==========================================================================
+# OBSERVE — device B
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'observe'}
+    commands:
+      - runFlow: ../health/subflows/go-health-water.yaml
+      - runFlow:
+          when:
+            true: ${TD_PHASE != 'delete'}
+          commands:
+            - repeat:
+                times: 20
+                commands:
+                  - runFlow:
+                      when:
+                        notVisible: '.*${TD_EXPECT}.*'
+                      commands:
+                        - runFlow: td-sync-nudge.yaml
+                        - runFlow: ../health/subflows/go-health-water.yaml
+                        - scrollUntilVisible:
+                            element:
+                              text: '.*${TD_EXPECT}.*'
+                            direction: DOWN
+                            timeout: 8000
+                            visibilityPercentage: 10
+                            optional: true
+            - extendedWaitUntil:
+                visible: '.*${TD_EXPECT}.*'
+                timeout: 45000
+            - assertVisible: '.*${TD_EXPECT}.*'
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'delete'}
+          commands:
+            - repeat:
+                times: 20
+                commands:
+                  - runFlow:
+                      when:
+                        visible: '.*${TD_EXPECT}.*'
+                      commands:
+                        - runFlow: td-sync-nudge.yaml
+                        - runFlow: ../health/subflows/go-health-water.yaml
+            - extendedWaitUntil:
+                notVisible: '.*${TD_EXPECT}.*'
+                timeout: 45000
+            - assertNotVisible: '.*${TD_EXPECT}.*'

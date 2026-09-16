@@ -1,0 +1,388 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:water
+  - mutation
+  - regression
+# Matrix: HEALTH-WATER-116 … HEALTH-WATER-119, HEALTH-HOME-124, HEALTH-NUTR-105
+---
+# ONE RECORD, THREE SURFACES — on a device.
+#
+# Hydration is loggable on three screens that speak two different vocabularies:
+#   * Home       `health-water-{plus,minus}`            — ±1 CUP (240 ml)
+#   * Nutrition  `health-nutrition-water-{plus,minus}`  — ±1 CUP (240 ml)
+#   * Water tab  presets / custom / per-row delete      — MILLILITRES
+# and all three write the same `/health/water/entries` rows and refresh the same
+# `health.water.v1` cache.
+#
+# WHY A DEVICE FLOW WHEN A JEST SUITE ALREADY PROVES THIS. The Jest suite
+# (src/features/health/__tests__/areas/water.surfaces.test.tsx) mounts each screen
+# against a shared fake ledger, which proves the STORE wiring. It cannot prove
+# the two things that only exist on a device: that a real tab switch re-hydrates
+# the counter (the screens hydrate in `useEffect`/`useFocusEffect`, not on a
+# store event), and that the figures agree after a real round trip to the
+# deployed Worker. A member who logs a bottle and then taps Home is doing exactly
+# this, and it is the single most likely place for the two vocabularies to drift.
+#
+# THE ARITHMETIC BEING ASSERTED: a cup is 240 ml, so
+#   Bottle (500 ml) + Glass (250 ml) = 750 ml → round(750/240) = 3 cups.
+# Home shows 3; the Water tab shows 750 ml. Neither is rounded FROM the other —
+# both are derived from the server's millilitre total.
+#
+# STATE ASSUMPTIONS
+#   * Session as in every Health flow; the body is gated on `health-home-screen`
+#     so a session-less device skips.
+#   * Today's water total is shared with home-*.yaml and nutrition-log-meal.yaml,
+#     so this flow drains before it measures.
+#   * The goal must be the 2,000 ml / 8-cup default for the "/ 8 cups" suffix.
+#     water-tab-goal-units-custom.yaml restores it, which is why this flow runs
+#     after it.
+#   * The display UNIT (`health_goals.water_unit`) is the same shared,
+#     server-persisted row — only water-tab-goal-units-custom.yaml's
+#     HEALTH-WATER-110/111 pair ever switches it. Every confirm-copy assertion
+#     in this flow is hardcoded to ml (e.g. 'Remove 240 ml from today?',
+#     'Remove 500 ml from today?'), so it forces the unit back to ml itself
+#     before draining rather than trusting that flow's teardown — reproduced
+#     2026-08-02: this flow's 'Remove 240 ml from today?' wait timed out
+#     because the shared account was still on oz from an interrupted prior
+#     run, and the failure screenshot shows the real dialog read 'Remove 8.1
+#     oz from today?' (the Water tab's unit chips also showed 'fl oz'
+#     selected). Same stale-preference root cause already documented and
+#     fixed in water-tab-presets-and-log.yaml and
+#     water-tab-goal-units-custom.yaml.
+#
+# KNOWN APP BUG (2026-08-02, not a flow issue — do not "fix" by loosening the
+# two Nutrition assertions below): `health-nutrition-water-count`
+# (`HealthNutritionScreen.tsx` ~L1085-1095) renders the visible text as
+# "N / 8 cups" but sets an explicit `accessibilityLabel` of "N of 8 cups" — a
+# different string. iOS exposes the label, not the raw text, to the
+# accessibility tree, so a real device reads "N of 8 cups" while the screen
+# shows "N / 8 cups", and this flow's `text: 'N / 8 cups'` assertion times out
+# even though the screenshot at failure shows the correct number. Compare
+# `health-water-cups-count` in `HealthHomeWidgets.tsx` (~L502-503), which
+# deliberately keeps its `accessibilityLabel` ("N cups") identical to its
+# visible text for exactly this reason. Pre-existing (introduced 2026-07-25,
+# commit cd0f3c09b), unrelated to the 2026-08-01 Home WEIGHT-card removal.
+#
+# TEARDOWN: every drink is deleted from the Water tab's log and the counters are
+# re-asserted at zero on both cup surfaces.
+- runFlow: subflows/launch-health.yaml
+- runFlow: subflows/go-health-water.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-water-screen'
+    commands:
+      # --- Force ml first, THEN drain (see STATE ASSUMPTIONS above) ----------
+      # `handleUnit` (`HealthWaterScreen.tsx`) always calls `saveWaterUnit` even
+      # when the chip is already selected, so this is a harmless no-op PUT when
+      # a prior run already left it on ml; its network call falls outside every
+      # matrix window below (those all start from their own
+      # `e2e-matrix-before.yaml`, which clears the log first). Same defensive
+      # tap as water-tab-presets-and-log.yaml / water-tab-goal-units-custom.yaml.
+      - tapOn:
+          id: 'health-water-unit-ml'
+      # --- Drain, so the numbers below are this flow's own -------------------
+      # Each real tap here IS `deleteWaterEntry` → `DELETE
+      # /health/water/entries/:id` (not local-only), but the loop's fire count
+      # is 0–12 and every tap is `optional: true` — there is no fixed number of
+      # calls to clear-log/verify against, unlike the single, deliberate
+      # deletes tagged with a matrix row below. Left unwrapped, matching every
+      # other bulk drain/teardown loop in this suite.
+      - repeat:
+          times: 12
+          commands:
+            - tapOn:
+                id: 'health-water-delete-.*'
+                index: 0
+                optional: true
+            - tapOn:
+                text: 'Remove'
+                optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-log-empty'
+          timeout: 20000
+
+      # --- Water tab → Home (HEALTH-WATER-116) ------------------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-116
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-preset-bottle'
+      - tapOn:
+          id: 'health-water-preset-glass'
+      - extendedWaitUntil:
+          visible: '2 entries'
+          timeout: 20000
+      # Both presets write real rows (WaterPreset → `addWaterAmount` →
+      # `POST /health/water/entries`, `HealthWaterScreen.tsx` `handleAdd`) — the
+      # ring buffer's most recent matching call proves at least one landed.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - runFlow: subflows/go-health-home.yaml
+      # The WATER card sits below the weight card and is off the bottom of the
+      # screen at the resting scroll position — anchor before asserting.
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-water-plus
+            HOME_ANCHOR: bottom
+      # Scoped to the count node: "/ 8 cups" is on screen at every count, so a
+      # bare '3 cups' match could be satisfied by the target suffix.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '3 cups'
+          timeout: 20000
+      - assertVisible:
+          text: '/ 8 cups'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Home → Nutrition (HEALTH-HOME-124 / HEALTH-NUTR-105) -------------
+      # A cup added on Home is 240 ml, which takes 750 → 990 ml → 4 cups.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-124
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-plus'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '4 cups'
+          timeout: 20000
+      # Home's + cup is `adjustWater(1)` (`healthLocalStorage.ts`), which is a
+      # POSITIVE delta and therefore takes the `addWater` branch — the SAME
+      # `POST /health/water/entries` the Water tab presets use, one 240 ml row.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - runFlow: subflows/go-health-nutrition.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'health-nutrition-water-count'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # Nutrition's counter is ONE merged label — assert the full string, never a
+      # fragment (the iOS-26 merged-label constraint). NOTE: this currently
+      # times out on device — see the KNOWN APP BUG note at the top of this
+      # file (accessibilityLabel says "of", visible text says "/").
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-water-count'
+            text: '4 / 8 cups'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Nutrition → the Water tab log (HEALTH-WATER-117) -----------------
+      # A cup logged from Nutrition must appear as an ordinary 240 ml ROW — the
+      # ±1 control writes a normal entry, not a special "cup" record, which is
+      # what makes it individually deletable on the Water tab.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-117
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-nutrition-water-plus'
+      # Same accessibilityLabel/text mismatch as the '4 / 8 cups' assertion
+      # above — see the KNOWN APP BUG note at the top of this file.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-water-count'
+            text: '5 / 8 cups'
+          timeout: 20000
+      # Nutrition's + cup is the same `adjustWater(1)` → `addWater` →
+      # `POST /health/water/entries` as Home's (`handleWater` in
+      # `HealthNutritionScreen.tsx`) — proves the SAME endpoint backs both ±1
+      # surfaces, not a fork.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - runFlow: subflows/go-health-water.yaml
+      - extendedWaitUntil:
+          visible: '4 entries'
+          timeout: 20000
+      # The newest row is the cup Nutrition just logged, read back through its
+      # own confirm copy — 240 ml, an ORDINARY entry. A bare '240 ml' text match
+      # would be ambiguous with the hero total, and '500 ml' would be satisfied
+      # by the permanently-visible Bottle preset tile.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-delete-.*'
+          index: 0
+      - extendedWaitUntil:
+          visible: 'Remove 240 ml from today?'
+          timeout: 10000
+      - tapOn: 'Cancel'
+      # `handleDelete` (`HealthWaterScreen.tsx`) only calls `deleteWaterEntry` —
+      # `DELETE /health/water/entries/:id` — from the Alert's 'Remove' branch;
+      # 'Cancel' must fire nothing.
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/water/entries/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- A per-entry delete moves the cup counter DOWN (HEALTH-WATER-118) -
+      # The asymmetry that makes this worth a flow: Home's minus can only undo
+      # the LAST sip, but the Water tab can remove the 500 ml bottle logged
+      # FIRST. 500 + 250 + 240 + 240 = 1230 ml; 1230 − 500 = 730 ml, and
+      # round(730 / 240) = 3 cups.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-118
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-delete-.*'
+          index: 3
+      - extendedWaitUntil:
+          visible: 'Remove 500 ml from today?'
+          timeout: 10000
+      - tapOn: 'Remove'
+      - extendedWaitUntil:
+          visible: '3 entries'
+          timeout: 20000
+      # A confirmed 'Remove' here IS `deleteWaterEntry` → `DELETE
+      # /health/water/entries/:id` (`HealthWaterScreen.tsx` `handleDelete`).
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/water/entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - runFlow: subflows/go-health-home.yaml
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-water-plus
+            HOME_ANCHOR: bottom
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '3 cups'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Teardown + both counters back to zero (HEALTH-WATER-119) ---------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-119
+      - runFlow: subflows/go-health-water.yaml
+      # Bulk optional drain loop — same DELETE endpoint as HEALTH-WATER-118,
+      # left unwrapped for the same reason as the clean-slate drain above
+      # (variable 0–12 fire count).
+      - repeat:
+          times: 12
+          commands:
+            - tapOn:
+                id: 'health-water-delete-.*'
+                index: 0
+                optional: true
+            - tapOn:
+                text: 'Remove'
+                optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-log-empty'
+          timeout: 20000
+
+      - runFlow: subflows/go-health-home.yaml
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-water-plus
+            HOME_ANCHOR: bottom
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '0 cups'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml

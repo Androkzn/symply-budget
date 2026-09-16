@@ -1,0 +1,66 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:ai-access
+  - mutation
+  - regression
+# Matrix: BUDGET-LF-008 — Add-with-AI ladder offline (local text parse → drafts)
+# Network blocked so Worker AI cannot run; local heuristic / BYOK path only.
+# Does NOT save drafts.
+onFlowComplete:
+  - runFlow: ../subflows/budget-network-block-off.yaml
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-008
+- runFlow: ../subflows/budget-network-block-on.yaml
+- openLink: simplebudget:///?screen=BudgetItemAI
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-ai'
+    timeout: 45000
+- assertVisible:
+    id: 'budget-item-ai-input'
+- assertVisible:
+    id: 'budget-item-ai-generate'
+- tapOn:
+    id: 'budget-item-ai-input'
+- inputText: 'Netflix subscription $16 monthly'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-ai-generate'
+- waitForAnimationToEnd:
+    timeout: 15000
+# Local parse should return a draft; BYOK may refine. Accept draft list or
+# "Nothing found" / offline AI alert — never a crash / stuck spinner.
+- runFlow:
+    when:
+      visible: 'Nothing found'
+    commands:
+      - tapOn: 'OK'
+- runFlow:
+    when:
+      visible: 'AI import needs text or your AI key'
+    commands:
+      - tapOn: 'OK'
+- runFlow:
+    when:
+      visible: '.*Netflix.*'
+    commands:
+      - assertVisible: '.*Netflix.*'
+- assertVisible:
+    id: 'budget-item-ai'
+- tapOn:
+    id: 'nav-back-button'
+- runFlow: ../subflows/budget-network-block-off.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

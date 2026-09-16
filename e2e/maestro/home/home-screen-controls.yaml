@@ -1,0 +1,114 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-home (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-home-tab.yaml
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- assertVisible:
+    id: 'home-screen'
+- assertVisible:
+    id: 'home-up-next-section'
+- assertVisible:
+    id: 'home-mira-brief'
+- assertVisible:
+    id: 'home-up-next-add-task'
+- runFlow:
+    when:
+      visible:
+        id: 'home-attention-cards'
+    commands:
+      - assertVisible:
+          id: 'home-attention-cards'
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- runFlow:
+    file: ../subflows/e2e-clear-log.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+# e2e-clear-log's openLink can trigger iOS's "Open in …?" interstitial over
+# the Dev Client, which then swallows the next tap — dismiss it first.
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- tapOn:
+    id: 'header-notifications'
+- extendedWaitUntil:
+    visible:
+      id: 'notifications-screen'
+    timeout: 15000
+# Element navigated (assertVisible above) — now verify the screen's own data
+# fetch actually succeeded, not just that the screen mounted.
+- runFlow:
+    file: ../subflows/e2e-verify-network.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_VERIFY_METHOD: GET
+      E2E_VERIFY_PATH: /notifications/history
+      E2E_VERIFY_STATUS: '200'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 5000
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'home-screen'
+    timeout: 15000
+- tapOn:
+    id: 'header-profile'
+- extendedWaitUntil:
+    visible:
+      id: 'profile-screen'
+    timeout: 15000
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'home-screen'
+    timeout: 15000
+- tapOn:
+    id: 'home-mira-brief'
+- extendedWaitUntil:
+    visible:
+      id: 'mira-chat-screen'
+    timeout: 8000
+    optional: true
+# When the brief has a CTA insight, the card navigates to the action — use "Ask …" for chat.
+- runFlow:
+    when:
+      notVisible:
+        id: 'mira-chat-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - runFlow: ../subflows/go-home-tab.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'home-mira-brief'
+          timeout: 15000
+      - tapOn:
+          id: 'home-mira-brief-ask'
+          optional: true
+      - tapOn:
+          text: 'Ask'
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'mira-chat-screen'
+    timeout: 30000
+- runFlow: ../subflows/go-home-tab.yaml
+# Scroll contract (optional on iOS 26 — see assert-screen-scrolls-optional.yaml)
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: home-screen-scroll-end
+

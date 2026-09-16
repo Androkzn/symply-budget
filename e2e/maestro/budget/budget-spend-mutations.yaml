@@ -1,0 +1,295 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:spend
+  - mutation
+  - regression
+# Matrix: BUDGET-SPEND-006/007/048 (duplicate, delete, round-trip) + SPEND-029 (offline save)
+# Safety net: guarantees airplane mode is off when this flow ends even if a
+# non-optional assertion fails before reaching its own offline-off call in the
+# body (see budget-offline-sweep.yaml for the observed cross-flow cascade).
+onFlowComplete:
+  - runFlow: ../subflows/budget-offline-off.yaml
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-SPEND-006
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+# Data-pollution guard: ~50 prior runs can leave stale 'E2E Spend Mutations' /
+# 'E2E Offline Spend' rows on the shared account. Delete every stale copy so the
+# round-trip starts from a single freshly-created row (the swipe-reveal and the
+# index:1 duplicate assertion both assume one starting row).
+- repeat:
+    times: 25
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: '.*E2E Spend Mutations.*'
+          commands:
+            - swipe:
+                direction: LEFT
+                element:
+                  text: '.*E2E Spend Mutations.*'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-delete-spent'
+                commands:
+                  - tapOn:
+                      id: 'budget-delete-spent'
+                  - tapOn: 'Delete'
+                  - waitForAnimationToEnd:
+                      timeout: 3000
+- repeat:
+    times: 25
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: '.*E2E Offline Spend.*'
+          commands:
+            - swipe:
+                direction: LEFT
+                element:
+                  text: '.*E2E Offline Spend.*'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-delete-spent'
+                commands:
+                  - tapOn:
+                      id: 'budget-delete-spent'
+                  - tapOn: 'Delete'
+                  - waitForAnimationToEnd:
+                      timeout: 3000
+# Create a spent entry for duplicate/delete round-trip.
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: 'E2E Spend Mutations'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: '12'
+# Save via the fixed-HEADER button — the numeric decimal-pad has no Done key and
+# covers the bottom `budget-item-form-save` on iOS 26 (Maestro can't reliably
+# scroll RN New-Arch ScrollViews to clear it). The header Save sits above the keypad.
+- tapOn:
+    id: 'budget-item-form-save-header'
+# Android: the Expo dev-client menu has been observed popping open right
+# around this save tap (cause not fully pinned down — possibly overlapping
+# with the dev-client's own floating tools trigger), covering the
+# confirmation text below. Clear it before asserting.
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible: '.*E2E Spend Mutations.*'
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: '.*E2E Spend Mutations.*'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+# Duplicate (BUDGET-SPEND-006). budget-duplicate-spent is the MIDDLE of 3 swipe
+# actions. An element LEFT swipe — even a slow controlled drag — under-reveals the
+# ReanimatedSwipeable drawer on iOS-26 RN New-Arch, so the middle button never
+# mounts. A wide coordinate swipe across the row band (92% -> 8%, ~84% of width >
+# the 216pt drawer) drags it FULLY open by distance. The row's Y varies with the
+# content above it, so try a few bands; each self-skips once the button shows.
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-duplicate-spent'
+    commands:
+      - swipe:
+          start: '92%, 55%'
+          end: '8%, 55%'
+          duration: 800
+      - waitForAnimationToEnd:
+          timeout: 2000
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-duplicate-spent'
+    commands:
+      - swipe:
+          start: '92%, 49%'
+          end: '8%, 49%'
+          duration: 800
+      - waitForAnimationToEnd:
+          timeout: 2000
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-duplicate-spent'
+    commands:
+      - swipe:
+          start: '92%, 61%'
+          end: '8%, 61%'
+          duration: 800
+      - waitForAnimationToEnd:
+          timeout: 2000
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-duplicate-spent'
+    commands:
+      - swipe:
+          start: '92%, 67%'
+          end: '8%, 67%'
+          duration: 800
+      - waitForAnimationToEnd:
+          timeout: 2000
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-duplicate-spent'
+    commands:
+      - swipe:
+          start: '92%, 43%'
+          end: '8%, 43%'
+          duration: 800
+      - waitForAnimationToEnd:
+          timeout: 2000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-duplicate-spent'
+    timeout: 10000
+- tapOn:
+    id: 'budget-duplicate-spent'
+- extendedWaitUntil:
+    visible:
+      text: '.*E2E Spend Mutations.*'
+      index: 1
+    timeout: 20000
+    optional: true
+# Delete one copy (BUDGET-SPEND-007). Delete is the edge action, revealed by a
+# normal element swipe; guard the tap so an occasional under-reveal falls through
+# to the delete-all cleanup below instead of hard-failing.
+- swipe:
+    direction: LEFT
+    element:
+      text: '.*E2E Spend Mutations.*'
+- runFlow:
+    when:
+      visible:
+        id: 'budget-delete-spent'
+    commands:
+      - tapOn:
+          id: 'budget-delete-spent'
+      - tapOn: 'Delete'
+      - waitForAnimationToEnd:
+          timeout: 3000
+# Offline save attempt
+- runFlow: ../subflows/budget-offline-on.yaml
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: 'E2E Offline Spend'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: '5'
+# Header Save (same keypad reason as the create form above).
+- tapOn:
+    id: 'budget-item-form-save-header'
+- extendedWaitUntil:
+    visible:
+      text: 'Error'
+    timeout: 15000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      text: 'Could not'
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- runFlow: ../subflows/budget-offline-off.yaml
+# Round-trip cleanup: delete EVERY remaining 'E2E Spend Mutations' copy (the
+# duplicate, the original, and any stale copies), then the 'E2E Offline Spend' row
+# (airplane mode is a no-op on the iOS sim, so that "offline" save actually
+# persisted). Idempotent delete-all so a polluted account still ends clean.
+- repeat:
+    times: 25
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: '.*E2E Spend Mutations.*'
+          commands:
+            - swipe:
+                direction: LEFT
+                element:
+                  text: '.*E2E Spend Mutations.*'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-delete-spent'
+                commands:
+                  - tapOn:
+                      id: 'budget-delete-spent'
+                  - tapOn: 'Delete'
+                  - waitForAnimationToEnd:
+                      timeout: 3000
+- repeat:
+    times: 25
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: '.*E2E Offline Spend.*'
+          commands:
+            - swipe:
+                direction: LEFT
+                element:
+                  text: '.*E2E Offline Spend.*'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-delete-spent'
+                commands:
+                  - tapOn:
+                      id: 'budget-delete-spent'
+                  - tapOn: 'Delete'
+                  - waitForAnimationToEnd:
+                      timeout: 3000
+- extendedWaitUntil:
+    notVisible: '.*E2E Spend Mutations.*'
+    timeout: 20000
+- extendedWaitUntil:
+    notVisible: '.*E2E Offline Spend.*'
+    timeout: 20000
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /budget/spent
+      E2E_VERIFY_STATUS: 201

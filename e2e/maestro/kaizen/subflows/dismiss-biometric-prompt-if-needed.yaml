@@ -1,0 +1,20 @@
+appId: com.symply.kaizen
+---
+# Post-login BiometricEnrollmentGate. Skip by default so hub smoke stays fast.
+# remember-last-login enables via auth-biometric-enable instead.
+- runFlow:
+    when:
+      visible:
+        id: 'auth-biometric-skip'
+    commands:
+      - tapOn:
+          id: 'auth-biometric-skip'
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      visible: 'Not Now'
+    commands:
+      - tapOn: 'Not Now'
+      - waitForAnimationToEnd:
+          timeout: 3000

@@ -1,0 +1,33 @@
+appId: com.symply.kaizen
+---
+# Platform ChildWelcome — Get Started stays disabled until the terms checkbox is on.
+# Checkbox text is split across links, so tap the row testID (not the full sentence).
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-get-started'
+    commands:
+      - tapOn:
+          id: 'onboarding-agree-terms'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - tapOn:
+          id: 'onboarding-get-started'
+      - waitForAnimationToEnd:
+          timeout: 10000
+      # Regression guard: accepting terms must never pop the raw error dialog. A
+      # dead/expired session is swallowed (the API client logs out and the app
+      # routes back to login); a valid session completes onboarding. Either way
+      # "Failed to save terms acceptance … status code 401" must NOT appear.
+      - assertNotVisible: 'Failed to save terms acceptance'
+- runFlow:
+    when:
+      visible: 'Get Started'
+    commands:
+      - tapOn:
+          id: 'onboarding-agree-terms'
+          optional: true
+      - tapOn: 'Get Started'
+      - waitForAnimationToEnd:
+          timeout: 10000
+      - assertNotVisible: 'Failed to save terms acceptance'

@@ -1,0 +1,18 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:aihousekeeper
+  - readonly
+  - regression
+# Matrix: HOUSE-aihousekeeper (see documents/engineering/testing/matrices/)
+---
+# AihousekeeperConnectedAccountsScreen — /aihousekeeper-connected-accounts. Calendar
+# connect/disconnect (OAuth + POST/DELETE). Asserts the screen mounts (header "Connected
+# accounts"); OAuth itself is a native web flow → not automatable.
+# WARNING: aihousekeeper cluster suspected mount-time theme/hooks crash — may red-screen
+# until fixed (see audit §D / §0.4).
+- runFlow: ../subflows/launch-logged-in.yaml
+- openLink: simplehouse://aihousekeeper-connected-accounts
+- extendedWaitUntil:
+    visible: 'Connected accounts'
+    timeout: 30000

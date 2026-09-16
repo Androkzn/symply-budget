@@ -1,0 +1,126 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:settings
+  - readonly
+  - regression
+# Matrix: BUDGET-settings (see documents/engineering/testing/matrices/)
+# The Budget settings TOPOLOGY, in both halves.
+#
+# More is the overflow-tabs hub and nothing else now: ACCOUNT, PREFERENCES, AI,
+# NOTIFICATIONS, DATA SHARING, MORE SYMPLY APPS and the duplicate Sign out all
+# left it. Preferences/AI/Notifications/Symply apps went to Settings (the Profile
+# gear); ABOUT went to Profile; the account rows had a better home already.
+#
+# So this flow asserts the ABSENCE on More and the PRESENCE on Settings — a
+# one-sided check would go green on a build where the rows vanished from both.
+# House-only rows must be absent from either (highest House-leak surface, D.1).
+# Non-mutating: assertions and navigation only.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/go-budget-more.yaml
+- assertVisible:
+    id: 'settings-screen'
+# --- More: everything that moved is GONE ---
+- assertNotVisible:
+    id: 'settings-row-household-members'
+- assertNotVisible:
+    id: 'settings-row-appearance'
+- assertNotVisible:
+    id: 'settings-row-currency'
+- assertNotVisible:
+    id: 'settings-row-region'
+- assertNotVisible:
+    id: 'settings-row-ai-providers'
+- assertNotVisible:
+    id: 'settings-row-notification-settings'
+- assertNotVisible:
+    id: 'settings-row-data-sharing'
+- assertNotVisible:
+    id: 'settings-row-symply-apps'
+# Sign out is on Profile only — More's duplicate is gone for good.
+- assertNotVisible:
+    id: 'settings-row-sign-out'
+# House-only rows must NOT render in the Budget brand.
+- assertNotVisible:
+    id: 'settings-row-spaces'
+- assertNotVisible:
+    id: 'settings-row-floor-plans'
+- assertNotVisible:
+    id: 'settings-row-garden'
+- assertNotVisible:
+    id: 'settings-row-customization'
+- assertNotVisible:
+    id: 'settings-row-calendar-sync'
+- assertNotVisible:
+    id: 'settings-row-connect-budget'
+# --- Settings (the Profile gear): everything that moved is THERE ---
+- runFlow: ../subflows/budget-open-settings.yaml
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-appearance-link'
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 20000
+- assertVisible:
+    id: 'budget-settings-appearance-link'
+- assertVisible:
+    id: 'budget-settings-currency-link'
+- assertVisible:
+    id: 'budget-settings-region-link'
+# Budget's own BYOK AI entry — the shared useAIAccessEntry row, not a fork.
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-ai-link'
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 20000
+- assertVisible:
+    id: 'budget-settings-ai-link'
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-notification-settings-link'
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 20000
+- assertVisible:
+    id: 'budget-settings-notification-settings-link'
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-symply-apps-link'
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 20000
+- assertVisible:
+    id: 'budget-settings-symply-apps-link'
+# Data sharing kept its old home under SHARING, beside import/export.
+- assertVisible:
+    id: 'budget-settings-data-sharing-link'
+# --- Profile: ABOUT landed here, and Sign out is the only one in the app ---
+- runFlow: ../subflows/budget-open-profile.yaml
+- scrollUntilVisible:
+    element:
+      id: 'profile-terms-of-service'
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 20000
+- assertVisible:
+    id: 'profile-terms-of-service'
+- assertVisible:
+    id: 'profile-privacy-policy'
+- assertVisible:
+    id: 'profile-sign-out'
+# The documents are root routes now, not Settings-stack screens — prove one
+# actually opens from here rather than only rendering a row that leads nowhere.
+- tapOn:
+    id: 'profile-terms-of-service'
+- extendedWaitUntil:
+    visible: 'Terms of Service'
+    timeout: 20000
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'profile-screen'
+    timeout: 20000

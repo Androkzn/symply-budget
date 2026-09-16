@@ -1,0 +1,74 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:st
+  - readonly
+  - regression
+# Matrix: BUDGET-LF-007 — Soft Transfer export from local-first Settings
+# Opens Share a summary → SoftTransferFlowScreen (budget.summary.v1).
+# Does NOT confirm the transfer (destructive guard).
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-007
+# Prove the local-first chrome before Soft Transfer. That chrome is on PROFILE
+# now — Device Sync and its four neighbours moved there — while Share a summary
+# stayed on Settings, so this flow visits both in turn.
+- runFlow: ../subflows/budget-open-profile.yaml
+- assertVisible:
+    id: 'budget-settings-sync-link'
+- runFlow: ../subflows/budget-open-settings.yaml
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-soft-transfer-export-link'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 10
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-settings-soft-transfer-export-link'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+- tapOn:
+    id: 'budget-settings-soft-transfer-export-link'
+- extendedWaitUntil:
+    visible:
+      id: 'soft-transfer-flow-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'soft-transfer-flow-screen'
+- scrollUntilVisible:
+    element:
+      id: 'run-transfer-button'
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-screen'
+    timeout: 15000
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

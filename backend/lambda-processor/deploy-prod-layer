@@ -1,0 +1,4 @@
+#!/bin/bash
+# Deploy with layer to PRODUCTION environment
+cd "$(dirname "$0")"
+./scripts/create-and-deploy-layer-new.sh --env=prod "$@"

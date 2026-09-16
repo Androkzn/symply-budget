@@ -1,0 +1,24 @@
+# Extract files
+tar -xzf cloudshell-deploy.tar.gz
+
+# Build package
+mkdir -p package
+pip3 install --target package/ -r requirements.txt
+cp handler.py package/
+cd package && zip -r ../lambda-function.zip . && cd ..
+ls -lh lambda-function.zip
+
+# Deploy
+aws lambda update-function-code \
+  --function-name inspection-report-processor \
+  --zip-file fileb://lambda-function.zip \
+  --region us-east-1
+
+# Verify
+aws lambda get-function \
+  --function-name inspection-report-processor \
+  --region us-east-1 \
+  --query 'Configuration.[LastUpdateStatus,State,CodeSize]' \
+  --output table
+
+echo "✅ Deployment complete!"

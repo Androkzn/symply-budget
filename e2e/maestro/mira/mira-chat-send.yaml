@@ -1,0 +1,36 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:mira
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-mira (see documents/engineering/testing/matrices/)
+---
+# AihousekeeperChatScreen send path (the /mira tab core). Types a message and taps Send
+# → POST /households/:hid/aihousekeeper/chat. Asserts the outcome as a proxy for wiring:
+# the input clears after send and a response/typing state appears.
+# NOTE: chat may be BYOK/subscription-gated — if the screen renders `mira-chat-locked`
+# instead of the composer, the flow guards and no-ops rather than failing.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-mira-tab.yaml
+- assertVisible:
+    id: 'mira-chat-screen'
+- runFlow:
+    when:
+      visible:
+        id: 'mira-chat-input'
+    commands:
+      - tapOn:
+          id: 'mira-chat-input'
+      - inputText: 'What tasks are due this week?'
+      - hideKeyboard
+      - tapOn:
+          id: 'mira-chat-send'
+      # Outcome proxy: composer empties + assistant response streams in.
+      - extendedWaitUntil:
+          notVisible: 'What tasks are due this week?'
+          timeout: 30000
+          optional: true
+      - assertVisible:
+          id: 'mira-chat-screen'

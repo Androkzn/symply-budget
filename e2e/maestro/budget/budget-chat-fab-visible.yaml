@@ -1,0 +1,36 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:chat
+  - readonly
+  - regression
+# Matrix: BUDGET-BCHAT-016
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-recover-dashboard.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-chat-fab'
+    timeout: 60000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-chat-fab'
+    commands:
+      - openLink: simplebudget:///
+      - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - runFlow: ../subflows/budget-recover-dashboard.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-chat-fab'
+          timeout: 30000
+- assertVisible:
+    id: 'budget-chat-fab'

@@ -1,0 +1,70 @@
+{
+  "provider": {
+    "name": "City of Surrey",
+    "type": "water"
+  },
+  "account": {
+    "number": "5544332211",
+    "invoiceNumber": "ACC-778899",
+    "serviceAddress": "123 Main St, Surrey, BC",
+    "customerName": "Test Household"
+  },
+  "billing": {
+    "periodStart": "2026-01-01",
+    "periodEnd": "2026-03-31",
+    "billingDate": "2026-04-05",
+    "dueDate": "2026-04-30"
+  },
+  "financial": {
+    "amountDue": 245.8,
+    "previousBalance": 0,
+    "paymentsReceived": null,
+    "currentCharges": 245.8,
+    "latePaymentCharge": null
+  },
+  "usage": {
+    "quantity": 42.5,
+    "unit": "m³",
+    "periodDays": 90,
+    "averageDailyUsage": 0.47,
+    "averageDailyCost": 2.73,
+    "meterNumber": "WTR-9912"
+  },
+  "meterReadings": [
+    {
+      "meterNumber": "WTR-9912",
+      "currentReading": 1205,
+      "currentReadingDate": "2026-03-31",
+      "previousReading": 1162.5,
+      "previousReadingDate": "2026-01-01",
+      "consumption": 42.5,
+      "unit": "m³",
+      "conversionFactor": null
+    }
+  ],
+  "lineItems": [
+    { "description": "METERED WATER - RESIDENTIAL BASE", "amount": 45.0, "quantity": 90, "rate": 0.5, "unit": "day" },
+    { "description": "METERED WATER - RESIDENTIAL", "amount": 98.5, "quantity": 42.5, "rate": 2.32, "unit": "m³" },
+    { "description": "METERED SEWER - RESIDENTIAL BASE", "amount": 42.0, "quantity": 90, "rate": 0.47, "unit": "day" },
+    { "description": "METERED SEWER - RESIDENTIAL", "amount": 60.3, "quantity": 42.5, "rate": 1.42, "unit": "m³" }
+  ],
+  "taxes": [],
+  "comparison": {
+    "lastBillUsage": 38.2,
+    "lastYearUsage": 40.1,
+    "unit": "m³"
+  },
+  "rates": {
+    "basicCharge": 0.5,
+    "energyRate": 2.32
+  },
+  "confidence": {
+    "overall": 0.88,
+    "provider": 0.95,
+    "account": 0.85,
+    "billing": 0.9,
+    "financial": 0.89,
+    "usage": 0.84
+  },
+  "rawText": "City of Surrey water/sewer quarterly bill"
+}

@@ -1,0 +1,254 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:weight
+  - mutation
+  - regression
+# Matrix: HEALTH-WEIGHT-460 … HEALTH-WEIGHT-462
+---
+# Weight tab dashboard — the one widget with zero device coverage:
+# `health-weight-measurements-open`, the Body-tab hand-off inside the
+# Measurements widget (`HealthWeightWidgets.tsx`). It is the Weight tab's OWN
+# customisable-widget system (`WEIGHT_WIDGET_KEYS` / `DEFAULT_WEIGHT_WIDGETS`
+# in that file) — do not confuse it with the Home tab's separate
+# `HOME_WIDGET_KEYS` / `HealthHomeWidgets.tsx` customise panel, a different
+# screen entirely.
+#
+# RETARGETED 2026-08-02 — THE TOGGLE MOVED OFF THIS SCREEN ENTIRELY. This flow
+# used to open an in-screen "CUSTOMISE" disclosure directly on the Weight tab
+# (`health-weight-customise-toggle`) to turn `measurements` on. That disclosure
+# is gone from `HealthWeightScreen.tsx` — confirmed by reading the current
+# source — extracted into the shared `WidgetOrderSection`
+# (`src/components/customization/WidgetOrderSection.tsx`), now reachable only
+# from More → Customize Tabs → "WEIGHT SCREEN WIDGETS"
+# (`src/screens/settings/TabCustomizationScreen.tsx`, `testIDPrefix=
+# "customize-tabs-weight"`). It also reads from and writes to the exact same
+# `layout.widgets` (`saveWeightLayout`/`loadWeightLayout`,
+# `healthWeightStorage.ts`) the old in-screen panel did — turning
+# `measurements` on from Settings is the same mutation the old flow made, just
+# through a different door, so the widget itself and its Body-tab hand-off
+# (`health-weight-widget-measurements` / `health-weight-measurements-open`) are
+# asserted with the SAME testIDs as before; only the path to enable it changed.
+#
+# ALSO DIFFERENT, NOT JUST RENAMED: the reorder control is now a native
+# long-press DRAG handle (`customize-tabs-weight-drag-<item>`,
+# `react-native-draggable-flatlist`) rendered on EVERY row, shown or hidden —
+# not the old up/down arrows that existed only once a widget was shown. This
+# flow does not drive the drag gesture (no flow in this suite automates it
+# yet); it only proves the toggle, same as it always did.
+#
+# WHY THIS NEEDED ITS OWN FLOW. Reaching the link means: open Customize Tabs,
+# expand "WEIGHT SCREEN WIDGETS", turn `measurements` on specifically, leave
+# Settings, find the widget it adds on the actual Weight tab, follow the link,
+# confirm the route change, and put the layout back — a whole leg for one
+# control, per this matrix's own "split it" convention.
+#
+# VERIFIED, NOT TRUSTED. `MeasurementsWidget`'s `onOpenBody` is wired straight
+# to `router.push('/health-body' as never)` in `HealthWeightScreen.tsx`'s
+# `model`, and `app/(tabs)/health-body.tsx` renders `HealthBodyScreen`
+# (`testID="health-body-screen"`). The route change below is a hard assertion
+# on that screen's own root testID, not an inference from the tap succeeding.
+#
+# TEARDOWN. `health-body` is a SIBLING tab route under `app/(tabs)/`, not a
+# stack push with a back button, so returning to Weight goes back through the
+# More hub (`subflows/go-health-weight.yaml`) exactly as every other
+# `defaultHidden`-tab flow does. The widget layout persists WITH THE ACCOUNT
+# (device-local AsyncStorage, but still shared by every flow that runs after
+# this one on the shared simulator), so leaving `measurements` toggled on would
+# be a real regression left behind — the last leg resets it from the SAME
+# Settings screen via `customize-tabs-weight-reset`.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-WEIGHT-460
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Open Customize Tabs and turn Measurements on (HEALTH-WEIGHT-460) --
+      - runFlow: subflows/go-more.yaml
+      # `more-customize-tabs` (TabOverflowSection.tsx) renders LAST, after
+      # every `defaultHidden` route in "MORE TABS" — Health's parity phases
+      # kept growing that list, so the row is now below the fold on a fresh
+      # top-of-screen mount. `optional: true` because Maestro cannot reliably
+      # drive this RN New-Arch ScrollView to completion on iOS 26 (same
+      # limitation `more-customize-tabs.yaml` hit on its own "Reset to
+      # Defaults" scroll) — degrading to "already visible" and letting `tapOn`
+      # do the real find-and-tap is the working pattern elsewhere in this file.
+      - scrollUntilVisible:
+          element:
+            id: 'more-customize-tabs'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'more-customize-tabs'
+      - extendedWaitUntil:
+          visible:
+            id: 'customize-tabs-screen'
+          timeout: 20000
+      # "SCREEN LAYOUTS" renders below the tab-pinning editor and "Reset to
+      # Defaults" — `more-customize-tabs.yaml` already established that a
+      # plain `scrollUntilVisible` (not the raw-swipe subflow Health section
+      # tabs need) reliably reaches content this far down THIS screen.
+      - scrollUntilVisible:
+          element:
+            id: 'customize-tabs-weight-toggle'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertNotVisible:
+          id: 'customize-tabs-weight-mainChart'
+      - tapOn:
+          id: 'customize-tabs-weight-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'customize-tabs-weight-mainChart'
+          timeout: 10000
+      - assertVisible: 'Pick the cards you want and drag to reorder. At least one stays on.'
+      - scrollUntilVisible:
+          element:
+            id: 'customize-tabs-weight-toggle-measurements'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # Starts OFF — it is not in `DEFAULT_WEIGHT_WIDGETS` (`['mainChart',
+      # 'aiInsights']`). Local-only: this toggle goes through the same
+      # `saveWeightLayout` -> AsyncStorage-only path as every other layout
+      # control on this screen (`healthWeightStorage.ts` — module header "this
+      # stays DEVICE-LOCAL") — no network verification below for this toggle
+      # or the Reset teardown.
+      - assertVisible:
+          id: 'customize-tabs-weight-toggle-measurements'
+          selected: false
+      - tapOn:
+          id: 'customize-tabs-weight-toggle-measurements'
+      - extendedWaitUntil:
+          visible:
+            id: 'customize-tabs-weight-toggle-measurements'
+            selected: true
+          timeout: 10000
+
+      # Close the disclosure and leave Settings the way every other flow finds
+      # it — this screen is shared by Home/Weight/Activity widget layouts, so
+      # leaving it expanded is not itself a regression, but it is not this
+      # flow's to leave open either.
+      - scrollUntilVisible:
+          element:
+            id: 'customize-tabs-weight-toggle'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'customize-tabs-weight-toggle'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'customize-tabs-weight-mainChart'
+          timeout: 10000
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-more-screen'
+          timeout: 30000
+
+      # --- The widget itself renders, with the donor's Body-tab hand-off ---
+      - runFlow: subflows/go-health-weight.yaml
+      # `measurements` is appended LAST in the layout the moment it is turned
+      # on (`toggleWidget`), so reaching it from a fresh top-of-screen mount is
+      # a long hop down a Health section tab — the shape `health-swipe-
+      # section-to.yaml` exists for (see its own header).
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-weight-widget-measurements'
+            SCROLL_DIR: down
+      - assertVisible:
+          text: 'Waist, chest, arms and the other sites live on the Body tab, with their own trend charts and a two-date compare.'
+      - assertVisible:
+          id: 'health-weight-measurements-open'
+
+      # --- The link genuinely routes to the Body tab (HEALTH-WEIGHT-461) ---
+      - tapOn:
+          id: 'health-weight-measurements-open'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-body-screen'
+          timeout: 20000
+
+      # --- Teardown: back to Weight, reset the layout via Settings (462) ---
+      - runFlow: subflows/go-health-weight.yaml
+      - runFlow: subflows/go-more.yaml
+      # Same below-the-fold row as the first leg above — see that comment.
+      - scrollUntilVisible:
+          element:
+            id: 'more-customize-tabs'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'more-customize-tabs'
+      - extendedWaitUntil:
+          visible:
+            id: 'customize-tabs-screen'
+          timeout: 20000
+      - scrollUntilVisible:
+          element:
+            id: 'customize-tabs-weight-toggle'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'customize-tabs-weight-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'customize-tabs-weight-mainChart'
+          timeout: 10000
+      - scrollUntilVisible:
+          element:
+            id: 'customize-tabs-weight-reset'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'customize-tabs-weight-reset'
+      # The read-back that the reset really landed: Measurements is off again
+      # and the layout is back to the default two headed by the chart.
+      - extendedWaitUntil:
+          visible:
+            id: 'customize-tabs-weight-toggle-measurements'
+            selected: false
+          timeout: 15000
+      - assertVisible:
+          id: 'customize-tabs-weight-toggle-mainChart'
+          selected: true
+      - scrollUntilVisible:
+          element:
+            id: 'customize-tabs-weight-toggle'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'customize-tabs-weight-toggle'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'customize-tabs-weight-mainChart'
+          timeout: 10000
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-more-screen'
+          timeout: 30000
+      - runFlow: subflows/go-health-home.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

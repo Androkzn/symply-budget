@@ -1,0 +1,99 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - feature:attachments
+# Matrix: HOUSE-MM-034 (part b) — the property photo reached the OTHER member.
+#
+# Runs on device B after mm-34a. What is asserted is `household-form-photo-blob-view`,
+# and the suffix matters: `HouseBlobImage` publishes FOUR distinct states under
+# one prefix (HouseBlobImage.tsx:180-245) —
+#
+#   -view      the sealed bytes were fetched, decrypted and rendered
+#   -download  a descriptor is present, the bytes were NOT fetched (metered)
+#   -loading   in flight
+#   -error     fetched and failed to open
+#
+# Only `-view` means the picture arrived. Asserting the bare prefix would pass on
+# `-download`, i.e. on a peer holding a receipt for bytes it never got — which is
+# precisely the half-synced state this phase exists to catch. The runner pairs
+# this with a container-level check of B's `Library/Caches/lf-blobs/`, so the
+# claim is proved twice: rendered here, and on disk there.
+#
+# The sheet is opened rather than the card read, deliberately: the card's photo
+# runs on the metered `auto` policy (HousePropertyPhoto's default) and may
+# legitimately show `-download`, while the edit sheet passes `fetchPolicy="always"`
+# (HouseholdManagementScreen.tsx:373) because the member has deliberately opened
+# this property. Asserting the card would make a correct metering policy look
+# like a sync failure.
+#
+# env: MM_PHOTO_PROPERTY — the shared household's displayed name
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+# Pull first, from the surface that owns a sync control.
+- runFlow: mm-open-lf-settings.yaml
+- repeat:
+    times: 12
+    commands:
+      - runFlow: mm-sync-pulse.yaml
+      - runFlow: mm-dismiss-stale-alerts.yaml
+      - runFlow: mm-relaunch-if-backgrounded.yaml
+- runFlow: ../subflows/open-profile.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-household-members'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'settings-row-household-members'
+- extendedWaitUntil:
+    visible:
+      id: 'household-management-screen'
+    timeout: 25000
+- scrollUntilVisible:
+    element:
+      text: '.*${MM_PHOTO_PROPERTY}.*'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- assertVisible: '.*${MM_PHOTO_PROPERTY}.*'
+- swipe:
+    from:
+      text: '.*${MM_PHOTO_PROPERTY}.*'
+    direction: LEFT
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    text: '^Edit$'
+- extendedWaitUntil:
+    visible: 'Edit Property'
+    timeout: 20000
+# The decrypted photo. Generous timeout: this is a fetch + AES-GCM open on a
+# device that may only just have received the descriptor.
+- extendedWaitUntil:
+    visible:
+      id: 'household-form-photo-blob-view'
+    timeout: 120000
+- assertVisible:
+    id: 'household-form-photo-blob-view'
+# Leave WITHOUT saving — this device is a reader here, and a save would mint an
+# op competing with the owner's for no reason.
+- tapOn:
+    id: 'bottom-sheet-close'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000
+- runFlow:
+    when:
+      visible: 'Edit Property'
+    commands:
+      - tapOn:
+          text: '^Cancel$'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1500

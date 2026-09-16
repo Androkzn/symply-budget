@@ -1,0 +1,34 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# Plan tab (route `language-plan` — pinned by default; may move to More after tab customization).
+# Prefer deep link first — tab bar IDs are absent when Plan is overflowed or keyboard is up.
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-plan-screen'
+    commands:
+      - openLink: ${E2E_APP_SCHEME}://language-plan
+      - runFlow: language-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+- tapOn:
+    id: 'tab-language-plan'
+    optional: true
+    retryTapIfNoChange: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-plan-screen'
+    commands:
+      - runFlow: go-more.yaml
+      - tapOn:
+          id: 'more-tab-language-plan'
+          retryTapIfNoChange: true
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'language-plan-screen'
+    timeout: 60000

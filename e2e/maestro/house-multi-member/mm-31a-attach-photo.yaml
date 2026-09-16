@@ -1,0 +1,134 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - feature:attachments
+  - mutation
+# Matrix: HOUSE-MM-031 (part a) — HOUSE ADDITION (plan §12: "attachment round
+# trip (H6)"). Owner attaches a real photo to a task that the peer already holds.
+#
+# WHY THIS IS A DISTINCT GUARANTEE. Budget's attachment story is a documented
+# gap the plan states plainly (§8): `localWishMedia.ts` records
+# `{id, key, localUri, mime}` in the ledger, "the row syncs; the bytes do not",
+# and a peer ends up with a row whose localUri points at a file that exists only
+# on the author's device. H6 exists to fix that for House. So the row arriving
+# on B proves nothing here — only the BYTES arriving do, which is why the runner
+# pairs this flow with a container-level check of B's blob cache
+# (`Library/Caches/lf-blobs/`) rather than trusting a rendered thumbnail: an
+# <Image> whose source 404s still occupies the hierarchy.
+#
+# This flow drives TaskFormPhotos by the accessibility labels and strings it
+# renders, NOT by testID:
+#   "Photos" + "0/5" header          (MAX_TASK_PHOTOS is 5)
+#   accessibilityLabel "Add photo"
+#   Alert "Add Photo" / "Choose a source" / "Take Photo" / "Choose from Library"
+#   accessibilityLabel "Task cover photo" on the first thumbnail
+#
+# Two corrections to what this comment used to claim:
+#
+# 1. It said "NO testIDs EXIST FOR TaskFormPhotos". They do, and have since
+#    `9aa6d7a7` — `task-photo-add`, `task-photo-counter`, `task-photo-item-<i>`,
+#    `task-photo-remove-<i>`, plus `task-photo-blob-<i>` for a blob-backed
+#    thumbnail. The text/label drive below still works, so repointing at the ids
+#    is hardening, not a fix.
+# 2. The strings above are now a DELIBERATE, TESTED contract rather than
+#    discovered values. `TaskFormPhotos` was rewritten on 2026-08-14 to upload
+#    through the H6 encrypted blob channel, and its UI was held byte-identical
+#    precisely so this flow keeps working. Unit tests in
+#    `src/components/tasks/__tests__/TaskFormPhotos.test.tsx` assert each string
+#    here, so a copy edit fails in 2 seconds instead of on a device.
+#
+# env: MM_TITLE — the task to attach to (already synced to the peer)
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-go-tasks.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 30000
+- tapOn:
+    text: '.*${MM_TITLE}.*'
+- extendedWaitUntil:
+    visible:
+      id: 'task-detail-screen'
+    timeout: 25000
+- tapOn:
+    id: 'task-detail-edit'
+- extendedWaitUntil:
+    visible:
+      id: 'task-form-title'
+    timeout: 25000
+# The Photos block sits directly under the title field (TaskFormBody.tsx:491).
+- scrollUntilVisible:
+    element:
+      text: '^Add photo$'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- assertVisible: 'Photos'
+- tapOn:
+    text: '^Add photo$'
+# Native action sheet. Take Photo would need a camera the simulator does not
+# have, so the library branch is the only real one here; the fixtures were
+# pushed into the Photos library by scripts/e2e/seed-fixtures.sh before the run.
+- extendedWaitUntil:
+    visible: 'Choose a source'
+    timeout: 15000
+- tapOn:
+    text: 'Choose from Library'
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow: ../subflows/pick-photo-from-library.yaml
+- runFlow: mm-relaunch-if-backgrounded.yaml
+- runFlow: mm-dismiss-dev-chrome.yaml
+# One photo is attached: the counter moved off 0/5 and the first thumbnail
+# announces itself as the cover.
+- extendedWaitUntil:
+    visible: '1/5'
+    timeout: 25000
+- assertVisible: 'Task cover photo'
+- scrollUntilVisible:
+    element:
+      id: 'schedule-task-save'
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: 'schedule-task-save'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow:
+    when:
+      visible:
+        id: 'task-form-title'
+    commands:
+      - tapOn:
+          id: 'schedule-task-save-header'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    notVisible:
+      id: 'task-form-title'
+    timeout: 30000
+- runFlow:
+    when:
+      visible:
+        id: 'task-detail-screen'
+    commands:
+      - tapOn:
+          id: 'task-detail-close'
+          optional: true
+# Push the blob and its ledger row out. The upload is chunked and finalized
+# separately from the op, so give it several exchanges rather than one.
+- repeat:
+    times: 10
+    commands:
+      - runFlow: mm-sync-pulse.yaml
+      - runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-go-tasks.yaml
+- assertVisible: '.*${MM_TITLE}.*'

@@ -1,0 +1,20 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# New accounts land on the Language NUX (LanguageOnboardingScreen) after login and
+# before the Learn tab. The NUX has NO root testID (audit gap) — match by copy.
+# The shared test account is already onboarded, so this is a no-op there; it exists so
+# launch-language.yaml always lands on Learn.
+# TODO(testIDs): add `language-onboarding-screen` root testID + testIDs on the native-
+# language chips, motivation chips, and the "Start learning" CTA.
+- runFlow:
+    when:
+      visible: 'Start learning'
+    commands:
+      - tapOn: 'Spanish'          # native-language chip (single-select)
+      - tapOn: 'Travel'           # motivation chip (multi-select)
+      - tapOn: 'Start learning'   # finish() → PUT /learner/profile → router.replace('/')
+      - waitForAnimationToEnd:
+          timeout: 10000

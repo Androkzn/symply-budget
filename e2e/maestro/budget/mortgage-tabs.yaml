@@ -1,0 +1,106 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:mortgage
+  - regression
+# Matrix: MORT-2xx — Mortgage sub-tabs render (Overview / Payments / Equity /
+# Forecast / Schedule / Renewal). Assumes a mortgage exists (mortgage-setup runs first in the
+# suite, or the shared test account already has one). Taps each segment by its
+# `filter-tab-<id>` testID — this also guards the segmented tab bar layout fix
+# (long labels stay on one line, not wrapped mid-word). iOS-26: assert on visible
+# testIDs/labels, not scroll position.
+---
+- runFlow: ../subflows/budget-ensure-mortgage.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-view'
+    timeout: 20000
+
+# Overview segment — activeSubTab is persisted (mortgageStore partialize), so force
+# the Overview tab (a prior run may have left another active) and wait for the summary
+# to load (mortgage-view renders before the summary Promise.all resolves).
+- assertVisible:
+    id: 'filter-tab-overview'
+- tapOn:
+    id: 'filter-tab-overview'
+- extendedWaitUntil:
+    visible:
+      text: 'paid off'
+    timeout: 15000
+# Proof screenshot: all five segment labels render on a single line.
+- takeScreenshot: /private/tmp/claude-501/-Users-andreitekhtelev-Desktop-Symply-Ecosystem-Simply-Ecosystem/5817e6ec-ab3e-48e6-8bdf-506d0ce74063/scratchpad/mort-tabs-overview
+
+# "Average this term" now drills into a bottom sheet: the term's distribution
+# by year, a running-total trend, and how the interest/principal split shifts.
+- assertVisible:
+    id: 'mortgage-split-term-average'
+- tapOn:
+    id: 'mortgage-split-term-average'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-term-average-sheet'
+    timeout: 10000
+- assertVisible: 'Distribution across the term'
+- assertVisible: 'How the split shifts'
+- tapOn:
+    id: 'bottom-sheet-close'
+- assertNotVisible:
+    id: 'mortgage-term-average-sheet'
+
+# Payments — the enriched breakdown: next-payment anatomy, the calendar-labelled
+# interest-vs-principal chart (month/year toggle + year stepper), the tipping
+# point, the cumulative cost chart and the front-loading meters (MORT-262..270).
+- tapOn:
+    id: 'filter-tab-payments'
+- assertVisible:
+    id: 'mortgage-payments-anatomy'
+- assertVisible: 'Your next payment'
+- assertVisible:
+    id: 'mortgage-payments-breakdown'
+- assertVisible: 'Where your payments go'
+# Range toggle + year stepper live directly under the card title, so they stay in
+# the viewport without scrolling (iOS 26 can't reliably scroll RN New-Arch
+# ScrollViews). The cards further down — tipping point, cumulative cost,
+# front-loading meters — and the bucketing itself are covered by the jest render
+# test (`MortgagePaymentsView.test.tsx`).
+- assertVisible:
+    id: 'mortgage-payments-year-label'
+- tapOn:
+    id: 'mortgage-payments-range-yearly'
+- assertVisible: 'Where your payments go'
+- tapOn:
+    id: 'mortgage-payments-range-monthly'
+- tapOn:
+    id: 'mortgage-payments-year-next'
+- assertVisible:
+    id: 'mortgage-payments-year-label'
+
+# Equity — breakdown card (now also carries the projected-at-renewal figure)
+- tapOn:
+    id: 'filter-tab-equity'
+- assertVisible: 'Your equity'
+- assertVisible: 'Projected at renewal'
+
+# Forecast — baseline projection + interactive rate scenario
+- tapOn:
+    id: 'filter-tab-forecast'
+- assertVisible: 'What if your rate changes?'
+
+# Schedule — statements-on-file coverage panel + amortization table
+- tapOn:
+    id: 'filter-tab-schedule'
+- assertVisible:
+    id: 'mortgage-statements-on-file'
+- assertVisible: 'Statements on file'
+- assertVisible: 'Amortization schedule'
+
+# Renewal — window + compare offers CTA
+- tapOn:
+    id: 'filter-tab-renewal'
+- assertVisible: 'Renewal window'
+- assertVisible: 'Compare bank offers'
+
+# Back to Overview — segment switching is reversible.
+- tapOn:
+    id: 'filter-tab-overview'
+- assertVisible: 'paid off'

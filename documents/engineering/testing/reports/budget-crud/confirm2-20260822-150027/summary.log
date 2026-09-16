@@ -1,0 +1,12 @@
+PASS [Budget-C] budget-prime-session
+PASS [Budget-C] budget-item-form
+PASS [Budget-C] budget-quick-add-tabs
+PASS [Budget-C] budget-spent-form
+FAIL [Budget-C] budget-spend-mutations
+PASS [Budget-C] budget-plan-delete
+PASS [Budget-C] budget-planned-select
+PASS [Budget-C] budget-spent-select
+FAIL [Budget-C] budget-receipt-scan
+PASS [Budget-C] budget-receipt-scan-save
+PASS [Budget-C] budget-receipt-category
+PASS [Budget-C] budget-local-first-offline-crud

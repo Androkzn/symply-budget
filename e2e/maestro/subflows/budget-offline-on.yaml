@@ -1,0 +1,8 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Enable airplane mode for offline ERROR rows. Android-only effect; iOS sim is a no-op
+# (Maestro passes) — flows still assert app-side error handling when network fails.
+- setAirplaneMode: enabled

@@ -1,0 +1,106 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Lightweight recovery when a prior flow left chat, a modal stack, or login.
+- runFlow:
+    when:
+      visible:
+        id: 'home-screen'
+    commands: []
+- runFlow:
+    when:
+      notVisible:
+        id: 'home-screen'
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'chat-room-settings-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible:
+              id: 'chat-room-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible:
+              id: 'chat-rooms-screen'
+          commands:
+            - openLink: ${E2E_APP_SCHEME}://
+            - waitForAnimationToEnd:
+                timeout: 4000
+      - runFlow:
+          when:
+            visible:
+              id: 'auth-sign-in-email'
+          commands:
+            - openLink: ${E2E_LOGIN_URL}
+            - runFlow: dismiss-expo-dev-chrome.yaml
+            - waitForAnimationToEnd:
+                timeout: 5000
+            - runFlow: login-email-if-needed.yaml
+      - runFlow:
+          when:
+            visible: 'Unmatched Route'
+          commands:
+            - tapOn:
+                text: 'Go back'
+                optional: true
+            - openLink: ${E2E_APP_SCHEME}://
+            - runFlow: connect-house-metro.yaml
+            - runFlow: dismiss-expo-dev-chrome.yaml
+            - waitForAnimationToEnd:
+                timeout: 5000
+      # Pop until Home is reachable — but STOP once it is.
+      #
+      # This used to tap `nav-back-button` three times unconditionally. Each tap
+      # is `optional`, so a stack only one deep swallowed the first and then
+      # kept popping: past the screen the caller wanted, out of the tab stack,
+      # onto the More/Settings tab. Flows that inherit this through
+      # `launch-logged-in` then failed asserting a screen from a stack they were
+      # no longer in — `settings-screen` in the hierarchy where `chat-rooms` or
+      # `tasks-screen` was expected — which reads as a feature regression and is
+      # not one.
+      #
+      # Guarding each tap on "the tab bar is not showing yet" makes the count a
+      # ceiling rather than a quota.
+      - repeat:
+          times: 3
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'tab-index'
+                commands:
+                  - tapOn:
+                      id: 'nav-back-button'
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 1500
+      - runFlow: go-home-tab.yaml
+      - runFlow:
+          when:
+            visible:
+              id: 'auth-sign-in-email'
+          commands:
+            - openLink: ${E2E_LOGIN_URL}
+            - runFlow: dismiss-expo-dev-chrome.yaml
+            - runFlow: login-email-if-needed.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'home-screen'
+          timeout: 60000
+          optional: true

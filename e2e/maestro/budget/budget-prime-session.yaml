@@ -1,0 +1,7 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - bootstrap
+---
+# Session prime — reuse the same soft-launch + login path as mutation flows.
+- runFlow: ../subflows/budget-launch-logged-in.yaml

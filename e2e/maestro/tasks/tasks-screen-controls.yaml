@@ -1,0 +1,77 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:tasks
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-tasks (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-tasks-tab.yaml
+- assertVisible:
+    id: 'tasks-screen'
+- extendedWaitUntil:
+    visible:
+      id: 'tasks-add-fab'
+    timeout: 30000
+# Filter/search chrome only renders when the household has tasks (see TasksScreen).
+- runFlow:
+    when:
+      visible:
+        id: 'task-filter-controls'
+    commands:
+      - assertVisible:
+          id: 'task-filter-controls'
+      - assertVisible:
+          id: 'tasks-search-input'
+      - assertVisible:
+          id: 'filter-tab-status'
+      - assertVisible:
+          id: 'filter-tab-assignee'
+      - assertVisible:
+          id: 'tasks-view-list'
+      - assertVisible:
+          id: 'tasks-view-board'
+      - tapOn:
+          id: 'task-filter-mine'
+      - tapOn:
+          id: 'task-filter-personal'
+      - tapOn:
+          id: 'task-filter-hide-done'
+      - tapOn:
+          id: 'tasks-view-board'
+      - tapOn:
+          id: 'tasks-view-list'
+      - tapOn:
+          id: 'tasks-search-input'
+      - inputText: 'gutter'
+      - hideKeyboard:
+          optional: true
+      - tapOn:
+          id: 'task-summary-overdue'
+      - tapOn:
+          id: 'task-summary-dueToday'
+      - tapOn:
+          id: 'task-summary-mine'
+      - tapOn:
+          id: 'task-summary-blocked'
+- runFlow:
+    when:
+      notVisible:
+        id: 'task-filter-controls'
+    commands:
+      - assertVisible:
+          id: 'tasks-add-fab'
+      - runFlow:
+          when:
+            visible: 'No tasks here'
+          commands:
+            - assertVisible: 'No tasks here'
+- assertVisible:
+    id: 'tasks-add-fab'
+# Scroll contract
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: tasks-screen-scroll-end

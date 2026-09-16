@@ -1,0 +1,23 @@
+appId: com.symply.kaizen
+---
+# Reach Login from an authenticated shell (Today / Settings).
+- runFlow:
+    when:
+      visible:
+        id: 'kaizen-today-screen'
+    commands:
+      - openLink: kaizen:///kaizen/settings
+      - extendedWaitUntil:
+          visible: 'Control how Kaizen supports you.'
+          timeout: 25000
+      - scrollUntilVisible:
+          element:
+            id: 'kaizen-settings-logout'
+          direction: DOWN
+          timeout: 20000
+      - tapOn:
+          id: 'kaizen-settings-logout'
+      - extendedWaitUntil:
+          visible:
+            id: 'auth-sign-in-email'
+          timeout: 90000

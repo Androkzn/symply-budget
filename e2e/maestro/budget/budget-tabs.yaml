@@ -1,0 +1,80 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:dashboard
+  - readonly
+  - regression
+  - smoke
+# Matrix: BUDGET-dashboard (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000
+- assertVisible:
+    id: 'tab-index'
+- assertVisible:
+    id: 'tab-planning'
+- assertVisible:
+    id: 'tab-spending'
+- runFlow:
+    when:
+      visible:
+        id: 'budget-dashboard-loading'
+    commands:
+      - extendedWaitUntil:
+          notVisible:
+            id: 'budget-dashboard-loading'
+          timeout: 30000
+- assertVisible:
+    id: 'budget-dashboard'
+# The cashflow chart title sits below the encouragement banner + savings sections;
+# scroll it into view, then bring the filter tabs back up before tapping. The title
+# is "Cashflow trend" when cashflow data exists, else "Spending trend" — match both.
+- scrollUntilVisible:
+    element: '(Cashflow|Spending) trend'
+    direction: DOWN
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'tab-planning'
+    direction: UP
+    timeout: 10000
+- runFlow: ../subflows/budget-go-planning.yaml
+# Each section tab carries its own header "+" whose sheet offers that tab's add
+# actions — the assertion the inline CTA row used to carry.
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- assertVisible:
+    id: 'budget-add-planned'
+- assertVisible:
+    id: 'budget-add-with-ai'
+- tapOn:
+    id: 'budget-add-actions-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-add-actions-sheet'
+    timeout: 10000
+- runFlow: ../subflows/budget-go-spending.yaml
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- assertVisible:
+    id: 'budget-add-spent'
+- assertVisible:
+    id: 'budget-add-with-ai'
+- tapOn:
+    id: 'budget-add-actions-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-add-actions-sheet'
+    timeout: 10000
+- tapOn:
+    id: 'tab-index'
+- assertVisible:
+    id: 'budget-dashboard'
+# Scroll contract — optional on iOS 26 (RN ScrollView swipes unreliable; same as Kaizen).
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: budget-dashboard-scroll-end
+

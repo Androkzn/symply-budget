@@ -1,0 +1,21 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# Language matrix tagging — clear/tag buffers, then recover Learn home.
+- runFlow:
+    file: ../../subflows/e2e-clear-log.yaml
+    env:
+      APP_ID: com.symply.language
+      E2E_APP_SCHEME: simplelanguage
+- runFlow:
+    file: ../../subflows/e2e-tag-matrix.yaml
+    env:
+      APP_ID: com.symply.language
+      E2E_APP_SCHEME: simplelanguage
+      E2E_MATRIX_ROW: ${E2E_MATRIX_ROW}
+- runFlow: language-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow: launch-language.yaml

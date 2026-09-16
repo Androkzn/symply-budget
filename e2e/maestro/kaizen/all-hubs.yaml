@@ -1,0 +1,105 @@
+appId: com.symply.kaizen
+---
+# Single-session smoke across all Kaizen hub tabs (avoids flaky cold relaunches).
+- runFlow: subflows/launch-kaizen.yaml
+
+# Today
+- assertVisible:
+    id: 'kaizen-today-screen'
+- assertVisible: 'Today'
+- runFlow: subflows/assert-daily-core-visible.yaml
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-today-screen-scroll-end
+
+# Guide
+- runFlow: subflows/go-guide.yaml
+- assertVisible:
+    id: 'kaizen-guide-screen'
+- assertVisible: 'Guide'
+- assertVisible: 'Message your coach'
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-guide-screen-scroll-end
+- runFlow: subflows/go-today.yaml
+
+# More
+- runFlow: subflows/go-more.yaml
+- assertVisible:
+    id: 'kaizen-more-screen'
+- assertVisible: 'Sections'
+- assertVisible: 'Books'
+- runFlow:
+    file: subflows/scroll-kaizen-until-visible.yaml
+    env:
+      TARGET_ID: kaizen-section-career-tools
+      TARGET_TEXT: 'CAREER TOOLS'
+- assertVisible:
+    id: 'kaizen-section-career-tools'
+    optional: true
+- assertVisible:
+    text: 'CAREER TOOLS'
+    optional: true
+- scrollUntilVisible:
+    element:
+      text: 'Systems & focus'
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-more-screen-scroll-end
+
+# Systems (pinned tab)
+- runFlow: subflows/go-systems.yaml
+- assertVisible:
+    id: 'kaizen-systems-screen'
+- assertVisible: 'Systems'
+- assertVisible: 'ENABLED'
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-systems-screen-scroll-end
+
+# Career (overflow tab via deep link)
+- openLink: kaizen:///kaizen-career
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-career-screen'
+    timeout: 20000
+- assertVisible: 'Career'
+- assertVisible: 'Skills'
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-career-screen-scroll-end
+
+# Assess (overflow tab)
+- openLink: kaizen:///kaizen-assess
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-assess-screen'
+    timeout: 20000
+- assertVisible: 'Assess'
+- assertVisible: 'SKILL MASTERY'
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-assess-screen-scroll-end
+
+# Learn (overflow tab)
+- openLink: kaizen:///kaizen-learn
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-learn-screen'
+    timeout: 20000
+- assertVisible: 'Learn'
+- assertVisible: 'CAPTURE'
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-learn-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

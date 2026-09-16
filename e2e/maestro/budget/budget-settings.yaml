@@ -1,0 +1,68 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:settings
+  - readonly
+  - regression
+  - smoke
+# Matrix: BUDGET-settings (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'budget-settings-button'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-screen'
+    timeout: 15000
+# Settings is a hub of rows now — the month grid moved to its own screen.
+- assertVisible:
+    id: 'budget-settings-monthly-caps-link'
+- assertVisible:
+    id: 'budget-settings-summary'
+- assertVisible:
+    id: 'budget-settings-transfer-link'
+# Nav links below the fold — iOS 26 scroll is flaky; smoke only requires the
+# rows + the editor + back. Timeline/history/compare are covered in
+# budget-settings-extended.yaml.
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_SENTINEL_ID: budget-settings-transfer-link
+# The cap editor itself, one tap away.
+- tapOn:
+    id: 'budget-settings-monthly-caps-link'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-monthly-caps-screen'
+    timeout: 20000
+- assertVisible: 'Monthly Budget'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-planned-budget'
+    timeout: 20000
+# Save is a header action on the cap editor and only appears once a month has
+# actually been edited — typing into the amount field is what reveals it.
+- assertNotVisible:
+    id: 'budget-settings-save'
+- tapOn:
+    id: 'budget-settings-planned-budget'
+- inputText: '1200'
+- hideKeyboard:
+    optional: true
+- assertVisible:
+    id: 'budget-settings-save'
+# Header (with the back button) is fixed above the scroll view.
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-screen'
+    timeout: 15000
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000

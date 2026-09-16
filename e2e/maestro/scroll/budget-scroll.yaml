@@ -1,0 +1,26 @@
+appId: com.symply.budget
+tags:
+  - app:house
+  - feature:scroll
+  - readonly
+  - regression
+# Matrix: HOUSE-scroll (see documents/engineering/testing/matrices/)
+---
+# Scroll contract — Symply Budget dashboard tab.
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'budget-dashboard-loading'
+    commands:
+      - extendedWaitUntil:
+          notVisible:
+            id: 'budget-dashboard-loading'
+          timeout: 30000
+- assertVisible:
+    id: 'budget-dashboard'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: budget-dashboard-scroll-end

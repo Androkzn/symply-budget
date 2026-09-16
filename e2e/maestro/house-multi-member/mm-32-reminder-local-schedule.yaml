@@ -1,0 +1,139 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - feature:reminders
+  - mutation
+# Matrix: HOUSE-MM-032 — HOUSE ADDITION (plan §12: "reminder firing from the
+# local scheduler (H7)"). Runs on BOTH devices, in two roles.
+#
+# WHAT IS ACTUALLY BEING PROVED
+# -----------------------------
+# Under local-first the House Worker's D1 holds no plaintext for this household,
+# so `scheduled.ts`'s task-reminder pass has nothing to read and nothing to say
+# (plan §9). Q6-Q10 put reminders on **P1 — on-device compute**:
+# `houseLocalReminders.ts` reads the ledger and calls
+# `Notifications.scheduleNotificationAsync` directly, with identifiers prefixed
+# `house.reminder.` (:75) — and its only caller is `ensureSession.ts:94`, i.e.
+# it re-runs on session open and on every ledger bump.
+#
+# So the property under test is: **a task authored by the OTHER member causes
+# THIS device to schedule a local notification.** Nothing on the server can do
+# that — the relay cannot read the title — so a `house.reminder.*` request on
+# B's device carrying A's task title can only have come from B's own scheduler
+# acting on a synced op. That check is the runner's (it reads the simulator's
+# notification store); this flow arranges the conditions and proves the row
+# travelled.
+#
+# WHAT IS DELIBERATELY NOT PROVED: the notification actually DELIVERING at fire
+# time. That needs the device clock moved forward, and moving one device's clock
+# in a two-device HLC test corrupts the ordering every other phase depends on.
+# Pending-request existence is the strongest assertion available without that.
+#
+# THE DUE DATE COMES FROM SMART CAPTURE, not from a date picker.
+# `buildTaskDueReminders` skips any task without `next_due_date` (:259), and the
+# manual form's date control carries no testID. AddTaskSheet's quick-capture
+# parses natural language — the already-green `tasks/add-task-smart-capture.yaml`
+# types "Return Amazon gift by July 10 assigned to me" — so the writer appends a
+# date phrase to the title and lets the real parser set the field.
+# `reminder_enabled` defaults true on House tasks (see houseLocalReminders.ts:27).
+#
+# env: MM_ROLE      writer | reader
+#      MM_TITLE     the reminder task's anchor (the date phrase is appended when
+#                   typing, and the parser strips it from the stored title, so
+#                   every assertion here matches the anchor as a substring)
+#      MM_DUE_PHRASE  e.g. "tomorrow"
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+
+# ---------------------------------------------------------------- writer (A)
+- runFlow:
+    when:
+      true: ${MM_ROLE == 'writer'}
+    commands:
+      - runFlow: mm-go-tasks.yaml
+      - tapOn:
+          id: 'tasks-add-fab'
+      - extendedWaitUntil:
+          visible:
+            id: 'add-task-sheet'
+          timeout: 20000
+      - runFlow:
+          when:
+            visible: 'Personal \(only me\)'
+          commands:
+            - tapOn:
+                id: 'add-task-personal-toggle'
+            - waitForAnimationToEnd:
+                timeout: 1500
+      - tapOn:
+          id: 'add-task-input'
+      - inputText: ${MM_TITLE} ${MM_DUE_PHRASE}
+      - hideKeyboard:
+          optional: true
+      - runFlow: mm-relaunch-if-backgrounded.yaml
+      - tapOn:
+          id: 'add-task-submit'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'add-task-sheet'
+          timeout: 25000
+      - runFlow: mm-go-tasks.yaml
+      - extendedWaitUntil:
+          visible: '.*${MM_TITLE}.*'
+          timeout: 25000
+      - assertVisible: '.*${MM_TITLE}.*'
+      - repeat:
+          times: 8
+          commands:
+            - runFlow: mm-sync-pulse.yaml
+            - runFlow: mm-dismiss-stale-alerts.yaml
+
+# ---------------------------------------------------------------- reader (B)
+- runFlow:
+    when:
+      true: ${MM_ROLE == 'reader'}
+    commands:
+      - runFlow: mm-go-tasks.yaml
+      - repeat:
+          times: 20
+          commands:
+            - runFlow:
+                when:
+                  notVisible: '.*${MM_TITLE}.*'
+                commands:
+                  - runFlow: mm-sync-pulse.yaml
+                  - runFlow: mm-dismiss-stale-alerts.yaml
+                  - runFlow: mm-relaunch-if-backgrounded.yaml
+                  - runFlow: mm-go-tasks.yaml
+      - extendedWaitUntil:
+          visible: '.*${MM_TITLE}.*'
+          timeout: 30000
+      - assertVisible: '.*${MM_TITLE}.*'
+      # Force a scheduler pass. `syncHouseLocalReminders` runs from
+      # `ensureSession`, i.e. on session open and on ledger bumps; a soft
+      # relaunch (never clearState — that would wipe the ledger under test)
+      # guarantees one even if the bump-driven pass was coalesced away.
+      - launchApp:
+          clearState: false
+          permissions:
+            all: allow
+            faceid: allow
+      - openLink: ${E2E_METRO_DEVCLIENT_URL}
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - runFlow: connect-mm-metro.yaml
+      - runFlow: mm-dismiss-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'home-screen'
+          timeout: 90000
+      # Give the pass room to land before the runner reads the notification
+      # store; scheduling is async and happens after the session reopens.
+      - runFlow: mm-go-tasks.yaml
+      - extendedWaitUntil:
+          visible: '.*${MM_TITLE}.*'
+          timeout: 60000
+      - assertVisible: '.*${MM_TITLE}.*'

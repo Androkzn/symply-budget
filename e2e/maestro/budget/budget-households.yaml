@@ -1,0 +1,120 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:settings
+  - mutation
+  - regression
+# Matrix: BUDGET-settings, BUDGET-HH-001/005 (see documents/engineering/testing/matrices/)
+# Forked "Households" (BudgetHouseholdScreen), reached via More →
+# Household & Members. MUTATING: creates a household via the FAB sheet when
+# "E2E Household" is not already in the list.
+#
+# BR-016 acceptance test. This flow failed on `Assertion is false:
+# ".*E2E Household.*" is visible` for as long as creating went to
+# `POST /households`: the row landed in D1, the local engine never learned about
+# it, and the screen's focus effect — which publishes the ENGINE's set of
+# households — dropped it from the list moments after it appeared, while it
+# survived on the server. Creation is local now (`createLocalBudgetHousehold`
+# mints the id, a fresh HDK at epoch 1 and the default categories on device), so
+# the household is expected to survive not just the save but a full round trip
+# off the screen and back. That round trip at the bottom IS the assertion the old
+# bug would have failed; a save that only holds until the next repaint is exactly
+# the failure BR-016 fixes, and asserting immediately after the tap would not see
+# it.
+#
+# Tagged `mutation` rather than `readonly`: under local-first the create writes a
+# real household — its own key epoch, its own op log, its own rows — into this
+# device's ledger, and it is still there when the run ends.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-go-households.yaml
+# The household name Typography is merged by RN's accessible TouchableOpacity
+# into the card's single accessibility label ("people, E2E Household, 1 member
+# • owner, Switch"), so it is never a standalone "E2E Household" text node.
+# Maestro text selectors are full-string regexes, so match the name as a
+# substring of that merged label with .*…* rather than the bare string.
+- scrollUntilVisible:
+    element:
+      text: '.*E2E Household.*'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+# The guard branch, which matters more now than it did: a local household
+# PERSISTS on the device between runs (that is the whole point of the fix), so an
+# unguarded create would leave one more empty ledger behind on every single run.
+- runFlow:
+    when:
+      visible: '.*E2E Household.*'
+    commands:
+      - assertVisible: '.*E2E Household.*'
+- runFlow:
+    when:
+      notVisible: '.*E2E Household.*'
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'fab-add-household'
+          timeout: 30000
+      - tapOn:
+          id: 'fab-add-household'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'household-name-input'
+          timeout: 20000
+      - tapOn:
+          id: 'household-name-input'
+      - inputText: 'E2E Household'
+      # Maestro can drop most of the typed text (RN New Arch), leaving a
+      # 1-character value — reproduced on the sibling household flows, where the
+      # field held just "E" instead of the full string. Erase + retype if it
+      # didn't land. Safe to test by text here: the create sheet is open, so the
+      # only "E2E Household" on screen is the input's own value (this branch only
+      # runs when no card carries that name).
+      - runFlow:
+          when:
+            notVisible: '.*E2E Household.*'
+          commands:
+            - tapOn:
+                id: 'household-name-input'
+            - eraseText: 20
+            - inputText: 'E2E Household'
+      - tapOn:
+          id: 'household-save-btn'
+      # Wait for the SHEET to go before looking for the card. The sheet is a
+      # Modal that unmounts its children, and `handleSave` only closes it on
+      # success — so its disappearance is the save landing, and asserting the
+      # name while it is still open would match the text input's own value and
+      # pass on a create that never happened.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'household-name-input'
+          timeout: 30000
+      # No network round trip is being waited on any more — the engine mints the
+      # household on device — so this only has to outlast a render.
+      - extendedWaitUntil:
+          visible: '.*E2E Household.*'
+          timeout: 30000
+      - scrollUntilVisible:
+          element:
+            text: '.*E2E Household.*'
+          direction: DOWN
+          timeout: 15000
+      - assertVisible: '.*E2E Household.*'
+# The regression itself. Leave the screen entirely (this subflow routes back
+# through the dashboard) and come back: the focus effect republishes the
+# engine's household set, which is precisely the refresh that used to delete a
+# just-created household from the list. Still listed here means the engine, not
+# only D1, is holding it.
+- runFlow: ../subflows/budget-go-households.yaml
+- scrollUntilVisible:
+    element:
+      text: '.*E2E Household.*'
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- assertVisible: '.*E2E Household.*'
+- openLink: simplebudget:///
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- runFlow: ../subflows/budget-recover-dashboard.yaml

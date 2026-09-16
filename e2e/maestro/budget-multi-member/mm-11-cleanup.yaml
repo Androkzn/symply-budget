@@ -1,0 +1,51 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: BUDGET-MM-011 — remove the rows this run created so a re-run starts
+# from the same state (the ledger persists across runs on both simulators).
+#
+# env: MM_TITLE
+---
+- runFlow: ../subflows/budget-network-block-off.yaml
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 20000
+- repeat:
+    times: 8
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: '.*${MM_TITLE}.*'
+          commands:
+            - swipe:
+                direction: LEFT
+                element:
+                  text: '.*${MM_TITLE}.*'
+            - waitForAnimationToEnd:
+                timeout: 1500
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-delete-spent'
+                commands:
+                  - tapOn:
+                      id: 'budget-delete-spent'
+                  - tapOn:
+                      text: '^Delete$'
+                  - waitForAnimationToEnd:
+                      timeout: 2500
+- runFlow: ../subflows/budget-sync-pulse.yaml
+- waitForAnimationToEnd:
+    timeout: 8000

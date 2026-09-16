@@ -1,0 +1,65 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:onboarding
+  - readonly
+  - regression
+# Matrix: HOUSE-ONB-026
+#
+# Step 1 is the one screen whose back control does NOT pop a step.
+#
+# The member arrived here straight from Login/Register, so there is no earlier
+# in-app screen — going back means ending the session. Every later step now
+# draws a plain chevron that pops one step, so this one says where it goes
+# ("Sign In") and asks before it goes there: an identical-looking bare chevron
+# would promise a step back and instead discard a sign-in the member had just
+# completed.
+#
+# `pressKey: back` is deliberately NOT what this drives. There is no hardware
+# back key on iOS, so a flow built on it passes by doing nothing.
+---
+- runFlow: ../subflows/launch-onboarding.yaml
+- runFlow: ../subflows/skip-onboarding-if-onboarded.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-get-started'
+    commands:
+      - assertVisible:
+          id: 'onboarding-get-started'
+      # The control names its destination rather than being a bare chevron.
+      # Asserted on the accessibility label, not the "Sign In" text inside it:
+      # the touchable IS the accessibility element, so its label is what the
+      # hierarchy carries and the child <Text> may not appear at all. The
+      # printed label is covered in OnboardingWelcome's own unit test.
+      - assertVisible:
+          id: 'onboarding-welcome-back'
+      - assertVisible: 'Back to sign in'
+
+      # ── It prompts, and Cancel really cancels.
+      - tapOn:
+          id: 'onboarding-welcome-back'
+      - extendedWaitUntil:
+          visible: 'Sign out?'
+          timeout: 15000
+      - tapOn: 'Cancel'
+      # Still on Welcome, still signed in — the tap cost the member nothing.
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-get-started'
+          timeout: 15000
+
+      # ── Confirming is what ends the session, and it lands on Login rather
+      #    than anywhere inside the app.
+      - tapOn:
+          id: 'onboarding-welcome-back'
+      - extendedWaitUntil:
+          visible: 'Sign out?'
+          timeout: 15000
+      - tapOn: 'Sign out'
+      - extendedWaitUntil:
+          visible:
+            id: 'auth-sign-in-email'
+          timeout: 30000
+      - assertNotVisible:
+          id: 'home-up-next-section'

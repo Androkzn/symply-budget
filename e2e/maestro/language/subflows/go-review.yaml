@@ -1,0 +1,33 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# Review tab (route `language-review` — pinned by default; may move to More after tab customization).
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-review-screen'
+    commands:
+      - openLink: ${E2E_APP_SCHEME}://language-review
+      - runFlow: language-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+- tapOn:
+    id: 'tab-language-review'
+    optional: true
+    retryTapIfNoChange: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-review-screen'
+    commands:
+      - runFlow: go-more.yaml
+      - tapOn:
+          id: 'more-tab-language-review'
+          retryTapIfNoChange: true
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'language-review-screen'
+    timeout: 20000

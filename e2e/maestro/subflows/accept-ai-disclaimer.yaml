@@ -1,0 +1,64 @@
+# Accept the AI disclaimer, if it is showing.
+#
+# WHY THIS IS NOT JUST `tapOn: 'I Understand & Accept'`.
+#
+# `AIDisclaimerModal` gates its accept button behind TWO conditions:
+#
+#   const canAccept = hasScrolledToBottom && checkboxChecked;   // :136
+#   <Button ... disabled={!canAccept} />                        // :289
+#
+# Until both hold, the button renders disabled — and Maestro reports a tap on a
+# disabled button as COMPLETED. So a flow that only taps it reads as though it
+# accepted the disclaimer, then fails several steps later asserting a screen it
+# never actually left. That is exactly how this surfaced: `report-upload-source-modal`
+# "tapped accept", then failed on `reports-screen` with a hierarchy holding
+# nothing but the status bar, because the modal was still up the whole time.
+#
+# The two gates, and how each is satisfied:
+#
+#   hasScrolledToBottom — set by `onScroll` only once the body is within 50px of
+#     its end (:109-115). Reaching the checkbox is not necessarily that far, so a
+#     scroll is not enough on its own; the extra swipe below drives it home.
+#   checkboxChecked — the row is INSIDE the ScrollView (:229), so it has to be
+#     scrolled into view before it can be tapped.
+#
+# The checkbox is ticked BEFORE the final swipe on purpose: it sits just above
+# the terms link and the scroll hint, so a swipe that lands on the true bottom
+# can carry it off-screen again.
+#
+# Never tap "View Full Terms of Service" (:251) — it opens an external URL and
+# leaves the app mid-flow.
+appId: ${APP_ID}
+tags:
+  - util
+  - app:house
+---
+- runFlow:
+    when:
+      visible: 'I Understand & Accept'
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: 'I have read and understand all of the above.*'
+          direction: DOWN
+          timeout: 20000
+          speed: 60
+          visibilityPercentage: 50
+          optional: true
+      - tapOn:
+          text: 'I have read and understand all of the above.*'
+          optional: true
+      # Drive `hasScrolledToBottom` true — the checkbox being visible does not
+      # prove the body reached its last 50px.
+      - swipe:
+          start: '50%, 70%'
+          end: '50%, 35%'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      # Deliberately NOT re-tapping the checkbox here. `onPress` is a toggle
+      # (`setCheckboxChecked(!checkboxChecked)`, :231), so a defensive second tap
+      # would UNCHECK it and re-disable accept. The swipe scrolls; it does not
+      # reset React state, so one tap is both necessary and sufficient.
+      - tapOn: 'I Understand & Accept'
+      - waitForAnimationToEnd:
+          timeout: 2500

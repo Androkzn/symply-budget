@@ -1,0 +1,11 @@
+-- Predefined budget categories (the seeded house + general defaults) can now be
+-- hidden instead of deleted. Custom categories keep the delete path; the built-in
+-- defaults get a show/hide toggle so a user can silence the ones they don't use
+-- without losing them (a deleted default would only get re-seeded, and hiding
+-- preserves any history/associations).
+--
+-- `hidden = 1` removes the category from pickers, suggestions and the dashboard,
+-- but it still resolves for existing items in the timeline lookup so their label
+-- doesn't disappear. Whether a category is "predefined" is derived by the service
+-- from its name matching a built-in default, so no column is needed for that.
+ALTER TABLE budget_categories ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;

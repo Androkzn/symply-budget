@@ -1,0 +1,64 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-012
+---
+# WHAT THIS PROVES
+# ----------------
+# Restore's resting state: the three sources are offered, and nothing that
+# describes a chosen archive is on screen until one has been chosen.
+#
+# WHY THAT MATTERS
+# ----------------
+# The phrase panel is the only thing standing between a tap and a merge into the
+# live ledger. A panel that renders before an archive is picked is a field
+# somebody can type twelve words into and press a button that acts on nothing —
+# or worse, on whatever the previous attempt left behind. `pendingRestore` is
+# the single piece of state that gates it, and this is the device-level check
+# that it starts null.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-012
+- runFlow: lf-backup-open-restore-screen.yaml
+# Maestro has no `finally`, so a previous flow that failed mid-way can leave the
+# schedule armed and the screen longer than this one expects. Cleanup is a
+# precondition here, not a postcondition — see lf-backup-reset-state.yaml.
+- runFlow: lf-backup-reset-state.yaml
+- assertVisible:
+    id: 'house-backup-screen'
+# Re-scroll after the reset, because the reset MOVES US.
+#
+# `lf-backup-open-restore-screen` above scrolls down to the restore half, and
+# then `lf-backup-reset-state`'s last step scrolls back UP to
+# `house-backup-status-card` so its caller "starts where it expects to". For a
+# caller that wants the TOP of the screen that is right; this flow wants the
+# BOTTOM, so the two subflows cancel out and the bare `assertVisible` below was
+# asserting against a viewport that had just been scrolled away from its target.
+#
+# Scrolling here rather than reordering the two subflows on purpose: the reset
+# has to run while the backup screen is already open (its steps are conditional
+# on rows that only exist there), so it cannot simply move ahead of the open.
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-restore-sources'
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- assertVisible:
+    id: 'house-backup-restore-sources'
+- assertVisible:
+    id: 'house-backup-restore-files'
+- assertNotVisible:
+    id: 'house-backup-restore-phrase-panel'
+- assertNotVisible:
+    id: 'house-backup-restore-foreign-warning'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

@@ -1,0 +1,31 @@
+appId: com.symply.kaizen
+---
+# Career setup wizard — step 0 goal toggle + advance to the Resume step.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/career-setup
+- extendedWaitUntil:
+    visible: 'Career setup'
+    timeout: 20000
+- assertVisible: 'Goals and roles'
+- tapOn: 'Target roles, comma-separated'
+- inputText: 'Staff Engineer'
+- tapOn: 'New role'
+- assertVisible: '✓ New role'
+- tapOn: 'Goals and roles'
+- runFlow:
+    file: subflows/scroll-kaizen-until-visible.yaml
+    env:
+      TARGET_ID: kaizen-career-setup-continue
+      TARGET_TEXT: 'Continue'
+- tapOn:
+    id: 'kaizen-career-setup-continue'
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible: 'Resume'
+    timeout: 30000
+- assertVisible: 'Paste resume text'
+- runFlow: subflows/return-to-today.yaml

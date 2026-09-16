@@ -17,6 +17,13 @@ const config = getSentryExpoConfig(__dirname);
 // E2E Kaizen fixtures (technical-questions.txt) are required from e2e-document-pick.ts.
 config.resolver.assetExts = [...(config.resolver.assetExts ?? []), 'txt'];
 
+// expo-sqlite's Web implementation loads wa-sqlite as a WebAssembly asset.
+// Keep the WASM path explicit so `expo export --platform web` can package the
+// same local-first database runtime used by the native app.
+config.resolver.assetExts = Array.from(
+  new Set([...(config.resolver.assetExts ?? []), 'wasm']),
+);
+
 // Ensure Hermes parser is used for Flow syntax support
 config.transformer.hermesParser = true;
 
@@ -62,6 +69,24 @@ function resolveVendoredReactNavigation(moduleName) {
 
 const upstreamResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (platform === 'web' && moduleName === '@react-native-community/blur') {
+    return {
+      type: 'sourceFile',
+      filePath: path.join(__dirname, 'src/utils/community-blur.web.tsx'),
+    };
+  }
+  if (platform === 'web' && moduleName === 'react-native-pdf') {
+    return {
+      type: 'sourceFile',
+      filePath: path.join(__dirname, 'src/utils/react-native-pdf.web.tsx'),
+    };
+  }
+  if (platform === 'web' && moduleName === 'react-native-fs') {
+    return {
+      type: 'sourceFile',
+      filePath: path.join(__dirname, 'src/utils/react-native-fs.web.ts'),
+    };
+  }
   if (moduleName.startsWith('@react-navigation/')) {
     const filePath = resolveVendoredReactNavigation(moduleName);
     if (filePath) {

@@ -71,6 +71,7 @@ yarn-error.log
 # without this line the next publish followed by the next `commit -a` puts them
 # straight back.
 /dist/
+/dist-web-preview/
 
 # Ruby / CocoaPods
 **/Pods/

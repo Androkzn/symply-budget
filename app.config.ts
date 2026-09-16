@@ -45,21 +45,19 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     urlTypes.push({ CFBundleURLSchemes: [brand.scheme] });
   }
 
-  const iosBuildNumber = parseInt(
-    String(config.ios?.buildNumber ?? '23'),
-    10,
-  );
+  const iosBuildNumber = parseInt(String(brand.iosBuildNumber ?? config.ios?.buildNumber ?? '23'), 10);
 
   return {
     ...config,
     name: brand.displayName,
     slug: brand.slug,
     scheme: brand.scheme,
-    version: config.version ?? '1.0.0',
+    version: brand.iosVersion ?? config.version ?? '1.0.0',
     icon: brand.assets.appIcon,
     ios: {
       ...config.ios,
       bundleIdentifier: brand.iosBundleId,
+      buildNumber: String(iosBuildNumber),
       // iOS 18+ light/dark app-icon appearance variants when the brand ships a
       // dark master; otherwise fall back to the single opaque icon. Android and
       // notifications keep the top-level `icon` (appIcon).

@@ -239,6 +239,10 @@ export interface BrandConfig {
   slug: string;
   scheme: string;
   iosBundleId: string;
+  /** Native store version identity for this brand. */
+  iosVersion?: string;
+  /** Native iOS build number for this brand's next archive. */
+  iosBuildNumber?: number;
   androidPackage: string;
   /** Optional EAS project id override; falls back to shared project */
   easProjectId?: string;

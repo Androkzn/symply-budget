@@ -1,0 +1,149 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:contractors
+  - mutation
+  - regression
+# Matrix: HOUSE-CONT-012–023,028–030 (visits, checklists, ratings, visit mode)
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-CONT-012
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-contractors.yaml
+- tapOn:
+    id: 'contractors-tab-upcoming'
+# Visit lifecycle via appointment detail (HOUSE-CONT-012–015,029).
+- runFlow:
+    when:
+      visible:
+        id: 'contractors-appointment-row'
+    commands:
+      - tapOn:
+          id: 'contractors-appointment-row'
+      - extendedWaitUntil:
+          visible:
+            id: 'appointment-detail-screen'
+          timeout: 20000
+      - runFlow:
+          when:
+            visible: 'Complete'
+          commands:
+            - tapOn: 'Complete'
+            - waitForAnimationToEnd:
+                timeout: 4000
+      - runFlow:
+          when:
+            visible: 'Visit Mode'
+          commands:
+            - tapOn: 'Visit Mode'
+            - extendedWaitUntil:
+                visible: 'End Visit'
+                timeout: 15000
+                optional: true
+            - runFlow:
+                when:
+                  visible: 'End Visit'
+                commands:
+                  - tapOn: 'End Visit'
+                  - extendedWaitUntil:
+                      visible: 'Cancel'
+                      timeout: 10000
+                      optional: true
+                  - tapOn: 'Cancel'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'nav-back-button'
+                commands:
+                  - tapOn:
+                      id: 'nav-back-button'
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+# Contractor visits + ratings from detail (HOUSE-CONT-016–023,028).
+- tapOn:
+    id: 'contractors-tab-contractors'
+- runFlow:
+    when:
+      visible:
+        id: 'contractors-row'
+    commands:
+      - tapOn:
+          id: 'contractors-row'
+      - extendedWaitUntil:
+          visible:
+            id: 'contractor-detail-screen'
+          timeout: 20000
+      - scrollUntilVisible:
+          element:
+            text: 'Visits'
+          direction: DOWN
+          timeout: 15000
+          optional: true
+      - runFlow:
+          when:
+            visible: 'Add Visit'
+          commands:
+            - tapOn: 'Add Visit'
+            - extendedWaitUntil:
+                visible: 'Save Changes'
+                timeout: 15000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'nav-back-button'
+                commands:
+                  - tapOn:
+                      id: 'nav-back-button'
+      - runFlow:
+          when:
+            visible: 'Rate'
+          commands:
+            - tapOn: 'Rate'
+            - extendedWaitUntil:
+                visible: 'Cancel'
+                timeout: 10000
+                optional: true
+            - tapOn: 'Cancel'
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+# Checklist templates (HOUSE-CONT-016–018,035).
+- openLink: simplehouse://contractors?screen=Checklists
+- extendedWaitUntil:
+    visible: 'Checklists'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Templates'
+    commands:
+      - tapOn: 'Templates'
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+- assertVisible:
+    id: 'contractors-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

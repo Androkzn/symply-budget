@@ -1,0 +1,237 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:utilities
+  - mutation
+  - regression
+# Matrix: HOUSE-UTIL-007,009,011,012,014,018,020,021,022,024,027 (accounts, bills, batch pay)
+---
+# app/(tabs)/utilities.tsx redirects to Home whenever isBudgetOff() ||
+# isMinimalBudget() — "House: budget product removed — utilities live on
+# Symply Budget." House currently runs minimal-budget mode (matches every
+# Budget-tab screenshot this session: dashboard-only, no spendings/savings),
+# so simplehouse://utilities is UNREACHABLE by design right now, not a bug
+# (confirmed 2026-07-31, was mistaken for an openLink-timing bug at first —
+# a retry doesn't change a deliberate <Redirect>). The mutation checks below
+# are preserved for whenever House's budget mode changes back; for now this
+# flow's real, currently-true assertion is that the redirect itself works.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-UTIL-010
+- runFlow: ../subflows/open-utilities.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: 'utilities-screen'
+    commands:
+      - assertVisible:
+          id: 'home-screen'
+- runFlow:
+    when:
+      visible:
+        id: 'utilities-screen'
+    commands:
+      - assertVisible:
+          id: 'utilities-screen'
+      # Bills list (reuse load path, extend mutations).
+      - tapOn:
+          id: 'utilities-action-view-bills'
+      - extendedWaitUntil:
+          visible: 'Search bills'
+          timeout: 20000
+      # Add bill form validation (HOUSE-UTIL-011) — open add if present. When Save
+      # actually submits, verify the POST really succeeded, not just that the sheet closed.
+      - runFlow:
+          when:
+            visible: 'Add Bill'
+          commands:
+            - tapOn: 'Add Bill'
+            - extendedWaitUntil:
+                visible: 'Save'
+                timeout: 15000
+                optional: true
+            - runFlow:
+                when:
+                  visible: 'Save'
+                commands:
+                  - runFlow:
+                      file: ../subflows/e2e-clear-log.yaml
+                      env:
+                        E2E_APP_SCHEME: simplehouse
+                        APP_ID: com.symply.house
+                  - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+                  - extendedWaitUntil:
+                      visible: 'Save'
+                      timeout: 8000
+                  - tapOn: 'Save'
+                  - waitForAnimationToEnd:
+                      timeout: 4000
+                  # LOCAL-FIRST: `utilitiesApi` is wrapped by
+                  # `createHouseLocalProxy` (src/features/utilities/api/utilities.ts:968)
+                  # with `remoteMethods: ['getMunicipality']` — the ONLY remote
+                  # method on the module. `createBill` is therefore served from
+                  # the on-device ledger, so a POST /utilities/bills must NEVER
+                  # fire. This used to assert the opposite (e2e-verify-network),
+                  # which could only ever go red — and a permanently-failing
+                  # verify burns the retry budget firing deep links that dismiss
+                  # native modals and break the steps after it.
+                  - runFlow:
+                      file: ../subflows/e2e-verify-no-network.yaml
+                      env:
+                        E2E_APP_SCHEME: simplehouse
+                        APP_ID: com.symply.house
+                        E2E_VERIFY_METHOD: POST
+                        E2E_VERIFY_PATH: /utilities/bills
+                  - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'e2e-verify-badge'
+                        text: '^PASS'
+                      timeout: 5000
+            - runFlow:
+                when:
+                  visible:
+                    id: 'nav-back-button'
+                commands:
+                  - tapOn:
+                      id: 'nav-back-button'
+      # Mark paid toggle if an unpaid row exists (HOUSE-UTIL-013 covered elsewhere; delete
+      # cancel HOUSE-UTIL-014) — verify Cancel is truly a no-op (no PATCH fired).
+      # KNOWN DEAD GATE (reported, not fixed here): "Mark as Paid" is rendered by
+      # UtilityDetailScreen.tsx:359, NOT by the bills list we are standing on, and
+      # UtilityBillsScreen exposes no testID on its rows — there is no reliable way
+      # to open a bill detail from here, so this branch can never run. Left in place
+      # rather than deleted (it becomes live the moment a row testID ships); do not
+      # read a green run as evidence that HOUSE-UTIL-014 was exercised.
+      - runFlow:
+          when:
+            visible: 'Mark as Paid'
+          commands:
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  APP_ID: com.symply.house
+            - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible: 'Mark as Paid'
+                timeout: 8000
+            - tapOn: 'Mark as Paid'
+            - extendedWaitUntil:
+                visible: 'Cancel'
+                timeout: 10000
+                optional: true
+            - tapOn: 'Cancel'
+            - runFlow:
+                file: ../subflows/e2e-verify-no-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  APP_ID: com.symply.house
+                  E2E_VERIFY_METHOD: PATCH
+                  E2E_VERIFY_PATH: /utilities/bills/
+            - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+      # OVER-POP GUARD: the Add-Bill sub-block above may already have unwound to
+      # the dashboard (a successful Save pops AddUtilityBill by itself, and its
+      # own back hop then leaves the bills list). `nav-back-button` is present on
+      # `utilities-screen` too, so gating on the button rather than on where we
+      # are popped the whole Utilities stack and the tap below missed.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'utilities-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+      # Scan/upload bill entry (HOUSE-UTIL-012).
+      - tapOn:
+          id: 'utilities-action-scan-bill'
+      - extendedWaitUntil:
+          visible: 'Add Bill'
+          timeout: 15000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'utility-bill-source-file'
+          commands:
+            - tapOn:
+                id: 'utility-bill-source-file'
+            - runFlow:
+                file: ../subflows/pick-document-from-files.yaml
+                env:
+                  DOC_NAME: 'bc-assessment.pdf'
+                  DOC_NAME_REGEX: 'bc-assessment[.]pdf'
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'utilities-screen'
+                commands:
+                  - tapOn:
+                      id: 'nav-back-button'
+                      optional: true
+      # OVER-POP GUARD: this used to be a second unconditional `nav-back-button`
+      # tap. `UtilitiesScreen` renders its header with
+      # `showBackButton={router.canGoBack()}` (UtilitiesScreen.tsx:290), which is
+      # TRUE when the screen was reached by deep link — so once the hop above had
+      # already landed us back on `utilities-screen`, this tap popped straight out
+      # of the Utilities stack and the final assert below went red for a teardown
+      # reason. Guard each hop on not already being there.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'utilities-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+      # Provider tile drill-in (HOUSE-UTIL-028) when tiles exist.
+      # `electricity` is a bill_type, NOT a ProviderKey: the tiles are built from
+      # `['overview', 'bc_hydro', 'fortisbc', 'city_of_surrey']`
+      # (UtilitiesScreen.tsx:447) and `ProviderKey` is
+      # `'overview' | 'bc_hydro' | 'fortisbc' | 'city_of_surrey' | 'other'`
+      # (src/features/utilities/api/utilities.ts:122). `utilities-provider-electricity`
+      # never existed, so this whole block was dead.
+      # NOTE: `UtilityProvider` is registered in UtilitiesNavigator but nothing in
+      # src/ navigates to it — tapping a tile calls `toggleProvider(key)`, it does
+      # not push the provider dashboard. The drill-in wait stays `optional` and the
+      # back hop is gated on the provider screen actually being on top, so this
+      # section exercises the tile without over-popping when the push never happens.
+      - runFlow:
+          when:
+            visible:
+              id: 'utilities-provider-bc_hydro'
+          commands:
+            - tapOn:
+                id: 'utilities-provider-bc_hydro'
+            - extendedWaitUntil:
+                visible:
+                  id: 'utility-provider-bc_hydro'
+                timeout: 15000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'utility-provider-bc_hydro'
+                commands:
+                  - tapOn:
+                      id: 'nav-back-button'
+      # Explicit re-entry rather than trusting the back stack — a deep-linked
+      # Utilities root has its own back button, so any stray pop above would leave
+      # us on Home/Settings instead of here.
+      - runFlow: ../subflows/open-utilities.yaml
+      - assertVisible:
+          id: 'utilities-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

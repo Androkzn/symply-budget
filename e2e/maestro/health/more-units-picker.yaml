@@ -1,0 +1,130 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:more
+  - mutation
+  - regression
+# Matrix: HEALTH-MORE-047 (HEALTH-HOME-103 RETIRED 2026-08-01 — see matrix)
+---
+# RENAMED from more-units-propagate-home.yaml (2026-08-01): the Home leg this
+# file used to pair with (HEALTH-HOME-103 — "Home reads the stored preference
+# on hydrate", proved by logging a weight on Home in the newly-chosen unit)
+# was retired the same day the Home WEIGHT card itself was removed. Home no
+# longer logs weight at all, so there is nothing left on that screen for a
+# unit preference to propagate INTO — this file now only owns the More →
+# Preferences → Units picker itself.
+#
+# COVERAGE GAP left by that retirement: nothing in the suite any longer proves
+# a unit chosen here actually lands on a LOGGED weight entry in that unit.
+# `weight-tab-log-and-edit.yaml` (the only remaining place that logs weight)
+# never switches the global unit preference — its own HEALTH-WEIGHT-407 note
+# says the unit is shown as a static badge, sourced from this same picker, but
+# that flow only ever asserts it reads `kg` (the suite default). See the
+# matrix's HEALTH-HOME-103 tombstone row for the same note.
+#
+# Restores kg at the end so later flows keep the default unit.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-MORE-047
+
+      # --- Choose pounds on the More tab ----------------------------------
+      # The Alert this used to drive is gone (2026-07-26): the row now expands
+      # an inline picker, so the choice is a `tapOn` by id rather than by the
+      # Alert's message text. Tapping by id also disambiguates the option from
+      # the row's own subtitle, which reads "Imperial (lb, ft/in, mi)" once it is chosen.
+      # REAL mutation: chooseUnitSystem() -> setUnitSystem() ->
+      # healthApi.saveGoal({unit_system}) -> PUT /health/goals, 200
+      # (HealthMoreScreen.tsx, healthLocalStorage.ts, src/api/health.ts).
+      - runFlow: subflows/go-more.yaml
+      - tapOn:
+          id: 'health-setting-units'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-units-picker'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-unit-system-imperial'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-units-picker'
+          timeout: 10000
+      - extendedWaitUntil:
+          visible:
+            id: 'health-setting-units-subtitle'
+          timeout: 10000
+      - assertVisible: 'Imperial (lb, ft/in, mi)'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Restore kilograms so the suite stays deterministic --------------
+      # Same REAL mutation as the choose-pounds leg above: PUT /health/goals.
+      - runFlow: subflows/go-more.yaml
+      - tapOn:
+          id: 'health-setting-units'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-units-picker'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-unit-system-metric'
+          retryTapIfNoChange: true
+      # Same three-step settle the choose-pounds leg above uses (picker closes
+      # -> subtitle repaints -> text assertion), NOT a single wait on the text
+      # alone. Reproduced 2026-08-02: a bare `extendedWaitUntil` on 'Metric
+      # (kg, cm, km)' here timed out at 10s on device — the option row inside
+      # the still-open picker renders this same string for the UNselected
+      # metric choice, so the word being "visible" proves nothing about the
+      # tap actually landing; waiting for the picker to close is what does.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-units-picker'
+          timeout: 10000
+      - extendedWaitUntil:
+          visible:
+            id: 'health-setting-units-subtitle'
+          timeout: 10000
+      - assertVisible: 'Metric (kg, cm, km)'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow: subflows/go-health-home.yaml

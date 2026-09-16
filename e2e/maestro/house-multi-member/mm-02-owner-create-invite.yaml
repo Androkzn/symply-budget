@@ -1,0 +1,137 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: HOUSE-MM-002 — owner creates a household device-enrolment invite.
+#
+# The invite code/secret/OOB word are logged dev-only as `[E2E-INVITE] …`; the
+# orchestrator scrapes that line off the Metro log and plays the human who reads
+# the code out. The UI path stays the real one — the invite is created through
+# the button, not through an API call.
+#
+# The marker ships from `HouseInviteCreateScreen.tsx:142`:
+#   [E2E-INVITE] code=<shortCode> secret=<secret> household=<name>
+# Without it this suite cannot get the code to device B and the run stops here
+# with "no [E2E-INVITE] line".
+#
+# ONE SURFACE. `HouseDeviceSyncScreen` composes all three enrolment bodies —
+# `HouseInviteBody`, `HouseJoinBody`, `HouseDevicesBody` (:339-348) — so
+# registering the household and minting the invite happen on the same screen the
+# rest of this suite already navigates to.
+#
+# Do NOT reroute this through the Invite & home hub instead. It works on the
+# owner's device and fails on the invitee's: a phone holding key-less homes is
+# behind `HouseRecoverHomeScreen`, which renders over the whole stack and steps
+# aside for exactly two routes — `RECOVERY_ROUTES = ['/device-sync',
+# '/house-backup']`. Anything reached through Profile is underneath it.
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+# --- 1. Register this household + device on the control plane BEFORE inviting.
+- runFlow: mm-open-lf-settings.yaml
+# Scroll back up first: the sync control sits at the TOP of the card and an
+# earlier scrollUntilVisible may have left the view at the bottom. Off-window
+# children are not tappable.
+- scrollUntilVisible:
+    element:
+      id: '${LF_SYNC_NOW}'
+    direction: UP
+    timeout: 10000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: '${LF_SYNC_NOW}'
+- waitForAnimationToEnd:
+    timeout: 10000
+# Unconditional: Maestro cannot see a native alert (iOS renders it in its own
+# window), so gating the dismissal on `visible: 'OK'` skips it and the alert
+# then swallows every later step. An optional tap is a no-op when absent.
+- tapOn:
+    text: '^OK$'
+    optional: true
+# --- 2. Mint the invite, on that same screen.
+# Scroll the button clear of the floating tab bar before tapping.
+#
+# Learned on the Budget pair and it applies verbatim here: the tab bar overlays
+# the ScrollView across the bottom of the screen, and an element whose CENTRE
+# lands under it is reported "visible" and taps through to the tab instead.
+# `centerElement` puts it mid-viewport, well clear.
+- scrollUntilVisible:
+    element:
+      id: '${LF_CREATE_INVITE}'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: '${LF_CREATE_INVITE}'
+# Creating mints the code AND opens the QR sheet over the panel
+# (`HouseInviteCreateScreen.tsx:151` — the button says "Generate QR code", so
+# landing anywhere else would be a bait and switch). The sheet is an in-app
+# Modal, so unlike an iOS alert Maestro CAN see it — and its appearance is the
+# first evidence the invite exists.
+- extendedWaitUntil:
+    visible:
+      id: 'house-invite-qr-sheet'
+    timeout: 45000
+- assertVisible:
+    id: 'house-invite-qr-code'
+# Close it: it covers the panel the closing assertions read, and mm-04 comes
+# back to this screen expecting the requests panel at the top, not a sheet.
+- tapOn:
+    id: 'bottom-sheet-close'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2500
+# The created panel, not an alert. `HouseInviteCreateScreen.tsx:377` renders
+# "Invite created" as an inline panel heading, deliberately: iOS draws
+# UIAlertController in its own window and XCUITest snapshots the app window, so
+# an alert on this path would be invisible to Maestro.
+- extendedWaitUntil:
+    visible:
+      id: 'lf-invite-created-panel'
+    timeout: 30000
+# The CODE, not the "Invite created" heading.
+#
+# The heading is the obvious thing to assert and it does not work: the panel is
+# taller than the viewport, so `centerElement` scrolls the heading off the top,
+# and iOS publishes only what is on screen — the element is absent from the
+# hierarchy entirely, not merely unmatched. Run 20260905-094002 failed here with
+# the invite minted, the QR sheet shown, and the panel asserting fine by id.
+#
+# The code is better evidence anyway. A heading says the app rendered a success
+# state; `lf-invite-code` is the invite itself, and it is what `read_invite`
+# goes on to take off this screen.
+- scrollUntilVisible:
+    element:
+      id: 'lf-invite-code'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- assertVisible:
+    id: 'lf-invite-created-panel'
+- assertVisible:
+    id: 'lf-invite-code'
+# LEAVE THE SCREEN ON THE LINK. The orchestrator's `read_invite` reads the
+# invite off this device rather than off the shared Metro log, and it anchors on
+# `lf-invite-link` because that one label carries BOTH halves. iOS publishes only
+# what is on screen, so where this flow stops scrolling decides whether that read
+# works — centring the code instead left the link just off the bottom and
+# `read_invite` fell back to the log (run 20260905-095552).
+- scrollUntilVisible:
+    element:
+      id: 'lf-invite-link'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- assertVisible:
+    id: 'lf-invite-link'

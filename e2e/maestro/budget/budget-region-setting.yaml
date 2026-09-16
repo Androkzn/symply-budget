@@ -1,0 +1,59 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:settings
+  - feature:spend
+  - regression
+# Matrix: BUDGET-SPEND-095 — Region setting (Settings → Region) drives the
+# receipt sales-tax fallback. Opens Settings (the Profile gear — PREFERENCES
+# moved there when More became the overflow-tabs hub), taps the Region row,
+# picks Canada → British Columbia, returns, and confirms the Settings row
+# subtitle re-renders to "British Columbia, Canada" (the value is sent with
+# each scan).
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/budget-open-settings.yaml
+# Open the Region picker (next to Currency under PREFERENCES).
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-region-link'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'budget-settings-region-link'
+- extendedWaitUntil:
+    visible:
+      id: 'region-screen'
+    timeout: 15000
+# Both supported countries are listed.
+- assertVisible:
+    id: 'region-country-CA'
+- assertVisible:
+    id: 'region-country-US'
+# Pick Canada → its provinces appear → pick British Columbia.
+- tapOn:
+    id: 'region-country-CA'
+- extendedWaitUntil:
+    visible:
+      id: 'region-sub-BC'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'region-sub-BC'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'region-sub-BC'
+# Back to Settings — the Region row subtitle now reflects the saved choice.
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-screen'
+    timeout: 15000
+- scrollUntilVisible:
+    element: 'British Columbia, Canada'
+    direction: DOWN
+    timeout: 15000
+- assertVisible: 'British Columbia, Canada'

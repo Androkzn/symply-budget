@@ -1,0 +1,20 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-auth (see documents/engineering/testing/matrices/)
+---
+# Navigate Login → Register and assert Create Account UI (registration remains
+# server-gated closed; this flow only covers FE surface + testIDs).
+- runFlow: ../subflows/launch-logged-out.yaml
+- tapOn:
+    id: 'auth-go-register'
+- extendedWaitUntil:
+    visible: 'Create Account'
+    timeout: 30000
+- assertVisible:
+    id: 'auth-register-submit'
+- assertVisible: 'Create Account'

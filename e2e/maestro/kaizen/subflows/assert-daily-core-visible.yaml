@@ -1,0 +1,10 @@
+appId: com.symply.kaizen
+---
+- runFlow: dismiss-wake-card-if-needed.yaml
+- scrollUntilVisible:
+    element:
+      id: 'kaizen-daily-core-header'
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: 'kaizen-daily-core-header'

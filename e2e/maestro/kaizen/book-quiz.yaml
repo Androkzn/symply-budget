@@ -1,0 +1,19 @@
+appId: com.symply.kaizen
+---
+# Book quiz — deep-linked without a chapterId shows the no-questions state.
+# (With generated questions, mcq/open/spoken items + Submit render.)
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/book-quiz
+- extendedWaitUntil:
+    visible: 'Comprehension check'
+    timeout: 20000
+- assertVisible: 'No questions yet — generate a check for this chapter first.'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

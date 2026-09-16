@@ -1,0 +1,317 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:spend
+  - quality
+  - mutation
+  - regression
+# Matrix: BUDGET-SPEND-108
+# Receipt recognition v2 quality suite. Live BYOK must return items + pills.
+#
+# FIXTURES ARE ADDRESSED BY FILENAME, OUT OF Files/SymplyE2E.
+#
+# They used to be addressed by PHOTO_INDEX against a library this flow required
+# to hold EXACTLY three assets, which made it unrunnable inside the full suite:
+# run-budget-suite.sh seeds eight budget images via seed-fixtures.sh, the
+# indices then point at whatever PHPicker happens to order first, and the flow
+# scanned the wrong receipt. Measured 2026-09-08 in the full suite — it failed
+# on `budget-receipt-category-chips`, having scanned something that was not the
+# receipt the leg asserts against.
+#
+# Picking each receipt by NAME removes the precondition entirely: no seeding
+# order to preserve, no index to drift, and the wrong asset cannot be selected
+# silently. The three documents are the same three images (verified against
+# e2e/fixtures/manifest.json):
+#   receipt-3.jpg = Real Canadian Superstore   (was PHOTO_INDEX 2)
+#   receipt.jpg   = Costco #55                 (was PHOTO_INDEX 1)
+#   receipt-2.jpg = BC Liquor #172             (was PHOTO_INDEX 0)
+#
+# The historical note below is kept because it explains WHY indices were never
+# trustworthy in the first place.
+#
+#   index 0 = Receipt 3.jpg  (BC Liquor #172)      <- newest asset
+#   index 1 = Receipt 2.jpg  (Costco #55)
+#   index 2 = Receip 1.png   (Real Canadian Superstore)  <- oldest asset
+#
+# The PHPicker grid is NEWEST-FIRST, so the index is the REVERSE of the order
+# the seeder adds them. Measured 2026-08-15: PHOTO_INDEX 0 returned BC Liquor,
+# which the seeder pushes last.
+#
+# PRECONDITION — the runner must leave the Photos library holding EXACTLY those
+# three, in that order (scripts/e2e/seed-receipt-quality-photos.sh). Run this
+# flow against a library seeded any other way and the indices are meaningless.
+#
+# Why not `addMedia` per leg: PHPicker does NOT put the newest asset in the
+# first cell. On Budget-C, cell 0 was the monthly-expenses spreadsheet while
+# receipts sat at 1..n, so "add the fixture then tap the first cell" read the
+# wrong image every single time — the savings-statement.jpg failure this suite
+# has chased since 2026-08-05. Position only means something in a library whose
+# whole contents we control.
+#
+# The Files/SymplyE2E route was also tried and abandoned: on a fresh simulator
+# the picker opens on Recents and SymplyE2E was never reachable.
+# HEIC stays Photos-only — Maestro addMedia rejects .HEIC.
+# No E2E_VERIFY_PATH=/budget/receipts/scan — Budget-A is local-first BYOK.
+#
+# ASSERTIONS ARE UNCONDITIONAL BY DESIGN. They used to sit inside
+# `when: visible: budget-receipt-save`, which let a 0-item scan skip every
+# check and still report success. `budget-receipt-scan-one-file.yaml` already
+# waits non-optionally for `budget-receipt-save`, so that guard was redundant
+# as well as harmful. A scan that yields nothing must now fail loudly.
+#
+# MUTATION: the BCL leg saves, so deposit_amount persistence and the
+# Spendings deposits banner are covered end to end. Save is last and commits
+# one item to keep test-household pollution minimal.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+
+# ── Superstore — receipt-3.jpg ────────────────────────────────────────────
+# Basic groceries, no sales tax printed (subtotal == total) => every row
+# reads "No tax". Milk carries RECYCLING FEE $0.07 + DEPOSIT $0.10.
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-scan-receipt'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-receipt-scan'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/budget-receipt-scan-one-file.yaml
+    env:
+      DOC_NAME: receipt-3.jpg
+      DOC_NAME_REGEX: 'receipt-3\\.jpg'
+- assertVisible:
+    id: 'budget-receipt-store'
+- assertVisible: '.*Superstore.*'
+# The card is taller than the viewport, so these seek instead of assert:
+# assertVisible does not scroll, and category chips sit below the fold.
+# Order matters — this walks DOWN the card in render order.
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-name'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-name-chips'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-tax-pill'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-fee-chips'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-fee-chip'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-category-chips'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+# Nothing on this receipt is taxable: every pill must read "No tax" and NOT a
+# single "Tax" pill may appear. The negative half is what makes this real.
+- assertVisible:
+    id: 'budget-receipt-no-tax'
+- assertNotVisible:
+    id: 'budget-receipt-tax'
+# Suggestion chips must be tappable, not merely present.
+- tapOn:
+    id: 'budget-receipt-name-chip'
+- assertVisible:
+    id: 'budget-receipt-name'
+- tapOn:
+    id: 'budget-receipt-category-chip'
+- assertVisible:
+    id: 'budget-receipt-category'
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 10000
+
+# ── Costco — receipt.jpg ──────────────────────────────────────────────────
+# Only ROTI CHICKEN is flagged G (5% GST on 7.99 = 0.40). 3x Kumato must
+# stay "Kumato", never collapse to "Tomatoes". 1% Milk carries ENVIRO FEE
+# + DEPOSIT — fee chips were previously unasserted on this leg.
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-scan-receipt'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-receipt-scan'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/budget-receipt-scan-one-file.yaml
+    env:
+      DOC_NAME: receipt.jpg
+      DOC_NAME_REGEX: 'receipt\\.jpg'
+- assertVisible:
+    id: 'budget-receipt-store'
+- assertVisible: '.*Costco.*'
+# The card is taller than the viewport, so these seek instead of assert:
+# assertVisible does not scroll, and category chips sit below the fold.
+# Order matters — this walks DOWN the card in render order.
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-name'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-name-chips'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-tax-pill'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-category-chips'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-fee-chips'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+# The untaxed pill is on the first card, so it is on screen already.
+- assertVisible:
+    id: 'budget-receipt-no-tax'
+# Kumato sits mid-list and Roti Chicken is the LAST of ~15 rows, so both are
+# below the fold — assertVisible does not scroll, so these must seek.
+- scrollUntilVisible:
+    element:
+      text: '.*Kumato.*'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+# The discriminating case: Roti Chicken is the ONLY G-flagged line, so both
+# pills must coexist. Asserting only "Tax" would pass on a receipt where
+# everything was wrongly taxed.
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-tax'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- tapOn:
+    id: 'budget-receipt-name-chip'
+- assertVisible:
+    id: 'budget-receipt-name'
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 10000
+
+# ── BC Liquor — receipt-2.jpg ─────────────────────────────────────────────
+# Name prints on the line AFTER the price. Container Deposit $0.10 attaches
+# to the item. L = PST Liquor 10% (not BC's 7% goods PST) + G = GST 5%.
+# This leg SAVES so deposit_amount + the deposits banner are covered.
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-scan-receipt'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-receipt-scan'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/budget-receipt-scan-one-file.yaml
+    env:
+      DOC_NAME: receipt-2.jpg
+      DOC_NAME_REGEX: 'receipt-2\\.jpg'
+- assertVisible:
+    id: 'budget-receipt-store'
+- assertVisible: '.*Liquor.*'
+- assertVisible:
+    id: 'budget-receipt-name'
+- assertVisible: '.*Canadian Club.*'
+# The card is taller than the viewport, so these seek instead of assert:
+# assertVisible does not scroll, and category chips sit below the fold.
+# Order matters — this walks DOWN the card in render order.
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-name-chips'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-tax-pill'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-fee-chips'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-fee-chip'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-category-chips'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 40
+# Liquor is taxed (PST Liquor 10% + GST 5%) — the single line must read "Tax".
+- assertVisible:
+    id: 'budget-receipt-tax'
+- assertNotVisible:
+    id: 'budget-receipt-no-tax'
+- tapOn:
+    id: 'budget-receipt-name-chip'
+- assertVisible:
+    id: 'budget-receipt-name'
+
+# Commit, then prove the deposit survived the write path.
+# Save is below the summary block — seek it rather than assuming it is on screen.
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-save'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 60
+- tapOn:
+    id: 'budget-receipt-save'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 30000
+- assertVisible:
+    id: 'budget-deposits-banner'

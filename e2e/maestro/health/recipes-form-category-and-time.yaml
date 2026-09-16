@@ -1,0 +1,533 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:recipes
+  - mutation
+  - regression
+# Matrix: HEALTH-FOOD-154 … 156
+---
+# Recipes tab — the CREATE/EDIT form's category picker and prep/cook time
+# fields, part of the 2026-07-27 "Nutrition parity push" that shipped
+# `HealthRecipesScreen`'s donor `FoodCategory` 13-category picker, prep/cook
+# time and a searchable ingredient picker with NO Maestro flow authored for
+# any of it. This flow owns the category picker and the time fields; the
+# searchable ingredient picker and the photo-attach native boundary are
+# `recipes-form-ingredient-search-and-photo.yaml` — split for the same
+# mid-run-driver-drop reason `recipes-build-and-scale.yaml` itself was split
+# from `recipes-log-to-diary.yaml`.
+#
+# WHY EDIT-RELOAD, NOT THE LIST ROW. A recipe row's `rowText` block is one
+# `Pressable` (`onPress={() => handleSelect(recipe)}`), which merges ALL its
+# children into a single accessibility element — `recipes-build-and-scale.yaml`
+# already documents this for `health-recipe-total-*`/`health-recipe-macros-*`
+# ("the label is both what VoiceOver announces and the only reliable target").
+# The SAME Pressable also wraps `health-recipe-category-badge-*` and
+# `health-recipe-time-*`, and the merged label
+# (`Open X, N servings, Y kcal total`) never mentions category or time at
+# all — so neither badge is a reachable Maestro target on the list. Category
+# and time are instead proven by SAVING, re-opening EDIT (`handleEdit`
+# re-populates the form from the stored recipe) and reading the FORM back:
+# each `CategoryChip` is its own standalone `Pressable` (not merged, proven
+# safe by the MEAL_SLOTS chips `recipes-log-to-diary.yaml` already drives),
+# so `accessibilityState.selected` is a real assertion there.
+#
+# THE 13-CATEGORY SWEEP IS DELIBERATELY NOT EXHAUSTIVE ON DEVICE. Four ids
+# (`dairy`, `other`, `none`, `fruits`) are driven for real to prove single-
+# select and the None reset; three more (`fish`, `vegetables`, `snacks`) are
+# scrolled to and confirmed present as a representative spot check; the
+# remaining six are confirmed only by reading `RECIPE_CATEGORIES` in
+# `healthFoodStorage.ts` against this flow's own render, not by an on-device
+# scroll — scrolling to and confirming all thirteen individually would have
+# made this the longest flow in the surface, the exact failure mode this
+# split exists to avoid.
+#
+# ONE CAVEAT NOT SETTLED BY READING SOURCE: `health-recipe-prep-time-input` /
+# `-cook-time-input` are plain `TextInput`s with a static `accessibilityLabel`
+# ("Preparation time in minutes") describing the field's PURPOSE, not its
+# current value — reading the typed figure back via `text: '12'` depends on
+# Maestro exposing the input's live value (its iOS accessibility VALUE, not
+# its label) on this build, which no existing flow in this suite currently
+# exercises. If that assertion is the one that fails on a real run, it is a
+# harness question, not proof the field itself is unwired — the category
+# round trip proves the SAVE→RELOAD path itself works regardless.
+#
+# SELF-SUFFICIENT: mints its own ingredient (`Maestro Field Rice`, a single
+# food so it needs no search — that surface is the OTHER flow's job) and its
+# own recipe, deletes both in teardown.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-FOOD-154
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Mint this flow's own ingredient ---------------------------------
+      - runFlow: subflows/go-health-food.yaml
+      # 'SEARCH', NOT 'MY FOODS'. Reproduced live 2026-08-02: the Add Food
+      # redesign grew what renders ABOVE the food list on this screen —
+      # SEARCH (All/Favourites/Most used) / USUALLY AT <time> / LOG TO / ADD
+      # FOOD (the create-food form) all now sit above "MY FOODS"
+      # (HealthFoodLibraryScreen.tsx), so a landing check with no scroll can
+      # no longer reach it. 'SEARCH' is the section label this same landing
+      # check can still make with NO scroll: it is the first thing on the
+      # screen, and `health-food-name-input` right below (the create-food
+      # form) sits above 'MY FOODS' too, so there is nothing to scroll back
+      # up from.
+      - extendedWaitUntil:
+          visible: 'SEARCH'
+          timeout: 15000
+      - tapOn:
+          id: 'health-food-name-input'
+      - inputText: 'Maestro Field Rice'
+      - tapOn:
+          id: 'health-food-calories-input'
+      - inputText: '100'
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `handleSave` → `createFood` (healthFoodStorage.ts) →
+      # `POST /health/custom-foods` (health-food.ts), 201.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-save-button'
+      - scrollUntilVisible:
+          element:
+            text: '100 g · 100 kcal · 0P / 0C / 0F'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /custom-foods
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - runFlow: subflows/go-health-recipes.yaml
+      - extendedWaitUntil:
+          visible: 'NEW RECIPE'
+          timeout: 15000
+      - assertVisible:
+          id: 'health-recipe-ingredients-empty'
+
+      # --- Category picker: baseline, single-select, reset (FOOD-154) -----
+      # Every chip tap here is local-only draft state (`category` in
+      # HealthRecipesScreen.tsx) until Save — same for the prep/cook time
+      # fields further down.
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-category-none'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-recipe-category-none'
+          selected: true
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-category-dairy'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-category-dairy'
+      - assertVisible:
+          id: 'health-recipe-category-dairy'
+          selected: true
+      - assertVisible:
+          id: 'health-recipe-category-none'
+          selected: false
+      # Representative spot check — see the header for why this is not all 13.
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-category-fish'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-category-vegetables'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-category-snacks'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `desserts` is proven for real later, in the edit round trip below.
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-category-other'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-category-other'
+      - assertVisible:
+          id: 'health-recipe-category-other'
+          selected: true
+      - assertVisible:
+          id: 'health-recipe-category-dairy'
+          selected: false
+      # `None` really resets it — `category` goes back to `null`, not just a
+      # visual toggle.
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-category-none'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-category-none'
+      - assertVisible:
+          id: 'health-recipe-category-none'
+          selected: true
+      - assertVisible:
+          id: 'health-recipe-category-other'
+          selected: false
+      # Final pick for the recipe this flow actually saves.
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-category-fruits'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-category-fruits'
+      - assertVisible:
+          id: 'health-recipe-category-fruits'
+          selected: true
+
+      # --- Prep / cook time ------------------------------------------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-prep-time-input'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-prep-time-input'
+      - inputText: '12'
+      - tapOn:
+          id: 'health-recipe-cook-time-input'
+      - inputText: '8'
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'NEW RECIPE'
+
+      # --- The ingredient (single food, no search needed here) ------------
+      - scrollUntilVisible:
+          element:
+            text: 'Use Maestro Field Rice as an ingredient'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-food-.*'
+          text: 'Use Maestro Field Rice as an ingredient'
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-quantity-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-quantity-input'
+      - eraseText
+      - inputText: '150'
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'NEW RECIPE'
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-add-ingredient'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-add-ingredient'
+      - extendedWaitUntil:
+          visible: 'Maestro Field Rice · 150 g'
+          timeout: 15000
+
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-name-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-name-input'
+      - inputText: 'Maestro Field Bowl'
+      # Servings is left at its default (1), so — unlike
+      # recipes-build-and-scale.yaml, whose later servings edit supersedes the
+      # name field's text keyboard with a numeric one it then explicitly
+      # dismisses — there is no later field to blur this one. Dismissed here
+      # instead, before scrolling.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'NEW RECIPE'
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `handleSave` → `createRecipe` (healthFoodStorage.ts) →
+      # `POST /health/recipes` (health-food.ts), 201.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-recipe-save-button'
+      - scrollUntilVisible:
+          element:
+            text: 'Open Maestro Field Bowl, 1 servings, 150 kcal total'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /recipes
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Category + time survive a save → edit reload (FOOD-155) --------
+      # `handleEdit` (tap below) is local-only: it re-populates the form from
+      # the already-loaded `recipes` array in state — no network call.
+      - tapOn:
+          id: 'health-recipe-edit-.*'
+          text: 'Edit Maestro Field Bowl'
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-cancel-edit'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'EDIT RECIPE'
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-category-fruits'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-recipe-category-fruits'
+          selected: true
+      - assertVisible:
+          id: 'health-recipe-category-desserts'
+          selected: false
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-prep-time-input'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-recipe-prep-time-input'
+          text: '12'
+      - assertVisible:
+          id: 'health-recipe-cook-time-input'
+          text: '8'
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-ingredient-0'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Maestro Field Rice · 150 g'
+
+      # --- A category-only change leaves time undisturbed (FOOD-156) ------
+      # SAME edit session, checked BEFORE saving — proves the draft was not
+      # wiped by the category tap, not merely that a fresh save overwrote a
+      # clean slate.
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-category-desserts'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-category-desserts'
+      - assertVisible:
+          id: 'health-recipe-category-desserts'
+          selected: true
+      - assertVisible:
+          id: 'health-recipe-category-fruits'
+          selected: false
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-prep-time-input'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-recipe-prep-time-input'
+          text: '12'
+      - assertVisible:
+          id: 'health-recipe-cook-time-input'
+          text: '8'
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `handleSave` (editingId set) → `updateRecipe` (healthFoodStorage.ts) →
+      # `PUT /health/recipes/:id` (health-food.ts), 200.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-recipe-save-button'
+      # Same name, same servings, same total — only the category moved. A
+      # successful save also leaves edit mode on its own (`resetForm`), so
+      # there is no separate Cancel step needed before teardown.
+      - scrollUntilVisible:
+          element:
+            text: 'Open Maestro Field Bowl, 1 servings, 150 kcal total'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /recipes/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertNotVisible:
+          id: 'health-recipe-cancel-edit'
+
+      # --- Teardown: the recipe, then its ingredient -----------------------
+      # `deleteRecipe`/`deleteFood` (healthFoodStorage.ts) →
+      # `DELETE /health/recipes/:id` / `DELETE /health/custom-foods/:id`
+      # (health-food.ts), 200 each.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-recipe-delete-.*'
+          text: 'Delete Maestro Field Bowl'
+      - extendedWaitUntil:
+          visible: 'Delete recipe'
+          timeout: 15000
+      - assertVisible: 'Remove "Maestro Field Bowl"?'
+      - tapOn:
+          text: 'Delete'
+      - extendedWaitUntil:
+          notVisible: 'Open Maestro Field Bowl.*'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /recipes/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - runFlow: subflows/go-health-food.yaml
+      - scrollUntilVisible:
+          element:
+            text: 'Delete Maestro Field Rice'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-delete-.*'
+          text: 'Delete Maestro Field Rice'
+      - extendedWaitUntil:
+          visible: 'Delete food'
+          timeout: 15000
+      - tapOn:
+          text: 'Delete'
+      - extendedWaitUntil:
+          notVisible: 'Delete Maestro Field Rice'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /custom-foods/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Back to the Health tab ------------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

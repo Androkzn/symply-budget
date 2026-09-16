@@ -1,0 +1,84 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home
+  - readonly
+  - regression
+# Matrix: HOUSE-HOME-003
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+# Not just "the numbers rendered" — force a fresh fetch (pull-to-refresh) and
+# verify the tasks call backing the overdue/due stats actually returned 2xx.
+# A stale/cached UI can pass the visibility+NaN checks below even while the
+# live network call is silently failing (see 2026-07-31 token-refresh hang).
+- runFlow:
+    file: ../subflows/e2e-clear-log.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+# e2e-clear-log's openLink can trigger iOS's "Open in …?" interstitial over
+# the Dev Client — dismiss it before the swipe interacts with the screen.
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- swipe:
+    start: 50%, 30%
+    end: 50%, 80%
+- waitForAnimationToEnd:
+    timeout: 4000
+# The strip's figures come from the LEDGER under local-first — see the same
+# note in `home/home-screen-gaps.yaml`. Asserting `GET /tasks/upcoming → 200`
+# here outlived the request it was checking for.
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_VERIFY_METHOD: GET
+      E2E_VERIFY_PATH: /tasks/upcoming
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 5000
+- runFlow:
+    when:
+      visible:
+        id: 'home-stat-overdue'
+    commands:
+      - assertVisible:
+          id: 'home-stat-overdue'
+      - assertNotVisible: 'NaN'
+- runFlow:
+    when:
+      visible:
+        id: 'home-stat-due'
+    commands:
+      - assertVisible:
+          id: 'home-stat-due'
+      - assertNotVisible: 'NaN'
+- runFlow:
+    when:
+      visible:
+        id: 'home-stat-budget'
+    commands:
+      - assertVisible:
+          id: 'home-stat-budget'
+      - assertNotVisible: 'NaN'
+- runFlow:
+    when:
+      visible:
+        id: 'home-stat-garbage'
+    commands:
+      - assertVisible:
+          id: 'home-stat-garbage'
+      - assertNotVisible: 'NaN'
+- runFlow:
+    when:
+      visible:
+        id: 'home-stat-weather'
+    commands:
+      - assertVisible:
+          id: 'home-stat-weather'

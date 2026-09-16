@@ -1,0 +1,42 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Switch to the Water tab (route health-water, label Water, header "Water").
+#
+# Same shape as go-health-fridge.yaml, and for the same reason: Water ships
+# `defaultHidden: true` in brands/symply-health/brand.cjs (donor parity — the
+# donor's `defaultTabs` excluded it too), so there is NO `tab-health-water` to
+# tap. It lives in the More hub's "MORE TABS" section until the member pins it,
+# and routing through the hub is the point: an unpinned tab that cannot be
+# reached is a lost feature.
+#
+# WHY THIS TAB MATTERS: it is the only surface that can log a real volume. The
+# ±1-cup counters on Home and Nutrition can only ever mean 240 ml, so a 500 ml
+# bottle is unrecordable anywhere else.
+- runFlow: go-more.yaml
+# Water is the FIRST overflow row on the shipped brand pack, so it is usually
+# already on screen — but a preceding flow may have left the hub scrolled, so
+# both directions are probed and both are optional.
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-health-water'
+    direction: UP
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-health-water'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- tapOn:
+    id: 'more-tab-health-water'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-water-screen'
+    timeout: 30000

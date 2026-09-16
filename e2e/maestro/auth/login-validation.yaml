@@ -1,0 +1,100 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - regression
+  - mutation
+# Matrix: HOUSE-AUTH-005, HOUSE-AUTH-023
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-AUTH-005
+# Login validation + wrong password + password visibility toggle.
+- runFlow: ../subflows/launch-logged-out.yaml
+- tapOn:
+    id: 'auth-sign-in-email'
+- extendedWaitUntil:
+    visible:
+      id: 'auth-sign-in-submit'
+    timeout: 10000
+# Empty submit — client validation, no network. Verify that claim instead of
+# just asserting the form is still there (which would also be true if a
+# real POST fired and simply failed for some other reason).
+- runFlow:
+    file: ../subflows/e2e-clear-log.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- tapOn:
+    id: 'auth-sign-in-submit'
+- assertVisible:
+    id: 'auth-email-input'
+- assertVisible:
+    id: 'auth-sign-in-submit'
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /auth/login
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 5000
+# Password visibility toggle
+- tapOn:
+    id: 'auth-email-input'
+- inputText: 'validation@example.com'
+# NOT `hideKeyboard` on either field here. It fails outright on iPad — Maestro
+# reports "Couldn't hide the keyboard … the app uses a custom input or doesn't
+# expose a standard dismiss action" — and a failed `hideKeyboard` aborts the
+# whole flow rather than warning, so it took the assertions below with it.
+#
+# It is an iPad-only failure, which is why this read as a password-field bug
+# rather than a keyboard one: the email call succeeded and only the second one
+# died. The iPad hierarchy carries keyboard chrome the iPhone has no equivalent
+# for — an `inputAssistantView` autofill bar sitting above the keys, a `Done`
+# return key, and a separate `Hide keyboard` key — and Maestro's dismiss action
+# matches none of them.
+#
+# Tapping a neutral point above the form is Maestro's own suggested workaround
+# and the same fix `subflows/house-adopt-or-start-home.yaml` already carries for
+# this exact error. 12% down is the brand lockup on this screen — no touchable
+# lives there on any form factor (Login has no nav header, and the Apple/Google
+# buttons start well below the logo) — and the form's ScrollView is
+# `keyboardShouldPersistTaps="handled"`, so a tap that nothing handles is
+# precisely what dismisses the keyboard.
+- tapOn:
+    point: '50%,12%'
+- waitForAnimationToEnd:
+    timeout: 1000
+- tapOn:
+    id: 'auth-password-input'
+- inputText: 'TestPass123!'
+# Same workaround, same reason — this is the call that actually failed on iPad.
+- tapOn:
+    point: '50%,12%'
+- waitForAnimationToEnd:
+    timeout: 1000
+- assertVisible:
+    id: 'auth-email-input'
+    text: 'validation@example.com'
+- tapOn:
+    id: 'auth-password-toggle'
+- tapOn:
+    id: 'auth-password-toggle'
+- assertVisible:
+    id: 'auth-password-input'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

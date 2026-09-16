@@ -1,0 +1,78 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:garden
+  - readonly
+  - regression
+# Matrix: HOUSE-GARD-021 (map wizard is reachable from Add yard plan)
+---
+# THE ORPHANED-SURFACE GUARD.
+#
+# `GardenPlanMapWizardScreen` is registered in `GardeningNavigator` and reachable
+# from exactly one control: the `garden-plan-source-map` card on `Add yard plan`.
+# A screen that is registered, fully tested in unit tests, and reachable by
+# nobody is a failure this repo has shipped before — and it is invisible to
+# every other kind of test, because the screen itself works perfectly.
+#
+# This flow therefore asserts the ROUTE, not the screen's behaviour: the card
+# exists, it is on the upload screen (not buried), and tapping it arrives.
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-GARD-021
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-gardening.yaml
+- assertVisible:
+    id: 'garden-plans-screen'
+- tapOn:
+    id: 'garden-plans-add-button'
+- extendedWaitUntil:
+    visible: 'Add yard plan'
+    timeout: 25000
+
+# The map card is offered FIRST and as the primary action, above the file
+# pickers. That ordering is a product decision with a hard reason behind it —
+# under local-first the upload path below cannot create anything at all, because
+# `getUploadUrl` (where the `garden_plans` row is born) throws with no bucket to
+# presign into. Asserting all four sources together is what would catch a
+# refactor that quietly drops the map card back below the fold.
+- assertVisible:
+    id: 'garden-plan-source-map'
+# Regex, not a bare literal. iOS MERGES a Touchable's children into ONE
+# accessibility string, so this card can surface as
+# "Draw on the map, Trace your lot on satellite imagery, …" — and Maestro
+# matches the WHOLE string. The literal passed in one run and failed in the
+# next on the same build, which is exactly what intermittent merging looks
+# like. The id above proves the card exists; this proves the COPY is right,
+# without depending on how iOS decided to group it that time.
+- assertVisible: '.*Draw on the map.*'
+- assertVisible:
+    id: 'garden-plan-source-camera'
+- assertVisible:
+    id: 'garden-plan-source-file'
+
+- tapOn:
+    id: 'garden-plan-source-map'
+- extendedWaitUntil:
+    notVisible:
+      id: 'garden-map-wizard-locating'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plan-map-wizard-screen'
+    timeout: 30000
+
+# Step one. Asserted by the step-suffixed panel id rather than the header title,
+# because "Areas" is both a step title and a stat label in the same panel — a
+# text match on the step is ambiguous by construction.
+- assertVisible:
+    id: 'garden-map-wizard-panel-lot'
+- assertVisible:
+    id: 'garden-map-wizard-panel'
+
+- runFlow: ../subflows/exit-garden-map-wizard.yaml
+- assertVisible:
+    id: 'garden-plans-screen'

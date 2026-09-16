@@ -1,0 +1,112 @@
+appId: ${APP_ID}
+tags:
+  - util
+  - app:house
+---
+# Pop any screens a PREVIOUS flow left pushed, so this flow starts at a root.
+#
+# `launch-logged-in.yaml` is a SOFT launch by design ("avoid stopApp between
+# flows"), so each flow inherits the previous flow's navigation stack. The file
+# already compensates for one form of leakage (dismiss-byok-modal.yaml, "a BYOK
+# modal raised by the PREVIOUS flow is still up"); pushed screens are the same
+# problem.
+#
+# KEYED ON THE DESTINATION, NOT ON A BACK BUTTON.
+# The first version fired only `when visible: nav-back-button`. That is the
+# SHARED id (BackButton.tsx:63 via ScreenHeader.tsx:237), but screens override
+# it: MaterialDetailScreen.tsx:615 publishes `material-detail-back` and NOTHING
+# else. Verified on House-A 2026-09-01 run 231334 — the app was parked on
+# `material-detail-screen`, `nav-back-button` appeared ZERO times in the
+# hierarchy, the guard no-opped, and the flow died anyway. A recovery step that
+# only recovers from the case already debugged is worse than none, because it
+# reads as covered. The condition is now the thing actually required — Home is
+# not up yet — so it covers every route, including ones added later.
+#
+# SCOPE, STATED HONESTLY: this unwinds only the stack that is ON SCREEN. Tabs
+# host INDEPENDENT navigators (app/(tabs)/settings.tsx wraps SettingsNavigator
+# in NavigationIndependentTree) which keep their history while unfocused, so
+# residue in a tab you are not looking at is invisible here. That is why
+# `property-assessment-history`, `property-notice-import` and
+# `household-management` died on `settings-screen` while Home was reachable:
+# the Settings stack was still serving PropertyDetail. Fixing that belongs in
+# go-<tab>.yaml or in the tab host, not in this file.
+
+# A presented sheet HIDES the pushed screen under it, and every guard sampled
+# through it is false. `home-projects-deferred-readonly` launched onto the
+# "Add from link" sheet (House-iPad run 223323, step-057: only
+# `bottom-sheet-frame`, no back button, no `tab-index`) and this file was a
+# no-op the whole way. Clear the sheet before concluding there is no residue.
+- runFlow: dismiss-stuck-sheet.yaml
+
+# The map wizard is the one pushed screen the loop below CANNOT unwind, for two
+# reasons that compound:
+#
+#  - the loop is guarded on `tab-index` being visible, and the wizard is a
+#    full-screen map with the tab bar hidden — so the whole block no-ops;
+#  - backing out of it does not pop. It raises a native `Discard this plan?`
+#    alert and waits, and while that alert is up every tap underneath is
+#    swallowed while Maestro (which does not test occlusion) reports each one as
+#    landing fine.
+#
+# Measured on House-B run 230304: `garden-map-wizard-zones` died on step two
+# with the wizard still up, and the next THREE flows — including
+# `garden-plan-add`, which knows nothing about the wizard — all failed on
+# `garden-plans-screen is visible`, fifteen steps from the cause. Recovery has
+# to live here, in the shared teardown, or one flow's failure keeps taking the
+# rest of the suite with it.
+- runFlow: dismiss-garden-map-wizard.yaml
+
+# Give a merely-slow launch its chance before treating it as residue.
+- extendedWaitUntil:
+    visible:
+      id: 'home-screen'
+    timeout: 3000
+    optional: true
+
+- repeat:
+    times: 5
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'home-screen'
+            # Only inside the authenticated shell. `tab-index` is the cheapest
+            # proof of it, and keeps blind back-taps off the login and
+            # onboarding stacks where a pop would rewind a wizard step.
+            visible:
+              id: 'tab-index'
+          commands:
+            # NEVER tap under the local-first recovery overlay.
+            # `app/_layout.tsx:646` renders HouseRecoverHomeScreen ON TOP of
+            # <Stack />, and Maestro does not test occlusion — the covered
+            # screen's back button is still "visible" and the tap lands on a
+            # recovery row. This subflow runs ~100 lines BEFORE the recovery
+            # handling in launch-logged-in.yaml, so it must self-guard.
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'house-recover-home-screen'
+                commands:
+                  - tapOn:
+                      id: 'nav-back-button'
+                      optional: true
+                  # MaterialDetailScreen overrides the shared id.
+                  - tapOn:
+                      id: 'material-detail-back'
+                      optional: true
+                  # Backing out of a DIRTY form raises useUnsavedChanges.ts:135
+                  # ("Unsaved changes" / Keep editing / Discard). Left
+                  # unanswered it blocks every later step; this is teardown of a
+                  # failed flow's residue, never a real edit.
+                  - runFlow:
+                      when:
+                        visible: 'Discard'
+                      commands:
+                        - tapOn: 'Discard'
+                  # 1500ms, not 1200: the identical loop in go-tasks-tab.yaml
+                  # still lost iterations to the animation window at 1500, and
+                  # 5 repeats (not 4) because the Projects stack can legitimately
+                  # be 4 deep — list -> hub -> MaterialDetail -> ChatRoom ->
+                  # ChatRoomSettings — leaving no slack at 4.
+                  - waitForAnimationToEnd:
+                      timeout: 1500

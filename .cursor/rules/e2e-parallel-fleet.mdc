@@ -1,0 +1,54 @@
+---
+description: Parallel fleet Maestro E2E — five apps, five sims; never global-pkill Maestro
+alwaysApply: true
+---
+
+# Parallel fleet E2E
+
+House, Budget, Kaizen, Language, and Health **run in parallel** — each on its own simulator and Metro port.
+
+| Brand | Simulator | Metro | Scoped kill |
+|-------|-----------|-------|-------------|
+| house | House-A | :8083 | `scripts/e2e/maestro-scoped-kill.sh house` |
+| budget | Budget-A | :8082 | `… maestro-scoped-kill.sh budget` |
+| kaizen | Kaizen-A | :8081 | `… maestro-scoped-kill.sh kaizen` |
+| language | Language-A | :8084 | `… maestro-scoped-kill.sh language` |
+| health | Health-A | :8085 | `… maestro-scoped-kill.sh health` |
+
+## Forbidden
+
+Never run global Maestro cleanup:
+
+```bash
+# BAD — kills all five brands mid-run
+pkill -9 -f 'maestro.cli|maestro-driver|run-house|run-budget|run-health|run-kaizen|run-language'
+pkill -f 'maestro.cli.AppKt'
+```
+
+Never shut down other brands' simulators when resetting one brand.
+
+## Allowed
+
+- Preflight (sims + Metro + app install): `scripts/e2e/preflight-fleet-parallel.sh`
+- Start all five suites: `scripts/e2e/run-fleet-parallel.sh` (preflights, then sets `E2E_PARALLEL_FLEET=1`, `E2E_DEDICATED_SIM=0`, `E2E_MAESTRO_LOCK=0` — each brand keeps its own sim + Metro + Maestro driver)
+- Reset **one** brand: `scripts/e2e/maestro-scoped-kill.sh <brand>`
+- `E2E_MAESTRO_CLEANUP=0` during runs (default in `setup-maestro-cleanup.sh`)
+- Single-brand runs use exclusive sim mode (`E2E_DEDICATED_SIM=1` default) — shuts down other fleet sims
+
+## Parallel fleet quick start
+
+```bash
+eval "$(./scripts/secrets/export-env.sh)"
+npm run start:kaizen   -- --port 8081 &
+npm run start:budget   -- --port 8082 &
+npm run start:house    -- --port 8083 &
+npm run start:language -- --port 8084 &
+npm run start:health   -- --port 8085 &
+./scripts/e2e/run-fleet-parallel.sh
+```
+
+Preflight auto-creates missing fleet iPhone sims when `E2E_AUTO_CREATE_SIM=1` (default). Set `E2E_PREFLIGHT_STRICT=0` to skip app-install checks.
+
+## Agents
+
+When retrying or priming a single brand, use that brand's scoped kill only. Do not wait for other brands to finish before starting House (or any) Maestro.

@@ -1,0 +1,461 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:cycle
+  - mutation
+  - regression
+# Matrix: HEALTH-CYCLE-101 … HEALTH-CYCLE-110
+---
+# Cycle tab (header "Women's Health") — the donor's `WomensHealthView`. Period
+# days, a daily mood / energy / sleep / symptom / craving log, and
+# calendar-arithmetic predictions for the next period and the fertile window.
+#
+# The tab ships `defaultHidden`, so this flow enters through the More hub rather
+# than the tab bar (subflows/go-health-cycle.yaml).
+#
+# GATED / SKIPS-GRACEFULLY: the body is wrapped in
+# `runFlow: when: visible: health-home-screen` so it runs only when the installed
+# app already holds a session (same contract as nutrition-log-meal.yaml).
+#
+# RE-RUNNABILITY: removing a period day RE-ANCHORS `last_period_start` to the
+# last remaining run start, or clears it only when nothing is left (see
+# health-service.ts `removePeriodDay`), so the "no anchor" empty state is only
+# reachable on a virgin account. The TODAY card is therefore asserted as a
+# two-branch invariant — exactly one of {empty state, day+phase} must hold —
+# instead of a precondition that can only pass once. Both branches assert, so
+# neither is vacuous.
+#
+# ## 2026-07-26: the screen grew, and so did the scrolling
+#
+# The tab gained a CALENDAR card and a WHAT'S COMING card between the TODAY card
+# and the flow chips, and the log card gained a third scale row (Sleep). Two
+# consequences for this flow:
+#
+#   * every hop is now several screens, which is exactly the length at which
+#     `scrollUntilVisible` was measured to move an RN New-Architecture ScrollView
+#     zero pixels on this build — so every hop routes through
+#     `subflows/health-swipe-section-to.yaml` (raw repeated swipes, hard
+#     `assertVisible` at the end);
+#   * the flow and symptom cards follow the SELECTED day rather than always
+#     today, so the remove affordance is `health-cycle-remove-selected` and the
+#     card states which day it is pointed at in `health-cycle-selected-date`.
+#     This flow never moves the selection, so that value must stay `Today` — and
+#     asserting it is what proves the write landed on today rather than on
+#     whatever day a previous flow left selected.
+#
+# The calendar, the upcoming dates, the sleep row and the per-phase pattern line
+# are owned by `cycle-calendar-and-upcoming.yaml`, not by this flow.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-CYCLE-101
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Opens from the More hub, not the tab bar (HEALTH-CYCLE-101) ----
+      - runFlow: subflows/go-health-cycle.yaml
+      - assertVisible: "Women's Health"
+      - assertVisible: 'TODAY'
+      # The tab is reachable but NOT pinned — the hub is the only door.
+      - assertNotVisible:
+          id: 'tab-health-cycle'
+
+      # --- TODAY card is in exactly one of two states (HEALTH-CYCLE-102) --
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-cycle-day'
+          commands:
+            - assertVisible:
+                id: 'health-cycle-no-anchor'
+            - assertVisible: 'Log a period day below to start tracking your cycle.'
+      - runFlow:
+          when:
+            visible:
+              id: 'health-cycle-day'
+          commands:
+            - assertNotVisible:
+                id: 'health-cycle-no-anchor'
+            - assertVisible:
+                id: 'health-cycle-phase'
+
+      # --- Log a medium flow day (HEALTH-CYCLE-103) -----------------------
+      # handleFlow() (HealthCycleScreen.tsx) → logPeriodDay() →
+      # healthApi.logPeriodDay() → POST /health/cycle/periods, 200 on success.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-cycle-flow-medium'
+            SCROLL_DIR: down
+      # The card is pointed at TODAY on entry and this flow never moves the
+      # selection, so the write below has to land on today. Asserting the day
+      # BEFORE the tap is what makes that a proof rather than an assumption.
+      - assertVisible:
+          id: 'health-cycle-selected-date'
+          text: 'Today'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-flow-medium'
+      # The card header flips from the call to action to the logged state, and
+      # the remove affordance appears — both prove the write landed, not just
+      # the tap.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-remove-selected'
+          timeout: 15000
+      - assertVisible: 'FLOW'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /cycle/periods
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Cycle day + phase resolve (HEALTH-CYCLE-104) -------------------
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-cycle-day'
+            SCROLL_DIR: up
+      - assertVisible:
+          id: 'health-cycle-day'
+          text: 'Day \d+'
+      - assertVisible:
+          id: 'health-cycle-phase'
+          text: '(Period|Follicular|Ovulation|Luteal)'
+      # The empty state cannot coexist with a resolved cycle day.
+      - assertNotVisible:
+          id: 'health-cycle-no-anchor'
+
+      # --- Prediction tiles carry real values (HEALTH-CYCLE-105) ---------
+      # A dashed tile ("—") means the prediction never resolved, so the tiles are
+      # asserted on their CONTENT, not merely on being on screen.
+      - assertVisible:
+          id: 'health-cycle-next-period'
+          text: '.*in \d+d.*'
+      - assertVisible:
+          id: 'health-cycle-fertile-window'
+          text: '.*\d{4}-\d{2}-\d{2}.*'
+      - assertVisible:
+          id: 'health-cycle-average'
+
+      # --- The wellness disclaimer is on the prediction card (HEALTH-CYCLE-106)
+      # Positioning is wellness, not contraception — this string is a product
+      # requirement, not decoration.
+      - assertVisible: 'Predictions are estimates.*not medical or contraceptive advice.*'
+
+      # --- Mood + energy write the daily log (HEALTH-CYCLE-107) ----------
+      # `persist({mood}/{energy})` (HealthCycleScreen.tsx) → saveCycleSymptomEntry()
+      # → healthApi.saveCycleSymptoms() → PUT /health/cycle/symptoms, 200 on
+      # success. Two separate writes, cleared and verified individually so the
+      # energy tap cannot be "proven" by the mood tap's leftover call.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-cycle-mood-3'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-mood-3'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-mood-value'
+            text: '3/5'
+          timeout: 10000
+      # The hint renders the donor's label for the chosen level.
+      - assertVisible: '.*Neutral.*'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /cycle/symptoms
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-energy-4'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-energy-value'
+            text: '4/5'
+          timeout: 10000
+      - assertVisible: 'Energetic'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /cycle/symptoms
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- One chip cycles a symptom's severity (HEALTH-CYCLE-108) -------
+      # Tapping walks none → mild → moderate → severe → none, so the 4th tap is
+      # both the last assertion and the teardown for this control.
+      # `handleSymptom()` (HealthCycleScreen.tsx) → `persist({symptoms})` →
+      # saveCycleSymptomEntry() → healthApi.saveCycleSymptoms() → PUT
+      # /health/cycle/symptoms, 200 on success. Each of the four taps is its
+      # own write, cleared and verified separately — otherwise a stale PASS
+      # from an earlier tap could hide a later tap firing nothing.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-cycle-symptom-cramps'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-symptom-cramps'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-symptom-cramps'
+            text: 'Cramps.*Mild.*'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /cycle/symptoms
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-symptom-cramps'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-symptom-cramps'
+            text: 'Cramps.*Moderate.*'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /cycle/symptoms
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-symptom-cramps'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-symptom-cramps'
+            text: 'Cramps.*Severe.*'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /cycle/symptoms
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-symptom-cramps'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-cycle-symptom-cramps'
+            text: 'Cramps.*Severe.*'
+          timeout: 10000
+      # The chip itself survives the round trip — it wraps, it does not vanish.
+      - assertVisible:
+          id: 'health-cycle-symptom-cramps'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /cycle/symptoms
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Cravings are single-select (HEALTH-CYCLE-109) -----------------
+      # `persist({craving})` (HealthCycleScreen.tsx) → saveCycleSymptomEntry()
+      # → healthApi.saveCycleSymptoms() → PUT /health/cycle/symptoms, 200 on
+      # success — two writes, verified individually.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-cycle-craving-chocolate'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-craving-chocolate'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-craving-chocolate'
+            selected: true
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /cycle/symptoms
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Teardown for the craving: back to the neutral default, which also proves
+      # the row is single-select rather than a set of independent toggles.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-craving-none'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-cycle-craving-none'
+            selected: true
+          timeout: 10000
+      - assertNotVisible:
+          id: 'health-cycle-craving-chocolate'
+          selected: true
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /cycle/symptoms
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Teardown: remove today's period day (HEALTH-CYCLE-110) --------
+      # Mood/energy stay at 3/4 for today (the screen has no "unset" for a
+      # scale), but they are idempotent — a re-run taps the same levels. The
+      # period day is the destructive part, so it is what gets removed.
+      # handleRemovePeriod() → removePeriodDay() → healthApi.removePeriodDay()
+      # → DELETE /health/cycle/periods/:date, 200 on success.
+      #
+      # The affordance sits ABOVE the symptom card the flow has just scrolled
+      # past, so the hop is upwards.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-cycle-remove-selected'
+            SCROLL_DIR: up
+      # Still pointed at today — the day this flow logged is the day it removes.
+      - assertVisible:
+          id: 'health-cycle-selected-date'
+          text: 'Today'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-cycle-remove-selected'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-cycle-remove-selected'
+          timeout: 15000
+      - assertVisible: 'LOG A PERIOD DAY'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /cycle/periods/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Back to the Health tab ----------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

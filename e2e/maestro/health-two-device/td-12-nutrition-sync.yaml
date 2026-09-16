@@ -1,0 +1,289 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+  - feature:nutrition
+  - mutation
+# Matrix: HEALTH-TD-012 — Wave A table 3/8: `nutritionEntries`
+# (`nutrition_entries`).
+#
+# The inline composer on the Nutrition tab, MANUAL mode. Not the Add Food screen
+# and not a library/barcode path: those go through FatSecret, which is a Tier B
+# Worker chokepoint (plan §1.4) and would put a server round-trip in the middle
+# of a ledger convergence assertion.
+#
+# `addMode` is a SCREEN-level `useState`, not per-slot, so the Manual tap has to
+# happen after the slot tap and it then holds for the whole flow.
+#
+# ROW SELECTION ON MODIFY/DELETE. Meal rows carry server-minted ids
+# (`health-meal-item-${id}` / `health-meal-more-${id}`) that are unknowable from
+# here, so the overflow menu is opened at `index: 0`. That guess is NOT what the
+# assertion rests on: the modify leg requires the OLD marker to be gone
+# afterwards, so an edit that landed on the wrong row fails rather than passing
+# quietly.
+#
+# env: TD_ROLE, TD_PHASE, TD_MARK (meal name), TD_MARK2 (renamed meal),
+#      TD_VALUE / TD_VALUE2 (kcal), TD_EXPECT
+---
+- runFlow: td-launch.yaml
+
+# ==========================================================================
+# WRITE — device A
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'write'}
+    commands:
+      - runFlow: ../health/subflows/go-health-nutrition.yaml
+
+      # --- create ---------------------------------------------------------
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'create'}
+          commands:
+            - runFlow:
+                file: ../health/subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: health-add-food-toggle
+                  SCROLL_DIR: down
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-add-food-mode-quick'
+                commands:
+                  - tapOn:
+                      id: 'health-add-food-toggle'
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'health-add-food-mode-quick'
+                      timeout: 15000
+            - runFlow:
+                file: ../health/subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: health-meal-slot-lunch
+                  SCROLL_DIR: down
+            - tapOn:
+                id: 'health-meal-slot-lunch'
+            # ADD FOOD opens on Quick; `health-meal-name-input` only mounts once
+            # Manual is selected. Without this tap the field never exists at all.
+            - tapOn:
+                id: 'health-add-food-mode-manual'
+            - runFlow:
+                file: ../health/subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: health-meal-name-input
+                  SCROLL_DIR: down
+            - tapOn:
+                id: 'health-meal-name-input'
+            - inputText: ${TD_MARK}
+            # DISMISS BEFORE THE FIRST NUMERIC TAP, not after: the name field's
+            # QWERTY keyboard physically covers the kcal/P/C/F row, and
+            # `automaticallyAdjustKeyboardInsets` only re-scrolls for the field
+            # that is ALREADY focused — so the tap lands on the keyboard.
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'ADD FOOD'
+            - tapOn:
+                id: 'health-meal-calories-input'
+            - inputText: ${TD_VALUE}
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'ADD FOOD'
+            - tapOn:
+                id: 'health-meal-add-button'
+            - extendedWaitUntil:
+                visible: '.*${TD_MARK}.*'
+                timeout: 30000
+            - assertVisible: '.*${TD_MARK}.*'
+
+      # --- modify ---------------------------------------------------------
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'modify'}
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-meal-detail-lunch'
+                commands:
+                  - runFlow:
+                      file: ../health/subflows/health-swipe-section-to.yaml
+                      env:
+                        TARGET_ID: health-meal-group-lunch-toggle
+                        SCROLL_DIR: down
+                  - tapOn:
+                      id: 'health-meal-group-lunch-toggle'
+                  - waitForAnimationToEnd:
+                      timeout: 2500
+            - extendedWaitUntil:
+                visible: '.*${TD_MARK}.*'
+                timeout: 30000
+            - tapOn:
+                id: 'health-meal-more-.*'
+                index: 0
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-meal-menu-.*'
+                timeout: 15000
+            - tapOn:
+                id: 'health-meal-menu-edit-.*'
+                index: 0
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-meal-edit-name-.*'
+                timeout: 15000
+            - tapOn:
+                id: 'health-meal-edit-name-.*'
+                index: 0
+            - eraseText: 60
+            - inputText: ${TD_MARK2}
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'LUNCH'
+            - tapOn:
+                id: 'health-meal-edit-calories-.*'
+                index: 0
+            - eraseText: 12
+            - inputText: ${TD_VALUE2}
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'LUNCH'
+            - tapOn:
+                id: 'health-meal-edit-save-.*'
+                index: 0
+            - extendedWaitUntil:
+                visible: '.*${TD_MARK2}.*'
+                timeout: 30000
+            # The safety net for the `index: 0` guess above.
+            - assertNotVisible: '.*${TD_MARK}.*'
+
+      # --- delete ---------------------------------------------------------
+      # A SINGLE-row delete raises no alert (the `Delete N items` /
+      # `This cannot be undone.` confirm belongs to the bulk-selection path).
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'delete'}
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-meal-detail-lunch'
+                commands:
+                  - runFlow:
+                      file: ../health/subflows/health-swipe-section-to.yaml
+                      env:
+                        TARGET_ID: health-meal-group-lunch-toggle
+                        SCROLL_DIR: down
+                  - tapOn:
+                      id: 'health-meal-group-lunch-toggle'
+                  - waitForAnimationToEnd:
+                      timeout: 2500
+            - extendedWaitUntil:
+                visible: '.*${TD_MARK2}.*'
+                timeout: 30000
+            - tapOn:
+                id: 'health-meal-more-.*'
+                index: 0
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-meal-menu-.*'
+                timeout: 15000
+            - tapOn:
+                id: 'health-meal-menu-delete-.*'
+                index: 0
+            - extendedWaitUntil:
+                notVisible: '.*${TD_MARK2}.*'
+                timeout: 30000
+            - assertNotVisible: '.*${TD_MARK2}.*'
+
+      - runFlow: td-sync-nudge.yaml
+
+# ==========================================================================
+# OBSERVE — device B
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'observe'}
+    commands:
+      - runFlow: ../health/subflows/go-health-nutrition.yaml
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-meal-detail-lunch'
+          commands:
+            - runFlow:
+                file: ../health/subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: health-meal-group-lunch-toggle
+                  SCROLL_DIR: down
+            - tapOn:
+                id: 'health-meal-group-lunch-toggle'
+            - waitForAnimationToEnd:
+                timeout: 2500
+      - runFlow:
+          when:
+            true: ${TD_PHASE != 'delete'}
+          commands:
+            - repeat:
+                times: 20
+                commands:
+                  - runFlow:
+                      when:
+                        notVisible: '.*${TD_EXPECT}.*'
+                      commands:
+                        - runFlow: td-sync-nudge.yaml
+                        - runFlow: ../health/subflows/go-health-nutrition.yaml
+                        - runFlow:
+                            when:
+                              notVisible:
+                                id: 'health-meal-detail-lunch'
+                            commands:
+                              - runFlow:
+                                  file: ../health/subflows/health-swipe-section-to.yaml
+                                  env:
+                                    TARGET_ID: health-meal-group-lunch-toggle
+                                    SCROLL_DIR: down
+                              - tapOn:
+                                  id: 'health-meal-group-lunch-toggle'
+                              - waitForAnimationToEnd:
+                                  timeout: 2500
+            - extendedWaitUntil:
+                visible: '.*${TD_EXPECT}.*'
+                timeout: 45000
+            - assertVisible: '.*${TD_EXPECT}.*'
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'delete'}
+          commands:
+            - repeat:
+                times: 20
+                commands:
+                  - runFlow:
+                      when:
+                        visible: '.*${TD_EXPECT}.*'
+                      commands:
+                        - runFlow: td-sync-nudge.yaml
+                        - runFlow: ../health/subflows/go-health-nutrition.yaml
+                        - runFlow:
+                            when:
+                              notVisible:
+                                id: 'health-meal-detail-lunch'
+                            commands:
+                              - runFlow:
+                                  file: ../health/subflows/health-swipe-section-to.yaml
+                                  env:
+                                    TARGET_ID: health-meal-group-lunch-toggle
+                                    SCROLL_DIR: down
+                              - tapOn:
+                                  id: 'health-meal-group-lunch-toggle'
+                              - waitForAnimationToEnd:
+                                  timeout: 2500
+            - extendedWaitUntil:
+                notVisible: '.*${TD_EXPECT}.*'
+                timeout: 45000
+            - assertNotVisible: '.*${TD_EXPECT}.*'

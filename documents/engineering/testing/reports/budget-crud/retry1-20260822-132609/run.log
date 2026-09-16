@@ -1,0 +1,87 @@
+
+=== budget-item-form ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+[sim-guard] Budget-C is 4557 MB (cap 3000 MB) but a suite is IN FLIGHT — refusing to erase
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Failed] budget-item-form (4m 29s) (Assertion is false: id: budget-item-when-sheet-asap is visible)
+
+1/1 Flow Failed
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+[sim-guard] Budget-C is 4591 MB (cap 3000 MB) but a suite is IN FLIGHT — refusing to erase
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+IOSDriverTimeoutException: no output for 420s — maestro-flow-run watchdog killed the run
+
+=== budget-plan-delete ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+[sim-guard] Budget-C is 4653 MB (cap 3000 MB) but a suite is IN FLIGHT — refusing to erase
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-plan-delete (4m 44s)
+
+1/1 Flow Passed in 4m 44s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+[sim-guard] Budget-C is 4698 MB (cap 3000 MB) but a suite is IN FLIGHT — refusing to erase
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (48s)
+
+1/1 Flow Passed in 48s
+
+
+=== budget-receipt-scan-save ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+[sim-guard] Budget-C is 4727 MB (cap 3000 MB) but a suite is IN FLIGHT — refusing to erase
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Failed] budget-receipt-scan-save (4m 21s) (Couldn't hide the keyboard. This can happen if the app uses a custom input or doesn't expose a standard dismiss action.)
+
+1/1 Flow Failed
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+[sim-guard] Budget-C is 4772 MB (cap 3000 MB) but a suite is IN FLIGHT — refusing to erase
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Failed] budget-receipt-scan-save (4m 25s) (Couldn't hide the keyboard. This can happen if the app uses a custom input or doesn't expose a standard dismiss action.)
+
+1/1 Flow Failed
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+[sim-guard] Budget-C is 4818 MB (cap 3000 MB) but a suite is IN FLIGHT — refusing to erase
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (2m 1s)
+
+1/1 Flow Passed in 2m 1s
+

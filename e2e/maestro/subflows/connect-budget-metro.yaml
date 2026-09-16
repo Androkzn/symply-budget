@@ -1,0 +1,29 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Force Expo Dev Client to load JS from Budget Metro (:8082).
+- runFlow:
+    when:
+      visible: 'DEVELOPMENT SERVERS'
+    commands:
+      - tapOn:
+          text: '.*8082.*'
+          optional: true
+      - tapOn:
+          text: '.*:8082'
+          optional: true
+      - tapOn:
+          text: '.*localhost.*8082.*'
+          optional: true
+      - tapOn:
+          text: '127.0.0.1'
+          optional: true
+      - tapOn:
+          point: '50%,38%'
+          optional: true
+      - openLink: ${E2E_METRO_DEVCLIENT_URL}
+      - waitForAnimationToEnd:
+          timeout: 15000
+- runFlow: budget-dismiss-expo-dev-chrome.yaml

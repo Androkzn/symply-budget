@@ -1,0 +1,51 @@
+appId: com.symply.language
+tags:
+  - app:language
+  - feature:onboarding
+  - readonly
+  - regression
+  - smoke
+# Matrix: LANGUAGE-onboarding (see documents/engineering/testing/matrices/)
+---
+# Onboarding NUX: pick native language + motivations + finish → assert nav to Learn.
+# The Language NUX (LanguageOnboardingScreen) has NO root testID (audit gap); it is
+# matched by copy ("Welcome to", "Start learning", the chips). It only appears for a
+# not-yet-onboarded account — the shared test account is already onboarded and
+# registration is disabled, so on most sims this asserts we land straight on Learn.
+# finish() fires PUT /learner/profile then router.replace('/') → Learn home.
+# TODO(testIDs): add `language-onboarding-screen` root testID + chip/CTA testIDs.
+- launchApp:
+    clearState: false
+- runFlow: subflows/language-login-if-needed.yaml
+# Path A — the NUX is showing: complete it and assert we reach Learn.
+- runFlow:
+    when:
+      visible: 'Start learning'
+    commands:
+      - assertVisible: 'Welcome to'
+      - assertVisible: 'Spanish'
+      - assertVisible: 'French'
+      - assertVisible: 'Travel'
+      - assertVisible: 'Work & career'
+      - tapOn: 'Spanish'          # native language (single-select)
+      - tapOn: 'Travel'           # motivation (multi-select)
+      - tapOn: 'Work & career'    # second motivation
+      - tapOn: 'Start learning'   # PUT /learner/profile → completeOnboarding → '/'
+      - extendedWaitUntil:
+          visible:
+            id: 'language-learn-screen'
+          timeout: 120000
+# Path B — already onboarded: assert we are (or land) on Learn home.
+- runFlow:
+    when:
+      notVisible: 'Start learning'
+    commands:
+      - runFlow: subflows/language-onboarding-if-needed.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'language-learn-screen'
+          timeout: 120000
+- assertVisible:
+    id: 'language-learn-screen'
+# ONBD-017 — onboarding replaces the stack; no back path into NUX from Learn.
+- assertNotVisible: 'Start learning'

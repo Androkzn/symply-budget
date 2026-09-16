@@ -1,0 +1,108 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:settings
+  - mutation
+  - regression
+# Matrix: HOUSE-settings (see documents/engineering/testing/matrices/)
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-
+# ProfileScreen destructive / mutating actions. To avoid corrupting the shared test
+# account this flow drives each destructive path up to its confirmation Alert and then
+# CANCELS — that confirm dialog is the UI proxy for the mutation being correctly wired:
+#   • Save (updateProfile PATCH /users/me): assert the Save affordance APPEARS after a
+#     name edit (not tapped, to avoid mutating the shared account name).
+#   • Delete Account (authApi.deleteAccount DELETE /auth/account): tap → Alert → Cancel.
+#   • Sign out (logout): tap → Alert → Cancel.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-profile.yaml
+- assertVisible:
+    id: 'profile-screen'
+- assertVisible:
+    id: 'profile-display-name-input'
+# Editing the name reveals the Save button (name-changed → Save appears).
+- tapOn:
+    id: 'profile-display-name-input'
+- inputText: ' E2E'
+# `optional: true` only — NO neutral-point tap. The tap was added on a wrong
+# premise (assumed iPad keyboard chrome) and was UNSAFE: 50%,12% is (417,145)
+# on an 834x1210 iPad, which lands on real controls — the profile avatar
+# (opens a camera Alert), the contractor photo circle (ActionSheet), a bare
+# TextInput on property-assessment. On iPhone 12% is inside the 118pt header,
+# outside the ScrollView, so it dismisses nothing at all. An `optional`
+# hideKeyboard cannot abort the flow, which is all that was ever needed here.
+- hideKeyboard:
+    optional: true
+- extendedWaitUntil:
+    visible: 'Save'
+    timeout: 10000
+- assertVisible: 'Save'
+# Delete Account → confirm Alert → Cancel (do NOT confirm — irreversible).
+# Verify Cancel is truly a no-op (no DELETE fired) — the account still existing
+# is not itself proof; the confirm Alert appearing was previously the only signal.
+- runFlow:
+    file: ../subflows/e2e-clear-log.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- scrollUntilVisible:
+    element:
+      id: 'profile-delete-account'
+    direction: DOWN
+    timeout: 15000
+# Tapping immediately after scrollUntilVisible can compute the tap point
+# before scroll momentum settles, landing on whatever's underneath instead
+# (reproduced deterministically in floor-plans-mutations.yaml 2026-07-31).
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    id: 'profile-delete-account'
+- extendedWaitUntil:
+    visible: 'Cancel'
+    timeout: 10000
+- tapOn: 'Cancel'
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_VERIFY_METHOD: DELETE
+      E2E_VERIFY_PATH: /auth/account
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 5000
+# Sign out → confirm Alert → Cancel (stay signed in).
+# SCROLL ORDER FIXED: `profile-sign-out` (ProfileScreen.tsx:404) renders ABOVE
+# `profile-delete-account` (ProfileScreen.tsx:425), which the block above already
+# scrolled DOWN to — so continuing DOWN searches away from this row and the
+# non-optional tap below would explode once the list is long enough to hide it.
+- scrollUntilVisible:
+    element:
+      id: 'profile-sign-out'
+    direction: UP
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    id: 'profile-sign-out'
+- extendedWaitUntil:
+    visible: 'Are you sure you want to sign out?'
+    timeout: 10000
+- tapOn: 'Cancel'
+- assertVisible:
+    id: 'profile-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

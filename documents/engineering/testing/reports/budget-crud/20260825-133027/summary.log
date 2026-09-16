@@ -1,0 +1,14 @@
+PASS [Budget-C] budget-savings-overview
+PASS [Budget-C] budget-savings-income-crud
+PASS [Budget-C] budget-savings-income-entry
+PASS [Budget-C] budget-savings-entry-controls
+PASS [Budget-C] budget-savings-irregular-income
+FAIL [Budget-C] budget-savings-monthly-crud
+PASS [Budget-C] budget-savings-month-stepper
+PASS [Budget-C] budget-savings-recurring-toggle
+FAIL [Budget-C] budget-savings-projection
+FAIL [Budget-C] budget-savings-projection-targets
+FAIL [Budget-C] budget-savings-goal
+FAIL [Budget-C] budget-savings-goal-crud
+FAIL [Budget-C] budget-savings-year-history
+FAIL [Budget-C] budget-savings-offline

@@ -1,0 +1,333 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:more
+  - readonly
+  - regression
+# Matrix: HEALTH-MORE-054 … HEALTH-MORE-067
+---
+# EVERY `defaultHidden` tab in brands/symply-health/brand.cjs must be reachable.
+#
+# `more-overflow-body-habits.yaml` proves the hub routes for Body and Habits and
+# asserts two more rows exist; it never opens them. This flow closes that: it
+# sweeps every overflow entry and proves each one OPENS its screen, so a route
+# that regressed to a dead row fails here rather than in whichever feature flow
+# happens to run next.
+#
+# The list is the brand pack's, in brand-pack order:
+#   health-body · health-habits · health-cycle · health-vitality
+#   · health-food · health-recipes · health-fridge · health-exercises
+#   · health-injuries · health-weight · health-coach · health-scan
+# Adding a `defaultHidden: true` entry to brand.cjs means adding a leg here.
+#
+# Foods and Recipes (P2) are asserted at the ROOT only — screen id plus title.
+# Their feature behaviour belongs to their own flows; this one owns the hub.
+#
+# Read-only: nothing is logged, so no teardown is needed and the flow can run
+# at any point in the suite.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-MORE-054
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-more.yaml
+
+      # --- the hub lists every defaultHidden tab (HEALTH-MORE-054) ---------
+      # `TabOverflowSection` renders one row per overflow entry with
+      # testID `more-tab-<route>` and the brand pack's `label` as its text.
+      # Both are asserted: an id-only assertion would pass on a relabelled row,
+      # and a text-only one would pass on a row wired to the wrong route.
+      - assertVisible: 'MORE TABS'
+      # Weight joined the pool with HealthWeightScreen (2026-07-26) and is the
+      # FIRST overflow row — it follows Trends in the brand pack.
+      - assertVisible:
+          id: 'more-tab-health-weight'
+      - assertVisible: 'Weight'
+      - assertVisible:
+          id: 'more-tab-health-body'
+      - assertVisible: 'Body'
+      - assertVisible:
+          id: 'more-tab-health-habits'
+      - assertVisible: 'Habits'
+      - assertVisible:
+          id: 'more-tab-health-cycle'
+      - assertVisible: 'Cycle'
+      - assertVisible:
+          id: 'more-tab-health-vitality'
+      - assertVisible: 'Vitality'
+      # Foods + Recipes joined the pool with the P2 client (2026-07-25).
+      - scrollUntilVisible:
+          element:
+            id: 'more-tab-health-recipes'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible:
+          id: 'more-tab-health-food'
+      - assertVisible: 'Foods'
+      - assertVisible:
+          id: 'more-tab-health-recipes'
+      - assertVisible: 'Recipes'
+      # Fridge joined the pool with the stock/expiry screen (2026-07-26). It
+      # sits between Recipes and Workouts in the brand pack, so it is already
+      # on screen after the probe above.
+      - assertVisible:
+          id: 'more-tab-health-fridge'
+      - assertVisible: 'Fridge'
+      # Workouts joined the pool with the exercise library (2026-07-25) and is
+      # the LAST entry in it, so its row closes the section.
+      - scrollUntilVisible:
+          element:
+            id: 'more-tab-health-exercises'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible:
+          id: 'more-tab-health-exercises'
+      - assertVisible: 'Workouts'
+      # Injuries joined the pool with the injury tracker (2026-07-25) and now
+      # closes the section — it sits directly after Workouts in the brand pack,
+      # so it is already on screen after the probe above.
+      - assertVisible:
+          id: 'more-tab-health-injuries'
+      - assertVisible: 'Injuries'
+      # Coach + Scan are the P3 AI surfaces and now close the section.
+      - scrollUntilVisible:
+          element:
+            id: 'more-tab-health-scan'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible:
+          id: 'more-tab-health-coach'
+      - assertVisible: 'Coach'
+      - assertVisible:
+          id: 'more-tab-health-scan'
+      - assertVisible: 'Scan'
+
+      # --- and the hub is the ONLY way in (HEALTH-MORE-055) ----------------
+      # NOT optional: an optional negative can never fail. Maestro matches an
+      # `id` against the whole identifier, so `tab-health-body` cannot be
+      # satisfied by the `more-tab-health-body` row asserted just above.
+      - assertNotVisible:
+          id: 'tab-health-body'
+      - assertNotVisible:
+          id: 'tab-health-habits'
+      - assertNotVisible:
+          id: 'tab-health-cycle'
+      - assertNotVisible:
+          id: 'tab-health-vitality'
+      - assertNotVisible:
+          id: 'tab-health-food'
+      - assertNotVisible:
+          id: 'tab-health-recipes'
+      - assertNotVisible:
+          id: 'tab-health-fridge'
+      - assertNotVisible:
+          id: 'tab-health-exercises'
+      - assertNotVisible:
+          id: 'tab-health-injuries'
+      - assertNotVisible:
+          id: 'tab-health-weight'
+      - assertNotVisible:
+          id: 'tab-health-coach'
+      - assertNotVisible:
+          id: 'tab-health-scan'
+
+      # Customize Tabs closes the section. Four rows push it down, so probe
+      # first on a short viewport — the assertion itself stays hard.
+      - scrollUntilVisible:
+          element:
+            id: 'more-customize-tabs'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible:
+          id: 'more-customize-tabs'
+      - assertVisible: 'Customize Tabs'
+
+      # --- Body opens (HEALTH-MORE-056) ------------------------------------
+      # The overflow rows sit at the TOP of More, so scroll back up after the
+      # Customize Tabs probe. Probing is optional; the tap is the hard proof.
+      - scrollUntilVisible:
+          element:
+            id: 'more-tab-health-body'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'more-tab-health-body'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-body-screen'
+          timeout: 30000
+      # The screen title, not just the root testID — a screen that mounted with
+      # the wrong header is a routing bug the testID alone would not catch.
+      - assertVisible: 'Body'
+      - assertVisible: 'MEASUREMENTS'
+
+      # --- Habits opens (HEALTH-MORE-057) ----------------------------------
+      - runFlow: subflows/go-more.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'more-tab-health-habits'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'more-tab-health-habits'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habits-screen'
+          timeout: 30000
+      - assertVisible: 'Habits'
+      - assertVisible:
+          id: 'health-habits-done-today'
+
+      # --- Cycle opens (HEALTH-MORE-058) -----------------------------------
+      # Reuses the subflow the Cycle feature flow enters through, so a hub
+      # regression surfaces identically in both.
+      - runFlow: subflows/go-health-cycle.yaml
+      - assertVisible: "Women's Health"
+
+      # --- Vitality opens (HEALTH-MORE-059) --------------------------------
+      - runFlow: subflows/go-health-vitality.yaml
+      - assertVisible: "Men's Health"
+
+      # --- Foods opens (HEALTH-MORE-060) -----------------------------------
+      # Root + title only. The P2 food surface has its own flows; if this leg
+      # ever needs more than two assertions, it belongs in one of those.
+      - runFlow: subflows/go-more.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'more-tab-health-food'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'more-tab-health-food'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-food-screen'
+          timeout: 30000
+      - assertVisible: 'Foods'
+
+      # --- Recipes opens (HEALTH-MORE-061) ---------------------------------
+      - runFlow: subflows/go-more.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'more-tab-health-recipes'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'more-tab-health-recipes'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-recipes-screen'
+          timeout: 30000
+      - assertVisible: 'Recipes'
+
+      # --- Fridge opens (HEALTH-MORE-063) ----------------------------------
+      # Reuses the subflow fridge-stock-and-expiry.yaml enters through, so a hub
+      # regression surfaces identically in both.
+      - runFlow: subflows/go-health-fridge.yaml
+      - assertVisible: 'Fridge'
+
+      # --- Workouts opens (HEALTH-MORE-062) --------------------------------
+      # Reuses the subflow the two exercise feature flows enter through, so a hub
+      # regression surfaces identically in all three.
+      - runFlow: subflows/go-health-exercises.yaml
+      - assertVisible: 'Workouts'
+      - assertVisible: 'SEARCH'
+
+      # --- Injuries opens (HEALTH-MORE-064) --------------------------------
+      # Root + title + the summary card's section label. Read-only: the flow
+      # never opens the log form, so nothing is written and no teardown is due.
+      - runFlow: subflows/go-health-injuries.yaml
+      - assertVisible: 'Injuries'
+      - assertVisible: 'YOUR LOG'
+
+      # --- Weight opens (HEALTH-MORE-065) ----------------------------------
+      - runFlow: subflows/go-more.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'more-tab-health-weight'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'more-tab-health-weight'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-weight-screen'
+          timeout: 30000
+      - assertVisible: 'Weight'
+
+      # --- Coach opens (HEALTH-MORE-066) -----------------------------------
+      - runFlow: subflows/go-more.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'more-tab-health-coach'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'more-tab-health-coach'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-coach-screen'
+          timeout: 30000
+      - assertVisible: 'Coach'
+
+      # --- Scan opens (HEALTH-MORE-067) ------------------------------------
+      - runFlow: subflows/go-more.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'more-tab-health-scan'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'more-tab-health-scan'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-scan-screen'
+          timeout: 30000
+      - assertVisible: 'Scan'
+
+      # --- the bar still returns to Health ---------------------------------
+      - tapOn:
+          id: 'tab-index'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

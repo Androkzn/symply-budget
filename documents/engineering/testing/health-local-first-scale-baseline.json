@@ -1,0 +1,3378 @@
+{
+  "schema": 1,
+  "runId": "health-20260815T030349Z-98007",
+  "generatedAt": "2026-08-15T03:07:20.374Z",
+  "git": {
+    "sha": "d70e484c8719b9bad4b9697ac646874af22ac73f",
+    "dirty": true
+  },
+  "env": {
+    "node": "v22.15.0",
+    "v8": "12.4.254.21-node.24",
+    "arch": "arm64",
+    "platform": "darwin",
+    "cpu": "Apple M3 Pro",
+    "cores": 12,
+    "loadavg1": 2.11,
+    "heapLimitMb": 8240,
+    "gcAvailable": true
+  },
+  "corpus": "5c5ed6aa37882346",
+  "loadOverridden": false,
+  "gate": {
+    "usable": true,
+    "reasons": []
+  },
+  "scales": [
+    {
+      "years": 1,
+      "adults": 1,
+      "rows": 6628,
+      "ops": 9942
+    },
+    {
+      "years": 5,
+      "adults": 1,
+      "rows": 32982,
+      "ops": 49473
+    },
+    {
+      "years": 10,
+      "adults": 1,
+      "rows": 66067,
+      "ops": 99101
+    }
+  ],
+  "metrics": {
+    "coldopen|coldopen.rows.count|1y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 6628,
+      "p50": 6628,
+      "p95": 6628,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.sealed.bytes|1y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 6591367,
+      "p50": 6591367,
+      "p95": 6591367,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.envelope.chars|1y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 6405783,
+      "p50": 6405783,
+      "p95": 6405783,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.row.chars|1y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 2174212,
+      "p50": 2174212,
+      "p95": 2174212,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.lww.chars|1y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 4132151,
+      "p50": 4132151,
+      "p95": 4132151,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.lww.charsPerRowChar|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 1.9005280993757738,
+      "p50": 1.9005280993757738,
+      "p95": 1.9005280993757738,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.sealAllRows|1y/1a": {
+      "unit": "ms",
+      "n": 4,
+      "min": 189.65991700000006,
+      "p50": 190.30791699999997,
+      "p95": 198.825375,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.oplog.tail.ops|1y/1a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 100,
+      "p50": 100,
+      "p95": 100,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.oplog.tail.bytes|1y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 97743,
+      "p50": 97743,
+      "p95": 97743,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.oplog.fullLog.ops|1y/1a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 9942,
+      "p50": 9942,
+      "p95": 9942,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.oplog.fullLog.bytes|1y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 9716878,
+      "p50": 9716878,
+      "p95": 9716878,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|disk.total.bytes|1y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 6689110,
+      "p50": 6689110,
+      "p95": 6689110,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|disk.total.checkpointsOff.bytes|1y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 16308245,
+      "p50": 16308245,
+      "p95": 16308245,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.listRows|1y/1a": {
+      "unit": "ms",
+      "n": 20,
+      "min": 2.1011249999996835,
+      "p50": 2.2610420000000886,
+      "p95": 2.794541999999865,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.openRowBody|1y/1a": {
+      "unit": "ms",
+      "n": 20,
+      "min": 160.6596669999999,
+      "p50": 163.59529199999997,
+      "p95": 171.284083,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.jsonParse|1y/1a": {
+      "unit": "ms",
+      "n": 20,
+      "min": 13.085624999999709,
+      "p50": 13.796707999999853,
+      "p95": 14.924874999999929,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.installRowEnvelopes|1y/1a": {
+      "unit": "ms",
+      "n": 20,
+      "min": 6.837207999999919,
+      "p50": 7.0782500000000255,
+      "p95": 12.701917000000094,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.tailReplay|1y/1a": {
+      "unit": "ms",
+      "n": 20,
+      "min": 7.362750000000233,
+      "p50": 7.999374999999873,
+      "p95": 8.957832999999937,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.homeHydrate|1y/1a": {
+      "unit": "ms",
+      "n": 20,
+      "min": 1.4121660000000702,
+      "p50": 1.7172080000000278,
+      "p95": 9.029874999999947,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.cpu|1y/1a": {
+      "unit": "ms",
+      "n": 20,
+      "min": 180.9557080000004,
+      "p50": 184.82200000000012,
+      "p95": 193.6053750000001,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.toFirstPaint|1y/1a": {
+      "unit": "ms",
+      "n": 20,
+      "min": 190.04212499999994,
+      "p50": 194.1495420000001,
+      "p95": 211.59308299999998,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "coldopen|coldopen.aeadShare|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.8878397303720286,
+      "p50": 0.8878397303720286,
+      "p95": 0.8878397303720286,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.usPerRow|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 27.30170609535311,
+      "p50": 27.30170609535311,
+      "p95": 27.30170609535311,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.fullLogReplay.projectedMs|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 795.2978624999873,
+      "p50": 795.2978624999873,
+      "p95": 795.2978624999873,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP50.node|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 194.1495420000001,
+      "p50": 194.1495420000001,
+      "p95": 194.1495420000001,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP50.hermes|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 582.4486260000003,
+      "p50": 582.4486260000003,
+      "p95": 582.4486260000003,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP50.hermesWorst|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2912.2431300000017,
+      "p50": 2912.2431300000017,
+      "p95": 2912.2431300000017,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP50.pass|1y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP95.node|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 211.59308299999998,
+      "p50": 211.59308299999998,
+      "p95": 211.59308299999998,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP95.hermes|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 634.7792489999999,
+      "p50": 634.7792489999999,
+      "p95": 634.7792489999999,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP95.hermesWorst|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 3173.896245,
+      "p50": 3173.896245,
+      "p95": 3173.896245,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP95.pass|1y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.ledgerAndLwwOnDisk.bytes|1y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 6689110,
+      "p50": 6689110,
+      "p95": 6689110,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.ledgerAndLwwOnDisk.pass|1y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.count|5y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 32982,
+      "p50": 32982,
+      "p95": 32982,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.sealed.bytes|5y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 32728887,
+      "p50": 32728887,
+      "p95": 32728887,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.envelope.chars|5y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 31805391,
+      "p50": 31805391,
+      "p95": 31805391,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.row.chars|5y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 10800681,
+      "p50": 10800681,
+      "p95": 10800681,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.lww.chars|5y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 20509980,
+      "p50": 20509980,
+      "p95": 20509980,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.lww.charsPerRowChar|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 1.8989524827184507,
+      "p50": 1.8989524827184507,
+      "p95": 1.8989524827184507,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.sealAllRows|5y/1a": {
+      "unit": "ms",
+      "n": 2,
+      "min": 974.779875,
+      "p50": 1002.1902920000002,
+      "p95": 1002.1902920000002,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.oplog.tail.ops|5y/1a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 100,
+      "p50": 100,
+      "p95": 100,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.oplog.tail.bytes|5y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 97849,
+      "p50": 97849,
+      "p95": 97849,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.oplog.fullLog.ops|5y/1a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 49473,
+      "p50": 49473,
+      "p95": 49473,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.oplog.fullLog.bytes|5y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 48424452,
+      "p50": 48424452,
+      "p95": 48424452,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|disk.total.bytes|5y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 32826736,
+      "p50": 32826736,
+      "p95": 32826736,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|disk.total.checkpointsOff.bytes|5y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 81153339,
+      "p50": 81153339,
+      "p95": 81153339,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.listRows|5y/1a": {
+      "unit": "ms",
+      "n": 12,
+      "min": 17.93408399999953,
+      "p50": 24.418625000000247,
+      "p95": 25.91374999999971,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.openRowBody|5y/1a": {
+      "unit": "ms",
+      "n": 12,
+      "min": 791.5049159999999,
+      "p50": 797.5924579999992,
+      "p95": 840.8600000000006,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.jsonParse|5y/1a": {
+      "unit": "ms",
+      "n": 12,
+      "min": 70.0005829999991,
+      "p50": 74.9419999999991,
+      "p95": 168.4188749999994,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.installRowEnvelopes|5y/1a": {
+      "unit": "ms",
+      "n": 12,
+      "min": 42.50220799999988,
+      "p50": 46.90520900000047,
+      "p95": 50.84450000000106,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.tailReplay|5y/1a": {
+      "unit": "ms",
+      "n": 12,
+      "min": 20.87579099999948,
+      "p50": 23.123458000000028,
+      "p95": 24.276624999998603,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.homeHydrate|5y/1a": {
+      "unit": "ms",
+      "n": 12,
+      "min": 5.28729199999907,
+      "p50": 5.904083999999784,
+      "p95": 14.476291999999376,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.cpu|5y/1a": {
+      "unit": "ms",
+      "n": 12,
+      "min": 907.6330420000004,
+      "p50": 919.7068749999999,
+      "p95": 1035.6044580000016,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.toFirstPaint|5y/1a": {
+      "unit": "ms",
+      "n": 12,
+      "min": 936.2612920000001,
+      "p50": 952.6528749999998,
+      "p95": 1065.785167,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "coldopen|coldopen.aeadShare|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.8720538801186565,
+      "p50": 0.8720538801186565,
+      "p95": 0.8720538801186565,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.usPerRow|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 27.51904196228247,
+      "p50": 27.51904196228247,
+      "p95": 27.51904196228247,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.fullLogReplay.projectedMs|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 11439.868376340013,
+      "p50": 11439.868376340013,
+      "p95": 11439.868376340013,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP50.node|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 952.6528749999998,
+      "p50": 952.6528749999998,
+      "p95": 952.6528749999998,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP50.hermes|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2857.9586249999993,
+      "p50": 2857.9586249999993,
+      "p95": 2857.9586249999993,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP50.hermesWorst|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 14289.793124999997,
+      "p50": 14289.793124999997,
+      "p95": 14289.793124999997,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP50.pass|5y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP95.node|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 1065.785167,
+      "p50": 1065.785167,
+      "p95": 1065.785167,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP95.hermes|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 3197.355501,
+      "p50": 3197.355501,
+      "p95": 3197.355501,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP95.hermesWorst|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 15986.777505,
+      "p50": 15986.777505,
+      "p95": 15986.777505,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP95.pass|5y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.ledgerAndLwwOnDisk.bytes|5y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 32826736,
+      "p50": 32826736,
+      "p95": 32826736,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.ledgerAndLwwOnDisk.pass|5y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.count|10y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 66067,
+      "p50": 66067,
+      "p95": 66067,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.sealed.bytes|10y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 65584978,
+      "p50": 65584978,
+      "p95": 65584978,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.envelope.chars|10y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 63735102,
+      "p50": 63735102,
+      "p95": 63735102,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.row.chars|10y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 21644056,
+      "p50": 21644056,
+      "p95": 21644056,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.rows.lww.chars|10y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 41100041,
+      "p50": 41100041,
+      "p95": 41100041,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.lww.charsPerRowChar|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 1.898906609740799,
+      "p50": 1.898906609740799,
+      "p95": 1.898906609740799,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.sealAllRows|10y/1a": {
+      "unit": "ms",
+      "n": 1,
+      "min": 1917.0388340000002,
+      "p50": 1917.0388340000002,
+      "p95": 1917.0388340000002,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.oplog.tail.ops|10y/1a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 100,
+      "p50": 100,
+      "p95": 100,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.oplog.tail.bytes|10y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 97445,
+      "p50": 97445,
+      "p95": 97445,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.oplog.fullLog.ops|10y/1a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 99101,
+      "p50": 99101,
+      "p95": 99101,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.oplog.fullLog.bytes|10y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 96515273,
+      "p50": 96515273,
+      "p95": 96515273,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|disk.total.bytes|10y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 65682423,
+      "p50": 65682423,
+      "p95": 65682423,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|disk.total.checkpointsOff.bytes|10y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 162100251,
+      "p50": 162100251,
+      "p95": 162100251,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.listRows|10y/1a": {
+      "unit": "ms",
+      "n": 8,
+      "min": 37.21962499999972,
+      "p50": 50.7783330000002,
+      "p95": 52.90529199999946,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.openRowBody|10y/1a": {
+      "unit": "ms",
+      "n": 8,
+      "min": 1668.980916999999,
+      "p50": 1727.2313750000012,
+      "p95": 1773.7560000000012,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.jsonParse|10y/1a": {
+      "unit": "ms",
+      "n": 8,
+      "min": 133.37804200000028,
+      "p50": 230.14408299999923,
+      "p95": 268.3775829999995,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.installRowEnvelopes|10y/1a": {
+      "unit": "ms",
+      "n": 8,
+      "min": 83.00704100000075,
+      "p50": 85.83862500000032,
+      "p95": 96.23099999999977,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.tailReplay|10y/1a": {
+      "unit": "ms",
+      "n": 8,
+      "min": 39.20104199999878,
+      "p50": 41.21862499999952,
+      "p95": 48.68329199999789,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.homeHydrate|10y/1a": {
+      "unit": "ms",
+      "n": 8,
+      "min": 9.951791999999841,
+      "p50": 12.994375000002037,
+      "p95": 22.79833300000064,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.cpu|10y/1a": {
+      "unit": "ms",
+      "n": 8,
+      "min": 1885.366,
+      "p50": 2009.6213750000006,
+      "p95": 2100.209125000001,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.toFirstPaint|10y/1a": {
+      "unit": "ms",
+      "n": 8,
+      "min": 1937.1840839999986,
+      "p50": 2065.031041,
+      "p95": 2153.4107919999988,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "coldopen|coldopen.aeadShare|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.8852291369421105,
+      "p50": 0.8852291369421105,
+      "p95": 0.8852291369421105,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.usPerRow|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 28.53718195165514,
+      "p50": 28.53718195165514,
+      "p95": 28.53718195165514,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|coldopen.fullLogReplay.projectedMs|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 40848.069561249526,
+      "p50": 40848.069561249526,
+      "p95": 40848.069561249526,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP50.node|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2065.031041,
+      "p50": 2065.031041,
+      "p95": 2065.031041,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP50.hermes|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 6195.093123000001,
+      "p50": 6195.093123000001,
+      "p95": 6195.093123000001,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP50.hermesWorst|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 30975.465615,
+      "p50": 30975.465615,
+      "p95": 30975.465615,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP50.pass|10y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 0,
+      "p50": 0,
+      "p95": 0,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP95.node|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2153.4107919999988,
+      "p50": 2153.4107919999988,
+      "p95": 2153.4107919999988,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP95.hermes|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 6460.232375999996,
+      "p50": 6460.232375999996,
+      "p95": 6460.232375999996,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP95.hermesWorst|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 32301.16187999998,
+      "p50": 32301.16187999998,
+      "p95": 32301.16187999998,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.coldOpenToFirstPaintP95.pass|10y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 0,
+      "p50": 0,
+      "p95": 0,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.ledgerAndLwwOnDisk.bytes|10y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 65682423,
+      "p50": 65682423,
+      "p95": 65682423,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "coldopen|exit.ledgerAndLwwOnDisk.pass|10y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loaders|1y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 17,
+      "p50": 17,
+      "p95": 17,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loaders.ledgerBacked|1y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 13,
+      "p50": 13,
+      "p95": 13,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWeightLog|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.046291999999994005,
+      "p50": 0.05000000000001137,
+      "p95": 0.12491699999998218,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadHealthPrefs|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.0004999999999881766,
+      "p50": 0.0005830000000059954,
+      "p95": 0.0020419999999603533,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWaterToday|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.033415999999988344,
+      "p50": 0.03500000000002501,
+      "p95": 0.06129199999998036,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWaterHistory|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.08650000000000091,
+      "p50": 0.14341699999999946,
+      "p95": 0.2400000000000091,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadNoteForDate|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.00037500000001955414,
+      "p50": 0.00041700000002720117,
+      "p95": 0.0004999999999881766,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadMeals|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.12012500000003001,
+      "p50": 0.12366700000001174,
+      "p95": 0.20891600000004473,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadNutritionGoals|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.00045799999998052954,
+      "p50": 0.0004999999999881766,
+      "p95": 0.0019580000000019027,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWorkouts|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.08987499999994952,
+      "p50": 0.10341700000003584,
+      "p95": 0.14608299999997598,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadStepDays|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.06937499999997954,
+      "p50": 0.08829200000002402,
+      "p95": 0.12899999999996226,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadActivityGoals|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.0003749999999627107,
+      "p50": 0.00041699999997035775,
+      "p95": 0.0013749999999959073,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadHabits|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.08608400000002803,
+      "p50": 0.14312499999999773,
+      "p95": 0.169208000000026,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadBodyEntries|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.04750000000001364,
+      "p50": 0.050249999999948614,
+      "p95": 0.09912499999995816,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadSleepLog|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.08924999999999272,
+      "p50": 0.10550000000000637,
+      "p95": 0.12945799999999963,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadHomeLayout|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.0006670000000212895,
+      "p50": 0.0007089999999720931,
+      "p95": 0.0007500000000391083,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWeeklyTrend|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.04875000000004093,
+      "p50": 0.05091599999997243,
+      "p95": 0.05779200000000628,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadChallengesWeeklyOverview|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.024334000000010292,
+      "p50": 0.03608300000001918,
+      "p95": 0.05158299999999372,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadChallengesWidgetExpanded|1y/1a": {
+      "unit": "ms",
+      "n": 60,
+      "min": 0.0003329999999550637,
+      "p50": 0.0003749999999627107,
+      "p95": 0.00045800000003737296,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.ledgerBacked.sumMs|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.9305840000000103,
+      "p50": 0.9305840000000103,
+      "p95": 0.9305840000000103,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.mmkvBacked.sumMs|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.0020839999999680003,
+      "p50": 0.0020839999999680003,
+      "p95": 0.0020839999999680003,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.promiseAll|1y/1a": {
+      "unit": "ms",
+      "n": 160,
+      "min": 0.5354589999999462,
+      "p50": 0.5836669999999913,
+      "p95": 0.7221670000000131,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.usPerRow|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.10895700060350227,
+      "p50": 0.10895700060350227,
+      "p95": 0.10895700060350227,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.onFocus|1y/1a": {
+      "unit": "ms",
+      "n": 160,
+      "min": 0.5331250000000409,
+      "p50": 0.5791249999999764,
+      "p95": 0.6344579999999951,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|exit.homeHydrate.node|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.7221670000000131,
+      "p50": 0.7221670000000131,
+      "p95": 0.7221670000000131,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|exit.homeHydrate.hermes|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2.1665010000000393,
+      "p50": 2.1665010000000393,
+      "p95": 2.1665010000000393,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|exit.homeHydrate.hermesWorst|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 10.832505000000197,
+      "p50": 10.832505000000197,
+      "p95": 10.832505000000197,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|exit.homeHydrate.pass|1y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loaders|5y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 17,
+      "p50": 17,
+      "p95": 17,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loaders.ledgerBacked|5y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 13,
+      "p50": 13,
+      "p95": 13,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWeightLog|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.22629200000000083,
+      "p50": 0.22875000000004775,
+      "p95": 0.24929200000002538,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadHealthPrefs|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.0005409999999983484,
+      "p50": 0.0005840000000034706,
+      "p95": 0.002124999999978172,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWaterToday|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.1655839999999671,
+      "p50": 0.16700000000003,
+      "p95": 0.19983299999989868,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWaterHistory|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.16087499999991905,
+      "p50": 0.3717499999999063,
+      "p95": 0.4731249999999818,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadNoteForDate|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.00037500000007639755,
+      "p50": 0.0004170000000840446,
+      "p95": 0.0004999999999881766,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadMeals|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.14629199999990306,
+      "p50": 0.33749999999997726,
+      "p95": 0.37504100000001017,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadNutritionGoals|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.0008749999999508873,
+      "p50": 0.0009170000000722212,
+      "p95": 0.002124999999978172,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWorkouts|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.23458399999992707,
+      "p50": 0.29387500000007094,
+      "p95": 0.5099169999999731,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadStepDays|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.12074999999992997,
+      "p50": 0.2476249999999709,
+      "p95": 0.30120799999997416,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadActivityGoals|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.0008749999999508873,
+      "p50": 0.0009169999999585343,
+      "p95": 0.002375000000029104,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadHabits|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.28570799999999963,
+      "p50": 0.34208399999999983,
+      "p95": 0.7445830000000342,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadBodyEntries|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.21000000000003638,
+      "p50": 0.25129200000003493,
+      "p95": 0.8107499999999845,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadSleepLog|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.1407090000000153,
+      "p50": 0.26400000000001,
+      "p95": 0.3160000000000309,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadHomeLayout|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.0006660000000238142,
+      "p50": 0.0007090000000289365,
+      "p95": 0.0008339999999407155,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWeeklyTrend|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.2216249999999036,
+      "p50": 0.22804199999995944,
+      "p95": 0.2580000000000382,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadChallengesWeeklyOverview|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.13841699999989032,
+      "p50": 0.14083400000004076,
+      "p95": 0.20029199999999037,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadChallengesWidgetExpanded|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.0003329999999550637,
+      "p50": 0.0003749999998490239,
+      "p95": 0.00041699999997035775,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.ledgerBacked.sumMs|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2.874586000000079,
+      "p50": 2.874586000000079,
+      "p95": 2.874586000000079,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.mmkvBacked.sumMs|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.0020849999999654756,
+      "p50": 0.0020849999999654756,
+      "p95": 0.0020849999999654756,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.promiseAll|5y/1a": {
+      "unit": "ms",
+      "n": 80,
+      "min": 1.5476659999999356,
+      "p50": 1.677167000000054,
+      "p95": 2.240624999999909,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.usPerRow|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.0679347826086929,
+      "p50": 0.0679347826086929,
+      "p95": 0.0679347826086929,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.onFocus|5y/1a": {
+      "unit": "ms",
+      "n": 80,
+      "min": 1.5592910000000302,
+      "p50": 1.6754159999998137,
+      "p95": 2.050083000000086,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|exit.homeHydrate.node|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2.240624999999909,
+      "p50": 2.240624999999909,
+      "p95": 2.240624999999909,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|exit.homeHydrate.hermes|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 6.721874999999727,
+      "p50": 6.721874999999727,
+      "p95": 6.721874999999727,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|exit.homeHydrate.hermesWorst|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 33.609374999998636,
+      "p50": 33.609374999998636,
+      "p95": 33.609374999998636,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|exit.homeHydrate.pass|5y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loaders|10y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 17,
+      "p50": 17,
+      "p95": 17,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loaders.ledgerBacked|10y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 13,
+      "p50": 13,
+      "p95": 13,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWeightLog|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.46879200000000765,
+      "p50": 0.49558300000001054,
+      "p95": 1.097458999999958,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadHealthPrefs|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.0005830000000059954,
+      "p50": 0.0006250000000136424,
+      "p95": 0.00204200000007404,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWaterToday|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.34962499999994634,
+      "p50": 0.4202910000000202,
+      "p95": 0.56574999999998,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWaterHistory|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.5331250000000409,
+      "p50": 0.6507080000000087,
+      "p95": 0.9386670000000095,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadNoteForDate|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.00037500000007639755,
+      "p50": 0.0004170000000840446,
+      "p95": 0.0012500000000272848,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadMeals|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.523834000000079,
+      "p50": 0.5452080000000024,
+      "p95": 0.6069589999999607,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadNutritionGoals|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.0027079999999841675,
+      "p50": 0.003249999999979991,
+      "p95": 0.005374999999958163,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWorkouts|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.4941670000000613,
+      "p50": 0.7791670000001432,
+      "p95": 1.8550420000001395,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadStepDays|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.41899999999986903,
+      "p50": 0.4259589999999207,
+      "p95": 0.50587500000006,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadActivityGoals|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.0016249999998763087,
+      "p50": 0.0016669999999976426,
+      "p95": 0.0034580000001369626,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadHabits|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.5990829999998368,
+      "p50": 1.1446249999999054,
+      "p95": 1.6217910000000302,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadBodyEntries|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.3947499999999309,
+      "p50": 0.8126250000000255,
+      "p95": 1.4925000000000637,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadSleepLog|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.4313750000001164,
+      "p50": 0.43716700000004494,
+      "p95": 0.5197089999999207,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadHomeLayout|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.0006670000000212895,
+      "p50": 0.0007499999999254214,
+      "p95": 0.0009999999999763531,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadWeeklyTrend|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.46404100000017934,
+      "p50": 0.48299999999994725,
+      "p95": 0.6132920000000013,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadChallengesWeeklyOverview|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.173958999999968,
+      "p50": 0.17616700000007768,
+      "p95": 0.3824170000000322,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.loader.loadChallengesWidgetExpanded|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.0003329999999550637,
+      "p50": 0.00037500000007639755,
+      "p95": 0.00041699999997035775,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.ledgerBacked.sumMs|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 6.375417000000084,
+      "p50": 6.375417000000084,
+      "p95": 6.375417000000084,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.mmkvBacked.sumMs|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.002167000000099506,
+      "p50": 0.002167000000099506,
+      "p95": 0.002167000000099506,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.promiseAll|10y/1a": {
+      "unit": "ms",
+      "n": 48,
+      "min": 3.167500000000018,
+      "p50": 3.6192089999999553,
+      "p95": 4.276292000000012,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.usPerRow|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.06472659572857875,
+      "p50": 0.06472659572857875,
+      "p95": 0.06472659572857875,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|homehydrate.onFocus|10y/1a": {
+      "unit": "ms",
+      "n": 48,
+      "min": 3.300709000000097,
+      "p50": 3.773124999999709,
+      "p95": 4.90816599999971,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "homehydrate|exit.homeHydrate.node|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 4.276292000000012,
+      "p50": 4.276292000000012,
+      "p95": 4.276292000000012,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|exit.homeHydrate.hermes|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 12.828876000000037,
+      "p50": 12.828876000000037,
+      "p95": 12.828876000000037,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|exit.homeHydrate.hermesWorst|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 64.14438000000018,
+      "p50": 64.14438000000018,
+      "p95": 64.14438000000018,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "homehydrate|exit.homeHydrate.pass|10y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.captureLedgerSnapshot|1y/1a": {
+      "unit": "ms",
+      "n": 80,
+      "min": 3.372333000000026,
+      "p50": 3.495042000000012,
+      "p95": 3.623291999999992,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.diffLedger|1y/1a": {
+      "unit": "ms",
+      "n": 80,
+      "min": 3.6170410000001993,
+      "p50": 3.698375000000169,
+      "p95": 3.968584000000021,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.encodeAndSealOp|1y/1a": {
+      "unit": "ms",
+      "n": 80,
+      "min": 0.10987499999987449,
+      "p50": 0.23762499999998,
+      "p95": 0.2917080000000283,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.collectRowWrites|1y/1a": {
+      "unit": "ms",
+      "n": 80,
+      "min": 0.027958000000012362,
+      "p50": 0.043541000000004715,
+      "p95": 0.09079200000002174,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.sealRowBody|1y/1a": {
+      "unit": "ms",
+      "n": 80,
+      "min": 0.04787500000020373,
+      "p50": 0.13741700000014134,
+      "p95": 0.19400000000001683,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.total|1y/1a": {
+      "unit": "ms",
+      "n": 80,
+      "min": 7.3648339999999735,
+      "p50": 7.572083999999904,
+      "p95": 7.921584000000166,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.delta.bytes|1y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 587,
+      "p50": 587,
+      "p95": 587,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.op.sealed.bytes|1y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 719,
+      "p50": 719,
+      "p95": 719,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.rows.sealed.bytes|1y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 587,
+      "p50": 587,
+      "p95": 587,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.amplification.sealedPerDeltaByte|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2.224872231686542,
+      "p50": 2.224872231686542,
+      "p95": 2.224872231686542,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.captureShare|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.46156936452369735,
+      "p50": 0.46156936452369735,
+      "p95": 0.46156936452369735,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.waterCup.total|1y/1a": {
+      "unit": "ms",
+      "n": 82,
+      "min": 6.719458999999915,
+      "p50": 7.230000000000018,
+      "p95": 7.6555419999999685,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.wideRow.envelope.chars|1y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 4508,
+      "p50": 4508,
+      "p95": 4508,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.wideRow.sealed.bytes|1y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 4536,
+      "p50": 4536,
+      "p95": 4536,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.wideRow.amplification.sealedPerDeltaByte|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 45.36,
+      "p50": 45.36,
+      "p95": 45.36,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.rows.json.chars|1y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 2180981,
+      "p50": 2180981,
+      "p95": 2180981,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.lww.json.chars|1y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 5521103,
+      "p50": 5521103,
+      "p95": 5521103,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.lww.stamps|1y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 84994,
+      "p50": 84994,
+      "p95": 84994,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.lww.charsPerRowChar|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2.5314768904451714,
+      "p50": 2.5314768904451714,
+      "p95": 2.5314768904451714,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.lww.bytesPerStamp|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 64.95873826387745,
+      "p50": 64.95873826387745,
+      "p95": 64.95873826387745,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.total.min|1y/1a": {
+      "unit": "ms",
+      "n": 1,
+      "min": 7.3648339999999735,
+      "p50": 7.3648339999999735,
+      "p95": 7.3648339999999735,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|exit.mealMutate.node|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 7.921584000000166,
+      "p50": 7.921584000000166,
+      "p95": 7.921584000000166,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|exit.mealMutate.hermes|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 23.7647520000005,
+      "p50": 23.7647520000005,
+      "p95": 23.7647520000005,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|exit.mealMutate.hermesWorst|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 118.8237600000025,
+      "p50": 118.8237600000025,
+      "p95": 118.8237600000025,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|exit.mealMutate.pass|1y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.captureLedgerSnapshot|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 18.8142499999999,
+      "p50": 19.224624999999946,
+      "p95": 21.0168749999998,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.diffLedger|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 21.888292000000092,
+      "p50": 22.58550000000014,
+      "p95": 23.38341700000001,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.encodeAndSealOp|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.13558400000010806,
+      "p50": 0.2746660000000247,
+      "p95": 0.3322499999999309,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.collectRowWrites|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.34662500000013097,
+      "p50": 0.42845799999940937,
+      "p95": 0.5511670000000777,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.sealRowBody|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.0628750000000764,
+      "p50": 0.15962500000023283,
+      "p95": 0.21541700000011588,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.total|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 41.73266599999988,
+      "p50": 42.60525000000007,
+      "p95": 44.77391699999953,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.delta.bytes|5y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 588,
+      "p50": 588,
+      "p95": 588,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.op.sealed.bytes|5y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 720,
+      "p50": 720,
+      "p95": 720,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.rows.sealed.bytes|5y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 588,
+      "p50": 588,
+      "p95": 588,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.amplification.sealedPerDeltaByte|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2.2244897959183674,
+      "p50": 2.2244897959183674,
+      "p95": 2.2244897959183674,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.captureShare|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.45122666807494183,
+      "p50": 0.45122666807494183,
+      "p95": 0.45122666807494183,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.waterCup.total|5y/1a": {
+      "unit": "ms",
+      "n": 42,
+      "min": 39.3442500000001,
+      "p50": 42.34987500000079,
+      "p95": 45.36700000000019,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.wideRow.envelope.chars|5y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 4477,
+      "p50": 4477,
+      "p95": 4477,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.wideRow.sealed.bytes|5y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 4505,
+      "p50": 4505,
+      "p95": 4505,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.wideRow.amplification.sealedPerDeltaByte|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 45.05,
+      "p50": 45.05,
+      "p95": 45.05,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.rows.json.chars|5y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 10833804,
+      "p50": 10833804,
+      "p95": 10833804,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.lww.json.chars|5y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 27404995,
+      "p50": 27404995,
+      "p95": 27404995,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.lww.stamps|5y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 421953,
+      "p50": 421953,
+      "p95": 421953,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.lww.charsPerRowChar|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2.5295819455474735,
+      "p50": 2.5295819455474735,
+      "p95": 2.5295819455474735,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.lww.bytesPerStamp|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 64.94797998829253,
+      "p50": 64.94797998829253,
+      "p95": 64.94797998829253,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.total.min|5y/1a": {
+      "unit": "ms",
+      "n": 1,
+      "min": 41.73266599999988,
+      "p50": 41.73266599999988,
+      "p95": 41.73266599999988,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|exit.mealMutate.node|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 44.77391699999953,
+      "p50": 44.77391699999953,
+      "p95": 44.77391699999953,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|exit.mealMutate.hermes|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 134.32175099999859,
+      "p50": 134.32175099999859,
+      "p95": 134.32175099999859,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|exit.mealMutate.hermesWorst|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 671.6087549999929,
+      "p50": 671.6087549999929,
+      "p95": 671.6087549999929,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|exit.mealMutate.pass|5y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.captureLedgerSnapshot|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 42.15179200000057,
+      "p50": 42.67312500000003,
+      "p95": 45.45733300000006,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.diffLedger|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 44.04779099999996,
+      "p50": 45.69720799999959,
+      "p95": 47.90349999999944,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.encodeAndSealOp|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.1498330000003989,
+      "p50": 0.28700000000026193,
+      "p95": 0.36183299999993324,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.collectRowWrites|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.8669169999998303,
+      "p50": 1.0123750000002474,
+      "p95": 1.0893750000000182,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.sealRowBody|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 0.08079199999974662,
+      "p50": 0.16941700000006676,
+      "p95": 0.24141599999984464,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.total|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 87.63441599999987,
+      "p50": 89.78545899999972,
+      "p95": 94.55116699999962,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.delta.bytes|10y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 584,
+      "p50": 584,
+      "p95": 584,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.op.sealed.bytes|10y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 715,
+      "p50": 715,
+      "p95": 715,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.rows.sealed.bytes|10y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 584,
+      "p50": 584,
+      "p95": 584,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.amplification.sealedPerDeltaByte|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2.2243150684931505,
+      "p50": 2.2243150684931505,
+      "p95": 2.2243150684931505,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.captureShare|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.47527879765029835,
+      "p50": 0.47527879765029835,
+      "p95": 0.47527879765029835,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.waterCup.total|10y/1a": {
+      "unit": "ms",
+      "n": 26,
+      "min": 85.02266600000075,
+      "p50": 87.88233300000047,
+      "p95": 93.2524999999996,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "edit|mutate.wideRow.envelope.chars|10y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 4508,
+      "p50": 4508,
+      "p95": 4508,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.wideRow.sealed.bytes|10y/1a": {
+      "unit": "bytes",
+      "n": 1,
+      "min": 4536,
+      "p50": 4536,
+      "p95": 4536,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.wideRow.amplification.sealedPerDeltaByte|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 45.36,
+      "p50": 45.36,
+      "p95": 45.36,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.rows.json.chars|10y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 21710264,
+      "p50": 21710264,
+      "p95": 21710264,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.lww.json.chars|10y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 54915990,
+      "p50": 54915990,
+      "p95": 54915990,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.lww.stamps|10y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 845534,
+      "p50": 845534,
+      "p95": 845534,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.lww.charsPerRowChar|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2.529494344241968,
+      "p50": 2.529494344241968,
+      "p95": 2.529494344241968,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.lww.bytesPerStamp|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 64.94829303138609,
+      "p50": 64.94829303138609,
+      "p95": 64.94829303138609,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|mutate.total.min|10y/1a": {
+      "unit": "ms",
+      "n": 1,
+      "min": 87.63441599999987,
+      "p50": 87.63441599999987,
+      "p95": 87.63441599999987,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|exit.mealMutate.node|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 94.55116699999962,
+      "p50": 94.55116699999962,
+      "p95": 94.55116699999962,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|exit.mealMutate.hermes|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 283.65350099999887,
+      "p50": 283.65350099999887,
+      "p95": 283.65350099999887,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|exit.mealMutate.hermesWorst|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 1418.2675049999943,
+      "p50": 1418.2675049999943,
+      "p95": 1418.2675049999943,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "edit|exit.mealMutate.pass|10y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 0,
+      "p50": 0,
+      "p95": 0,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit.maxOps|1y/1a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 266,
+      "p50": 266,
+      "p95": 266,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit.b64AtMax|1y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 510956,
+      "p50": 510956,
+      "p95": 510956,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit.chunkBudgetB64|1y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 501760,
+      "p50": 501760,
+      "p95": 501760,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit|1y/1a": {
+      "unit": "ms",
+      "n": 80,
+      "min": 8.43445799999995,
+      "p50": 14.239583000000039,
+      "p95": 25.271666000000096,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.deposit.msPerOp|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.05353226691729338,
+      "p50": 0.05353226691729338,
+      "p95": 0.05353226691729338,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit.rowGrowth|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 3.088714544357272,
+      "p50": 3.088714544357272,
+      "p95": 3.088714544357272,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|exit.applyDeposit.node|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 25.271666000000096,
+      "p50": 25.271666000000096,
+      "p95": 25.271666000000096,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|exit.applyDeposit.hermes|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 75.81499800000029,
+      "p50": 75.81499800000029,
+      "p95": 75.81499800000029,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|exit.applyDeposit.hermesWorst|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 379.07499000000143,
+      "p50": 379.07499000000143,
+      "p95": 379.07499000000143,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|exit.applyDeposit.pass|1y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.patch1|1y/1a": {
+      "unit": "ms",
+      "n": 800,
+      "min": 0.0016669999999976426,
+      "p50": 0.015582999999878666,
+      "p95": 0.030208000000129687,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.patch1.opsPerSec|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 64172.49566885621,
+      "p50": 64172.49566885621,
+      "p95": 64172.49566885621,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.patch1.wideRow|1y/1a": {
+      "unit": "ms",
+      "n": 800,
+      "min": 0.0007919999998193816,
+      "p50": 0.0010000000002037268,
+      "p95": 0.0012080000001333246,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.create1|1y/1a": {
+      "unit": "ms",
+      "n": 800,
+      "min": 0.031749999999647116,
+      "p50": 0.04345899999998437,
+      "p95": 0.05266600000004473,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.create1.opsPerSec|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 23010.193515735744,
+      "p50": 23010.193515735744,
+      "p95": 23010.193515735744,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.bulk200|1y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.18995799999993324,
+      "p50": 0.19866700000011406,
+      "p95": 0.50720900000033,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.bulk200.rowsPerSec|1y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 1006709.7202851262,
+      "p50": 1006709.7202851262,
+      "p95": 1006709.7202851262,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.delete1|1y/1a": {
+      "unit": "ms",
+      "n": 45,
+      "min": 0.04125000000021828,
+      "p50": 0.042291000000204804,
+      "p95": 0.06887499999993452,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.delete200|1y/1a": {
+      "unit": "ms",
+      "n": 8,
+      "min": 0.4276669999999285,
+      "p50": 0.5119589999999334,
+      "p95": 2.6219999999998436,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.delete200.strategyIsIndex|1y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.concurrentLoser|1y/1a": {
+      "unit": "ms",
+      "n": 800,
+      "min": 0.0020409999997355044,
+      "p50": 0.006624999999985448,
+      "p95": 0.011124999999992724,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.concurrentLoser.conflicts|1y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 50,
+      "p50": 50,
+      "p95": 50,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.orphanPark|1y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 0.029708000000027823,
+      "p50": 0.03462500000023283,
+      "p95": 0.042040999999699125,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.deposit.opsPerDeposit|1y/1a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 266,
+      "p50": 266,
+      "p95": 266,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit.maxOps|5y/1a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 266,
+      "p50": 266,
+      "p95": 266,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit.b64AtMax|5y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 510956,
+      "p50": 510956,
+      "p95": 510956,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit.chunkBudgetB64|5y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 501760,
+      "p50": 501760,
+      "p95": 501760,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit|5y/1a": {
+      "unit": "ms",
+      "n": 40,
+      "min": 41.053499999999985,
+      "p50": 49.134750000000054,
+      "p95": 61.32445800000005,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.deposit.msPerOp|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.1847171052631581,
+      "p50": 0.1847171052631581,
+      "p95": 0.1847171052631581,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit.rowGrowth|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 1.2096901340124917,
+      "p50": 1.2096901340124917,
+      "p95": 1.2096901340124917,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|exit.applyDeposit.node|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 61.32445800000005,
+      "p50": 61.32445800000005,
+      "p95": 61.32445800000005,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|exit.applyDeposit.hermes|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 183.97337400000015,
+      "p50": 183.97337400000015,
+      "p95": 183.97337400000015,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|exit.applyDeposit.hermesWorst|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 919.8668700000007,
+      "p50": 919.8668700000007,
+      "p95": 919.8668700000007,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|exit.applyDeposit.pass|5y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.patch1|5y/1a": {
+      "unit": "ms",
+      "n": 300,
+      "min": 0.004958000000442553,
+      "p50": 0.09795800000028976,
+      "p95": 0.17324999999982538,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.patch1.opsPerSec|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 10208.456685488087,
+      "p50": 10208.456685488087,
+      "p95": 10208.456685488087,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.patch1.wideRow|5y/1a": {
+      "unit": "ms",
+      "n": 300,
+      "min": 0.0007079999995767139,
+      "p50": 0.0008750000006330083,
+      "p95": 0.0010000000002037268,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.create1|5y/1a": {
+      "unit": "ms",
+      "n": 300,
+      "min": 0.14674999999988358,
+      "p50": 0.1540000000004511,
+      "p95": 0.17700000000058935,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.create1.opsPerSec|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 6493.506493487472,
+      "p50": 6493.506493487472,
+      "p95": 6493.506493487472,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.bulk200|5y/1a": {
+      "unit": "ms",
+      "n": 20,
+      "min": 0.8782499999997526,
+      "p50": 0.9075410000004922,
+      "p95": 3.7340830000002825,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.bulk200.rowsPerSec|5y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 220375.71856245783,
+      "p50": 220375.71856245783,
+      "p95": 220375.71856245783,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.delete1|5y/1a": {
+      "unit": "ms",
+      "n": 25,
+      "min": 0.21137499999986176,
+      "p50": 0.2185410000001866,
+      "p95": 1.1127079999996567,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.delete200|5y/1a": {
+      "unit": "ms",
+      "n": 6,
+      "min": 1.1303330000000642,
+      "p50": 1.454917000000023,
+      "p95": 4.166709000000083,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.delete200.strategyIsIndex|5y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.concurrentLoser|5y/1a": {
+      "unit": "ms",
+      "n": 300,
+      "min": 0.003959000000577362,
+      "p50": 0.031124999999519787,
+      "p95": 0.06612499999937427,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.concurrentLoser.conflicts|5y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 50,
+      "p50": 50,
+      "p95": 50,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.orphanPark|5y/1a": {
+      "unit": "ms",
+      "n": 20,
+      "min": 0.14220800000020972,
+      "p50": 0.17004199999973935,
+      "p95": 11.263417000000118,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.deposit.opsPerDeposit|5y/1a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 266,
+      "p50": 266,
+      "p95": 266,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit.maxOps|10y/1a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 266,
+      "p50": 266,
+      "p95": 266,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit.b64AtMax|10y/1a": {
+      "unit": "chars",
+      "n": 1,
+      "min": 510956,
+      "p50": 510956,
+      "p95": 510956,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit.chunkBudgetB64|10y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 501760,
+      "p50": 501760,
+      "p95": 501760,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit|10y/1a": {
+      "unit": "ms",
+      "n": 24,
+      "min": 124.12591699999984,
+      "p50": 152.7893750000003,
+      "p95": 197.59362500000043,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.deposit.msPerOp|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 0.5743961466165425,
+      "p50": 0.5743961466165425,
+      "p95": 0.5743961466165425,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.deposit.rowGrowth|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 1.0628150211149288,
+      "p50": 1.0628150211149288,
+      "p95": 1.0628150211149288,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|exit.applyDeposit.node|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 197.59362500000043,
+      "p50": 197.59362500000043,
+      "p95": 197.59362500000043,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|exit.applyDeposit.hermes|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 592.7808750000013,
+      "p50": 592.7808750000013,
+      "p95": 592.7808750000013,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|exit.applyDeposit.hermesWorst|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2963.9043750000064,
+      "p50": 2963.9043750000064,
+      "p95": 2963.9043750000064,
+      "dir": "lower",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|exit.applyDeposit.pass|10y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 0,
+      "p50": 0,
+      "p95": 0,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.patch1|10y/1a": {
+      "unit": "ms",
+      "n": 150,
+      "min": 0.003499999999803549,
+      "p50": 0.18608300000050804,
+      "p95": 0.38250000000061846,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.patch1.opsPerSec|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 5373.946034819246,
+      "p50": 5373.946034819246,
+      "p95": 5373.946034819246,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.patch1.wideRow|10y/1a": {
+      "unit": "ms",
+      "n": 150,
+      "min": 0.0007500000001527951,
+      "p50": 0.0010830000001078588,
+      "p95": 0.0015000000003055902,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.create1|10y/1a": {
+      "unit": "ms",
+      "n": 150,
+      "min": 0.30866599999990285,
+      "p50": 0.33666600000015023,
+      "p95": 0.40099999999983993,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.create1.opsPerSec|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 2970.3029114895885,
+      "p50": 2970.3029114895885,
+      "p95": 2970.3029114895885,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.bulk200|10y/1a": {
+      "unit": "ms",
+      "n": 12,
+      "min": 1.8665410000003249,
+      "p50": 2.0668329999998605,
+      "p95": 6.755874999999833,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.bulk200.rowsPerSec|10y/1a": {
+      "unit": "ratio",
+      "n": 1,
+      "min": 96766.40541350632,
+      "p50": 96766.40541350632,
+      "p95": 96766.40541350632,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.delete1|10y/1a": {
+      "unit": "ms",
+      "n": 17,
+      "min": 0.4839579999988928,
+      "p50": 0.5012499999993452,
+      "p95": 4.758417000000918,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.delete200|10y/1a": {
+      "unit": "ms",
+      "n": 5,
+      "min": 2.5163339999999152,
+      "p50": 3.46862499999952,
+      "p95": 7.8257919999996375,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.delete200.strategyIsIndex|10y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 1,
+      "p50": 1,
+      "p95": 1,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.concurrentLoser|10y/1a": {
+      "unit": "ms",
+      "n": 150,
+      "min": 0.0040829999998095445,
+      "p50": 0.05758299999979499,
+      "p95": 0.10237499999857391,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.concurrentLoser.conflicts|10y/1a": {
+      "unit": "count",
+      "n": 1,
+      "min": 50,
+      "p50": 50,
+      "p95": 50,
+      "dir": "flat",
+      "stat": "min",
+      "status": "ok"
+    },
+    "apply|apply.orphanPark|10y/1a": {
+      "unit": "ms",
+      "n": 12,
+      "min": 0.3335000000006403,
+      "p50": 0.3757920000007289,
+      "p95": 15.152874999999767,
+      "dir": "lower",
+      "stat": "p50",
+      "status": "ok"
+    },
+    "apply|apply.deposit.opsPerDeposit|10y/1a": {
+      "unit": "ops",
+      "n": 1,
+      "min": 266,
+      "p50": 266,
+      "p95": 266,
+      "dir": "higher",
+      "stat": "min",
+      "status": "ok"
+    }
+  }
+}

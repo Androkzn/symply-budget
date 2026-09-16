@@ -1,0 +1,152 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:contractors
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-CONT-003
+---
+# WHAT THIS PROVES
+# ----------------
+# `contractorsApi.aiLookup` is one of the three contractors methods that
+# THROW under local-first (localContractorsApi.ts:1178 — the other two are
+# `getUploadUrl` and `uploadDocument`, both H6 blob paths). Tapping the AI
+# lookup button on the contractor form must therefore:
+#
+#   1. never issue a request to `/contractors/ai-lookup`, and
+#   2. never put the string `contractorsApi.aiLookup` in front of a member.
+#
+# Assertion 1 is the local-first assertion. AI lookup needs a server that can
+# read the household's data, and under E2EE the Worker holds only ciphertext —
+# so if this call reaches the Worker, either the proxy fell through or someone
+# re-pointed the method at the network. Either way it is a plaintext leak
+# attempt, not merely a wasted request, which is why the no-network check here
+# is stricter in intent than the read-path ones.
+#
+# Assertion 2 is DoD H7's negative half.
+#
+# WHAT THIS DELIBERATELY DOES NOT ASSERT — AND WHY (SHIPPED BUG)
+# --------------------------------------------------------------
+# The POSITIVE half of DoD H7 is NOT asserted here, because
+# AddEditContractorScreen throws the copy away. `HOUSE_UNSUPPORTED_COPY` HAS a
+# deliberate entry for this exact method (unsupportedCopy.ts:90):
+#
+#     title:   'Finding a company for you is off in private mode'
+#     message: 'Searching the web for a business and filling in its phone,
+#               address and hours needs a server doing that on your behalf…'
+#
+# …and the screen never shows it. The catch at AddEditContractorScreen.tsx:304
+# discards the error entirely and substitutes its own hardcoded string:
+#
+#     setLookupMessage('Failed to lookup contractor. Please try again.');
+#
+# So the member is told to retry something that cannot succeed on this build,
+# and the sentence written specifically to explain why is dead code. That is a
+# gap in src/, not in this test — asserting the intended copy would fail for
+# the right reason in the wrong place. Wire the screen to `error.title` /
+# `error.memberMessage`, then add the positive assertion here. Same pattern
+# already recorded in house-v2/h7-p4-no-identifier-in-front-of-member.yaml.
+#
+# PRECONDITION (self-contained)
+# -----------------------------
+# A signed-in House session on a local-first build. The flow opens a BLANK
+# contractor form, types a search term, taps lookup, and backs out WITHOUT
+# saving — so it creates nothing and needs no cleanup, which is why it is
+# tagged `readonly` despite driving a form. Runs ALONE and in ANY order.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-LF-CONT-003
+- runFlow: ../subflows/open-contractors.yaml
+- assertVisible:
+    id: 'contractors-screen'
+- tapOn:
+    id: 'contractors-tab-contractors'
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    id: 'contractors-add-button'
+- extendedWaitUntil:
+    visible:
+      id: 'contractor-form-screen'
+    timeout: 15000
+
+# aiLookup refuses an empty term before it ever calls the api
+# (AddEditContractorScreen.tsx:253), so a name is required for this flow to
+# exercise the throw rather than the guard.
+- tapOn:
+    id: 'contractor-form-name'
+- inputText: 'LF Lookup Probe'
+# `optional: true` only — NO neutral-point tap. The tap was added on a wrong
+# premise (assumed iPad keyboard chrome) and was UNSAFE: 50%,12% is (417,145)
+# on an 834x1210 iPad, which lands on real controls — the profile avatar
+# (opens a camera Alert), the contractor photo circle (ActionSheet), a bare
+# TextInput on property-assessment. On iPhone 12% is inside the 118pt header,
+# outside the ScrollView, so it dismisses nothing at all. An `optional`
+# hideKeyboard cannot abort the flow, which is all that was ever needed here.
+- hideKeyboard:
+    optional: true
+
+# Clear immediately before the tap so the verify sees the lookup and nothing
+# that preceded it.
+- runFlow:
+    file: ../subflows/e2e-clear-log.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'contractor-form-ai-lookup'
+    timeout: 10000
+- tapOn:
+    id: 'contractor-form-ai-lookup'
+# The local method rejects immediately, but allow for the screen's own spinner
+# teardown before reading the screen.
+- waitForAnimationToEnd:
+    timeout: 6000
+
+# DoD H7 — the identifier must never be on screen.
+- assertNotVisible: 'contractorsApi\.aiLookup'
+- assertNotVisible: 'contractorsApi\.'
+- assertNotVisible: 'is not available offline yet'
+- assertNotVisible: 'House local-first'
+
+# The local-first assertion: the lookup never reached the Worker.
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /contractors/ai-lookup
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 5000
+
+# Back out without saving — nothing was created, so there is nothing to clean.
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- runFlow:
+    when:
+      visible: 'Discard'
+    commands:
+      - tapOn:
+          text: 'Discard'
+          optional: true
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

@@ -1,0 +1,114 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:plan
+  - mutation
+  - regression
+# Matrix: BUDGET-PLAN-122 (see documents/engineering/testing/matrices/)
+# Inline "create a category" row inside the spending form's category picker:
+# a member who can't find a fitting category types a name and creates it
+# without leaving the half-filled form (budgetCategoryQuickCreate.tsx).
+#
+# The created category is REAL household data on the shared staging account, so
+# this flow both pre-cleans and post-cleans "ZZ Maestro Inline Cat" — a leftover
+# from a run that died mid-flow would otherwise 409 the next run's create
+# against the duplicate-name guard.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-PLAN-122
+
+# DATA_POLLUTION pre-clean — drop the disposable category if a prior run left it.
+- runFlow: ../subflows/budget-open-categories.yaml
+- runFlow:
+    when:
+      visible: '.*ZZ Maestro Inline Cat.*'
+    commands:
+      - swipe:
+          direction: LEFT
+          element:
+            text: '.*ZZ Maestro Inline Cat.*'
+      - tapOn:
+          text: 'Delete ZZ Maestro Inline Cat'
+      - tapOn:
+          text: 'Delete'
+      - extendedWaitUntil:
+          notVisible: '.*ZZ Maestro Inline Cat.*'
+          timeout: 15000
+- tapOn:
+    id: 'nav-back-button'
+
+- runFlow: ../subflows/budget-go-planning.yaml
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-planned'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+
+- tapOn:
+    id: 'budget-item-category-picker'
+- assertVisible:
+    id: 'budget-item-category-search'
+# The create row is pinned under the search field — visible before any typing,
+# so it is discoverable without scrolling the whole category list.
+- assertVisible:
+    id: 'budget-item-category-create'
+- tapOn:
+    id: 'budget-item-category-search'
+- inputText: 'ZZ Maestro Inline Cat'
+- tapOn:
+    id: 'budget-item-category-create'
+
+# Created → selected → sheet closed, with the form still open behind it.
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-item-category-search'
+    timeout: 20000
+- extendedWaitUntil:
+    visible: '.*ZZ Maestro Inline Cat.*'
+    timeout: 15000
+- assertVisible:
+    id: 'budget-item-form'
+
+# Leave without saving a spending — the category is the artifact under test.
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-planned-spendings'
+    timeout: 45000
+
+# It really persisted: it is listed on the Categories manager. Delete it there
+# so the household stays clean for the next run.
+- runFlow: ../subflows/budget-open-categories.yaml
+- scrollUntilVisible:
+    element:
+      text: '.*ZZ Maestro Inline Cat.*'
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- assertVisible: '.*ZZ Maestro Inline Cat.*'
+- swipe:
+    direction: LEFT
+    element:
+      text: '.*ZZ Maestro Inline Cat.*'
+- tapOn:
+    text: 'Delete ZZ Maestro Inline Cat'
+- tapOn:
+    text: 'Delete'
+- extendedWaitUntil:
+    notVisible: '.*ZZ Maestro Inline Cat.*'
+    timeout: 15000
+- tapOn:
+    id: 'nav-back-button'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

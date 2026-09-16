@@ -1,0 +1,62 @@
+// ios/Brand.xcconfig — SINGLE SOURCE OF TRUTH for this native tree's brand identity.
+//
+// Wired as the Xcode PROJECT-level base configuration, so EVERY target (app, widget,
+// watch app, watch tests) inherits these variables. Bundle IDs, App Group, display
+// name and URL schemes are all DERIVED from SYMPLY_BRAND_ID — nothing brand-specific
+// is scattered across project.pbxproj / entitlements / Info.plist anymore.
+//
+// The committed values below are the Budget defaults, so a fresh checkout
+// builds Symply Budget out of the box. Tooling may write the
+// gitignored Brand.generated.xcconfig (included at the bottom) with just the 4 leaf
+// overrides — everything else re-derives automatically. Because that file is
+// gitignored, switching brands produces ZERO git churn.
+//
+// Written by: scripts/ios/apply-brand-ios.cjs (EAS + local), scripts/prepare-xcode.sh,
+//             and the per-brand Xcode scheme pre-actions.
+
+// --- Leaf values (overridden per-brand by Brand.generated.xcconfig) ---
+SYMPLY_BRAND_ID = budget
+SYMPLY_DISPLAY_NAME = Symply Budget
+SYMPLY_URL_SCHEME = simplebudget
+SYMPLY_GOOGLE_URL_SCHEME = com.googleusercontent.apps.144228018802-pj9u6tp8uvh1k81l8d1ji0v2ccb33iq5
+
+// Per-app version identity. Every target (app + widget + watch) reads these, so a
+// brand's app and its extensions always ship the same version/build (App Store rule).
+// Source of truth: brands/<id>/brand.cjs → written into Brand.generated.xcconfig.
+// House defaults below; each brand owns its own build-number line.
+// KEEP IN SYNC with brands/symply-house/brand.cjs (iosVersion / iosBuildNumber).
+// This is the fallback used whenever Brand.generated.xcconfig is absent — a fresh
+// clone, or right after `./scripts/prepare-xcode.sh restore`. It was left at 27
+// while brand.cjs moved on, so an Archive taken without running
+// `npm run prepare:xcode:house` first silently produced a build number that was
+// ALREADY on TestFlight and got rejected at upload (ITMS-4238).
+SYMPLY_MARKETING_VERSION = 1.0.1
+SYMPLY_BUILD_NUMBER = 85
+
+// Apple Health purpose strings, consumed by SymplyEcosystem/Info.plist's
+// NSHealthShareUsageDescription / NSHealthUpdateUsageDescription. NON-EMPTY here
+// on every brand, including the four that never ask for health data: App Store
+// Connect's binary validator (error 90683) requires this key whenever HealthKit
+// APIs are referenced in the compiled binary OR the entitlement is present — and
+// because House, Budget, Kaizen, Language and Health all link the same
+// SymplyHealthKitModule pod, the API-reference condition is true for all five
+// regardless of which one actually has the entitlement. An empty string does not
+// satisfy the validator; it has to be real text.
+// Only the Debug-health / Release-health configurations override this default
+// with Health's detailed copy (see scripts/ios/ensure-brand-configurations.rb),
+// which is the same pair of configurations that gets the HealthKit entitlement.
+// The generic default below is what House, Budget, Kaizen and Language ship.
+// It is honest, not a gate: SymplyHealthKitModule.isUsable() still requires the
+// `com.apple.developer.healthkit` entitlement, which only Health's App ID has,
+// so filling this in does not make HealthKit reachable anywhere else.
+SYMPLY_HEALTHKIT_SHARE_USAGE = This app does not read Apple Health data.
+SYMPLY_HEALTHKIT_UPDATE_USAGE = This app does not write Apple Health data.
+
+// --- Derived identity (never edit per-brand; these follow SYMPLY_BRAND_ID) ---
+SYMPLY_BUNDLE_ID = com.symply.$(SYMPLY_BRAND_ID)
+SYMPLY_WIDGET_BUNDLE_ID = $(SYMPLY_BUNDLE_ID).widget
+SYMPLY_WATCH_BUNDLE_ID = $(SYMPLY_BUNDLE_ID).watchkitapp
+SYMPLY_APP_GROUP = group.$(SYMPLY_BUNDLE_ID)
+
+// Active-brand override (gitignored, optional — House defaults win if absent).
+#include? "Brand.generated.xcconfig"

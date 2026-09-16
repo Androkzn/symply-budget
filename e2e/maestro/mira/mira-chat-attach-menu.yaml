@@ -1,0 +1,91 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:mira
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-mira (see documents/engineering/testing/matrices/)
+---
+# AihousekeeperChatScreen attach (+) menu → REAL attachments. Tapping attach opens
+# an ActionSheet (Take Photo / Photo Library / Document). Both real paths run the
+# two-step aihousekeeper-attachments upload (attachments.createUpload → PUT):
+#   * Document → posts an in-chat "kind" prompt → pick a kind → native document
+#     picker → seeded PDF → a pending-attachment pill with the file name appears.
+#   * Photo Library → native photo picker → seeded image → an image attachment
+#     uploads and (empty composer) auto-sends.
+# Each path is its own guarded section so a varying picker UI degrades gracefully.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-mira-tab.yaml
+- assertVisible:
+    id: 'mira-chat-screen'
+# ---- Document attachment path ----
+- runFlow:
+    when:
+      visible:
+        id: 'mira-chat-attach'
+    commands:
+      - tapOn:
+          id: 'mira-chat-attach'
+      - extendedWaitUntil:
+          visible: 'Document'
+          timeout: 10000
+          optional: true
+      - runFlow:
+          when:
+            visible: 'Document'
+          commands:
+            - assertVisible: 'Photo Library'
+            - tapOn: 'Document'
+            # In-chat kind prompt classifies the document before the picker opens.
+            - extendedWaitUntil:
+                visible: 'What would you like to add'
+                timeout: 8000
+                optional: true
+            - runFlow:
+                when:
+                  visible: 'Other'
+                commands:
+                  - tapOn: 'Other'
+            - runFlow:
+                file: ../subflows/pick-document-from-files.yaml
+                env:
+                  DOC_NAME: 'bc-hydro-bill.pdf'
+                  DOC_NAME_REGEX: 'bc-hydro-bill[.]pdf'
+            # Pending-attachment pill shows the file name (optionally "· NN%" while
+            # uploading) — substring match covers both.
+            - extendedWaitUntil:
+                visible: 'bc-hydro-bill.pdf'
+                timeout: 30000
+                optional: true
+            - runFlow:
+                when:
+                  visible: 'bc-hydro-bill.pdf'
+                commands:
+                  - assertVisible: 'bc-hydro-bill.pdf'
+- assertVisible:
+    id: 'mira-chat-screen'
+# ---- Photo Library attachment path ----
+- runFlow:
+    when:
+      visible:
+        id: 'mira-chat-attach'
+    commands:
+      - tapOn:
+          id: 'mira-chat-attach'
+      - extendedWaitUntil:
+          visible: 'Photo Library'
+          timeout: 10000
+          optional: true
+      - runFlow:
+          when:
+            visible: 'Photo Library'
+          commands:
+            - tapOn: 'Photo Library'
+            - runFlow: ../subflows/pick-photo-from-library.yaml
+            # Image attachment uploads; with an empty composer it auto-sends. The
+            # screen stays mounted through the upload/send round-trip.
+            - waitForAnimationToEnd:
+                timeout: 4000
+- assertVisible:
+    id: 'mira-chat-screen'

@@ -1,0 +1,491 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:weight
+  - mutation
+  - regression
+# Matrix: HEALTH-WEIGHT-401 … HEALTH-WEIGHT-414
+---
+# Weight tab — the entry editor, end to end.
+#
+# WHY THIS FLOW EXISTS. `HealthWeightScreen` is the largest screen in the app
+# (30 interactive controls) and had NO Maestro flow of any kind: every Health
+# weight assertion in the suite drove the HOME card, which writes a bare number
+# and has no date, no note, no edit and no per-entry verbs. This flow owns the
+# editor; `weight-tab-dashboard-controls.yaml` owns the window/customise/goal
+# half.
+#
+# DO NOT CONFUSE THE TWO WEIGHT SURFACES. Home's `health-weight-input` and this
+# screen's `health-weight-entry-value` are different fields on different screens
+# writing through different call sites (`addWeightEntry(value, unit)` vs
+# `addWeightEntry(value, unit, { date, note })`).
+#
+# The tab is pinned to the main bar by default (CORRECTED 2026-08-01: it was
+# `defaultHidden` and reached through the More hub before the 2026-07-28 tab
+# reorder; `subflows/go-health-weight.yaml` was already fixed for this on
+# 2026-07-29, but this flow's own entry assertion below still asserted the
+# pre-reorder shape).
+#
+# TEARDOWN. Every reading this flow logs is deleted in the final leg, asserted
+# by the history empty state or by the note text disappearing.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-WEIGHT-401
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Opens from the pinned bar tab (HEALTH-WEIGHT-401) ---------------
+      - runFlow: subflows/go-health-weight.yaml
+      - assertVisible: 'Weight'
+      - assertVisible:
+          id: 'tab-health-weight'
+      # `LOG A WEIGHT` only renders while a day THIS WEEK through today has no
+      # reading yet — it is not knowable on a shared account whether today's
+      # entry survived a previous run's teardown. Normalise to the gapped
+      # state first: if the card is already hidden, today's reading is
+      # deleted (it sorts first — newest by date) to reopen the gap.
+      - runFlow:
+          when:
+            notVisible: 'LOG A WEIGHT'
+          commands:
+            - scrollUntilVisible:
+                element:
+                  id: 'health-weight-delete-.*'
+                direction: DOWN
+                timeout: 20000
+                visibilityPercentage: 10
+            # Real backend call: `onPress={async () => setEntries(await
+            # deleteWeightEntry(entry.id))}` -> `healthApi.deleteWeight` ->
+            # `DELETE /health/weight/entries/:id` (200) — HealthWeightScreen.tsx.
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+            - tapOn:
+                id: 'health-weight-delete-.*'
+                index: 0
+            # FIXED 2026-08-02: deleting from HISTORY leaves the screen
+            # scrolled to the BOTTOM, but `LOG A WEIGHT` renders near the TOP
+            # (right after the window navigator / goal progress / summary /
+            # weekly chart) — a scroll position `extendedWaitUntil` never
+            # changes on its own, it only polls the CURRENT viewport. Without
+            # scrolling back up first, this timed out even on a run where the
+            # gap genuinely reopened, because the card was simply off-screen,
+            # not because the state failed to change.
+            # `health-weight-entry-value` only exists once the card renders,
+            # so swiping up to reveal it is the same on-screen proof
+            # `LOG A WEIGHT` itself would give — and `health-swipe-section-
+            # to.yaml` is the established fix for exactly this "long hop on a
+            # Health section ScrollView" shape (see its own header).
+            - runFlow:
+                file: subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: 'health-weight-entry-value'
+                  SCROLL_DIR: up
+            # FOLLOW-ON FIX 2026-08-02 (confirmed live, same run this scroll-
+            # up fix landed in — `weight-tab-log-and-edit.html` step #564):
+            # this still timed out AFTER the swipe above finished, because
+            # `health-weight-entry-value` is not a stand-in for `LOG A
+            # WEIGHT`'s own visibility — it is a DIFFERENT element one row
+            # BELOW the label inside the same card (`rowBetween` header, then
+            # the value+unit `logRow` — HealthWeightScreen.tsx
+            # `WeightEntryEditor`). Scrolling UP reveals content from the
+            # BOTTOM of the screen upward as the loop runs, so it can (and on
+            # this run did) exit the instant the value field's row merely
+            # touches the viewport — while the label one row above it is
+            # still off the top edge. The failure screenshot proves this
+            # exactly: the card's own LAST two rows (`Note (optional)` and
+            # `Log weight`) sat at the very TOP of the viewport, with the
+            # header, value and date rows already scrolled past above it.
+            # This is the identical "proving element X is visible doesn't
+            # prove nearby element Y is visible" shape `trends-charts.yaml`
+            # hit one assertion LATER (its own `HISTORY` wait, after this
+            # same swipe) — here it lands on this very assertion instead,
+            # one row short. That remaining gap is now only a single row —
+            # exactly the SHORT hop `health-swipe-section-to.yaml`'s own
+            # header says `scrollUntilVisible` handles reliably, unlike the
+            # long hop from HISTORY it replaces above — so a small nudge
+            # closes it, matching the scroll-then-assert shape already
+            # established for `HISTORY` itself in `trends-charts.yaml`.
+            - scrollUntilVisible:
+                element:
+                  text: 'LOG A WEIGHT'
+                direction: UP
+                timeout: 20000
+                visibilityPercentage: 10
+            - assertVisible: 'LOG A WEIGHT'
+            - runFlow:
+                file: ../subflows/e2e-verify-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+                  E2E_VERIFY_METHOD: DELETE
+                  E2E_VERIFY_PATH: /health/weight/entries/
+                  E2E_VERIFY_STATUS: '200'
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+      - assertVisible: 'LOG A WEIGHT'
+
+      # --- Save is gated on a parseable value (HEALTH-WEIGHT-402) ---------
+      # `canSubmit = parsed !== null && dateValid`. The field starts blank on a
+      # fresh add — never pre-filled with yesterday's number — so the button
+      # must be inert before anything is typed.
+      - scrollUntilVisible:
+          element:
+            id: 'health-weight-entry-save'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-weight-entry-value'
+          text: ''
+      - assertVisible: 'Log weight'
+      # Behavioural, not an `enabled:` selector: RN maps a `Pressable`'s
+      # `disabled` to an accessibility TRAIT and Maestro's `enabled` filter does
+      # not match it on this build. Pressing a disabled Pressable is a no-op, so
+      # the gate is proven by pressing it and showing nothing was filed.
+      # Proven on the WIRE too, not just the UI: `canSubmit = false` short-
+      # circuits the `onPress` before `addWeightEntry` (-> `POST /health/weight
+      # /entries`) is ever called — WeightEntryEditor's save handler.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-weight-entry-save'
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/weight/entries
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible: 'LOG A WEIGHT'
+      - assertNotVisible: 'EDIT READING'
+
+      # --- A value alone enables it (HEALTH-WEIGHT-403) -------------------
+      - tapOn:
+          id: 'health-weight-entry-value'
+      - inputText: '70.5'
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'LOG A WEIGHT'
+      - assertVisible:
+          id: 'health-weight-entry-value'
+          text: '70.5'
+      # No date error while the seeded date is today's.
+      - assertNotVisible:
+          id: 'health-weight-entry-date-error'
+
+      # --- A future date is refused (HEALTH-WEIGHT-404) -------------------
+      # "A weight you have not stood on a scale for is not a measurement" — the
+      # donor refuses a future date outright and so does this. The error is a
+      # RENDERED sentence with its own testID, not a silent no-op, and it must
+      # close the Save gate again.
+      - tapOn:
+          id: 'health-weight-entry-date'
+      - eraseText
+      - inputText: '2099-01-01'
+      - hideKeyboard
+      - extendedWaitUntil:
+          visible:
+            id: 'health-weight-entry-date-error'
+          timeout: 10000
+      - assertVisible: 'Use YYYY-MM-DD, and not a day in the future.'
+      # Pressing Save with a refused date must change nothing: the error stays
+      # up and the value survives, rather than a row being filed against 2099.
+      # `dateValid = false` closes `canSubmit` the same way as the blank-value
+      # gate above, so this is verified as a real no-op on the wire too.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-weight-entry-save'
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/weight/entries
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-weight-entry-date-error'
+      - assertVisible:
+          id: 'health-weight-entry-value'
+          text: '70.5'
+
+      # --- A malformed date is refused the same way (HEALTH-WEIGHT-405) ---
+      - tapOn:
+          id: 'health-weight-entry-date'
+      - eraseText
+      - inputText: '01/01/2026'
+      - hideKeyboard
+      - assertVisible:
+          id: 'health-weight-entry-date-error'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-weight-entry-save'
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/weight/entries
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-weight-entry-date-error'
+
+      # --- `Today` repairs it in one tap (HEALTH-WEIGHT-406) --------------
+      # This is the control's whole job, and the only way back from a bad date
+      # without the flow having to know the device's timezone.
+      - tapOn:
+          id: 'health-weight-entry-today'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-weight-entry-date-error'
+          timeout: 10000
+
+      # HEALTH-WEIGHT-407 used to drive a kg/lb toggle here both ways; that
+      # control was removed 2026-08-01 — the unit is set once, app-wide, from
+      # More → Preferences → Units (see more-units-picker.yaml), not
+      # re-decided per entry. The form now just shows it: a static badge,
+      # testID health-weight-entry-unit.
+      - assertVisible:
+          id: 'health-weight-entry-unit'
+          text: 'kg'
+
+      # --- A note rides along with the reading (HEALTH-WEIGHT-408) --------
+      - tapOn:
+          id: 'health-weight-entry-note'
+      - inputText: 'E2E weight tab note'
+      - hideKeyboard
+      # Real backend call: `onSubmit` -> `addWeightEntry(value, unit, { date,
+      # note })` -> `healthApi.createWeight` -> `POST /health/weight/entries`
+      # (201) — HealthWeightScreen.tsx / healthLocalStorage.ts.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-weight-entry-save'
+      - extendedWaitUntil:
+          visible: 'E2E weight tab note'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/weight/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible: 'HISTORY'
+      # The form empties itself after a successful log, so the gate closes —
+      # asserted on the FIELD, which is the state the gate reads.
+      - assertVisible:
+          id: 'health-weight-entry-value'
+          text: ''
+
+      # --- Edit loads the row INTO the form (HEALTH-WEIGHT-409) -----------
+      # `useEffect` on `editing` is the only time the form is populated from
+      # outside; the Cancel affordance exists only in that state.
+      # Local-only: `onPress={() => setEditing(entry)}` is pure component
+      # state, no fetch (HealthWeightScreen.tsx). Cleared here anyway so the
+      # no-op check below (Cancel) is not confused by earlier traffic.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - scrollUntilVisible:
+          element:
+            id: 'health-weight-edit-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-weight-edit-.*'
+          index: 0
+      - extendedWaitUntil:
+          visible:
+            id: 'health-weight-edit-cancel'
+          timeout: 15000
+      - assertVisible: 'EDIT READING'
+      - assertVisible: 'Save changes'
+      - assertVisible:
+          id: 'health-weight-entry-note'
+          text: 'E2E weight tab note'
+
+      # --- Cancelling an edit restores the add form (HEALTH-WEIGHT-410) ---
+      # The dismissal half. `onCancelEdit` must blank the draft rather than
+      # leave the edited row's number sitting in an ADD form, which would
+      # re-file it as a second reading on the next Save.
+      # Also local-only (`onCancelEdit` just clears `editing`/`prefillDate`),
+      # but verified as a real no-op on the wire too — same rigor as House's
+      # Assignee-picker open-then-Cancel check — since opening Edit puts the
+      # form in a state that LOOKS save-shaped.
+      - tapOn:
+          id: 'health-weight-edit-cancel'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-weight-edit-cancel'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/weight/entries/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible: 'LOG A WEIGHT'
+      - assertVisible:
+          id: 'health-weight-entry-value'
+          text: ''
+
+      # --- An edit that IS saved rewrites the row (HEALTH-WEIGHT-411) -----
+      - tapOn:
+          id: 'health-weight-edit-.*'
+          index: 0
+      - extendedWaitUntil:
+          visible:
+            id: 'health-weight-edit-cancel'
+          timeout: 15000
+      - tapOn:
+          id: 'health-weight-entry-note'
+      - eraseText
+      - inputText: 'E2E weight tab edited'
+      - hideKeyboard
+      # Real backend call: `onSubmit` (editing !== null) -> `updateWeightEntry`
+      # -> `healthApi.updateWeight` -> `PUT /health/weight/entries/:id` (200)
+      # — HealthWeightScreen.tsx / healthLocalStorage.ts.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-weight-entry-save'
+      - extendedWaitUntil:
+          visible: 'E2E weight tab edited'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/weight/entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # The edit REPLACED the reading — it did not add a second one.
+      - assertNotVisible: 'E2E weight tab note'
+      - assertNotVisible:
+          id: 'health-weight-edit-cancel'
+
+      # --- Delete removes it + teardown (HEALTH-WEIGHT-412) ---------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-weight-delete-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # Real backend call: `onPress={async () => setEntries(await
+      # deleteWeightEntry(entry.id))}` -> `healthApi.deleteWeight` ->
+      # `DELETE /health/weight/entries/:id` (200) — HealthWeightScreen.tsx.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-weight-delete-.*'
+          index: 0
+      - extendedWaitUntil:
+          notVisible: 'E2E weight tab edited'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/weight/entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The screen scrolls to its end (HEALTH-WEIGHT-413) --------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-weight-screen-scroll-end'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+
+      # --- Back to the Health tab (HEALTH-WEIGHT-414) ---------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

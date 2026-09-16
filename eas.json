@@ -1,0 +1,124 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "symply-budget-development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "symply-budget-development",
+      "env": {
+        "APP_BRAND": "symply-budget",
+        "EXPO_PUBLIC_APP_BRAND": "symply-budget",
+        "EXPO_PUBLIC_BUDGET_LOCAL_FIRST": "1",
+        "EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK": "1",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_aWqACsWZaAVBgvaJadDMjZUTHvU",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_pABmQSTyLdkoUTEZHgrHsSuAoDl"
+      },
+      "ios": {
+        "simulator": true,
+        "scheme": "SymplyBudget-Staging"
+      }
+    },
+    "symply-budget-preview": {
+      "distribution": "internal",
+      "channel": "symply-budget-preview",
+      "env": {
+        "APP_BRAND": "symply-budget",
+        "EXPO_PUBLIC_APP_BRAND": "symply-budget",
+        "EXPO_PUBLIC_BUDGET_LOCAL_FIRST": "1",
+        "EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK": "1",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_aWqACsWZaAVBgvaJadDMjZUTHvU",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_pABmQSTyLdkoUTEZHgrHsSuAoDl"
+      },
+      "ios": {
+        "simulator": false,
+        "scheme": "SymplyBudget-Staging"
+      }
+    },
+    "symply-budget-staging": {
+      "distribution": "internal",
+      "channel": "symply-budget-staging",
+      "env": {
+        "APP_BRAND": "symply-budget",
+        "EXPO_PUBLIC_APP_BRAND": "symply-budget",
+        "EXPO_PUBLIC_API_ENV": "staging",
+        "EXPO_PUBLIC_BUDGET_LOCAL_FIRST": "1",
+        "EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK": "1",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_aWqACsWZaAVBgvaJadDMjZUTHvU",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_pABmQSTyLdkoUTEZHgrHsSuAoDl"
+      },
+      "ios": {
+        "simulator": false,
+        "scheme": "SymplyBudget-Staging",
+        "credentialsSource": "remote"
+      }
+    },
+    "symply-budget-production": {
+      "distribution": "store",
+      "channel": "symply-budget-production",
+      "env": {
+        "APP_BRAND": "symply-budget",
+        "EXPO_PUBLIC_APP_BRAND": "symply-budget",
+        "EXPO_PUBLIC_API_ENV": "production",
+        "EXPO_PUBLIC_BUDGET_LOCAL_FIRST": "1",
+        "EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK": "1",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_aWqACsWZaAVBgvaJadDMjZUTHvU",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_pABmQSTyLdkoUTEZHgrHsSuAoDl"
+      },
+      "ios": {
+        "scheme": "SymplyBudget-Production",
+        "credentialsSource": "remote"
+      }
+    },
+    "symply-budget-testflight": {
+      "extends": "symply-budget-production",
+      "distribution": "store",
+      "channel": "symply-budget-production",
+      "ios": {
+        "simulator": false,
+        "scheme": "SymplyBudget-Production",
+        "credentialsSource": "remote"
+      }
+    },
+    "symply-budget-simulator": {
+      "distribution": "internal",
+      "channel": "symply-budget-preview",
+      "env": {
+        "APP_BRAND": "symply-budget",
+        "EXPO_PUBLIC_APP_BRAND": "symply-budget",
+        "EXPO_PUBLIC_BUDGET_LOCAL_FIRST": "1",
+        "EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK": "1",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_aWqACsWZaAVBgvaJadDMjZUTHvU",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_pABmQSTyLdkoUTEZHgrHsSuAoDl"
+      },
+      "ios": {
+        "simulator": true,
+        "scheme": "SymplyBudget-Staging"
+      }
+    }
+  },
+  "submit": {
+    "symply-budget-testflight": {
+      "ios": {
+        "bundleIdentifier": "com.symply.budget",
+        "appleId": "a.tekhtelev@gmail.com",
+        "appleTeamId": "B2ZY5M2YW2",
+        "ascAppId": "6790505414"
+      }
+    },
+    "symply-budget-production": {
+      "ios": {
+        "bundleIdentifier": "com.symply.budget",
+        "appleId": "a.tekhtelev@gmail.com",
+        "appleTeamId": "B2ZY5M2YW2",
+        "ascAppId": "6790505414"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./credentials/android/play-publisher-service-account.json",
+        "track": "internal"
+      }
+    }
+  }
+}

@@ -1,0 +1,39 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:settings
+  - readonly
+  - regression
+# Matrix: BUDGET-SETT-029/031 — customize tabs + legacy /budget redirect
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/go-budget-more.yaml
+- scrollUntilVisible:
+    element:
+      id: 'more-customize-tabs'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'more-customize-tabs'
+- extendedWaitUntil:
+    visible:
+      id: 'customize-tabs-screen'
+    timeout: 15000
+- assertVisible: 'Customize Tabs'
+- assertVisible:
+    text: '.*SHOWN TABS.*'
+- tapOn:
+    id: 'nav-back-button'
+# Legacy /budget deep link redirects to section tabs (no combined screen).
+- openLink: simplebudget:///budget?activeView=spendings
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 30000
+- openLink: simplebudget:///budget?activeView=savings
+- extendedWaitUntil:
+    visible:
+      id: 'filter-tab-overview'
+    timeout: 30000
+    optional: true

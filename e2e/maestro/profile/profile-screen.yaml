@@ -1,0 +1,20 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:settings
+  - readonly
+  - regression
+# Matrix: HOUSE-settings (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-profile.yaml
+- assertVisible:
+    id: 'profile-screen'
+- assertVisible:
+    id: 'profile-display-name-input'
+# Scroll contract (optional on iOS 26)
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: profile-screen-scroll-end
+

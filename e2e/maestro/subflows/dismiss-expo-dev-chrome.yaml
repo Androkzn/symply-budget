@@ -1,0 +1,186 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Expo Dev Client chrome that blocks Maestro taps on Debug builds.
+# Safe no-ops when already on the real app surface.
+# Repeat — iOS stacks "Open in …?" over Dev Launcher / Dev Menu.
+- repeat:
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            visible: 'Login Failed'
+          commands:
+            - tapOn:
+                text: 'OK'
+                optional: true
+            - tapOn:
+                text: 'Cancel'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+            - runFlow:
+                when:
+                  visible: 'Login Failed'
+                commands:
+                  - tapOn:
+                      point: '50%,55%'
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 1500
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'home-screen'
+                commands:
+                  - openLink: ${E2E_LOGIN_URL}
+                  - waitForAnimationToEnd:
+                      timeout: 5000
+                  - runFlow: login-email-if-needed.yaml
+      - runFlow:
+          when:
+            visible: 'Open'
+          commands:
+            - tapOn: 'Open'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      # iOS's native Keychain "Save Password?" prompt after a password-field
+      # submit — a genuine OS-level dialog outside the app's own view
+      # hierarchy entirely, so it blocks e2e-verify-badge just like anything
+      # else on screen. Reproduced 2026-07-31 in login-wrong-password.yaml.
+      - runFlow:
+          when:
+            visible: 'Save Password?'
+          commands:
+            - tapOn: 'Not Now'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Enable Face ID?'
+          commands:
+            - tapOn: 'Not Now'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      # SpringBoard's Apple ID re-auth prompt ("Apple Account Verification —
+      # Enter the password for <account> in Settings", buttons Not Now /
+      # Settings). It is not the app's, it survives relaunches, and it publishes
+      # NO app nodes at all — so every assertion below it fails blind.
+      #
+      # Cost when unhandled, measured 2026-09-02: `floor-plans-deferred-readonly`
+      # burned 14m21s and 622 commands against it, running `launch-logged-in`'s
+      # full recovery cascade three times into its 90s/30s budgets before dying
+      # on `home-screen is visible`. Every hierarchy from step-064 to step-622
+      # was this same alert.
+      #
+      # NOTE THE MATCHER: the title contains a NON-BREAKING SPACE —
+      # 'Apple\xa0Account Verification' — so '.*Apple Account Verification.*'
+      # with an ordinary space matches NOTHING. That one character cost three
+      # flows 13+ minutes each on 2026-09-02 against a handler that looked
+      # correct. Match on the ASCII-only tail instead.
+      # `.*`-wrapped because Maestro matches the node's WHOLE a11y string.
+      # This is a mitigation, not the cure — the real fix is clearing the Apple
+      # ID prompt on the simulator (device hygiene) so it never appears.
+      - runFlow:
+          when:
+            visible: '.*Account Verification.*'
+          commands:
+            - tapOn: 'Not Now'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      # iOS push-notification permission prompt — another genuine OS-level
+      # UIAlertController, can stack over the Enable Face ID screen on first
+      # launch/login. Same pattern as Save Password / Face ID above.
+      # `.*`-wrapped for the same reason as the block above: Maestro matches the
+      # node's WHOLE a11y string and the real title is
+      # “SymplyEcosystem” Would Like to Send You Notifications, so the bare
+      # substring here has been a DEAD guard — it can never have fired.
+      - runFlow:
+          when:
+            visible: '.*Would Like to Send You Notifications.*'
+          commands:
+            - tapOn: "Don.t Allow"
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'DEVELOPMENT SERVERS'
+          commands:
+            # Prefer House Metro (8083); fall back when URL text differs on iOS 26.
+            - tapOn:
+                text: '.*8083.*'
+                optional: true
+            - tapOn:
+                text: '.*:8083'
+                optional: true
+            - tapOn:
+                text: '.*localhost.*8083.*'
+                optional: true
+            - tapOn:
+                text: '.*8081.*'
+                optional: true
+            - tapOn:
+                text: 'http.*'
+                optional: true
+            - tapOn:
+                point: '50%,38%'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 12000
+      - runFlow:
+          when:
+            visible: 'Continue'
+          commands:
+            - tapOn: 'Continue'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      # The Expo Dev Client menu — "Reload / Go home / Toggle element inspector".
+      #
+      # It used to be dismissed by tapping `92%,11%`, i.e. a close button at the
+      # TOP of a full-screen menu. In the current runtime it is a BOTTOM SHEET
+      # and its X sits near the middle of the screen, so that coordinate landed
+      # on empty space and the menu stayed up — with the app behind it, which
+      # makes `home-screen` unreachable and every flow die in `launch-logged-in`
+      # rather than in its own steps.
+      #
+      # Dismissed three ways instead of one, cheapest first, because the menu's
+      # geometry has now changed once and will again:
+      #   1. swipe the sheet down — how iOS dismisses a sheet, layout-independent
+      #   2. tap the dimmed backdrop ABOVE the sheet
+      #   3. the X, at where it actually is now
+      # Never "Go home": that navigates to the dev launcher, which leaves the
+      # app unmounted and looks identical to a crash from the flow's side.
+      - runFlow:
+          when:
+            visible: 'Reload'
+          commands:
+            - swipe:
+                start: '50%, 50%'
+                end: '50%, 95%'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Reload'
+          commands:
+            - tapOn:
+                point: '50%,8%'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Reload'
+          commands:
+            - tapOn:
+                point: '90%,48%'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Continue'
+          commands:
+            - tapOn: 'Continue'
+            - waitForAnimationToEnd:
+                timeout: 3000

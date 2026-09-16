@@ -1,0 +1,33 @@
+appId: com.symply.kaizen
+tags:
+  - util
+---
+# Dev helper: report whether Today or Login is showing (no typing).
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 8000
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-today-screen'
+    timeout: 20000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'auth-sign-in-email'
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'kaizen-today-screen'
+    commands:
+      - assertVisible:
+          id: 'kaizen-today-screen'
+- runFlow:
+    when:
+      visible:
+        id: 'auth-sign-in-email'
+    commands:
+      - assertVisible:
+          id: 'auth-sign-in-email'

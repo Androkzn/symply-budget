@@ -1,0 +1,96 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:budget-chat
+  - pair
+  - pair:a
+  - readonly
+  - regression
+# Matrix: BUDGET-BCHAT-PAIR-006
+#
+# ── Two-member Budget chat, stage A4 (device A / member A) ───────────────────
+# Closes the loop. Stage B2 proved A → B; this proves B → A on the ORIGINAL
+# device, so the conversation is genuinely bidirectional rather than one member
+# shouting into a room the other can only read.
+#
+# Same shape as B2's receive assertions, mirrored: B's reply must reach A's rooms
+# list as unread, be attributed to B, and render as an INCOMING bubble inside the
+# room. Read-only — A sends nothing here.
+#
+# Env: PAIR_HOUSEHOLD_ID, PAIR_ROOM_NAME, PAIR_MSG_B, PAIR_B_NAME.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- openLink: simplebudget:///
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- runFlow: ../subflows/budget-recover-dashboard.yaml
+- runFlow: ../subflows/budget-open-chat-rooms.yaml
+- assertVisible:
+    id: 'chat-rooms-screen'
+- extendedWaitUntil:
+    visible: '.*${PAIR_ROOM_NAME}.*'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      notVisible: '.*${PAIR_ROOM_NAME}.*'
+    commands:
+      - swipe:
+          direction: DOWN
+          element:
+            id: 'chat-rooms-list'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - extendedWaitUntil:
+          visible: '.*${PAIR_ROOM_NAME}.*'
+          timeout: 45000
+- assertVisible: '.*${PAIR_ROOM_NAME}.*'
+# B's reply raised A's unread count — the mirror of stage B2's check. Again this
+# has to happen before the room is opened.
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-unread-.*'
+    timeout: 30000
+- assertVisible:
+    id: 'chat-room-unread-.*'
+# The list preview now attributes the newest message to B, not to A.
+- assertVisible: '.*${PAIR_B_NAME}.*${PAIR_MSG_B}.*'
+- tapOn:
+    text: '.*${PAIR_ROOM_NAME}.*'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-screen'
+    timeout: 60000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'chat-room-screen'
+    commands:
+      - tapOn:
+          text: '.*${PAIR_ROOM_NAME}.*'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-room-screen'
+          timeout: 60000
+- assertVisible:
+    id: 'chat-room-screen'
+# B's reply landed on A's device as an INCOMING bubble, under B's name.
+- extendedWaitUntil:
+    visible: '.*${PAIR_MSG_B}.*'
+    timeout: 45000
+- extendedWaitUntil:
+    visible:
+      id: 'chat-msg-theirs-.*'
+    timeout: 30000
+- assertVisible:
+    id: 'chat-msg-theirs-.*'
+- assertVisible: '.*${PAIR_B_NAME}.*'
+# Both sides of the exchange are in one thread on one device.
+- assertVisible: '.*${PAIR_MSG_A}.*'
+- assertVisible:
+    id: 'chat-msg-mine-.*'
+- runFlow: ../subflows/budget-exit-chat.yaml

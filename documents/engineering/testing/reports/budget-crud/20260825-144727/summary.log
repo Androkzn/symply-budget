@@ -1,0 +1,8 @@
+FAIL [Budget-C] budget-savings-recurring
+FAIL [Budget-C] budget-savings-monthly-crud
+PASS [Budget-C] budget-savings-projection
+PASS [Budget-C] budget-savings-projection-targets
+PASS [Budget-C] budget-savings-goal
+PASS [Budget-C] budget-savings-goal-crud
+PASS [Budget-C] budget-savings-year-history
+PASS [Budget-C] budget-savings-offline

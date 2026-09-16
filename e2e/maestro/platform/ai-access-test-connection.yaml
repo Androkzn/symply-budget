@@ -1,0 +1,44 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:ai-access
+  - regression
+# Matrix: PLAT-AIACC-046
+# BYOK "Test connection" dry-run — the INTERACTIVE half of the connect screen.
+# ai-access-connect.yaml asserts the control is present (readonly); this flow
+# actually exercises it: type a plausible-but-bogus key and probe the DEPLOYED
+# backend (POST /ai-credentials/:provider/validate with an api_key body → a
+# dry-run that persists nothing), then assert an inline result surfaces.
+# The pass/fail copy varies with entitlement, so we assert the result row
+# (ai-test-connection-result) appears rather than a specific message. Safe on
+# the shared account — nothing is saved and the primary CTA is never submitted.
+---
+- runFlow: subflows/launch-platform.yaml
+- openLink: simplehouse://ai-access/connect?provider=anthropic
+- extendedWaitUntil:
+    visible:
+      id: 'ai-connect-button'
+    timeout: 20000
+# The new dry-run control renders (visible even before a key is typed).
+- assertVisible:
+    id: 'ai-test-connection-button'
+# Type a bogus key and fire the probe against the live backend.
+- tapOn:
+    id: 'ai-key-input'
+- inputText: 'sk-ant-e2ebogustestkey0000'
+# `optional: true` only — NO neutral-point tap. The tap was added on a wrong
+# premise (assumed iPad keyboard chrome) and was UNSAFE: 50%,12% is (417,145)
+# on an 834x1210 iPad, which lands on real controls — the profile avatar
+# (opens a camera Alert), the contractor photo circle (ActionSheet), a bare
+# TextInput on property-assessment. On iPhone 12% is inside the 118pt header,
+# outside the ScrollView, so it dismisses nothing at all. An `optional`
+# hideKeyboard cannot abort the flow, which is all that was ever needed here.
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'ai-test-connection-button'
+# An inline result (success or rejection) must surface from the probe.
+- extendedWaitUntil:
+    visible:
+      id: 'ai-test-connection-result'
+    timeout: 20000

@@ -1,0 +1,100 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:nav
+  - readonly
+  - regression
+# Matrix: BUDGET-NAV-007, BUDGET-NAV-010
+#
+# The legacy `app/(tabs)/budget.tsx` shim maps ?activeView=<view> onto the six
+# real tab routes. Notification and widget deep links both land through it, so a
+# regression here silently strands every inbound link on Home.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000
+
+# --- BUDGET-NAV-007: each activeView reaches its own section -----------------
+# dashboard → /
+- openLink: ${E2E_APP_SCHEME}:///budget?activeView=dashboard
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-dashboard'
+    timeout: 20000
+
+# planned → /planning
+- openLink: ${E2E_APP_SCHEME}:///budget?activeView=planned
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-planned-spendings'
+    timeout: 20000
+
+# spendings → /spending
+- openLink: ${E2E_APP_SCHEME}:///budget?activeView=spendings
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 20000
+
+# savings → /savings. Skipped when the savings kill-switch 404s the tab away.
+- openLink: ${E2E_APP_SCHEME}:///budget?activeView=savings
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'tab-savings'
+    timeout: 20000
+    optional: true
+
+# wishes → /wishes
+- openLink: ${E2E_APP_SCHEME}:///budget?activeView=wishes
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'wishes-view'
+    timeout: 20000
+    optional: true
+
+# pension → /pension
+- openLink: ${E2E_APP_SCHEME}:///budget?activeView=pension
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'pension-view'
+    timeout: 20000
+    optional: true
+
+# --- BUDGET-NAV-008: unknown activeView falls back Home, no crash ------------
+- openLink: ${E2E_APP_SCHEME}:///budget?activeView=definitely-not-a-view
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-dashboard'
+    timeout: 20000
+
+# --- BUDGET-NAV-010: the link survives a cold launch ------------------------
+# stopApp is deliberate here (the suite otherwise avoids it) — a cold start is
+# the whole point: the link must resolve AFTER auth rehydration, not be dropped.
+- stopApp
+# Dev-client cold start: a bare section deep-link lands on the Expo dev launcher
+# (Metro not reconnected) so budget-screen never loads. Relaunch via the standard
+# logged-in launch — it reconnects the dev-client to Metro :8082 and rehydrates
+# auth → budget-screen. Then warm-issue the section deep-link and assert the
+# section root, proving the link resolves after a cold start + auth rehydrate.
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- openLink: ${E2E_APP_SCHEME}:///budget?activeView=spendings
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 30000
+
+# Leave the suite on a known surface — the next flow assumes a warm session.
+- runFlow: ../subflows/go-budget-tab.yaml
+- assertVisible:
+    id: 'budget-dashboard'

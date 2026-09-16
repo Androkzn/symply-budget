@@ -1,0 +1,37 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Close the ambient permission cards on Health Home if either is showing.
+#
+# Neither permission is ever pre-granted on the shared E2E account, so BOTH
+# `health-home-notification-permission-card` and `health-home-healthkit-card`
+# render on every cold launch (see subflows/focus-health-home.yaml) — and,
+# per HealthHomeScreen, `visible`/`healthKitBanner.visible` are per-SESSION
+# dismiss flags, not persisted, so a relaunch (the retry loop in
+# launch-health.yaml, or a fresh login) brings them straight back. One dismiss
+# at boot is not enough — this is called from every point a flow can land back
+# on a freshly (re)mounted Home, and dismisses BOTH, twice each, since closing
+# one shifts the other into/out of view.
+#
+# `${testID}-dismiss` is each card's own close button (PermissionCard /
+# HealthKitConnectCard) — NOT the components' own internal default testID,
+# the testID HealthHomeScreen actually passes them.
+- repeat:
+    times: 2
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'health-home-notification-permission-card-dismiss'
+          commands:
+            - tapOn:
+                id: 'health-home-notification-permission-card-dismiss'
+      - runFlow:
+          when:
+            visible:
+              id: 'health-home-healthkit-card-dismiss'
+          commands:
+            - tapOn:
+                id: 'health-home-healthkit-card-dismiss'

@@ -1,0 +1,50 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Login surface after sign-out or cold relaunch.
+# Remembered-email prefill may expand the form (submit visible, email CTA hidden).
+- runFlow: dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow: dismiss-expo-dev-chrome.yaml
+# Profile sign-out or clearState can leave JWTs in Keychain — force dev logout when still in-app.
+- runFlow:
+    when:
+      visible:
+        id: 'home-screen'
+    commands:
+      - runFlow: e2e-logout.yaml
+      - runFlow: dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      visible:
+        id: 'profile-screen'
+    commands:
+      - runFlow: e2e-logout.yaml
+      - runFlow: dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: 'login-screen'
+    timeout: 45000
+- assertVisible:
+    id: 'login-screen'
+- assertVisible:
+    id: 'auth-sign-in-email'
+    optional: true
+- assertVisible:
+    id: 'auth-sign-in-submit'
+    optional: true
+- assertVisible:
+    id: 'auth-biometric-login'
+    optional: true
+- assertVisible:
+    id: 'auth-email-input'
+    optional: true
+- assertNotVisible:
+    id: 'home-up-next-section'

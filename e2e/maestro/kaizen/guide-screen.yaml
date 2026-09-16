@@ -1,0 +1,17 @@
+appId: com.symply.kaizen
+---
+# Guide tab: AI coach chat loads with the composer and greeting prompt.
+# (Scroll contract removed — see today-screen.yaml note on the Maestro/iOS-26 scroll limitation.)
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow: subflows/go-guide.yaml
+- assertVisible:
+    id: 'kaizen-guide-screen'
+- assertVisible:
+    id: 'kaizen-guide-composer'
+- assertVisible: 'What would make today feel meaningfully better?'
+# Enable-AI disclosure is inline — tapping it must not navigate away from Guide.
+- tapOn:
+    text: 'Enable AI'
+    optional: true
+- assertVisible:
+    id: 'kaizen-guide-screen'

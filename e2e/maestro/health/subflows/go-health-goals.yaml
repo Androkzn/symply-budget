@@ -1,0 +1,27 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Open Goals (route health-goals, header "Goals").
+#
+# Unlike Water/Habits/Body/Cycle/Vitality, Goals is NOT a tab-pool member — it
+# has no `more-tab-health-goals` row. It is reached the settings way, from
+# PREFERENCES → "Goals and targets" (`health-setting-goals`) on the More hub,
+# via `router.push('/health-goals')`. That is a STACK push, not a tab switch,
+# so the way back is the header's `nav-back-button`, not the tab bar.
+- runFlow: go-more.yaml
+- scrollUntilVisible:
+    element:
+      id: 'health-setting-goals'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- tapOn:
+    id: 'health-setting-goals'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-goals-screen'
+    timeout: 30000

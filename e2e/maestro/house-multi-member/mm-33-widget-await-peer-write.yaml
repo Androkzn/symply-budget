@@ -1,0 +1,67 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - feature:widget
+# Matrix: HOUSE-MM-033 — HOUSE ADDITION (plan §12: "widget projection after a
+# peer's write"). Runs on device B only, after mm-32's writer half.
+#
+# WHY THERE IS ALMOST NOTHING TO ASSERT IN THE UI
+# -----------------------------------------------
+# There is no House widget surface inside the app — no settings screen, no
+# preview, no testID anywhere in `src` matching "widget" for this brand. The
+# projection is a service: `widgetProjection.ts` builds a minimal task slice and
+# hands it to `widgetSync.setTasks`, which the native module writes into the App
+# Group as the `widget_tasks` key
+# (modules/widget-sync/ios/WidgetSyncModule.swift:70) and then reloads the
+# timeline. The widget extension is a separate process with no DEK, so the App
+# Group file is the ONLY place the projection is observable.
+#
+# Therefore this flow's job is to establish the precondition — the peer's task
+# is in this device's ledger and a projection pass has run — and the runner
+# reads `group.com.symply.house` out of the simulator container and asserts the
+# peer's title is inside `widget_tasks`. That is the whole check that N4 is
+# closed: before H7-lite the widget read `/households/:id/tasks/watch`, which
+# returns nothing for a local-first household, and the plan refuses to ship "a
+# widget that renders an empty task list forever".
+#
+# The projection is also a privacy boundary, and the runner asserts that half
+# too: `HOUSE_WIDGET_TASK_FIELDS` is an allowlist of 8 fields, and the ledger's
+# `tasks` row is 58 columns wide. Anything beyond the allowlist appearing in the
+# App Group is plaintext leaving the encrypted store.
+#
+# env: MM_TITLE — the task the peer authored (mm-32's writer)
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-go-tasks.yaml
+# The peer's row must be here before a projection could possibly contain it.
+- repeat:
+    times: 16
+    commands:
+      - runFlow:
+          when:
+            notVisible: '.*${MM_TITLE}.*'
+          commands:
+            - runFlow: mm-sync-pulse.yaml
+            - runFlow: mm-dismiss-stale-alerts.yaml
+            - runFlow: mm-relaunch-if-backgrounded.yaml
+            - runFlow: mm-go-tasks.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 30000
+- assertVisible: '.*${MM_TITLE}.*'
+# `startHouseWidgetProjection` subscribes to ledger changes and republishes on
+# each bump; the publish is debounced, so settle before the runner reads the
+# App Group rather than racing the write.
+- runFlow: mm-sync-pulse.yaml
+- waitForAnimationToEnd:
+    timeout: 8000
+- runFlow: ../subflows/go-home-tab.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-screen'
+    timeout: 30000
+- assertVisible:
+    id: 'home-screen'

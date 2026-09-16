@@ -1,0 +1,115 @@
+diff --git a/node_modules/expo-notifications/ios/ExpoNotifications/Notifications/NotificationCenterManager.swift b/node_modules/expo-notifications/ios/ExpoNotifications/Notifications/NotificationCenterManager.swift
+index 156eee7..3e868b8 100644
+--- a/node_modules/expo-notifications/ios/ExpoNotifications/Notifications/NotificationCenterManager.swift
++++ b/node_modules/expo-notifications/ios/ExpoNotifications/Notifications/NotificationCenterManager.swift
+@@ -46,6 +46,22 @@ public class NotificationCenterManager: NSObject,
+   var pendingResponses: [UNNotificationResponse] = []
+   let userNotificationCenter: UNUserNotificationCenter = UNUserNotificationCenter.current()
+ 
++  // This is a process-global singleton, but `delegates` / `pendingResponses` are plain
++  // Swift Arrays and were mutated without synchronization. With expo-dev-client a single
++  // process runs module registration more than once (the launcher's AppContext plus the
++  // app's, and again on every JS runtime swap/reload), so a registering runtime's
++  // addDelegate() races a tearing-down runtime's removeDelegate(). Racing Array mutation
++  // corrupts the buffer -> EXC_BAD_ACCESS inside Array.append's reallocation.
++  // Guard every access; iterate over a snapshot so delegate callbacks can re-enter
++  // (e.g. call removeDelegate) without deadlocking.
++  private let delegatesLock = NSLock()
++
++  private var delegatesSnapshot: [NotificationDelegate] {
++    delegatesLock.lock()
++    defer { delegatesLock.unlock() }
++    return delegates
++  }
++
+   private override init() {
+     super.init()
+     if UNUserNotificationCenter.current().delegate != nil {
+@@ -62,17 +78,29 @@ public class NotificationCenterManager: NSObject,
+   }
+ 
+   public func addDelegate(_ delegate: NotificationDelegate) {
+-    delegates.append(delegate)
++    delegatesLock.lock()
++    // A re-registering runtime can hand us the same delegate twice; appending it again
++    // would double-invoke it and leave a stale entry behind on teardown.
++    if !delegates.contains(where: { $0 === delegate }) {
++      delegates.append(delegate)
++    }
++    let pending = pendingResponses
++    delegatesLock.unlock()
++
+     var handled = false
+-    for pendingResponse in pendingResponses {
++    for pendingResponse in pending {
+       handled = delegate.didReceive(pendingResponse, completionHandler: {}) || handled
+     }
+     if handled {
++      delegatesLock.lock()
+       pendingResponses.removeAll()
++      delegatesLock.unlock()
+     }
+   }
+ 
+   public func removeDelegate(_ delegate: AnyObject) {
++    delegatesLock.lock()
++    defer { delegatesLock.unlock() }
+     if let index = delegates.firstIndex(where: { $0 === delegate }) {
+       delegates.remove(at: index)
+     }
+@@ -81,13 +109,13 @@ public class NotificationCenterManager: NSObject,
+   // MARK: - Called by PushTokenAppDelegateSubscriber
+ 
+   public func didFailRegistration(_ error: any Error) {
+-    for delegate in delegates {
++    for delegate in delegatesSnapshot {
+       delegate.didFailRegistration(error)
+     }
+   }
+ 
+   public func didRegister(_ deviceToken: String) {
+-    for delegate in delegates {
++    for delegate in delegatesSnapshot {
+       delegate.didRegister(deviceToken)
+     }
+   }
+@@ -100,7 +128,7 @@ public class NotificationCenterManager: NSObject,
+     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+   ) {
+     var handled = false
+-    for delegate in delegates {
++    for delegate in delegatesSnapshot {
+       handled = delegate.willPresent(notification, completionHandler: completionHandler) || handled
+     }
+     if !handled {
+@@ -114,17 +142,19 @@ public class NotificationCenterManager: NSObject,
+     withCompletionHandler completionHandler: @escaping () -> Void
+   ) {
+     var handled = false
+-    for delegate in delegates {
++    for delegate in delegatesSnapshot {
+       handled = delegate.didReceive(response, completionHandler: completionHandler) || handled
+     }
+     if !handled {
++      delegatesLock.lock()
+       pendingResponses.append(response)
++      delegatesLock.unlock()
+     }
+     completionHandler()
+   }
+ 
+   public func userNotificationCenter(_ center: UNUserNotificationCenter, openSettingsFor notification: UNNotification?) {
+-    for delegate in delegates {
++    for delegate in delegatesSnapshot {
+       delegate.openSettings(notification)
+     }
+   }
+@@ -132,7 +162,7 @@ public class NotificationCenterManager: NSObject,
+   // MARK: - Called from NotificationsAppDelegateSubscriber
+   public func didReceive(_ userInfo: [AnyHashable: Any], completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+     var handled = false
+-    for delegate in delegates {
++    for delegate in delegatesSnapshot {
+       handled = delegate.didReceive(userInfo, completionHandler: completionHandler) || handled
+     }
+     if !handled {

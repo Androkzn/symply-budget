@@ -1,0 +1,23 @@
+appId: com.symply.kaizen
+---
+# Learning plan — the three plan sections render; 'Back to skill' returns.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/learning-plan
+- extendedWaitUntil:
+    visible: 'Learning plan'
+    timeout: 20000
+- assertVisible: 'Concepts'
+- assertVisible: 'Next steps'
+- assertVisible: 'Review focus'
+- assertVisible: 'Back to skill'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+# Interaction: leave via the primary action.
+- tapOn: 'Back to skill'
+- runFlow: subflows/return-to-today.yaml

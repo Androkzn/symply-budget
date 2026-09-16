@@ -1,0 +1,29 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# CLEAN THE SLATE ON ENTRY. Delete every "* Test Item" recurring payment before
+# the flow starts, via the API from inside the already-authenticated app.
+#
+# Mutating savings flows clean up at the END, but that block only runs when the
+# flow PASSES — so every failure leaves its rows behind and the next run
+# inherits them. That is self-sustaining, and it actively breaks the next run:
+# flows tap rows BY NAME, and with duplicates Maestro takes the FIRST match, a
+# row from an older run rather than the one just created. It cost a whole cycle
+# on 2026-08-25: a purged list made `budget-savings-recurring` reach its final
+# assertions, the run then failed for an unrelated reason, left a fresh "Loan
+# Chart Test Item" behind, and the very next run failed early on
+# `savings-payment-detail-sheet` again — the pre-purge symptom, back.
+#
+# Cleaning up afterwards is not enough; a flow must not be able to inherit its
+# own past failures. Deleting by ID needs no scrolling, so unlike a tap-driven
+# drain it is not limited by Maestro's viewport-based visibility.
+#
+# Only matches /Test Item/i, so genuine payments on this shared account survive
+# (asserted in e2e-test-deeplinks.test.ts).
+- openLink: simplebudget://e2e-budget-purge-test-payments
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+# The handler deletes serially and is fire-and-forget; give it room to finish.
+- waitForAnimationToEnd:
+    timeout: 8000

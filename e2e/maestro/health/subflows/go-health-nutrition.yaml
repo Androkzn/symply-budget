@@ -1,0 +1,14 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Switch to the Nutrition tab (route health-nutrition, label Nutrition).
+- runFlow: dismiss-weight-keyboard.yaml
+- tapOn:
+    id: 'tab-health-nutrition'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-nutrition-screen'
+    timeout: 30000

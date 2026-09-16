@@ -1,0 +1,20 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:notifications
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-notifications (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-notifications.yaml
+- assertVisible:
+    id: 'notifications-screen'
+- assertVisible: 'Notifications'
+# Scroll contract
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: notifications-screen-scroll-end
+

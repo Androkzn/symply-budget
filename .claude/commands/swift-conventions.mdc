@@ -1,0 +1,64 @@
+---
+description: "Swift coding conventions, service patterns, and error handling."
+globs: "**/*.swift"
+alwaysApply: false
+---
+
+# Swift & SwiftUI Conventions
+
+## Service Pattern
+All services follow the singleton `ObservableObject` pattern:
+
+```swift
+@MainActor
+class ServiceName: ObservableObject {
+    static let shared = ServiceName()
+    @Published var state: Type
+
+    private init() { }
+
+    func method() async throws -> Result { }
+}
+```
+
+**Rules**:
+- Use `static let shared = ServiceName()` for all services
+- Mark with `@MainActor` when the service has `@Published` properties
+- Use `async/await` for all API and network calls
+- Use `private init()` to enforce singleton access
+
+## API Services
+Located in `step/APIServises/`. Follow existing patterns:
+- One service per GraphQL model (e.g., `VideoService`, `ContactsService`)
+- Use Amplify's `Amplify.API.query` / `Amplify.API.mutate`
+- Return domain types, not raw GraphQL responses
+
+## Debug Logging
+- **NEVER** use `print()` statements. Use `debugLog`, `DebugLogger`, or other custom logging utilities instead.
+- Always wrap debug output in compilation flags:
+
+```swift
+#if DEBUG
+debugLog("Message", category: .aiServices)
+#endif
+```
+
+Available categories are defined in `step/Configuration/DebugConfig.swift`.
+
+## Error Handling
+- Use `ErrorService.shared` for user-facing errors
+- Use `AppError` enum for typed errors (see `step/Services/ErrorHandling/AppError.swift`)
+- Every screen must handle: Content, Loading, Empty, Error, and Offline states
+
+## Naming
+- Files match their primary type name (e.g., `VideoService.swift` contains `class VideoService`)
+- Views end with `View` (e.g., `VideoDetailView`)
+- View models end with `ViewModel` (when used)
+- Services end with `Service`
+- Managers end with `Manager`
+
+## SwiftUI Best Practices
+- Prefer `@StateObject` for owned objects, `@ObservedObject` for injected
+- Use `@EnvironmentObject` sparingly — prefer explicit dependency injection
+- Extract reusable components to `step/Views/SharedViews/`
+- Check `step/Views/SharedViews/` before creating new shared components

@@ -1,0 +1,50 @@
+appId: com.symply.kaizen
+---
+# Resume review — paste resume text, review, and optional PDF import.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/resume-review
+- extendedWaitUntil:
+    visible: 'Resume review'
+    timeout: 20000
+- runFlow: subflows/scroll-kaizen-to-top.yaml
+- runFlow:
+    file: subflows/scroll-kaizen-until-visible.yaml
+    env:
+      TARGET_ID: kaizen-section-your-resume
+      TARGET_TEXT: 'YOUR RESUME'
+- assertVisible:
+    id: 'kaizen-section-your-resume'
+    optional: true
+- assertVisible: 'Paste resume text'
+- tapOn: 'Paste resume text'
+- inputText: 'Senior engineer with 8 years building mobile platforms.'
+- assertVisible: 'Senior engineer with 8 years building mobile platforms.'
+- tapOn:
+    id: 'kaizen-review-resume'
+    optional: true
+- tapOn:
+    text: 'Review resume'
+    optional: true
+- assertVisible: 'Resume review'
+- runFlow:
+    file: subflows/pick-kaizen-fixture.yaml
+    optional: true
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/resume-review
+      E2E_PICK_KEY: 'kaizen-resume'
+      E2E_PICK_NAME: 'resume.pdf'
+      E2E_PICK_REGEX: 'resume\\.pdf'
+- runFlow:
+    when:
+      visible:
+        id: 'kaizen-upload-selected-file'
+    commands:
+      - assertVisible: 'resume.pdf'
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

@@ -1,0 +1,70 @@
+appId: ${APP_ID}
+tags:
+  - util
+---
+# Assert the latest network ring buffer entry matches matrix Console verify spec.
+# Env: E2E_VERIFY_METHOD (optional), E2E_VERIFY_PATH (required), E2E_VERIFY_STATUS (optional).
+#
+# RETRIED, not a one-shot snapshot. The `e2e-verify-network` deep link reads
+# whatever is already in the app's network ring buffer AT THE MOMENT it
+# fires — it does not wait for a request that hasn't landed yet
+# (e2e-test-deeplinks.ts). The caller's tap-then-verify gap is
+# `waitForAnimationToEnd`, which returns as soon as ANIMATION settles, not
+# when an async network call with no animation of its own has actually been
+# dispatched. Reproduced 2026-08-01 on Health's nutrition-log-meal: the
+# `health-nutrition-water-minus` tap's `POST /health/water/undo` landed ~170ms
+# AFTER this check's one-shot snapshot had already recorded FAIL — and
+# nothing re-checks, so the badge just shows the stale FAIL text forever
+# after. Retrying the openLink itself, bounded and short-circuited the moment
+# the badge already reads PASS, fixes the race at its source instead of
+# tuning individual callers' wait budgets one at a time.
+# Android: e2e-verify-badge never reaches Maestro's accessibility tree (see
+# E2EVerifyBadge.tsx / run-budget-suite-android.sh) so the `notVisible`
+# retry-until-PASS condition below can never short-circuit — fire the deep
+# link once instead of burning the full 5x retry budget for nothing.
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM == 'android' && E2E_VERIFY_STATUS != null && E2E_VERIFY_STATUS != ''}
+    commands:
+      - openLink: ${E2E_APP_SCHEME}://e2e-verify-network?method=${E2E_VERIFY_METHOD}&path=${E2E_VERIFY_PATH}&status=${E2E_VERIFY_STATUS}
+      - waitForAnimationToEnd:
+          timeout: 500
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM == 'android' && (E2E_VERIFY_STATUS == null || E2E_VERIFY_STATUS == '')}
+    commands:
+      - openLink: ${E2E_APP_SCHEME}://e2e-verify-network?method=${E2E_VERIFY_METHOD}&path=${E2E_VERIFY_PATH}
+      - waitForAnimationToEnd:
+          timeout: 500
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android' && E2E_VERIFY_STATUS != null && E2E_VERIFY_STATUS != ''}
+    commands:
+      - repeat:
+          times: 5
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'e2e-verify-badge'
+                    text: '^PASS'
+                commands:
+                  - openLink: ${E2E_APP_SCHEME}://e2e-verify-network?method=${E2E_VERIFY_METHOD}&path=${E2E_VERIFY_PATH}&status=${E2E_VERIFY_STATUS}
+                  - waitForAnimationToEnd:
+                      timeout: 500
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android' && (E2E_VERIFY_STATUS == null || E2E_VERIFY_STATUS == '')}
+    commands:
+      - repeat:
+          times: 5
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'e2e-verify-badge'
+                    text: '^PASS'
+                commands:
+                  - openLink: ${E2E_APP_SCHEME}://e2e-verify-network?method=${E2E_VERIFY_METHOD}&path=${E2E_VERIFY_PATH}
+                  - waitForAnimationToEnd:
+                      timeout: 500

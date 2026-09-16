@@ -1,0 +1,20 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Dismiss a stray decimal-pad keyboard (iOS InputAccessoryView) left open from
+# whatever numeric field the previous step touched. Called broadly across
+# navigation transitions (launch, focus-health-home, every go-health-*), so
+# this has to stay a fast, cheap no-op when nothing is open.
+#
+# The two probes this used to also run — `health-weight-keyboard-done` and a
+# tap on the `'WEIGHT'` text — were specific to the Home WEIGHT card's own
+# Done bar, removed from Home 2026-08-01 (weight logging now lives only on
+# the Weight tab). Both had gone permanently dead for every caller except
+# flows that had already navigated to the Weight tab, where a stray tap on
+# `'WEIGHT'` risked landing on real Weight-tab UI instead of dismissing
+# anything. Cut to the one still-generic probe; ~7s/call saved suite-wide.
+- tapOn:
+    text: 'Done'
+    optional: true

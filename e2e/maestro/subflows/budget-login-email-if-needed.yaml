@@ -1,0 +1,109 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Budget login gate — reaches the dashboard from ANY logged-out state:
+#   • the collapsed "Sign in with email" button (auth-sign-in-email), OR
+#   • an already-expanded email form (auth-email-input) that may hold a stale or
+#     field-merge-corrupted value such as `a.tekhtelev…Andrei123!`.
+# The logged-out marker is `login-screen` (the auth screen root, ALWAYS present) —
+# NOT `auth-sign-in-email`, which is only the collapsed button and DISAPPEARS once the
+# form is expanded. Gating on it previously stranded recovery on an open/corrupted
+# form (the button was gone → every login branch was skipped → stuck forever).
+- runFlow:
+    when:
+      visible:
+        id: 'budget-screen'
+    commands: []
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-screen'
+    commands:
+      - runFlow: budget-dismiss-expo-dev-chrome.yaml
+      # Right after a relaunch (stopApp + launchApp), the JS bundle can still
+      # be mid-load — neither budget-screen nor login-screen up yet (a bare
+      # blank page). Every branch below only fires `when: visible: login-screen`,
+      # so a caller landing here mid-load falls through ALL of them silently
+      # and just times out 90s later on a screen that was never actually
+      # given a chance to finish loading. Give it real time to finish loading
+      # before evaluating any of those branches (90s covers a cold relaunch
+      # under load; harmless no-op if login-screen is already up).
+      - extendedWaitUntil:
+          visible:
+            id: 'login-screen'
+          timeout: 90000
+          optional: true
+      # Clear a leftover error dialog if one is up.
+      - runFlow:
+          when:
+            visible: 'Login Failed'
+          commands:
+            - tapOn: 'OK'
+      # Act only when we are genuinely on the auth screen and not already in.
+      - runFlow:
+          when:
+            visible:
+              id: 'login-screen'
+            notVisible:
+              id: 'budget-screen'
+          commands:
+            # PRIMARY: deep-link autologin. LoginScreen consumes simplebudget://e2e-login
+            # and fills BOTH fields + submits (no typing → nothing to merge).
+            # applyE2ELogin OVERWRITES whatever is in the fields, so this also recovers
+            # a corrupted form whenever the link lands.
+            - openLink: ${E2E_LOGIN_URL}
+            - runFlow: budget-dismiss-expo-dev-chrome.yaml
+            - runFlow: budget-dismiss-welcome-if-needed.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'budget-screen'
+                timeout: 45000
+                optional: true
+            # FALLBACK typing — only if the deep-link did not log us in. Handles both
+            # the collapsed button and an already-open (corrupted) form.
+            - runFlow:
+                when:
+                  visible:
+                    id: 'login-screen'
+                  notVisible:
+                    id: 'budget-screen'
+                commands:
+                  # Expand the email form if it is still collapsed (no-op if open).
+                  - tapOn:
+                      id: 'auth-sign-in-email'
+                      optional: true
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'auth-email-input'
+                      timeout: 10000
+                  # Focus the email field and WIPE any stale/corrupted value, then type
+                  # the FULL email. Advance to the password field with the email field's
+                  # OWN "next" return key (returnKeyType="next" + onSubmitEditing focuses
+                  # the password input). A tapOn the password field is flaky on iOS-26:
+                  # the tap lands with the email keyboard up, focus stays on email, and a
+                  # following eraseText eats `@gmail.com` while inputText appends the
+                  # password → `a.tekhtelev…Andrei123!` (email truncated + merged).
+                  - tapOn:
+                      id: 'auth-email-input'
+                  - eraseText: 50
+                  - inputText: ${E2E_EMAIL}
+                  - pressKey: Enter
+                  - inputText: ${E2E_PASSWORD}
+                  - tapOn:
+                      id: 'auth-sign-in-submit'
+                  - runFlow: budget-dismiss-welcome-if-needed.yaml
+                  - tapOn:
+                      text: 'Not Now'
+                      optional: true
+                  - runFlow:
+                      when:
+                        visible: 'Login Failed'
+                      commands:
+                        - tapOn: 'OK'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-screen'
+          timeout: 90000
+          optional: true

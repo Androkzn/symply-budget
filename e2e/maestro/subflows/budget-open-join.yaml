@@ -1,0 +1,40 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Opens Invite & Household, then pushes the INVITEE's half (BudgetJoin).
+#
+# The counterpart to `budget-open-invite.yaml`. The two halves used to be
+# collapsible sections on one screen, so one subflow unfolded both and every
+# caller reached whichever panel it needed. They are separate screens now, and a
+# device is only ever on one side of a hand-off at a time — which is what the
+# two-device runs model anyway.
+#
+# navNonce makes every open a distinct request: the navigator de-dupes by
+# `screen:itemId:navNonce`, so re-opening the same link without it is a no-op
+# and a flow that wandered off this screen would never come back.
+- openLink: simplebudget:///?screen=BudgetInvite&navNonce=${Date.now()}
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-invite-screen'
+    timeout: 30000
+# Guarded rather than tapped unconditionally, for the same reason as the invite
+# subflow: a caller that re-runs this to recover must not push a second copy of
+# the Join screen on top of the one already there.
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-settings-join-panel'
+    commands:
+      - tapOn:
+          id: 'budget-invite-section-join'
+      - waitForAnimationToEnd:
+          timeout: 1500
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-join-panel'
+    timeout: 15000

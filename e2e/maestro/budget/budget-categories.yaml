@@ -1,0 +1,127 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:plan
+  - mutation
+  - regression
+# Matrix: BUDGET-PLAN-013/014/121 (see documents/engineering/testing/matrices/)
+# Budget Categories manager (BudgetCategoriesScreen), reached via deep link
+# (scroll on Budget Settings is flaky on iOS 26). Asserts the screen + default/
+# custom sections + add control render, then creates a custom category with a
+# picked color and deletes it again so the household stays clean — a fixed
+# name must not survive the run, or the next run's create would 409 against
+# the create-category duplicate-name guard (BUDGET-PLAN-121).
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-CAT-001
+- runFlow: ../subflows/budget-open-categories.yaml
+- assertVisible:
+    id: 'budget-categories-screen'
+- scrollUntilVisible:
+    element:
+      id: 'budget-default-categories'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 50
+- assertVisible:
+    id: 'budget-default-categories'
+- scrollUntilVisible:
+    element:
+      id: 'budget-category-add'
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: 'budget-category-add'
+
+# DATA_POLLUTION: a prior run that failed AFTER creating "ZZ Maestro Color
+# Test" but BEFORE reaching its own delete-cleanup below (a swipe/dev-menu/
+# harness flake mid-flow, not just this test file's own past bugs) leaves the
+# category behind — the create step further down then 409s against the
+# duplicate-name guard with a blocking "Category exists" dialog. Idempotent
+# pre-clean: delete it first if it's already there from a prior run.
+- runFlow:
+    when:
+      visible: '.*ZZ Maestro Color Test.*'
+    commands:
+      - swipe:
+          direction: LEFT
+          element:
+            text: '.*ZZ Maestro Color Test.*'
+      - tapOn:
+          text: 'Delete ZZ Maestro Color Test'
+      - tapOn:
+          text: 'Delete'
+      - extendedWaitUntil:
+          notVisible: '.*ZZ Maestro Color Test.*'
+          timeout: 15000
+
+# Pick a non-default swatch, then create a custom category with it. Both
+# pickers sit open in the editor card, so there is no chip to tap first — and
+# #26A69A is early enough on the swatch rail to reach without scrolling it.
+- assertVisible:
+    id: 'budget-category-color-grid'
+- tapOn:
+    id: 'budget-category-color-#26A69A'
+- tapOn:
+    id: 'budget-category-name-input'
+- inputText: 'ZZ Maestro Color Test'
+# Android's hideKeyboard is a raw KEYCODE_BACK press (verified in the Maestro
+# driver, not a keyboard-only dismiss like iOS) — if the keyboard has already
+# auto-dismissed by this point (e.g. from the swatch tap above), the back
+# press falls through to this screen's own nav handler. BudgetCategories is
+# opened via deep link (shallow stack, no real "back" target), so that pop
+# lands all the way on Home — reproduced on Android via this exact step.
+# Skip on Android; iOS's hideKeyboard doesn't have this failure mode.
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - hideKeyboard:
+          optional: true
+- tapOn:
+    id: 'budget-category-add'
+- scrollUntilVisible:
+    element:
+      text: '.*ZZ Maestro Color Test.*'
+    direction: UP
+    timeout: 10000
+    optional: true
+- extendedWaitUntil:
+    visible: '.*ZZ Maestro Color Test.*'
+    timeout: 15000
+
+# Clean up so a repeat run's create doesn't 409 against the duplicate-name
+# guard — delete the disposable category via its row action, then confirm.
+# Swipe-action rows only render their label once swiped open (see
+# budget-consistency-golden.yaml's identical swipe-then-tap pattern) — this
+# step was missing entirely, so the tap below had nothing to find.
+- swipe:
+    direction: LEFT
+    element:
+      text: '.*ZZ Maestro Color Test.*'
+- tapOn:
+    text: 'Delete ZZ Maestro Color Test'
+- tapOn:
+    text: 'Delete'
+- extendedWaitUntil:
+    notVisible: '.*ZZ Maestro Color Test.*'
+    timeout: 15000
+
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000
+    optional: true
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

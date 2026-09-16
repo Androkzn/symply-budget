@@ -1,0 +1,43 @@
+# Build artifacts
+*.zip
+layer.zip
+function-code.zip
+lambda-*.zip
+
+# Build directories
+layer-build/
+code-build/
+native-build/
+docker-build/
+lambda-package-temp/
+package/
+layer/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Temporary files
+*.tar.gz
+/tmp/
+response.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

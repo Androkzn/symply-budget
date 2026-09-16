@@ -1,0 +1,86 @@
+# NBR-008 — edit, then remove, and put the account back where it started.
+#
+# Every suite that CREATES has to clean up after itself or the next run asserts
+# against a pile of its own leftovers. This is that flow, and it doubles as the
+# edit-path coverage: it changes the label before removing the row, so a broken
+# update surfaces here rather than never.
+#
+# The removal dialog's copy is asserted for the same reason nbr-007's is: this
+# one really does take everything, and the member is owed a sentence that says
+# so plainly before they tap.
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:neighbours
+  - regression
+# Matrix: HOUSE-NBR-014 (edit), HOUSE-NBR-015 (delete)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-neighbours.yaml
+# Makes its own row rather than relying on nbr-005 having gone first — flow
+# order is not guaranteed, and this flow is the one that deletes the row, so it
+# cannot assume a previous run left one behind either.
+- runFlow: ../subflows/ensure-e2e-neighbour.yaml
+
+# Regex on the label: the card is one accessible button whose label carries the
+# relation and badges too, so a bare 'E2E Wilsons' matches nothing. Tap by
+# testID rather than by that regex, which would also match the search field
+# holding the same text.
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-card-.*'
+    timeout: 20000
+- assertVisible: '.*E2E Wilsons.*'
+- tapOn:
+    id: 'neighbour-card-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-detail-edit'
+    timeout: 20000
+- tapOn:
+    id: 'neighbour-detail-edit'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-form-screen'
+    timeout: 20000
+
+- tapOn:
+    id: 'neighbour-form-label'
+- eraseText
+- inputText: 'E2E Wilsons Edited'
+# The scroll below brings save into view on its own; `hideKeyboard` only added a
+# way to fail.
+- scrollUntilVisible:
+    element:
+      id: 'neighbour-form-save'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'neighbour-form-save'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-detail-screen'
+    timeout: 20000
+
+# Now remove it, from the edit screen where every destructive action lives.
+- tapOn:
+    id: 'neighbour-detail-edit'
+- scrollUntilVisible:
+    element:
+      id: 'neighbour-form-delete'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'neighbour-form-delete'
+# The `?` is escaped because this is a regex: unescaped it makes the preceding
+# "r" optional, so it matches the delete BUTTON's own label ("Remove this
+# neighbour") and passes before the dialog has opened at all.
+- extendedWaitUntil:
+    visible: 'Remove this neighbour\?'
+    timeout: 15000
+- assertVisible: 'The home, everyone in it and any notes you kept will be deleted from every device in your household.'
+- tapOn: 'Remove'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbours-screen'
+    timeout: 20000

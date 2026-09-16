@@ -1,0 +1,192 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home-projects
+  - feature:attachments
+  - mutation
+  - regression
+# Matrix: HOUSE-HPROJ-021 — attach a real photo to a project and see it listed.
+#
+# WHY THIS FLOW EXISTS. Every other home-projects flow asserts filenames and
+# counts, and that blind spot hid a real defect for the whole life of the
+# feature: the hub rendered project photos as a line of TEXT and never drew the
+# image at all. A member could attach a photo and had no way to look at it. The
+# suite was green throughout, because nothing here had ever opened the Photos
+# section and asked for a picture.
+#
+# WHAT THIS PROVES, EXACTLY — and what it does not. It proves the picker→
+# normalise→seal→list round trip on ONE device: a real image leaves the library,
+# is re-encoded and capped, is stored, and comes back tagged and rendered.
+# On a local-first household it also proves the bytes DECRYPTED, because the id
+# it asserts is only rendered after `resolveHouseBlobUri` succeeds (see the
+# `-view` note below) — `mm-31a-attach-photo` had to check the peer's blob cache
+# at container level precisely because a plain <Image> that 404s still occupies
+# the hierarchy, and this avoids that trap by asserting a state, not a node.
+# What it does NOT prove is cross-member delivery: one device is one device.
+# That remains `mm-31a`/`mm-31b`'s job on the two-device runner.
+#
+# Element contract (HomeProjectHubScreen):
+#   hub-tab-photos                     the section
+#   home-project-photo-before/after    the two add buttons
+#   home-project-photo-filter-<f>      all / before / after chips
+#   home-project-photo-item-<i>        one attachment row (opens the viewer)
+#   home-project-photo-open-<i>        the row's explicit "view" button
+#   home-project-photo-remote-<i>      thumbnail, server-backed household
+#   home-project-photo-blob-<i>-view   thumbnail, local-first household
+# and, once the viewer is open (HousePhotoViewer):
+#   home-project-photo-viewer-page-<i>-remote / -blob-view   the full-size photo
+#   home-project-photo-viewer-close                          the way out
+# The two thumbnail ids are deliberately DIFFERENT rather than one shared id:
+# which one appears is the visible proof of which channel carried the bytes.
+# The viewer's page ids follow the same split, for the same reason.
+#
+# `-view` is the suffix `HouseBlobImage` renders ONLY after `resolveHouseBlobUri`
+# has fetched, decrypted and cached the blob; its other states are `-loading`,
+# `-download` and `-error`. So on a local-first household this assertion is
+# stronger than the "an <Image> that 404s still occupies the hierarchy" caveat
+# above allows for — it fails if the bytes never decrypted.
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-HPROJ-021
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-home-project-hub.yaml
+- assertVisible:
+    id: 'home-project-hub-title'
+
+# ---- the Photos section -----------------------------------------------------
+# The section strip is a HORIZONTAL ScrollView and `photos` is the seventh of
+# nine, so it starts off-screen. The flows that came before this one only ever
+# reached `plans` and `materials` (2nd and 3rd), which is why none of them had
+# to scroll — and why a bare tap here fails with "Element not found".
+# `scrollUntilVisible` does NOT work for this strip, in either direction. It
+# swipes at the screen's vertical centre (~50%), and on the hub that is the
+# empty content area BELOW the tabs — so the gesture lands on the page, the
+# strip never moves, and the tab is reported "not visible" no matter how the
+# direction or speed is tuned. The strip sits at ~33% height, so the swipe has
+# to be aimed at it explicitly.
+# Bounded `times` with the swipe guarded, rather than `repeat.while` — Maestro
+# has no `maxRuns`, and an unbounded while on a strip that has hit its end would
+# spin. Once the tab is visible each remaining run is a no-op.
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'hub-tab-photos'
+          commands:
+            - swipe:
+                start: '85%,33%'
+                end: '15%,33%'
+            - waitForAnimationToEnd:
+                timeout: 800
+- tapOn:
+    id: 'hub-tab-photos'
+- assertVisible: 'Before / after'
+
+# ---- attach a real image from the library -----------------------------------
+# `seed-fixtures.sh` pushes floor-plan.jpeg into the Photos library before the
+# suite runs, so there is always at least one real asset to select.
+- tapOn:
+    id: 'home-project-photo-before'
+# The library permission prompt only appears the first time on a fresh device;
+# every branch is optional so a warm device does not stall here.
+- runFlow:
+    when:
+      visible: 'Allow Access to All Photos'
+    commands:
+      - tapOn:
+          text: 'Allow Access to All Photos'
+          optional: true
+- runFlow:
+    when:
+      visible: 'Allow Full Access'
+    commands:
+      - tapOn:
+          text: 'Allow Full Access'
+          optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow: ../subflows/pick-photo-from-library.yaml
+
+# ---- the row lands, tagged, with a thumbnail --------------------------------
+# Generous timeout on purpose: this waits on normalisation (the image is
+# re-encoded and capped at 2048 before it is sent) AND the upload itself.
+- extendedWaitUntil:
+    visible:
+      id: 'home-project-photo-item-0'
+    timeout: 60000
+- assertVisible: 'before'
+# One of the two thumbnails must be there. Which one depends on the household's
+# channel, and neither is optional-with-no-assert: a row that rendered no image
+# at all is the exact regression this flow was written to catch.
+- runFlow:
+    when:
+      visible:
+        id: 'home-project-photo-remote-0'
+    commands:
+      - assertVisible:
+          id: 'home-project-photo-remote-0'
+- runFlow:
+    when:
+      notVisible:
+        id: 'home-project-photo-remote-0'
+    commands:
+      - assertVisible:
+          id: 'home-project-photo-blob-0-view'
+
+# ---- the before/after filter actually filters -------------------------------
+# The tag is what makes a renovation photo useful, so it is worth one assertion
+# that it is stored rather than just displayed: filtering to "after" must hide
+# a photo tagged "before".
+- tapOn:
+    id: 'home-project-photo-filter-after'
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible: 'No photos yet.'
+- tapOn:
+    id: 'home-project-photo-filter-all'
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible:
+    id: 'home-project-photo-item-0'
+
+# ---- the photo can actually be LOOKED at -----------------------------------
+# The list proves the bytes arrived; it does not prove the member can see them.
+# A 64pt thumbnail beside a UUID filename is where this feature sat for its
+# whole life, so the viewer gets the same treatment as the thumbnail above: open
+# it, assert the full-size image rendered on whichever channel carried the bytes
+# (`-blob-view` again meaning "decrypted", not merely "mounted"), and close it.
+# The whole row opens it too, but the row is deliberately NOT an accessibility
+# element (grouping it would collapse the thumbnail and the `before` tag line
+# this flow asserts on into one label), so the tap goes to the button that is.
+- tapOn:
+    id: 'home-project-photo-open-0'
+- waitForAnimationToEnd:
+    timeout: 2000
+- runFlow:
+    when:
+      visible:
+        id: 'home-project-photo-viewer-page-0-remote'
+    commands:
+      - assertVisible:
+          id: 'home-project-photo-viewer-page-0-remote'
+- runFlow:
+    when:
+      notVisible:
+        id: 'home-project-photo-viewer-page-0-remote'
+    commands:
+      - assertVisible:
+          id: 'home-project-photo-viewer-page-0-blob-view'
+- tapOn:
+    id: 'home-project-photo-viewer-close'
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible:
+    id: 'home-project-photo-item-0'
+
+- runFlow: ../subflows/e2e-matrix-after.yaml

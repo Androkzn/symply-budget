@@ -1,0 +1,147 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:garden
+  - mutation
+  - regression
+# Matrix: HOUSE-GARD-024 (end-to-end save — the only creation path a local-first home has)
+---
+# THE ONE THAT MATTERS: lot → area → features → Save → a real plan.
+#
+# Under local-first — which is every `symply-house` install by default — this is
+# the ONLY route that can create a yard plan at all. `getUploadUrl` is where the
+# `garden_plans` row is born and it throws (H6: no bucket to presign into), so
+# before this wizard existed the entire feature was reachable and completely
+# inert: fifteen ported local methods, an object editor and a marker layer, all
+# operating on a table that could never acquire a first row.
+#
+# So this flow is not "a nice end-to-end" — it is the proof that the feature
+# exists. It is the one flow here tagged `mutation`, and it deliberately leaves
+# the plan behind: `garden-map-wizard-viewer.yaml` has nothing to open otherwise,
+# and the list tolerates repeat runs (each save is a new plan, and the suite's
+# own `purge-house-test-data.mjs` is what clears them).
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-GARD-024
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-garden-map-wizard.yaml
+
+# ---- step one: accept the seeded lot -------------------------------------
+- assertVisible:
+    id: 'garden-map-wizard-stat-corners'
+    text: 'Corners 4'
+- tapOn:
+    id: 'garden-map-wizard-next'
+- extendedWaitUntil:
+    visible:
+      id: 'garden-map-wizard-panel-areas'
+    timeout: 15000
+
+# ---- step two: trace the house -------------------------------------------
+- tapOn:
+    id: 'garden-map-wizard-zone-back_yard'
+- extendedWaitUntil:
+    visible: '.*Tracing back yard.*'
+    timeout: 8000
+- tapOn:
+    point: '35%,28%'
+- waitForAnimationToEnd:
+    timeout: 1200
+- tapOn:
+    point: '62%,28%'
+- waitForAnimationToEnd:
+    timeout: 1200
+- tapOn:
+    point: '62%,45%'
+- waitForAnimationToEnd:
+    timeout: 1200
+- tapOn:
+    point: '35%,45%'
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: 'garden-map-wizard-draw-done'
+- waitForAnimationToEnd:
+    timeout: 2500
+- assertVisible:
+    id: 'garden-map-wizard-zone-chip-0'
+
+- tapOn:
+    id: 'garden-map-wizard-next'
+
+# ---- step three: the features canvas -------------------------------------
+#
+# Step three hands the surface wholesale to `GardenPlanVectorEditor` — the same
+# component the plan viewer's object editor uses, with the 56-preset library and
+# drag/resize/rotate already in it. Asserting we ARRIVE is the contract; the
+# editor's own behaviour is covered by the flows that already exercise it, and
+# duplicating them here would be testing someone else's component twice.
+- extendedWaitUntil:
+    visible:
+      id: 'garden-map-wizard-panel-elements'
+    timeout: 20000
+- assertVisible:
+    id: 'garden-map-wizard-feature-count'
+
+# ---- save ------------------------------------------------------------------
+#
+# `createMapPlan` writes the plan row AND its zones in ONE local op, so there is
+# no window where a peer holds a traced lot with no areas in it.
+- tapOn:
+    id: 'garden-map-wizard-next'
+- extendedWaitUntil:
+    visible: 'Yard plan saved'
+    timeout: 30000
+    optional: true
+
+# The wizard REPLACES itself with the viewer, so backing out of the viewer must
+# land on the garden list and never on a half-finished wizard.
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plan-viewer-screen'
+    timeout: 30000
+
+# THE VIEWER MUST NOT SPIN. A map-drawn plan has no `display_image_key`, and the
+# viewer used to gate its whole render on `!imageUrl` — so a plan that had loaded
+# perfectly well showed a spinner forever. The satellite branch is what it takes
+# instead, and this is the assertion that keeps it that way.
+- assertNotVisible:
+    id: 'garden-plan-viewer-loading'
+- assertVisible:
+    id: 'garden-plan-viewer-edit-button'
+
+# BACK TO THE LIST — two pops, not one, and not a deep link.
+#
+# Two wrong answers were tried here, and both are worth recording because they
+# fail in opposite ways:
+#
+#  - ONE back tap lands on `Add yard plan`, not the list. The wizard REPLACES
+#    itself with the viewer, but the upload screen is still underneath, so the
+#    stack is list → upload → viewer.
+#  - `open-gardening.yaml` (deep link) does nothing at all from here. The viewer
+#    lives INSIDE the Gardening tab's own stack, so `simplehouse://gardening`
+#    switches to a tab that is already focused and pops nothing. The hierarchy
+#    captured at that failure still showed `garden-plan-viewer-screen`.
+#
+# So: tap back until the list is actually up, bounded at three so a broken back
+# button fails here rather than looping.
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'garden-plans-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plans-screen'
+    timeout: 25000

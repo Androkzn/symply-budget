@@ -1,0 +1,69 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Delete every diary row on the day CURRENTLY on screen whose name starts with
+# "Maestro " — i.e. everything the nutrition flows write, and nothing else.
+#
+# WHY THIS EXISTS. The nutrition flows match a row's verbs on the row's testID
+# AND its accessibility label together (`Edit Maestro Diary One`), because the
+# id carries a server-minted uuid no flow can predict. That makes the tap exact
+# — but only while the name is unique. A run that dies mid-flight leaves its
+# rows behind (an iOS-26 XCUITest driver drop is routine, and `continueOnFailure`
+# is on), so the NEXT run logs a second row with the same name and every
+# per-row tap after it is ambiguous. Observed for real on 2026-07-26: two
+# `Maestro Diary One` rows, 520 kcal, from two aborted runs.
+#
+# Deliberately NOT a blanket "delete today's diary": the name prefix is the
+# scope, so a row a member logged on the shared account is never touched.
+#
+# The walk is swipe-driven. `scrollUntilVisible` moves this list zero pixels on
+# a long hop (health-swipe-section-to.yaml records the measurement), and the
+# meal groups are two and a half screens below the day stepper — so a
+# scroll-based sweep silently found nothing and left the duplicates in place,
+# which is exactly how the two rows above survived a sweep that reported
+# success. iOS only exposes on-screen elements of a scroll view to XCUITest, so
+# "not visible" here means "not yet scrolled to", not "not there".
+- runFlow: health-scroll-nutrition-top.yaml
+- repeat:
+    times: 16
+    commands:
+      # Edit/Move/Delete folded behind a per-row "..." menu 2026-08-01
+      # (`health-meal-more-<id>`, commit 8f1f0ef2) — a row's own delete button
+      # (the old `health-meal-delete-<id>`, always visible) no longer exists.
+      # This sweep quietly matched nothing and reported success for a while
+      # after that commit, which is exactly how duplicate "Maestro "-named
+      # rows kept accumulating across runs despite this file's own header
+      # comment describing that failure mode as already solved (found
+      # 2026-08-02 while chasing a sibling flow's failure back to leaked
+      # data). Two-step now: open the row's menu (its own accessibility
+      # label — "Actions for <name>" — carries the same name-prefix filter
+      # the old direct-delete button used), then tap Delete inside it.
+      - runFlow:
+          when:
+            visible:
+              id: 'health-meal-more-.*'
+              text: 'Actions for Maestro.*'
+          commands:
+            - tapOn:
+                id: 'health-meal-more-.*'
+                text: 'Actions for Maestro.*'
+            - tapOn:
+                id: 'health-meal-menu-delete-.*'
+                text: 'Delete Maestro.*'
+            - waitForAnimationToEnd:
+                timeout: 1500
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-meal-more-.*'
+              text: 'Actions for Maestro.*'
+          commands:
+            - swipe:
+                start: '50%,72%'
+                end: '50%,40%'
+                duration: 400
+            - waitForAnimationToEnd:
+                timeout: 700
+- runFlow: health-scroll-nutrition-top.yaml

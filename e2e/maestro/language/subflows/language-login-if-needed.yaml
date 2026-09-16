@@ -1,0 +1,91 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# Sign in only when the Learn home isn't already up (already-authenticated sim → no-op).
+# Gate mirrors the shared login-email-if-needed.yaml so every flow also runs signed-in.
+# Language auths against the LIVE donor /api/v1, so the manual email path works on
+# release builds too; the simplelanguage://e2e-login deep link is a dev-build
+# (Debug + Metro) convenience only. Requires E2E_LOGIN_URL / E2E_EMAIL / E2E_PASSWORD.
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-learn-screen'
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'login-screen'
+          timeout: 60000
+          optional: true
+      - runFlow: language-dismiss-expo-dev-chrome.yaml
+      - runFlow:
+          when:
+            visible: 'Login Failed'
+          commands:
+            - tapOn:
+                text: 'OK'
+                optional: true
+      # Dev-build deep-link autologin. No-op on release builds / when unsupported.
+      - runFlow:
+          when:
+            visible:
+              id: 'login-screen'
+          commands:
+            - openLink: ${E2E_LOGIN_URL}
+            - waitForAnimationToEnd:
+                timeout: 6000
+      # Manual email fallback if the login screen is still showing. The logged-out
+      # marker is `login-screen` (the auth screen root, ALWAYS present) — NOT
+      # `auth-sign-in-email`, which is only the COLLAPSED button and DISAPPEARS once
+      # the form is expanded (gating on it stranded recovery on an already-open form).
+      - runFlow:
+          when:
+            visible:
+              id: 'login-screen'
+          commands:
+            # Expand the email form if it is still collapsed (no-op if already open).
+            - tapOn:
+                id: 'auth-sign-in-email'
+                optional: true
+            - extendedWaitUntil:
+                visible:
+                  id: 'auth-email-input'
+                timeout: 10000
+            # Focus the email field and WIPE any stale/corrupted value, then type the
+            # FULL email. Advance to the password field with the email field's OWN
+            # "next" return key (returnKeyType="next" + onSubmitEditing focuses the
+            # password input). A tapOn the password field is flaky on iOS-26: focus
+            # stays on email and the following inputText merges the password INTO the
+            # email → `a.tekhtelev…Andrei123!` (email truncated + merged).
+            - tapOn:
+                id: 'auth-email-input'
+            - eraseText: 50
+            - inputText: ${E2E_EMAIL}
+            - pressKey: Enter
+            - inputText: ${E2E_PASSWORD}
+            - tapOn:
+                id: 'auth-sign-in-submit'
+            - waitForAnimationToEnd:
+                timeout: 12000
+            - runFlow:
+                when:
+                  visible: 'Login Failed'
+                commands:
+                  - tapOn:
+                      text: 'OK'
+                      optional: true
+                  - tapOn:
+                      id: 'auth-sign-in-submit'
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 12000
+      - runFlow:
+          when:
+            visible: 'Start learning'
+          commands:
+            - tapOn: 'Spanish'
+            - tapOn: 'Travel'
+            - tapOn: 'Start learning'
+            - waitForAnimationToEnd:
+                timeout: 10000

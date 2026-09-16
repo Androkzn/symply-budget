@@ -1,0 +1,42 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Leave chat stack and return to the Budget dashboard for the next flow.
+- runFlow:
+    when:
+      visible:
+        id: 'chat-room-settings-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'chat-room-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2000
+- runFlow:
+    when:
+      visible:
+        id: 'chat-rooms-screen'
+    commands:
+      - openLink: simplebudget:///
+      - runFlow: budget-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+- openLink: simplebudget:///
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow: budget-recover-dashboard.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 60000

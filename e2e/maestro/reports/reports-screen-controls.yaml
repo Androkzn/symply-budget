@@ -1,0 +1,35 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:reports
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-reports (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-reports.yaml
+- assertVisible:
+    id: 'reports-screen'
+- assertVisible:
+    id: 'reports-upload-fab'
+- tapOn:
+    id: 'reports-upload-fab'
+# WRONG LITERAL FIXED: the AI-disclaimer accept button is titled
+# 'I Understand & Accept' (AIDisclaimerModal.tsx:286) and Maestro matches a regex
+# against an element's WHOLE text, so 'I Understand' never matched — the modal was
+# never dismissed and this gate was dead.
+- runFlow:
+    file: ../subflows/accept-ai-disclaimer.yaml
+    env:
+      APP_ID: com.symply.house
+- runFlow:
+    file: ../subflows/dismiss-reports-upload-modal.yaml
+    env:
+      APP_ID: com.symply.house
+# Scroll contract
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: reports-screen-scroll-end
+

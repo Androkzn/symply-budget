@@ -1,0 +1,142 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:privacy
+  - mutation
+  - regression
+# Matrix: HEALTH-PRIV-008, HEALTH-PRIV-018 — local MMKV mutations must not emit health payloads.
+---
+- runFlow: subflows/launch-health.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-PRIV-008
+      # The water counter rests below the floating tab bar at the home
+      # screen's resting scroll position — see subflows/focus-health-home.yaml.
+      #
+      # GROUND-TRUTH CORRECTION (see this flow's own header + the trailing
+      # teardown comment, both of which used to call all three of weigh-in/
+      # water/note "purely to prove nothing leaves the device"): that is only
+      # true of the NOTE. `handleWater` -> adjustWater() ->
+      # healthApi.addWater() -> POST /health/water/entries, 201
+      # (healthLocalStorage.ts, src/api/health.ts) is a REAL, intended sync to
+      # the member's own Symply Health account, confirmed against source.
+      # Weight logging was dropped from this flow 2026-08-01 along with the
+      # Home WEIGHT card itself — its equivalent real-POST proof now lives on
+      # the Weight tab (`weight-tab-log-and-edit.yaml`, `HEALTH-WEIGHT-408`).
+      # Only `saveNoteForDate` (below) never calls `healthApi` at all. The
+      # water leg below therefore verifies the real POST DOES fire (proving
+      # the account-sync contract), and the note leg verifies the true
+      # no-network claim — see its own comment for why a NEW check is added
+      # there rather than reframing the water leg as no-network, which the
+      # source does not support.
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-water-plus
+            HOME_ANCHOR: bottom
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-plus'
+      - tapOn:
+          id: 'health-water-plus'
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-note-input
+            HOME_ANCHOR: bottom
+      # LOCAL-ONLY: `saveNoteForDate` (healthLocalStorage.ts) writes the note to
+      # `storageHelpers.setObject(HEALTH_NOTES_KEY, …)` (MMKV) and calls
+      # `recordE2EPersistEntry` for the observability log — there is no
+      # `healthApi` import or call anywhere in that function, confirmed against
+      # source. This IS the flow's real "must not emit a health payload" claim.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-note-input'
+      - inputText: 'Private note for wire check'
+      - runFlow: subflows/save-health-note.yaml
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # e2e-health-set-note is a dev-only bypass (src/services/e2e-test-deeplinks.ts)
+      # that calls the same LOCAL-ONLY `saveNoteForDate` directly — it exists so
+      # the persistence check below is certain the on-screen text really is the
+      # note store's value, independent of whether the typed `inputText` above
+      # landed reliably on this build. It is not itself a network action.
+      - openLink: simplehealth://e2e-health-set-note?text=Private%20note%20for%20wire%20check
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow: subflows/go-more.yaml
+      - runFlow: subflows/go-health-home.yaml
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-note-input
+            HOME_ANCHOR: bottom
+      - extendedWaitUntil:
+          visible: 'Private note for wire check'
+          timeout: 20000
+      # --- Teardown --------------------------------------------------------
+      # PRIV-008 writes two cups and a note purely to prove nothing leaves the
+      # device. Undo both — the assertion is about the wire, not about leaving
+      # data behind.
+      - openLink: simplehealth://e2e-health-set-note?text=
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow: subflows/go-more.yaml
+      - runFlow: subflows/go-health-home.yaml
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-water-plus
+            HOME_ANCHOR: bottom
+      - repeat:
+          times: 12
+          commands:
+            - tapOn:
+                id: 'health-water-minus'
+                optional: true
+      - runFlow:
+          file: ../subflows/e2e-dump-log.yaml
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth

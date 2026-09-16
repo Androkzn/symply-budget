@@ -1,0 +1,269 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: HOUSE-MM-003 — the second member joins with the invite they were sent.
+#
+# env: MM_CODE / MM_SECRET — the two halves of the invite, read off the owner's
+# device by the orchestrator, exactly as a real invitee receives them.
+#
+# TWO FIELDS, NOT ONE PASTED LINK. `handleJoinCodeChange`
+# (HouseJoinScreen.tsx:392) splits a link into code + secret the instant it
+# parses one, so a character-by-character `inputText` of a whole
+# `simplehouse://lf-invite?…` races its own parser: the code field ends up
+# holding a fragment and the secret a single letter, and it surfaces three steps
+# later as `GET /v2/invites/lookup → 404` — which reads as a bad invite rather
+# than as bad typing. Typing the CODE alone into the code field cannot trigger
+# that split, because the split needs both halves present.
+#
+# NOR the tapped link. `openLink simplehouse://lf-invite?…` is the nicest
+# invitee path and it is unusable here: it routes through
+# `navigateToHouseJoin` → `router.push('/settings')`, and a phone holding
+# key-less homes is behind `HouseRecoverHomeScreen`, which renders over the
+# whole stack and steps aside for `RECOVERY_ROUTES = ['/device-sync',
+# '/house-backup']` only. The Join screen mounts underneath the gate and nothing
+# appears to happen. That is a real gap in the product, recorded in the suite
+# doc; this flow drives the surface an invitee can actually reach.
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-open-lf-settings.yaml
+- scrollUntilVisible:
+    element:
+      id: '${LF_JOIN_PANEL}'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1500
+- extendedWaitUntil:
+    visible:
+      id: '${LF_JOIN_PANEL}'
+    timeout: 20000
+# Clear a previous run's ENDED wait before starting a new one.
+#
+# `house-join-outcome-panel` reports an invite that was revoked, expired, or a
+# membership that was removed. It is informational and does not disable Join,
+# but it renders above the form and pushes it down, and leaving a stale "that
+# invite was cancelled" on screen makes this run's screenshots read as a failure
+# that already happened. Optional: there is usually nothing to dismiss.
+- tapOn:
+    id: 'house-join-outcome-dismiss'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1500
+# Give the enrolment gate time to resolve BEFORE branching on it.
+#
+# `awaitingEnrolment` is derived from the local session, which opens
+# asynchronously after login, so the screen can render with Join briefly ENABLED
+# on a device that has in fact already claimed. The guard below would then take
+# the wrong branch and tap a button that has since become disabled.
+- extendedWaitUntil:
+    visible: '.*Waiting for approval….*'
+    timeout: 45000
+    optional: true
+
+# IDEMPOTENT: skip the join if this device has already claimed.
+#
+# A successful claim leaves the device pending until the owner approves — Join
+# is then correctly disabled and reads "Waiting for approval…". Re-running the
+# suite must not treat that as a failure: claiming is a once-per-device act, so
+# this flow's job is to ENSURE the device has claimed, not to claim again.
+#
+# Wildcarded like every other text selector here (Maestro matches the WHOLE
+# accessibility string, and this one is a button title). It matters more on this
+# guard than on an assertion: a bare string never matches, so the guard would
+# read "not waiting" on a device that IS waiting and re-run the join every time —
+# failing OPEN, silently, instead of failing loudly.
+- runFlow:
+    when:
+      notVisible: '.*Waiting for approval….*'
+    commands:
+      # --- the code
+      - scrollUntilVisible:
+          element:
+            id: '${LF_JOIN_LINK}'
+          direction: DOWN
+          centerElement: true
+          timeout: 10000
+          optional: true
+      - tapOn:
+          id: '${LF_JOIN_LINK}'
+          retryTapIfNoChange: true
+      # Clear first: a previous attempt can leave a partial value here, and
+      # inputText APPENDS.
+      - eraseText: 120
+      - inputText: ${MM_CODE}
+      # Dismiss the keyboard with the RETURN key. `hideKeyboard` reported
+      # COMPLETED without closing it on Budget's identical panel, and tapping a
+      # plain <Text> does nothing because the ScrollView is
+      # keyboardShouldPersistTaps="handled".
+      - pressKey: Enter
+      - waitForAnimationToEnd:
+          timeout: 2000
+      # --- the secret, in its OWN field
+      - scrollUntilVisible:
+          element:
+            id: '${LF_JOIN_SECRET}'
+          direction: DOWN
+          centerElement: true
+          timeout: 10000
+          optional: true
+      - tapOn:
+          id: '${LF_JOIN_SECRET}'
+          retryTapIfNoChange: true
+      - eraseText: 120
+      - inputText: ${MM_SECRET}
+      - pressKey: Enter
+      - waitForAnimationToEnd:
+          timeout: 2000
+      # If a stray tap DID open an alert, clear it before the decisive tap
+      # rather than letting the modal swallow it.
+      - runFlow: mm-dismiss-stale-alerts.yaml
+      - waitForAnimationToEnd:
+          timeout: 1500
+      # Re-establish the screen before the decisive tap. Something between
+      # typing and tapping Join can leave the surface — observed for real on the
+      # Budget pair, where at tap time the device was on another tab, so the
+      # button was genuinely absent and "element not found" pointed at the wrong
+      # thing. Cheaper to re-navigate than to keep hunting it.
+      - runFlow:
+          when:
+            notVisible:
+              id: '${LF_SYNC_CARD}'
+          commands:
+            - runFlow: mm-open-lf-settings.yaml
+      - scrollUntilVisible:
+          element:
+            id: '${LF_JOIN_HOUSEHOLD}'
+          direction: DOWN
+          centerElement: true
+          timeout: 10000
+          optional: true
+      # Let the scroll come to rest. scrollUntilVisible returns as soon as the
+      # element is in the tree, but iOS keeps decelerating afterwards — tapping
+      # into a moving list is what made this step miss on Budget.
+      - waitForAnimationToEnd:
+          timeout: 2500
+      - tapOn:
+          id: '${LF_JOIN_HOUSEHOLD}'
+          retryTapIfNoChange: true
+      # The confirm MUST be an IN-APP view, not a UIAlertController.
+      #
+      # iOS renders alerts in their own window; XCUITest snapshots the app
+      # window, so Maestro literally cannot see a native alert here — proven
+      # side by side with idb on Budget, which listed "Join household? / Cancel
+      # / Join" while `maestro hierarchy` showed only the screen behind it.
+      # This is a constraint on the enrolment UI, not just on the test.
+      #
+      # Optional on purpose: the enrolment gate resolves asynchronously, so this
+      # branch can be entered by a device that has in fact already claimed, in
+      # which case no panel opens. The closing assertion decides.
+      - extendedWaitUntil:
+          visible:
+            id: '${LF_JOIN_CONFIRM_PANEL}'
+          timeout: 45000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: '${LF_JOIN_CONFIRM_PANEL}'
+          commands:
+            # The dialog opens immediately with no home named and fills in when
+            # the control-plane lookup returns. Confirming before it resolves
+            # would be agreeing to a home the screen has not identified yet —
+            # and the lookup is also what catches a spent or expired code.
+            - extendedWaitUntil:
+                visible:
+                  id: 'house-join-confirm-target'
+                timeout: 30000
+                optional: true
+            - tapOn:
+                id: '${LF_JOIN_CONFIRM}'
+            - waitForAnimationToEnd:
+                timeout: 3000
+            # THE SAS PANEL, not `${LF_JOIN_STATUS}`.
+            #
+            # The status line is real and it is in the wrong place to assert on:
+            # a successful claim mounts the "Waiting to be let in" panel ABOVE
+            # the form, which pushes the status further below the fold, and iOS
+            # publishes only what is on screen. Run 20260905-095552 failed on
+            # `lf-join-status is visible` with the claim already through — the
+            # device was showing "Request sent. Read the number below…" and the
+            # button had flipped to "Waiting for approval…".
+            #
+            # `house-join-sas-panel` is both better placed and better evidence:
+            # it renders only when the session is awaiting AND has derived a SAS
+            # (HouseJoinWaitingPanel.tsx:75), and those six digits cannot exist
+            # until this device has actually claimed. It is also what mm-04
+            # reads back, so asserting it here is asserting the thing the next
+            # flow depends on.
+            # Scroll to the DIGITS for the same reason the wait below matches
+            # them: the panel's own id is not in the iOS hierarchy, so scrolling
+            # to it silently scrolls to nothing and leaves the panel off screen.
+            - scrollUntilVisible:
+                element:
+                  text: '^[0-9]{3} [0-9]{3}$'
+                direction: UP
+                centerElement: true
+                timeout: 30000
+                optional: true
+            # MATCHED ON THE DIGITS, NOT ON THE PANEL ID.
+            #
+            # `house-join-sas-panel` is a testID on a <Card>
+            # (HouseJoinWaitingPanel.tsx:77) and `house-join-sas` one on the
+            # <Typography> inside it (:87). RN maps testID to
+            # accessibilityIdentifier, and iOS publishes NEITHER of those to the
+            # XCUITest snapshot — `idb ui describe-all` on a device sitting on
+            # this exact panel lists lf-join-link, lf-join-secret, lf-join-submit
+            # and no house-join-* id at all. So this 90s wait could never
+            # succeed, and it failed while "Waiting to be let in", the SAS
+            # `537 914` and "Waiting for approval…" were all plainly on screen —
+            # i.e. it failed on a join that had WORKED.
+            #
+            # The rendered digits are published as text, and `formatEnrolmentSas`
+            # renders "123 456" with nothing else on this screen shaped like it.
+            # That is the same signal `read_join_sas` in the runner matches, so
+            # flow and runner now agree on what evidence means.
+            - extendedWaitUntil:
+                visible: '^[0-9]{3} [0-9]{3}$'
+                timeout: 90000
+            # The wording too, now that the panel is on screen. Substring match:
+            # Maestro selectors are regexes matched against the WHOLE element
+            # text, and this status is a full sentence, so a bare 'Request sent'
+            # never matches. Optional — the panel above is the assertion.
+            - extendedWaitUntil:
+                visible: '.*Request sent.*'
+                timeout: 30000
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+
+# End state: this device has a claim in flight, and the six digits to read out.
+#
+# `house-join-sas-panel` is the real evidence — the panel only renders when the
+# session is awaiting AND has derived a SAS (HouseJoinWaitingPanel.tsx:75), and
+# the digits cannot exist until this device has actually claimed. It is also
+# where mm-04's MM_SAS comes from.
+#
+# Optional, because a device already enrolled from an earlier run has no pending
+# claim at all and correctly shows nothing. Asserting only the fresh case turns
+# a correct app into a red suite on every re-run; the enrolment itself is proved
+# by mm-04 (owner approves) and mm-05 (the key arrives), neither of which can
+# pass without a real claim.
+- extendedWaitUntil:
+    visible: '^[0-9]{3} [0-9]{3}$'
+    timeout: 60000
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: '${LF_JOIN_PANEL}'
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- assertVisible:
+    id: '${LF_JOIN_PANEL}'

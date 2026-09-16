@@ -1,0 +1,119 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:contractors
+  - mutation
+  - regression
+# Matrix: HOUSE-CONT-006–011,024–026 (contractor CRUD + AI lookup)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-CONT-001
+- runFlow: ../subflows/open-contractors.yaml
+- tapOn:
+    id: 'contractors-tab-contractors'
+# Validation: empty name blocked (HOUSE-CONT-007).
+- tapOn:
+    id: 'contractors-add-button'
+- extendedWaitUntil:
+    visible:
+      id: 'contractor-form-screen'
+    timeout: 15000
+- tapOn:
+    id: 'contractor-form-save'
+- assertVisible:
+    id: 'contractor-form-name'
+# Cancel create (HOUSE-CONT-008).
+- inputText: 'E2E Plumbing'
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+# AI lookup smoke (HOUSE-CONT-024) — best-effort, dismiss on failure.
+- tapOn:
+    id: 'contractors-add-button'
+- extendedWaitUntil:
+    visible:
+      id: 'contractor-form-name'
+    timeout: 15000
+- inputText: 'Acme Plumbing'
+- runFlow:
+    when:
+      visible:
+        id: 'contractor-form-ai-lookup'
+    commands:
+      - tapOn:
+          id: 'contractor-form-ai-lookup'
+      - waitForAnimationToEnd:
+          timeout: 8000
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+# Contractor detail from first row (HOUSE-CONT-011).
+- runFlow:
+    when:
+      visible:
+        id: 'contractors-row'
+    commands:
+      - tapOn:
+          id: 'contractors-row'
+      - extendedWaitUntil:
+          visible:
+            id: 'contractor-detail-screen'
+          timeout: 20000
+      - runFlow:
+          when:
+            visible: 'Edit'
+          commands:
+            - tapOn: 'Edit'
+            - extendedWaitUntil:
+                visible:
+                  id: 'contractor-form-screen'
+                timeout: 15000
+            - runFlow:
+                when:
+                  visible:
+                    id: 'nav-back-button'
+                commands:
+                  - tapOn:
+                      id: 'nav-back-button'
+      - runFlow:
+          when:
+            visible: 'Add Visit'
+          commands:
+            - tapOn: 'Add Visit'
+            - extendedWaitUntil:
+                visible: 'Add Visit'
+                timeout: 15000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'nav-back-button'
+                commands:
+                  - tapOn:
+                      id: 'nav-back-button'
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+- assertVisible:
+    id: 'contractors-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

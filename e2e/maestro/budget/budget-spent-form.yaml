@@ -1,0 +1,46 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:spend
+  - mutation
+  - regression
+  - smoke
+# Matrix: BUDGET-spend (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-SPEND-001
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- assertVisible:
+    id: 'budget-item-spent-date-picker'
+- assertVisible:
+    id: 'budget-item-cost-exact'
+# Close via the ScreenHeader back button (real id: nav-back-button); the old
+# `budget-item-form-cancel` id is a phantom the source never renders.
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

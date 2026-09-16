@@ -1,0 +1,49 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Return the Nutrition tab's scroll view to the top so the day stepper and the
+# meal groups are addressable again after a scroll-down.
+#
+# Was a bare `scrollUntilVisible ... optional: true`, which on a long hop moves
+# this list zero pixels and then reports SUCCESS because it is optional — see
+# health-swipe-section-to.yaml for the measurement that established it. Raw
+# swipes do drive the list, and the day label is always rendered, so the guard
+# can be hard.
+#
+# RE-SELECT THE TAB FIRST. health-clear-maestro-meals.yaml's opening sweep — 16
+# raw down-swipes hunting for leftover rows, then this file's 12 up-swipes —
+# landed on the More tab instead of Nutrition with no tap command and no app
+# navigation responsible (reproduced 2026-07-31: the driver log shows only the
+# scripted swipes, at coordinates nowhere near the tab bar). That sweep is the
+# one caller long enough to hit it, but every caller here assumes the screen it
+# left is the screen it's still on, so the guard belongs in the shared file.
+- runFlow:
+    when:
+      notVisible:
+        id: 'health-nutrition-screen'
+    commands:
+      # A native iOS system alert (e.g. "Apple Account Verification") can pop
+      # up over the app at any point, not just at launch — unlike the similar
+      # dialogs health-dismiss-expo-dev-chrome.yaml catches, this one isn't
+      # gated to boot. Reproduced 2026-08-01: it blocked `tab-health-nutrition`
+      # entirely ("Element not found", not a dropped tap — retryTapIfNoChange
+      # above does not help when the element genuinely isn't reachable).
+      # Optional, so this is a no-op on the far more common case of nothing
+      # being up.
+      - tapOn:
+          text: 'Not Now'
+          optional: true
+      - tapOn:
+          id: 'tab-health-nutrition'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-screen'
+          timeout: 30000
+- runFlow:
+    file: health-swipe-section-to.yaml
+    env:
+      TARGET_ID: health-nutrition-day-label
+      SCROLL_DIR: up

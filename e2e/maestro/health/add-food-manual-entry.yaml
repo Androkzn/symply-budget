@@ -1,0 +1,484 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:nutrition
+  - mutation
+  - regression
+# Matrix: HEALTH-NUTR-300 … HEALTH-NUTR-308
+---
+# Add Food (`HealthAddFoodScreen`, route `/health-add-food`) — the Quick Add
+# rail's MANUAL entry point, `HealthManualFoodForm` end to end, and
+# `HealthTodayChallengesCard` (the Nutrition-tab card the same parity push
+# landed), folded in here because this flow already visits Nutrition first.
+#
+# WHY THIS FLOW EXISTS. The 2026-07-27 "Nutrition parity push" shipped
+# `HealthAddFoodScreen`, `HealthManualFoodForm`, `HealthScanCamera`,
+# `HealthScanReview`, `HealthBarcodeScanScreen` and `HealthTodayChallengesCard`
+# with Jest coverage only — the matrix's own Revision entry names "no Maestro
+# flow authored yet for any of the four new/changed surfaces" as the honest
+# gap. This is the first of three flows closing it; see
+# `add-food-search-library-recipes.yaml` and
+# `add-food-scan-and-barcode-entry.yaml` for the other two — split for the
+# same mid-run-driver-drop reason every other multi-flow surface in this
+# matrix is split, not folded into one long file.
+#
+# NO BACK BUTTON ON ADD-FOOD. `HealthAddFoodScreen` is a root-level push
+# (outside `(tabs)`) rendered with `HealthSectionScreen`, which never draws a
+# back affordance — confirmed against source. Entry/exit goes through
+# `subflows/go-health-add-food.yaml` and a bare `- back`, never a tab tap (the
+# tab bar is not rendered while this screen is up).
+#
+# STALE-SCREEN TRAP. `HealthManualFoodForm` writes straight to the diary via
+# `addMealEntry` and hands the CALLER only a confirmation string — the
+# already-mounted `HealthNutritionScreen` underneath the push is never told
+# and does not refetch on refocus (no `useFocusEffect`; `hydrate(date)` only
+# re-runs on a `date` CHANGE). So every read-back below steps the day away and
+# back FIRST — see `subflows/health-refresh-nutrition-today.yaml` for why, and
+# note that a teardown sweep run without it would silently find nothing to
+# delete.
+#
+# GATED / SKIPS-GRACEFULLY: the body is wrapped in
+# `runFlow: when: visible: health-home-screen`, same contract as
+# nutrition-log-meal.yaml.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-NUTR-300
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-nutrition.yaml
+      - assertVisible: 'CALORIES'
+      # Idempotence, not teardown — see health-clear-maestro-meals.yaml's own
+      # header. A previous run that died mid-flight leaves "Maestro Manual
+      # Snack" behind and poisons this run's read-back assertions.
+      - runFlow: subflows/health-clear-maestro-meals.yaml
+
+      # --- Today's Challenges card is in exactly one of two states (NUTR-300)
+      # `HealthTodayChallengesCard` renders NOTHING when the account has no
+      # applicable challenge today (`if (!loaded || challenges.length === 0)
+      # return null`) — a re-run inherits whatever the account already holds,
+      # so neither branch can be a precondition and both are asserted.
+      - runFlow:
+          when:
+            visible:
+              id: 'health-today-challenges-card'
+          commands:
+            - assertVisible:
+                id: 'health-today-challenges-row'
+            - assertVisible:
+                id: 'health-today-challenges-card-count'
+            # The count is the card's own tap-through into the manage screen
+            # (`onManage={() => router.push('/health-challenges')}`) —
+            # `HealthChallengesScreen` is a different surface (own matrix
+            # section, no Maestro coverage yet either); this flow proves only
+            # the HAND-OFF, not that screen's internals.
+            - tapOn:
+                id: 'health-today-challenges-card-count'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-challenges-screen'
+                timeout: 20000
+            - back
+            # Defensive: land back on Nutrition regardless of exactly where
+            # `- back` resolves, before anything below assumes it.
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-nutrition-screen'
+                commands:
+                  - runFlow: subflows/go-health-nutrition.yaml
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-today-challenges-card'
+          commands:
+            - assertNotVisible:
+                id: 'health-today-challenges-row'
+
+      # --- Enter Add Food from the Breakfast group's "+" (HEALTH-NUTR-301) -
+      - runFlow:
+          file: subflows/go-health-add-food.yaml
+          env:
+            ADD_FOOD_SLOT: breakfast
+      - assertVisible: 'QUICK ADD'
+      - assertVisible:
+          id: 'health-add-food-quick-manual'
+      - assertVisible:
+          id: 'health-add-food-slot-breakfast'
+          selected: true
+      - assertVisible:
+          id: 'health-add-food-tab-search'
+          selected: true
+
+      # --- Manual form: Save is inert with nothing filled in (NUTR-302) ----
+      # `canSave` needs a name AND a positive calorie figure; Maestro's
+      # `enabled:` selector does not match a disabled RN `Pressable` on this
+      # build, so the gate is proven BEHAVIOURALLY — pressing it and showing
+      # the form neither closed nor raised a confirmation.
+      - tapOn:
+          id: 'health-add-food-quick-manual'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-manual-food-form'
+          timeout: 10000
+      - assertVisible: 'ADD FOOD'
+      # `handleSave` (HealthManualFoodForm.tsx) early-returns on `!canSave`
+      # before ever calling `addMealEntry` — confirmed against source. The tap
+      # cannot reach the network, so this proves it, not just the UI gate.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-manual-food-form-save'
+      - assertVisible:
+          id: 'health-manual-food-form'
+      - assertVisible:
+          id: 'health-manual-food-form-name'
+          text: ''
+      - assertNotVisible:
+          id: 'health-add-food-message'
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/entries
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- A name with zero calories is refused too (HEALTH-NUTR-303) -----
+      - tapOn:
+          id: 'health-manual-food-form-name'
+      - inputText: 'Maestro Manual Snack'
+      # DISMISS BEFORE THE CALORIES TAP. Reproduced live 2026-08-02: with
+      # nothing between typing the name and tapping
+      # health-manual-food-form-calories, the name field's own QWERTY
+      # keyboard is still up when the calories tap fires — calories sits
+      # several fields below the name (Portion/Unit row, Meal chips, the
+      # preview line, the NUTRITION label, HealthManualFoodForm.tsx), so the
+      # tap's coordinates land on the on-screen keyboard rather than the
+      # field, and the keyboard's own key fires into the still-focused name
+      # field. Confirmed against the failure screenshot: the name field read
+      # "Maestro Manual Snacki0" — the scripted name, one stray "i" from the
+      # mistargeted calories tap, then "0" typed correctly but into the wrong
+      # (still-focused) field. 'QUICK ADD' is a safe, effective anchor here
+      # (unlike 'ADD FOOD' on the Nutrition tab's own inline add-food card,
+      # see nutrition-log-meal.yaml) — it is a plain, non-Pressable section
+      # label (HealthAddFoodScreen.tsx) sitting well above the Quick Add
+      # rail's icons, nothing tappable nearby to collide with.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'QUICK ADD'
+      - tapOn:
+          id: 'health-manual-food-form-calories'
+      - inputText: '0'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'QUICK ADD'
+      # Same `canSave` gate as HEALTH-NUTR-302 — `parsedCalories > 0` is false
+      # for '0', so `handleSave` still early-returns before `addMealEntry`.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-manual-food-form-save'
+      - assertVisible:
+          id: 'health-manual-food-form-name'
+          text: 'Maestro Manual Snack'
+      - assertNotVisible:
+          id: 'health-add-food-message'
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/entries
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The unit segment is a real control (HEALTH-NUTR-304) -----------
+      # `g` is the default, so the only way to prove it is to move OFF it and
+      # back — same technique `food-library-manage.yaml` uses for the same
+      # picker shape on the Foods screen.
+      - tapOn:
+          id: 'health-manual-food-form-unit-ml'
+      - assertVisible:
+          id: 'health-manual-food-form-unit-ml'
+          selected: true
+      - assertNotVisible:
+          id: 'health-manual-food-form-unit-g'
+          selected: true
+      - tapOn:
+          id: 'health-manual-food-form-unit-g'
+      - assertVisible:
+          id: 'health-manual-food-form-unit-g'
+          selected: true
+
+      # --- The form's OWN meal chip is independent of the screen's LOG TO
+      #     picker (HEALTH-NUTR-305), and the "Add to X" button label and the
+      #     preview line both track it live -----------------------------
+      - tapOn:
+          id: 'health-manual-food-form-slot-dinner'
+      - assertVisible:
+          id: 'health-manual-food-form-slot-dinner'
+          selected: true
+      - assertVisible:
+          id: 'health-manual-food-form-slot-breakfast'
+          selected: false
+      - assertVisible: 'Add to Dinner'
+      # Screen-level LOG TO chip is untouched by the form's own chip — the two
+      # are separate state, only ever synced at the moment the form opens.
+      - assertVisible:
+          id: 'health-add-food-slot-breakfast'
+          selected: true
+      - tapOn:
+          id: 'health-manual-food-form-portion'
+      - eraseText
+      - inputText: '150'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'QUICK ADD'
+      - assertVisible:
+          id: 'health-manual-food-form-preview'
+          text: 'Calculated nutrition for 150 g'
+
+      # --- Full save carries all four macros through (HEALTH-NUTR-306, ----
+      #     MUTATION) ------------------------------------------------------
+      # Calories is still '0' from the HEALTH-NUTR-303 refusal leg above —
+      # replace it with a real figure, or Save stays inert and nothing below
+      # would actually land.
+      - tapOn:
+          id: 'health-manual-food-form-calories'
+      - eraseText
+      - inputText: '210'
+      # DISMISS BEFORE EVERY SUBSEQUENT NUTRITION TAP, NOT JUST AT THE END.
+      # Reproduced live 2026-08-02: this leg used to chain
+      # tapOn/inputText straight across Calories → Protein → Carbs → Fat with
+      # the decimal-pad still up and a single dismiss-health-keypad call only
+      # at the end. That is the exact same keyboard-obstruction bug the
+      # DISMISS BEFORE THE CALORIES TAP comment above already fixed for
+      # name→calories, just unfixed one field group further down the form —
+      # Protein/Carbs/Fat sit low enough in `HealthManualFoodForm` (below the
+      # Portion/Unit row, Meal chips and preview line) that the open numeric
+      # keypad covers their on-screen position, so each "tap" actually lands
+      # on the keyboard and the still-focused Calories field absorbs the next
+      # `inputText` instead. Confirmed against the failure screenshot
+      # (add-food-manual-entry-step-393): Calories read a garbled multi-digit
+      # run — '210' with '9', '18' and '6' all appended after it — while
+      # Protein/Carbs/Fat stayed '0' and the Save button rendered in its
+      # DISABLED style (`colors.borderColor`, not `colors.primary`). The
+      # inflated Calories string parses past `MAX_CALORIES` (10000) in
+      # `parseAmountInput` (healthNutritionStorage.ts), which returns `null`
+      # for anything over the cap, so `canSave` (HealthManualFoodForm.tsx)
+      # went false and `health-add-food-message` — gated on a landed
+      # `addMealEntry` call — never had a chance to render, hard-timing out
+      # the `extendedWaitUntil` below. Dismissing after EACH field, the same
+      # discipline the Portion field already uses two legs up, keeps every
+      # tap's target actually on-screen.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'QUICK ADD'
+      - tapOn:
+          id: 'health-manual-food-form-protein'
+      - inputText: '9'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'QUICK ADD'
+      - tapOn:
+          id: 'health-manual-food-form-carbs'
+      - inputText: '18'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'QUICK ADD'
+      - tapOn:
+          id: 'health-manual-food-form-fat'
+      - inputText: '6'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'QUICK ADD'
+      # `handleSave` (HealthManualFoodForm.tsx) now has a name + positive
+      # calories, so `canSave` is true and it really calls `addMealEntry`
+      # (healthNutritionStorage.ts) → `healthApi.createNutrition` →
+      # POST /health/nutrition/entries, 201 (backend/src/routes/health.ts).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-manual-food-form-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-add-food-message'
+          timeout: 15000
+      - assertVisible: 'Maestro Manual Snack was added to Dinner.'
+      # The form closes on a landed save — `setShowManualForm(false)`.
+      - assertNotVisible:
+          id: 'health-manual-food-form'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The write really landed in the diary (read-back for NUTR-306) --
+      - back
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-screen'
+          timeout: 20000
+      - runFlow: subflows/health-scroll-nutrition-top.yaml
+      - runFlow: subflows/health-refresh-nutrition-today.yaml
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: health-meal-group-dinner-toggle
+            SCROLL_DIR: down
+      # A group holding entries defaults to expanded (`isExpanded = override ??
+      # count > 0`), so Dinner should already be open — normalise anyway.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-meal-detail-dinner'
+          commands:
+            - tapOn:
+                id: 'health-meal-group-dinner-toggle'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-meal-detail-dinner'
+                timeout: 10000
+      - assertVisible: 'Maestro Manual Snack'
+      - assertVisible:
+          id: 'health-meal-item-.*-kcal'
+          text: '210 kcal.*'
+
+      # --- Cancel discards the draft, nothing written (HEALTH-NUTR-307) ---
+      - runFlow:
+          file: subflows/go-health-add-food.yaml
+          env:
+            ADD_FOOD_SLOT: snacks
+      - tapOn:
+          id: 'health-add-food-quick-manual'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-manual-food-form'
+          timeout: 10000
+      - tapOn:
+          id: 'health-manual-food-form-name'
+      - inputText: 'Maestro Manual Discarded'
+      # Same dismiss-before-calories-tap fix as HEALTH-NUTR-303 above — same
+      # keyboard-obstruction bug, this leg just happens not to assert the
+      # name field's exact text afterward (only that "Maestro Manual
+      # Discarded" is gone post-Cancel), so keeping the write clean here is
+      # about not masking the same bug, not a second confirmed failure.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'QUICK ADD'
+      - tapOn:
+          id: 'health-manual-food-form-calories'
+      - inputText: '999'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'QUICK ADD'
+      # `onCancel` (wired in HealthAddFoodScreen.tsx as
+      # `() => setShowManualForm(false)`) only flips local state — confirmed
+      # against source, no call into addMealEntry at all.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-manual-food-form-cancel'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-manual-food-form'
+          timeout: 10000
+      - assertNotVisible:
+          id: 'health-add-food-message'
+      - assertNotVisible: 'Maestro Manual Discarded'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /nutrition/entries
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # The Quick Add tile itself is a toggle, not a one-way opener — tapping
+      # it again after Cancel (which already closed the card) reopens a BLANK
+      # form, proving the discard really cleared state rather than just
+      # hiding a dirty one.
+      - tapOn:
+          id: 'health-add-food-quick-manual'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-manual-food-form'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-manual-food-form-name'
+          text: ''
+      - assertVisible: 'ADD FOOD'
+
+      # --- Teardown: back to Nutrition, sweep both Maestro rows (NUTR-308) -
+      - back
+      - extendedWaitUntil:
+          visible:
+            id: 'health-nutrition-screen'
+          timeout: 20000
+      - runFlow: subflows/health-refresh-nutrition-today.yaml
+      - runFlow: subflows/health-clear-maestro-meals.yaml
+      - assertNotVisible: 'Maestro Manual Snack'
+      - assertNotVisible: 'Maestro Manual Discarded'
+
+      # --- Back to the Health tab ------------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

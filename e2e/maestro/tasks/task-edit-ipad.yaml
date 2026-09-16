@@ -1,0 +1,69 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:tasks
+  # `mutation`, not `readonly`: this flow SAVES an edit. FLEET_TEST_STRATEGY.md
+  # defines readonly as "Navigation / visibility only", the tag generator treats
+  # the two as mutually exclusive, and house.md already labels HOUSE-TASK-036 as
+  # MUTATION. The old tag was simply wrong.
+  - mutation
+  - regression
+  - smoke
+# Matrix: HOUSE-tasks (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-task-detail.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'task-detail-screen'
+    timeout: 30000
+- tapOn:
+    id: 'task-detail-edit'
+- extendedWaitUntil:
+    visible: 'Edit Task'
+    timeout: 20000
+- assertVisible:
+    id: 'schedule-task-save'
+# IDEMPOTENT title, not an append. `inputText` on a controlled TextInput
+# APPENDS, so the old ' [iPad edit OK]' grew the title by 15 chars every run —
+# the seeded task already carried one. A CONSTANT title is not an option either:
+# `isDirty` is a deep compare against the loaded snapshot
+# (ScheduleTaskScreen.tsx:123), so retyping what the previous run saved leaves
+# the form clean and `saveDisabled` (ScheduleTaskScreen.tsx:233-237) greys BOTH
+# save paths again — trading one stuck flow for another. Stamp it instead.
+# eraseText: 200 because earlier runs already grew this title.
+- evalScript: ${output.taskTitle = 'iPad edit ' + Date.now()}
+- tapOn:
+    id: 'task-form-title'
+- eraseText: 200
+- inputText: ${output.taskTitle}
+- hideKeyboard:
+    optional: true
+- scrollUntilVisible:
+    element:
+      text: 'Category'
+    direction: DOWN
+    optional: true
+# A shared task with no assignee disables BOTH save buttons
+# (ScheduleTaskScreen.tsx:233-237). Satisfy the rule rather than depend on the
+# seeded task happening to carry one.
+- runFlow: ../subflows/ensure-task-assignee.yaml
+# Fail HERE if the assignee was not set. The subflow's opening scroll is
+# `optional`, so a missed scroll would otherwise skip it silently and surface
+# 20s later as a bogus `task-detail-screen` timeout. No-op for personal tasks,
+# where the assignee row is not rendered at all (TaskFormBody.tsx:887).
+- assertNotVisible: 'Select assignee'
+- tapOn:
+    id: 'schedule-task-save-header'
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'schedule-task-save'
+    commands:
+      - tapOn:
+          id: 'schedule-task-save'
+- extendedWaitUntil:
+    visible:
+      id: 'task-detail-screen'
+    timeout: 20000

@@ -1,0 +1,230 @@
+require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")
+require File.join(File.dirname(`node --print "require.resolve('react-native/package.json')"`), "scripts/react_native_pods")
+
+require 'json'
+podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties.json'))) rescue {}
+
+def ccache_enabled?(podfile_properties)
+  # Environment variable takes precedence
+  return ENV['USE_CCACHE'] == '1' if ENV['USE_CCACHE']
+
+  # Fall back to Podfile properties
+  podfile_properties['apple.ccacheEnabled'] == 'true'
+end
+
+ENV['RCT_NEW_ARCH_ENABLED'] ||= '0' if podfile_properties['newArchEnabled'] == 'false'
+ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] ||= podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
+ENV['RCT_USE_RN_DEP'] ||= '1' if podfile_properties['ios.buildReactNativeFromSource'] != 'true' && podfile_properties['newArchEnabled'] != 'false'
+ENV['RCT_USE_PREBUILT_RNCORE'] ||= '1' if podfile_properties['ios.buildReactNativeFromSource'] != 'true' && podfile_properties['newArchEnabled'] != 'false'
+
+# When building RN from source, the property alone isn't sticky: RN's rncore.rb only
+# builds from source when RCT_USE_PREBUILT_RNCORE is NOT "1", but any pod install that
+# leaves it unset can still resolve the prebuilt React.xcframework. Force both OFF so
+# `expo run:ios` (which may re-run pod install) can't silently revert to the prebuilt
+# React core — which mismatches the locally-compiled Fabric Props ABI and crashes on
+# launch (EXC_BAD_ACCESS in Props::Props during ExpoView registration).
+if podfile_properties['ios.buildReactNativeFromSource'] == 'true'
+  ENV['RCT_USE_PREBUILT_RNCORE'] = '0'
+  ENV['RCT_USE_RN_DEP'] = '0'
+end
+
+# @sentry/react-native 8.18+ defaults to a prebuilt Sentry.xcframework cached under
+# ~/Library/Caches/sentry-react-native. That cache can disappear while Pods still
+# point at it → 'Sentry/Sentry.h' file not found. Prefer the CocoaPods source pod
+# so headers live under ios/Pods and survive cache clears / clean checkouts.
+ENV['SENTRY_USE_XCFRAMEWORK'] ||= '0'
+
+platform :ios, podfile_properties['ios.deploymentTarget'] || '16.4'
+
+prepare_react_native_project!
+
+# Per-brand Xcode configurations (Debug-/Release-<brand>) map onto CocoaPods
+# :debug / :release so scheme selection can switch brands without prepare:xcode:*.
+# Legacy Debug/Release stay House defaults for EAS/CI.
+project 'SymplyEcosystem', {
+  'Debug' => :debug,
+  'Release' => :release,
+  'Debug-budget' => :debug,
+  'Release-budget' => :release,
+}
+
+target 'SymplyEcosystem' do
+  use_expo_modules!
+
+  # SDWebImageWebPCoder imports SDWebImage via `@import SDWebImage;`, which
+  # requires SDWebImage to be built with modular headers. Expo autolinking
+  # enables modular headers on SDWebImageWebPCoder itself but not on its
+  # SDWebImage dependency, so compilation fails without this explicit hint.
+  pod 'SDWebImage', :modular_headers => true
+
+  if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
+    config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
+  else
+    config_command = [
+      'node',
+      '--no-warnings',
+      '--eval',
+      'require(\'expo/bin/autolinking\')',
+      'expo-modules-autolinking',
+      'react-native-config',
+      '--json',
+      '--platform',
+      'ios'
+    ]
+  end
+
+  config = use_native_modules!(config_command)
+
+  use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
+  use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
+    # An absolute path to your application root.
+    :app_path => "#{Pod::Config.instance.installation_root}/..",
+    :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
+  )
+
+  post_install do |installer|
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false,
+      :ccache_enabled => ccache_enabled?(podfile_properties),
+    )
+
+    # When RN is built FROM SOURCE (ios.buildReactNativeFromSource=true), React core
+    # and every consumer compile from the same headers, so the prebuilt-ABI alignment
+    # below (forcing REACT_NATIVE_PRODUCTION) is unnecessary — and keeping it would pin
+    # RCT_DEV=0 (no RedBox / dev errors). Gate it to the prebuilt path so source builds
+    # stay in the standard Debug/dev configuration.
+    building_rn_from_source = podfile_properties['ios.buildReactNativeFromSource'] == 'true'
+
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |cfg|
+        # Prebuilt hermes lacks chrome::enableDebugging; keep worklets/reanimated aligned.
+        if ['RNWorklets', 'RNReanimated'].include?(target.name)
+          defs = cfg.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] || ['$(inherited)']
+          defs = [defs] if defs.is_a?(String)
+          defs = defs.reject { |d| d.to_s.include?('HERMES_ENABLE_DEBUGGER') }
+          defs << 'HERMES_ENABLE_DEBUGGER=0'
+          cfg.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = defs
+        end
+
+        # Expo prebuilt React core (React.xcframework, RCT_USE_PREBUILT_RNCORE=1) is
+        # compiled with RN_DEBUG_STRING_CONVERTIBLE=0 (no ShadowNode::getDebugName &
+        # friends). Locally-compiled pods default to REACT_NATIVE_DEBUG in Debug,
+        # which flips that flag to 1 and makes their Fabric vtables reference symbols
+        # the prebuilt never emitted → "Undefined symbol ShadowNode::getDebugName()".
+        # Force REACT_NATIVE_PRODUCTION so every consumer matches the prebuilt ABI.
+        gpd = cfg.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] || ['$(inherited)']
+        gpd = [gpd] if gpd.is_a?(String)
+        gpd << 'REACT_NATIVE_PRODUCTION=1' unless building_rn_from_source || gpd.any? { |d| d.to_s.include?('REACT_NATIVE_PRODUCTION') }
+
+        # expo-updates only auto-disables itself in dev when EXAppDefines.APP_DEBUG
+        # is YES, which EXAppDefinesLoader.m (the Expo pod) derives from `#if DEBUG`
+        # at compile time. The prebuilt-React setup compiles pods without DEBUG, so
+        # APP_DEBUG baked to NO — and once EAS Update was enabled, expo-updates ran
+        # as a production EnabledAppController in this local Debug build and hijacked
+        # bundle loading ("No script URL provided"). Define DEBUG for the Expo pod in
+        # the Debug config so APP_DEBUG is YES and dev falls back to Metro. Independent
+        # of REACT_NATIVE_PRODUCTION above (that flag is NDEBUG-derived and keeps the
+        # prebuilt C++ ABI intact); Release still gets APP_DEBUG=NO → updates enabled.
+        if target.name == 'Expo' && cfg.name == 'Debug'
+          gpd << 'DEBUG=1' unless gpd.any? { |d| d.to_s == 'DEBUG=1' }
+        end
+        cfg.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = gpd
+
+        # iOS 26: Swift pods autolink private SwiftUICore; strip it so the app link succeeds.
+        existing = cfg.build_settings['OTHER_SWIFT_FLAGS'] || '$(inherited)'
+        existing = existing.join(' ') if existing.is_a?(Array)
+        unless existing.include?('-disable-autolink-framework -Xfrontend SwiftUICore')
+          cfg.build_settings['OTHER_SWIFT_FLAGS'] = "#{existing} -Xfrontend -disable-autolink-framework -Xfrontend SwiftUICore"
+        end
+
+        # NitroModules (Swift + C++ umbrella) can fail archive with
+        # `'jsi/jsi-inl.h' file not found` when Clang modules resolve React-jsi
+        # via the CocoaPods public header map only. Point at the RN source tree
+        # so `#include <jsi/jsi-inl.h>` always resolves.
+        if target.name == 'NitroModules'
+          hsp = cfg.build_settings['HEADER_SEARCH_PATHS'] || ['$(inherited)']
+          hsp = [hsp] if hsp.is_a?(String)
+          jsi_root = '$(PODS_ROOT)/../node_modules/react-native/ReactCommon/jsi'
+          unless hsp.any? { |p| p.to_s.include?('ReactCommon/jsi') }
+            cfg.build_settings['HEADER_SEARCH_PATHS'] = hsp + [jsi_root]
+          end
+        end
+      end
+    end
+
+    # Xcode 26 / iOS 26: ExpoModulesProvider.swift is compiled by the app target and
+    # imports SwiftUI-based Expo modules, which autolink private SwiftUICore into the
+    # app binary. Apps are not allowed clients of SwiftUICore.tbd — strip that autolink.
+    # LD_CLIENT_NAME=SwiftUI allows SwiftUICore re-exports; stub UIUtilities satisfies
+    # the autolink that comes with that client name.
+    installer.aggregate_targets.each do |agg|
+      next unless agg.user_project
+      agg.user_project.native_targets.each do |target|
+        next unless target.name == 'SymplyEcosystem'
+        target.build_configurations.each do |cfg|
+          existing = cfg.build_settings['OTHER_SWIFT_FLAGS'] || '$(inherited)'
+          existing = existing.join(' ') if existing.is_a?(Array)
+          unless existing.include?('-disable-autolink-framework -Xfrontend SwiftUICore')
+            cfg.build_settings['OTHER_SWIFT_FLAGS'] = "#{existing} -Xfrontend -disable-autolink-framework -Xfrontend SwiftUICore"
+          end
+          cfg.build_settings['SWIFT_UPCOMING_FEATURE_INTERNAL_IMPORTS_BY_DEFAULT'] = 'YES'
+          cfg.build_settings['ENABLE_DEBUG_DYLIB'] = 'NO'
+          cfg.build_settings['LD_CLIENT_NAME'] = 'SwiftUI'
+          # Match the prebuilt React core ABI (see pod-targets loop above): the app
+          # target compiles RN C++ (e.g. SealableDebug.cpp) too, so it must also be
+          # REACT_NATIVE_PRODUCTION or its vtables reference the missing debug symbols.
+          agpd = cfg.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] || ['$(inherited)']
+          agpd = [agpd] if agpd.is_a?(String)
+          agpd << 'REACT_NATIVE_PRODUCTION=1' unless building_rn_from_source || agpd.any? { |d| d.to_s.include?('REACT_NATIVE_PRODUCTION') }
+          cfg.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = agpd
+
+          # react-native-webrtc transitively @imports the header-only CoreAudioTypes
+          # framework (iOS 26 SDK split), so Clang auto-links `-framework CoreAudioTypes`
+          # — but that framework ships no linkable binary and the app link fails with
+          # "Could not find or use auto-linked framework 'CoreAudioTypes'". Provide an
+          # empty CoreAudioTypes.tbd via a LINK-ONLY search path (OTHER_LDFLAGS -F, not
+          # FRAMEWORK_SEARCH_PATHS) so it satisfies the linker without shadowing the
+          # SDK's real headers at compile time. Its install-name points at the real
+          # shared-cache dylib, so dyld still loads it fine at runtime.
+          ldf = cfg.build_settings['OTHER_LDFLAGS'] || ['$(inherited)']
+          ldf = [ldf] if ldf.is_a?(String)
+          ldf += ['-F$(SRCROOT)/linkstubs'] unless ldf.any? { |f| f.to_s.include?('linkstubs') }
+          cfg.build_settings['OTHER_LDFLAGS'] = ldf
+          fsp = cfg.build_settings['FRAMEWORK_SEARCH_PATHS'] || ['$(inherited)']
+          fsp = [fsp] if fsp.is_a?(String)
+          unless fsp.any? { |p| p.to_s.include?('$(SRCROOT)/stubs') || p.to_s.include?('/stubs') }
+            cfg.build_settings['FRAMEWORK_SEARCH_PATHS'] = ['$(inherited)', '$(SRCROOT)/stubs'] + fsp.reject { |p| p == '$(inherited)' }
+          end
+          # Headers for SealableDebug.cpp (react/renderer/core/Sealable.cpp)
+          hsp = cfg.build_settings['HEADER_SEARCH_PATHS'] || ['$(inherited)']
+          hsp = [hsp] if hsp.is_a?(String)
+          rn_headers = '$(SRCROOT)/../node_modules/react-native/ReactCommon'
+          unless hsp.any? { |p| p.to_s.include?('ReactCommon') }
+            cfg.build_settings['HEADER_SEARCH_PATHS'] = hsp + [rn_headers]
+          end
+        end
+      end
+      agg.user_project.save
+    end
+
+    # expo-updates "Generate updates resources" build phase runs:
+    #   bash -l -c "$PODS_TARGET_SRCROOT/../scripts/create-updates-resources-ios.sh"
+    # The inner `bash -c` re-parses its argument, so a project path containing
+    # spaces (…/Symply Ecosystem/Simply Ecosystem/…) word-splits and fails with
+    # "No such file or directory: …/Symply". Quote the path for the inner shell.
+    installer.pods_project.targets.each do |target|
+      target.build_phases.each do |phase|
+        next unless phase.respond_to?(:name) && phase.respond_to?(:shell_script)
+        next unless phase.name.to_s.include?('Generate updates resources for expo-updates')
+        phase.shell_script = 'bash -l -c "\"$PODS_TARGET_SRCROOT/../scripts/create-updates-resources-ios.sh\""' + "\n"
+      end
+    end
+    installer.pods_project.save
+  end
+end

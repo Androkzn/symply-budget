@@ -1,0 +1,40 @@
+appId: com.symply.kaizen
+tags:
+  - destructive
+  - app:kaizen
+---
+# AUTH-017 — disabling biometrics removes the biometric login CTA after logout.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+    permissions:
+      all: allow
+      faceid: allow
+- runFlow: subflows/kaizen-login-if-needed.yaml
+- runFlow: subflows/kaizen-setup-if-needed.yaml
+- runFlow: subflows/dismiss-welcome-if-needed.yaml
+- runFlow: subflows/enable-biometric-if-needed.yaml
+- openLink: kaizen:///kaizen/settings
+- extendedWaitUntil:
+    visible: 'Control how Kaizen supports you.'
+    timeout: 25000
+- extendedWaitUntil:
+    visible:
+      id: 'settings-row-biometric'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Enabled for quick sign in'
+    commands:
+      - tapOn:
+          id: 'settings-toggle-biometric'
+      - waitForAnimationToEnd:
+          timeout: 8000
+- runFlow: subflows/logout-if-needed.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'auth-sign-in-email'
+    timeout: 90000
+- assertNotVisible:
+    id: 'auth-biometric-login'

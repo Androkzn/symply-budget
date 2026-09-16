@@ -1,0 +1,9 @@
+appId: com.symply.kaizen
+tags:
+  - util
+  - app:kaizen
+---
+# Env: SCROLL_END_ID — optional tap after scroll (SCROLL-035 hit-testability).
+- tapOn:
+    id: ${SCROLL_END_ID}
+    optional: true

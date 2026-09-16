@@ -1,0 +1,44 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - regression
+# Matrix: HOUSE-AUTH-022
+---
+# Garbage invite token — invalid/expired error with escape hatch.
+# Join deep link only needs an authenticated session, not Home tab visibility.
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'auth-sign-in-email'
+    commands:
+      - openLink: ${E2E_LOGIN_URL}
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - runFlow: ../subflows/login-email-if-needed.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'auth-sign-in-email'
+    timeout: 90000
+# Fresh garbage token each run — avoids handled-initial-invite replay blocking warm links.
+- openLink: simplehouse://join/ZZZZZZ-INVALID-E2E-TOKEN
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: 'join-household-screen'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    notVisible: 'Checking invite…'
+    timeout: 90000
+    optional: true
+- extendedWaitUntil:
+    visible: 'Invite Unavailable'
+    timeout: 90000
+- assertVisible:
+    id: 'invite-unavailable-title'
+- assertVisible: 'Go to Home'

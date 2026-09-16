@@ -1,0 +1,67 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:house-v2
+  - regression
+# Matrix: HOUSE-LF-SYNC-010 (synced-data total → per-category breakdown)
+#
+# The count a member uses to answer "is everything up to date?" on a home that
+# has no server page to look at. The check that actually works is comparing this
+# screen against the same screen on another device, so what matters here is that
+# the number is REACHABLE and the breakdown opens.
+#
+# ## Why the breakdown is behind a `when:`
+#
+# The row renders only on a device with an open local-first session — on a
+# server-backed household there is no ledger, so there is nothing to count and a
+# "0 items" row would read as data loss. This clone's E2E device is not enrolled
+# (`EXPO_PUBLIC_HOUSE_LOCAL_FIRST=0`), so on the fleet as it stands today this
+# flow asserts the sync surface renders and does not crash, and the branch that
+# opens the breakdown runs on any device that IS enrolled.
+#
+# That is stated rather than hidden: a conditional assertion can pass without
+# testing the thing it names, and the counting itself is covered exhaustively by
+# `syncInventory.test.ts` — including the guard that the category map spans the
+# whole ledger registry, which is the property the total depends on.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+# The house-v2 suite's own helper, not an `openLink`: `simplehouse://device-sync`
+# is named in the screen's header comment but is not a registered route, so a
+# deep link lands nowhere and the card never appears. `lf-open-device-sync`
+# reaches the surface the way a member does — Settings → the device-sync row —
+# and already handles being there.
+- runFlow: lf-open-device-sync.yaml
+# The anchors the two-device suite already relies on, asserted here so a change
+# to this card that breaks them fails on this flow rather than on that suite.
+- assertVisible:
+    id: 'house-settings-sync-now'
+
+- runFlow:
+    when:
+      visible:
+        id: 'house-sync-inventory-row'
+    commands:
+      - tapOn:
+          id: 'house-sync-inventory-row'
+      - extendedWaitUntil:
+          visible:
+            id: 'lf-sync-inventory-screen'
+          timeout: 20000
+      # The total, then a category — the breakdown is the reason the screen
+      # exists, so a screen that opened with only a heading is a failure.
+      - assertVisible:
+          id: 'house-sync-inventory-total'
+      - assertVisible:
+          id: 'house-sync-category-tasks'
+      - assertVisible:
+          id: 'house-sync-count-tasks'
+      # Empty categories are shown on purpose: "Appliances 0" is the answer for
+      # someone checking whether their appliances arrived.
+      - assertVisible:
+          id: 'house-sync-category-appliances'
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'house-local-first-sync-card'
+          timeout: 20000

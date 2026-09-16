@@ -1,0 +1,164 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - mutation
+  - regression
+  - smoke
+# Matrix: BUDGET-SAVE-010 — create a savings goal (SavingsGoalForm). The smoke
+# check: the create wires through and the goal appears on the Goals sub-view.
+# The full create → edit → delete lifecycle is budget-savings-goal-crud.yaml.
+#
+# MUTATING and now SELF-CLEANING. It used to leave "E2E Savings Goal" behind on
+# every run — the shared E2E household collected one more each time, and every
+# extra goal feeds the Overview goals card, the Projection tab's monthly-goal
+# contribution and the goal-performance figures, so the pollution was not inert.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-SAV-001
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-goals'
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-goals-loading'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goals'
+    timeout: 45000
+
+# --- Pre-clean: drain leftovers from an aborted run, so a second copy cannot
+# make the closing assertNotVisible unsatisfiable. Scroll before each check —
+# a `when: visible` guard only sees the current screen.
+- repeat:
+    times: 3
+    commands:
+      - scrollUntilVisible:
+          element: '.*E2E Savings Goal.*'
+          direction: DOWN
+          timeout: 8000
+          centerElement: true
+          optional: true
+      - runFlow:
+          when:
+            visible: '.*E2E Savings Goal.*'
+          commands:
+            - tapOn: '.*E2E Savings Goal.*'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-goal-form-delete'
+                timeout: 20000
+            - tapOn:
+                id: 'savings-goal-form-delete'
+            # '^Delete$' — the alert is TITLED "Delete goal", which an
+            # unanchored 'Delete' matches first, leaving the goal in place.
+            - extendedWaitUntil:
+                visible: '^Delete$'
+                timeout: 10000
+            - tapOn: '^Delete$'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-goals'
+                timeout: 20000
+
+# --- Create. Exactly one add affordance renders: the empty-state card's button
+# when the household has no goals, the list footer's when it has.
+- scrollUntilVisible:
+    element:
+      id: 'savings-goals-add-(empty|list)'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn:
+    id: 'savings-goals-add-(empty|list)'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goal-form'
+    timeout: 15000
+# Default type is emergency_fund (name field is savings-goal-name-optional);
+# switch to custom for a named goal.
+- tapOn:
+    id: 'savings-goal-type-custom'
+- tapOn:
+    id: 'savings-goal-name'
+- inputText: 'E2E Savings Goal'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'savings-goal-target'
+- inputText: '5000'
+# Assert the figure while the field is still on screen — the scroll below moves
+# it out of the viewport, so this cannot wait until just before the save.
+- assertVisible:
+    id: 'savings-goal-target'
+    text: '5000'
+- hideKeyboard:
+    optional: true
+# SCROLL BEFORE SAVING — the scroll is load-bearing, not cosmetic.
+#
+# "Create goal" is the LAST control of the form, below the fold, and the target
+# field raises a numeric keypad that `hideKeyboard` does not reliably dismiss on
+# iOS. Tapping the button blind lands on the keypad instead: observed 2026-08-22
+# on Budget-B, the tap hit the "0" key, the target became 50000, the save never
+# fired, and the flow failed later on the Goals list — pointing at the wrong
+# thing entirely. The ScrollView dismisses the keyboard on drag, so scrolling
+# both clears the keypad and puts the button on screen. Same hazard
+# budget-savings-recurring-toggle documents ("the amount went 42 → 422").
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'savings-goal-form-save-header'
+# Back on the Goals sub-view with the new goal rendered.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goals'
+    timeout: 25000
+- scrollUntilVisible:
+    element: '.*E2E Savings Goal.*'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- assertVisible: '.*E2E Savings Goal.*'
+- assertVisible: '.*\$5,000.*'
+
+# --- Cleanup: remove the goal this run created.
+- tapOn: '.*E2E Savings Goal.*'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goal-form'
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: 'savings-goal-form-delete'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'savings-goal-form-delete'
+- extendedWaitUntil:
+    visible: 'Delete goal'
+    timeout: 10000
+- tapOn: '^Delete$'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goals'
+    timeout: 25000
+- scrollUntilVisible:
+    element: '.*E2E Savings Goal.*'
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+    optional: true
+- assertNotVisible: '.*E2E Savings Goal.*'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

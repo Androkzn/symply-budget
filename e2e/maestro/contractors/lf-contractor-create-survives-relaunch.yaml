@@ -1,0 +1,209 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:contractors
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: HOUSE-LF-CONT-002
+---
+# WHAT THIS PROVES
+# ----------------
+# Creating a contractor on a local-first House build writes to the on-device
+# ledger, issues NO POST to `/contractors`, and the row is STILL THERE after the
+# process is killed and relaunched.
+#
+# The relaunch is the whole point. Before the cutover, "the row appeared" proved
+# persistence, because the row could only have come back from the server. Under
+# local-first the ledger IS the storage, so a create that only ever landed in a
+# React Query cache or a Zustand store renders an identical, entirely convincing
+# row — and loses the contractor the moment the process dies. That is the real
+# regression risk this domain acquired at cutover, and an in-session assertion
+# cannot see it. Only a cold start can.
+#
+# `contractorsApi.create` resolves to `localContractorsApi.create`
+# (src/api/contractors.ts:511, no `remoteMethods`, `strict` default), so a POST
+# to `/contractors` means the proxy fell through and the write went to a Worker
+# that can only store it as ciphertext nobody asked for.
+#
+# ISOLATION AND CLEANUP
+# ---------------------
+# The fixture name is stamped with `Date.now()` at run time, so two runs — and
+# two clones running concurrently — cannot collide on it, and a leftover row
+# from an aborted earlier run cannot make this run pass vacuously.
+#
+# The flow deletes its own contractor at the end, via the same stamped name it
+# created. Cleanup is best-effort-guarded rather than asserted: a failed delete
+# must not turn a genuine persistence PASS into a red run, and the next run is
+# unaffected because it stamps a fresh name anyway.
+#
+# PRECONDITION (self-contained)
+# -----------------------------
+# A signed-in House session on a local-first build. No seeded data — this flow
+# creates everything it needs. Runs ALONE and in ANY order.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-LF-CONT-002
+
+# Unique per run — never reuse a literal, or a rerun asserts on the previous
+# run's leftovers instead of on this run's write.
+- evalScript: ${output.contractorName = 'LF Contractor ' + Date.now()}
+
+- runFlow: ../subflows/open-contractors.yaml
+- assertVisible:
+    id: 'contractors-screen'
+- tapOn:
+    id: 'contractors-tab-contractors'
+- waitForAnimationToEnd:
+    timeout: 2000
+
+# --- Create -------------------------------------------------------------
+- tapOn:
+    id: 'contractors-add-button'
+- extendedWaitUntil:
+    visible:
+      id: 'contractor-form-screen'
+    timeout: 15000
+- tapOn:
+    id: 'contractor-form-name'
+- inputText: ${output.contractorName}
+# `optional: true` only — NO neutral-point tap. The tap was added on a wrong
+# premise (assumed iPad keyboard chrome) and was UNSAFE: 50%,12% is (417,145)
+# on an 834x1210 iPad, which lands on real controls — the profile avatar
+# (opens a camera Alert), the contractor photo circle (ActionSheet), a bare
+# TextInput on property-assessment. On iPhone 12% is inside the 118pt header,
+# outside the ScrollView, so it dismisses nothing at all. An `optional`
+# hideKeyboard cannot abort the flow, which is all that was ever needed here.
+- hideKeyboard:
+    optional: true
+# Clear the buffer immediately before the write so the verify below can only
+# see the save itself, not a read this screen did on the way in.
+- runFlow:
+    file: ../subflows/e2e-clear-log.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'contractor-form-save'
+    timeout: 8000
+- tapOn:
+    id: 'contractor-form-save'
+- extendedWaitUntil:
+    visible:
+      id: 'contractors-screen'
+    timeout: 20000
+
+# The write must not have reached the Worker.
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /contractors
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 5000
+
+# In-session presence. Necessary but NOT sufficient — see the relaunch below.
+- tapOn:
+    id: 'contractors-tab-contractors'
+- scrollUntilVisible:
+    element:
+      text: ${output.contractorName}
+    direction: DOWN
+    timeout: 20000
+- assertVisible: ${output.contractorName}
+
+# --- Cold start: the assertion an in-session check cannot make ----------
+- pressKey: Home
+- waitForAnimationToEnd:
+    timeout: 1500
+- launchApp:
+    appId: com.symply.house
+    clearState: false
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-contractors.yaml
+- assertVisible:
+    id: 'contractors-screen'
+- tapOn:
+    id: 'contractors-tab-contractors'
+- scrollUntilVisible:
+    element:
+      text: ${output.contractorName}
+    direction: DOWN
+    timeout: 25000
+- assertVisible: ${output.contractorName}
+
+# The rehydrated list must also come from the ledger, not from a server the
+# relaunch quietly re-pointed at.
+- runFlow:
+    file: ../subflows/e2e-clear-log.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+
+# --- Cleanup: delete the fixture this run created ------------------------
+# Guarded end to end. A cleanup failure must not mask the persistence PASS
+# above, and the next run stamps a new name regardless.
+- runFlow:
+    when:
+      visible: ${output.contractorName}
+    commands:
+      - tapOn:
+          text: ${output.contractorName}
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'contractor-detail-screen'
+          timeout: 20000
+          optional: true
+      - runFlow:
+          when:
+            visible: 'Edit'
+          commands:
+            - tapOn: 'Edit'
+            - extendedWaitUntil:
+                visible:
+                  id: 'contractor-form-screen'
+                timeout: 15000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'contractor-form-delete'
+                commands:
+                  - tapOn:
+                      id: 'contractor-form-delete'
+                  - extendedWaitUntil:
+                      visible: 'Delete Contractor'
+                      timeout: 10000
+                      optional: true
+                  - tapOn:
+                      text: 'Delete'
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 4000
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

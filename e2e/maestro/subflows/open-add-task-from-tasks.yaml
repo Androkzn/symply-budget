@@ -1,0 +1,12 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- runFlow: go-tasks-tab.yaml
+- tapOn:
+    id: 'tasks-add-fab'
+- extendedWaitUntil:
+    visible:
+      id: 'add-task-sheet'
+    timeout: 15000

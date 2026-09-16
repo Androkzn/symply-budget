@@ -1,0 +1,147 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-LF-H7-P4-003
+---
+# WHAT THIS PROVES
+# ----------------
+# DoD H7, negative half: on a local-first House build, no method identifier and
+# no developer error sentence ever reaches a member's screen.
+#
+# Plan §9.2 records the bug this locks down. Before 2026-08-13 all eight
+# P4-disabled methods threw one shared sentence with their own identifier
+# embedded — `House local-first: "garbage-collection.aiDetect" is not available
+# offline yet.` — and several suites asserted on it under test names like
+# "throws member-facing copy". errors.ts now puts member copy in `.message` and
+# the identifier in `.method`; the identifier is for logs only.
+#
+# The leak vector is real and still open: House screens DO render raw messages.
+#   • TasksScreen.tsx:192  — `err.message` → toast + screen error state
+#   • HouseholdManagementScreen.tsx:707,749,837 — `error.message` → Alert body
+#   • GarbageDetectScreen.tsx:162 — a message string rendered as body text
+# Any of those, plus a regression putting `.method` back into `.message`, puts
+# `tasks.getTaskQuotes` in front of a member. This flow walks those surfaces and
+# fails if an identifier appears on any of them.
+#
+# WHAT THIS DELIBERATELY DOES NOT PROVE
+# -------------------------------------
+# The positive half of DoD H7 — that the member-facing TITLE from
+# unsupportedCopy.ts is visible — is NOT asserted, because as of 2026-08-13 no
+# House screen renders `HouseLocalUnsupportedError.title` or `.memberMessage`.
+# Every reachable P4 call site substitutes its own hardcoded string instead:
+#   getTaskQuotes        → TaskDetailScreen console.error only (nothing on screen)
+#   getTaskQuotes        → QuoteManagementScreen  'Failed to load quotes'
+#   requestTaskQuotes    → ContractorSelectionScreen 'Failed to request quotes'
+#   compareTaskQuotesWithAI → QuoteComparisonScreen "We couldn't compare these quotes."
+#   createBudgetItemFromTask → PurchaseSuggestionChip 'Could not add to budget'
+#   aiDetect             → GarbageDetectScreen falls back to its own sentence,
+#                          because apiErrorMessage() reads err.response.data.error
+#                          (an axios shape) and HouseLocalUnsupportedError has no
+#                          `.response`
+#   task-drafts.generate / appliancesApi.addDocument / getDocuments
+#                        → no UI call site at all
+# Asserting the titles here would fail for the right reason but for a gap in
+# src/, not in the test. Wire a screen to `error.title` first, then add the
+# positive assertions to this flow.
+#
+# Readonly: navigation and assertions only. No destructive taps — in particular
+# nothing here touches Delete Property, which is the one households surface
+# whose P4 copy IS rendered but only on the last property.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-H7-P4-003
+
+# --- Home ---------------------------------------------------------------
+- assertVisible:
+    id: 'home-screen'
+- assertNotVisible: 'is not available offline yet'
+- assertNotVisible: 'garbage-collection\.aiDetect'
+- assertNotVisible: 'task-drafts\.generate'
+- assertNotVisible: 'appliancesApi\.getDocuments'
+
+# --- Tasks list (renders raw err.message in a toast + error state) -------
+- runFlow: ../subflows/go-tasks-tab.yaml
+- assertVisible:
+    id: 'tasks-screen'
+- assertNotVisible: 'is not available offline yet'
+- assertNotVisible: 'tasks\.getTaskQuotes'
+- assertNotVisible: 'tasks\.requestTaskQuotes'
+- assertNotVisible: 'tasks\.compareTaskQuotesWithAI'
+- assertNotVisible: 'tasks\.createBudgetItemFromTask'
+- assertNotVisible: 'task-drafts\.generate'
+
+# --- Task detail (the surface that calls getTaskQuotes on mount) ---------
+- runFlow: ../subflows/open-task-detail.yaml
+- assertVisible:
+    id: 'task-detail-screen'
+- assertNotVisible: 'is not available offline yet'
+- assertNotVisible: 'tasks\.getTaskQuotes'
+- assertNotVisible: 'tasks\.createBudgetItemFromTask'
+- assertNotVisible: 'appliancesApi\.addDocument'
+# Scroll the whole modal — a leaked string could sit below the fold.
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: task-detail-screen-scroll-end
+- assertNotVisible: 'is not available offline yet'
+- assertNotVisible: 'tasks\.getTaskQuotes'
+- tapOn:
+    id: 'task-detail-close'
+    optional: true
+- extendedWaitUntil:
+    notVisible:
+      id: 'task-detail-screen'
+    timeout: 8000
+    optional: true
+
+# --- Properties / members (renders error.message in Alert bodies) --------
+- runFlow: ../subflows/open-profile.yaml
+- assertVisible:
+    id: 'profile-screen'
+# UP, not DOWN. `settings-row-household-members` is in the HOME & SHARING group
+# on Profile — above Sign out, and below only the avatar and subscription cards —
+# and this flow has already been on this screen once (it opens a task detail and
+# comes back), so the list keeps its previous scroll position; opening Profile
+# again does not reset it. Scrolling DOWN from halfway therefore moves
+# AWAY from the row and burns the whole budget before failing with
+# "No visible element found", which reads as a missing row rather than a missing
+# scroll. UP is right whichever position the screen is left in: at the top the
+# row is already on screen and the scroll is a no-op.
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-household-members'
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: 'settings-row-household-members'
+- extendedWaitUntil:
+    visible:
+      id: 'household-management-screen'
+    timeout: 20000
+- assertNotVisible: 'is not available offline yet'
+- assertNotVisible: 'households\.invite'
+- assertNotVisible: 'households\.searchUsers'
+- assertNotVisible: 'households\.uploadPhoto'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: household-management-screen-scroll-end
+- assertNotVisible: 'is not available offline yet'
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

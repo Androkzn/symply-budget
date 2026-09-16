@@ -1,0 +1,27 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# Boot Symply Language into a signed-in session on the Learn tab.
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-learn-screen'
+    commands:
+      - launchApp:
+          clearState: false
+      - runFlow: connect-language-metro.yaml
+      - runFlow: language-dismiss-expo-dev-chrome.yaml
+      - runFlow: language-login-if-needed.yaml
+      - runFlow: language-onboarding-if-needed.yaml
+      - runFlow:
+          when:
+            notVisible:
+              id: 'language-learn-screen'
+          commands:
+            - runFlow: language-recover-learn.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'language-learn-screen'
+          timeout: 120000

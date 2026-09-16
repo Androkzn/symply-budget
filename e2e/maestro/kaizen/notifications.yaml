@@ -1,0 +1,35 @@
+appId: com.symply.kaizen
+---
+# Notifications — status rows + inbox. The shared PermissionCard's own "Allow"
+# button (visible only while permission is not-requested) shares its label
+# with the OS dialog's "Allow", so two optional taps in sequence clear either
+# or both. The card's "Open Settings" action (denied state) is deliberately
+# NOT tapped here — that would leave the app and break the rest of this flow.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/notifications
+- extendedWaitUntil:
+    visible: 'Notifications'
+    timeout: 20000
+- assertVisible: 'Status'
+- assertVisible: 'Unread'
+- assertVisible: 'Inbox'
+# Interaction: the PermissionCard's own Allow, then the OS dialog's Allow.
+- tapOn:
+    text: 'Allow'
+    optional: true
+- tapOn:
+    text: 'Allow'
+    optional: true
+- tapOn:
+    text: "Don't Allow"
+    optional: true
+- assertVisible: 'Notifications'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

@@ -1,0 +1,143 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: HOUSE-LF-004
+---
+# WHAT THIS PROVES
+# ----------------
+# Tapping `house-settings-sync-now` runs a real sync and the surface SETTLES on
+# a terminal outcome — up to date, offline, or could-not-reach — and never
+# leaves the member looking at "Syncing…".
+#
+# Three assertions, in order of how much they prove:
+#   1. `house-sync-status` appears. It renders only when `note` is non-null
+#      (HouseDeviceSyncScreen.tsx:106), and `note` is set exclusively in the
+#      `.then` and `.catch` of `runHouseLocalSync()` — never in the `.finally`,
+#      never on mount. Its presence therefore IS the promise resolving.
+#   2. "Syncing…" is gone. The button title is `isSyncing ? 'Syncing…' : 'Sync
+#      now'` and `isSyncing` clears in `.finally` (line 80). A run that hangs —
+#      a promise that never settles, a `.finally` that never fires — leaves this
+#      on screen forever, and it is the only visible symptom.
+#   3. The status text is one of the three sentences the screen can actually
+#      produce. This is what stops the flow degrading into "some text appeared".
+#
+# TEXT IS THE CONTRACT IN (3), knowingly. There is no testID and no data
+# attribute distinguishing the terminal outcomes from each other — the tone is a
+# colour and colour is not assertable — so the sentence stems from
+# HouseDeviceSyncScreen.tsx:63-77 are the only machine-readable difference
+# between "resolved offline" and "still resolving". Only the stems are matched,
+# so the interpolated change count stays free to change.
+#
+# WHY THAT MATTERS
+# ----------------
+# Approving a device only WRITES the wrapped household key into the peer's
+# mailbox on the owner's NEXT SYNC RUN (screen header, lines 16-20). Until this
+# button reaches a terminal state the person the owner just approved can read
+# nothing, and the owner has no signal that anything is wrong — a stuck
+# "Syncing…" and a successful sync look identical for the first few seconds.
+# An offline run is the subtle half: it resolves NORMALLY, so a screen that
+# assumed success would claim "up to date" while nothing left the device. The
+# code reads `s.phase` back off the store rather than trusting the resolution
+# (line 58), and assertion (3) is what holds that in place.
+#
+# WHY THE OFFLINE AND ERROR SENTENCES ARE ACCEPTED
+# ------------------------------------------------
+# Because the row is about TERMINATION, not about connectivity. A flow that
+# demanded "Up to date" would fail on a device with a flaky relay for a reason
+# that has nothing to do with the behaviour under test, and would then be
+# muted — which costs the terminal-state check itself. The network assertion at
+# the end is therefore run ONLY in the branch where the app itself claims it
+# reached the relay.
+#
+# ISOLATION: lf-open-device-sync leaves the surface and re-enters, so the mount
+# is fresh and `note` is null — which is what makes the pre-tap
+# `assertNotVisible: house-sync-status` a real precondition rather than
+# wishful thinking, and what makes the post-tap appearance attributable to THIS
+# tap. Mutation-tagged: it issues a genuine mailbox round trip. It creates no
+# household data, so it leaves nothing for a sibling flow to trip over.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-004
+- runFlow: lf-open-device-sync.yaml
+
+# PRECONDITION 1 — the gate is open. `house-settings-sync-now` is
+# `disabled={isSyncing || !gate.ready}`, so on a device whose local session has
+# not opened the tap below is a silent no-op and every later assertion would
+# fail for the wrong reason. `lf-sync-gate-notice` renders exactly when
+# `gate.ready` is false, sits inside the card above the button, and is therefore
+# always on screen when it exists — unlike the panels further down the card.
+- assertVisible:
+    id: 'house-settings-sync-now'
+- assertNotVisible:
+    id: 'lf-sync-gate-notice'
+# PRECONDITION 2 — nothing has run yet on this mount, so anything that shows up
+# after the tap was caused by the tap.
+- assertNotVisible:
+    id: 'house-sync-status'
+- assertNotVisible: 'Syncing.*'
+
+- tapOn:
+    id: 'house-settings-sync-now'
+    retryTapIfNoChange: true
+
+# ASSERTION 1 — the run settled. Generous: a cold mailbox round trip on a slow
+# relay is seconds, and an offline run waits out its own timeouts before
+# resolving.
+- extendedWaitUntil:
+    visible:
+      id: 'house-sync-status'
+    timeout: 90000
+# ASSERTION 2 — and the button came back. Checked AFTER the status line so a
+# fast success cannot make this pass by never having rendered "Syncing…".
+- extendedWaitUntil:
+    notVisible: 'Syncing.*'
+    timeout: 30000
+- assertVisible:
+    id: 'house-settings-sync-now'
+
+# ASSERTION 3 — the settled state is one the screen can actually reach.
+- copyTextFrom:
+    id: 'house-sync-status'
+- evalScript: ${output.lfSyncStatus = maestro.copiedText}
+- assertTrue: "${output.lfSyncStatus.indexOf('Up to date') === 0 || output.lfSyncStatus.indexOf('You are offline') === 0 || output.lfSyncStatus.indexOf('Could not reach your home') === 0}"
+
+# Console verify, ONLY on the branch where the app claims it reached the relay.
+# `runHouseLocalSync` drives MailboxSyncEngine, whose pull is
+# `GET /v2/households/:id/mailbox` through the instrumented `apiClient`
+# (controlPlaneClient.ts:408-423) — so a run that reported "Up to date" without
+# a mailbox request never talked to anything.
+#
+# HONEST LIMIT: the ring buffer was cleared at launch by e2e-matrix-before, and
+# `ensureHouseLocalSession` fires its own `runHouseLocalSync()` shortly after
+# sign-in, so a matching entry cannot be attributed to this tap alone. It proves
+# the transport was exercised during this flow, not that the button was what
+# exercised it — assertions 1-3 above are what tie the outcome to the tap.
+- runFlow: lf-leave-device-sync.yaml
+- runFlow:
+    when:
+      true: ${output.lfSyncStatus.indexOf('Up to date') === 0}
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: GET
+            E2E_VERIFY_PATH: /mailbox
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

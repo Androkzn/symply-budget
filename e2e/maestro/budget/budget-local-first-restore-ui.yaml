@@ -1,0 +1,101 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: BUDGET-LF-011 — Encrypted restore UI (phrase panel → progress → success modal)
+# Requires Debug build (__DEV__ "Load pushed backup") + seeded Documents fixture:
+#   scripts/e2e/seed-budget-restore-fixture.sh <UDID>
+# (run-budget-suite.sh seeds this when E2E_SEED_FIXTURES=1).
+# Mutates the local ledger household to E2E Restore HH (allowHouseholdReplace).
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-011
+# SYNC & SHARING lives on Profile now, not on Budget Settings.
+- runFlow: ../subflows/budget-open-profile.yaml
+# Backup moved to its own screen; Profile keeps the single row that leads there.
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-backup-link'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'budget-settings-backup-link'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-screen'
+    timeout: 15000
+# Dev / E2E path: load archive from app Documents (no document picker).
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-restore-pushed'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'budget-backup-restore-pushed'
+- waitForAnimationToEnd:
+    timeout: 3000
+# Missing fixture → Alert; dismiss and fail the next assert.
+- runFlow:
+    when:
+      visible: 'No sweet-home-v2-restore'
+    commands:
+      - tapOn:
+          text: 'OK'
+          optional: true
+# Panel mounts after async Documents read; scroll in case it lands below the fold.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-restore-phrase-panel'
+    direction: DOWN
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-restore-phrase-panel'
+    timeout: 5000
+- assertVisible:
+    id: 'budget-backup-restore-phrase'
+- assertVisible:
+    id: 'budget-backup-restore-confirm'
+# Load pushed backup fills the draft from companion .phrase.txt (not Maestro
+# typing — eraseText/inputText mangled the 12 words into ~19 on iOS).
+# Prefer testIDs: Typography captions often expose accessibilityText only,
+# which Maestro text matchers miss.
+- assertVisible: 'abuse boss fly battle rubber wasp afraid hamster guide essence vibrant tattoo'
+- tapOn:
+    id: 'budget-backup-restore-confirm'
+# Mobile KDF decrypt + apply on a tiny archive — allow headroom on slow sims.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-restore-success-modal'
+    timeout: 120000
+# Breakdown rows are flattened into the modal's accessibilityText on iOS;
+# Maestro text matchers do not see "1 spending" as its own node. Modal + OK
+# cover the green-check success path (domain counts are logged in Metro).
+- assertVisible:
+    id: 'budget-backup-restore-success-ok'
+- tapOn:
+    id: 'budget-backup-restore-success-ok'
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible:
+    id: 'budget-backup-status-card'
+# One back, not two: this screen was pushed onto the BUDGET stack by the deep
+# link the Profile row opens, so back lands on the budget root directly —
+# Settings is no longer between them.
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

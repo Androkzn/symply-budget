@@ -1,0 +1,47 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:auth
+  - readonly
+  - regression
+  - smoke
+# Matrix: HEALTH-auth (see documents/engineering/testing/matrices/)
+---
+# Health auth-boundary flow — the ONLY Health flow that needs no session.
+#
+# Health renders the SHARED LoginScreen (and therefore the shared `auth-*`
+# testIDs); only the wordmark/slogan copy is brand-specific, resolved from
+# `src/brand/loginTheme.ts` (unit-pinned by src/brand/__tests__/loginTheme.test.ts
+# rows HEALTH-AUTH-020..024). clearState + clearKeychain forces a true signed-out
+# surface. This asserts the login chrome WITHOUT submitting; the submit path is
+# login-email-submit-seeded.yaml, which needs the seeded fleet account.
+#
+# clearState on iOS is an uninstall + reinstall, so the app cold-launches and
+# AppDelegate re-pins Metro (:8085) itself. Do NOT fire the dev-client deep link
+# here: on a cold launch it races the booting runtime and crashes the app
+# (see subflows/connect-health-metro.yaml).
+- stopApp
+- launchApp:
+    clearState: true
+    clearKeychain: true
+    permissions:
+      all: allow
+      faceid: allow
+- runFlow: subflows/health-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'auth-sign-in-email'
+    timeout: 120000
+# Brand identity + taglines.
+- assertVisible: 'Symply Health'
+- assertVisible: 'Health, Simplified'
+- assertVisible: 'Track. Move. Thrive.'
+# Auth provider options (shared auth-* testIDs on LoginScreen).
+- assertVisible:
+    id: 'auth-sign-in-apple'
+- assertVisible:
+    id: 'auth-sign-in-google'
+- assertVisible:
+    id: 'auth-sign-in-email'
+# Sign-up affordance.
+- assertVisible: 'Sign Up'

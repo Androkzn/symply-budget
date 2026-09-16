@@ -1,0 +1,63 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:ai-access
+  - readonly
+  - regression
+# Matrix: PLAT-AIACC-045
+# The illustrated "how to get your key" guide on the BYOK connect screen
+# (ProviderKeyGuide). Verifies the pieces the other connect flows don't:
+#   • the card is titled with the provider's real logo + name;
+#   • step 1 is a LINK into the provider console, with the console address shown
+#     right beneath it (the browser bar moved under step 1);
+#   • every step has an ⓘ that opens an in-app ANNOTATED EXAMPLE of that console
+#     screen (a mock with a boxed control + accent comment), and it dismisses.
+# Non-mutating: opens/reads only; it never taps the external console link (that
+# would background the app) and never enters a key.
+---
+- runFlow: subflows/launch-platform.yaml
+- openLink: simplehouse://ai-access/connect?provider=anthropic
+- extendedWaitUntil:
+    visible:
+      id: 'ai-access-connect-screen'
+    timeout: 20000
+
+# Header titles the guide with the provider name (beside its real logo).
+- assertVisible: 'Anthropic Claude'
+
+# Step 1 is a link into the console, with the address shown right beneath it.
+- assertVisible: 'Open the Anthropic Console'
+- assertVisible: 'console.anthropic.com'
+
+# Step 1's ⓘ opens that step's annotated example (distinctive headline + chrome).
+- tapOn:
+    id: 'ai-guide-step-info-0'
+- extendedWaitUntil:
+    visible:
+      id: 'ai-step-example-modal'
+    timeout: 10000
+- assertVisible: 'Sign in to the Anthropic Console'
+- assertVisible: 'Illustrative example'
+- tapOn:
+    id: 'bottom-sheet-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'ai-step-example-modal'
+    timeout: 10000
+
+# A second step's ⓘ opens its own example — proves the per-step wiring, not a
+# single shared modal. (Content collides with the timeline text, so assert on
+# the modal's own id + chrome.)
+- tapOn:
+    id: 'ai-guide-step-info-1'
+- extendedWaitUntil:
+    visible:
+      id: 'ai-step-example-modal'
+    timeout: 10000
+- assertVisible: 'Illustrative example'
+- tapOn:
+    id: 'bottom-sheet-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'ai-step-example-modal'
+    timeout: 10000

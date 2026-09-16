@@ -1,0 +1,205 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - readonly
+  - regression
+  - smoke
+# Matrix: BUDGET-savings (see documents/engineering/testing/matrices/)
+# Savings section shell (SavingsView) — the 4 sub-tabs render and the month
+# stepper works. Non-mutating: only switches sub-tabs + steps the month.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/go-budget-savings.yaml
+- assertVisible:
+    id: 'filter-tab-overview'
+- assertVisible:
+    id: 'filter-tab-income'
+- assertVisible:
+    id: 'filter-tab-monthly'
+- assertVisible:
+    id: 'filter-tab-projection'
+- assertVisible:
+    id: 'filter-tab-goals'
+# Overview sub-view (default).
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-overview-loading'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-overview'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-overview-empty'
+    timeout: 45000
+    optional: true
+- assertVisible:
+    id: 'savings-view'
+# Tolerate either data state: the shared account may have savings data (populated
+# savings-overview) or be empty (savings-overview-empty). Only recover if the
+# populated view hasn't resolved; the empty-state wait is best-effort.
+- runFlow:
+    when:
+      notVisible:
+        id: 'savings-overview'
+    commands:
+      - tapOn:
+          id: 'filter-tab-overview'
+      - extendedWaitUntil:
+          visible:
+            id: 'savings-overview'
+          timeout: 45000
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'savings-overview-empty'
+          timeout: 45000
+          optional: true
+# Trend chart's Savings / Spending / Monthly tabs (shared SavingsTrendChart —
+# the SAME component the Home dashboard's cashflow card renders). Only present
+# when the household has trend history; best-effort since a fresh/empty
+# household never renders the card.
+- extendedWaitUntil:
+    visible:
+      id: 'filter-tab-chart-savings'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'filter-tab-chart-savings'
+    commands:
+      # CENTER the chart's tab strip before tapping it. The Budget tab bar
+      # FLOATS over this screen, and the strip can report "visible" while
+      # sitting inside the bar's band — the tap then lands on a bottom tab and
+      # the app leaves Savings altogether. Observed 2026-08-22 on Budget-B:
+      # `filter-tab-chart-spending` put the app on the Spending TAB, and the
+      # assertion below failed pointing at Savings, which made a tab-bar
+      # mis-hit read as a broken Overview.
+      - scrollUntilVisible:
+          element:
+            id: 'filter-tab-chart-savings'
+          direction: DOWN
+          timeout: 15000
+          centerElement: true
+      - tapOn:
+          id: 'filter-tab-chart-spending'
+      # Assert on the chart strip, not on `savings-overview`. The strip only
+      # exists inside the Overview sub-view, so it proves the same thing —
+      # and it is a small element, where `savings-overview` is a full-height
+      # container whose visibility depends on the scroll offset this block
+      # deliberately changes.
+      - assertVisible:
+          id: 'filter-tab-chart-savings'
+      - tapOn:
+          id: 'filter-tab-chart-monthly'
+      - assertVisible:
+          id: 'filter-tab-chart-savings'
+      - tapOn:
+          id: 'filter-tab-chart-savings'
+      - assertVisible:
+          id: 'filter-tab-chart-savings'
+      # Back to the top so the month stepper + sub-tab strip below are reachable.
+      - scrollUntilVisible:
+          element:
+            id: 'filter-tab-overview'
+          direction: UP
+          timeout: 15000
+# Month stepper.
+- tapOn:
+    id: 'savings-month-prev'
+- tapOn:
+    id: 'savings-month-next'
+# Income sub-view.
+- tapOn:
+    id: 'filter-tab-income'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 15000
+- assertVisible:
+    id: 'savings-add-income'
+# Monthly sub-view.
+- tapOn:
+    id: 'filter-tab-monthly'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-monthly'
+    timeout: 15000
+- assertVisible:
+    id: 'savings-monthly-add'
+- assertVisible:
+    id: 'savings-monthly-total'
+# Projection sub-view. Year-scoped, so the shared header switches from
+# "August 2026" to a bare year — this walk covers the switch; the tab's own
+# contents are budget-savings-projection.yaml's job.
+- tapOn:
+    id: 'filter-tab-projection'
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-projection-loading'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-projection'
+    timeout: 45000
+- assertVisible:
+    id: 'savings-period-label'
+# Goals sub-view — the add affordance is the empty-state card's button
+# (`savings-goals-add-empty`) when the household has no goals, or the list
+# footer's (`savings-goals-add-list`) when it has. Exactly one renders, and one
+# id regex spans both — so this stays a HARD assertion in either data state.
+#
+# It used to be three optional waits followed by a `when:` block carrying THREE
+# `notVisible` keys in one mapping. YAML keeps only the last of a duplicated
+# key, so that guard was really just "notVisible savings-goals-empty" and the
+# whole leg was decorative: a Goals tab that rendered no add button at all
+# still passed. (yamllint/IDE flag it as "Map keys must be unique".)
+- tapOn:
+    id: 'filter-tab-goals'
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-goals-loading'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goals'
+    timeout: 45000
+- scrollUntilVisible:
+    element:
+      id: 'savings-goals-add-(empty|list)'
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: 'savings-goals-add-(empty|list)'
+- assertVisible:
+    id: 'savings-goals'
+- scrollUntilVisible:
+    element:
+      id: 'filter-tab-overview'
+    direction: UP
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'filter-tab-overview'
+- runFlow:
+    when:
+      visible:
+        id: 'savings-overview'
+    commands:
+      - assertVisible:
+          id: 'savings-overview'
+- runFlow:
+    when:
+      visible:
+        id: 'savings-overview-empty'
+    commands:
+      - assertVisible:
+          id: 'savings-overview-empty'

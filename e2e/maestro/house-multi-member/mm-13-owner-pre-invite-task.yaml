@@ -1,0 +1,107 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - feature:enrolment
+  - mutation
+# Matrix: HOUSE-MM-013 — the owner records a task BEFORE anyone is invited.
+#
+# The setup half of the backfill check (mm-12). ORDERING IS THE ENTIRE POINT:
+# this row exists before the invite is minted, so it can only ever reach the
+# joiner as HISTORY — never as a live op the joiner happened to be online for.
+# Run it after sign-in and before mm-02, or it proves nothing.
+#
+# Lifted from mm-20's add sequence rather than written fresh: mm-20 learned the
+# hard way that the write runs on the JS thread, which here is frequently
+# mid-sync (AEAD + signatures + a whole-ledger persist), so the sheet can close
+# well after a first check. A flow that asserts the sheet is gone immediately
+# fails with the row perfectly valid and Add already tapped.
+#
+# env: MM_TITLE — the task, awaited by name on the joiner in mm-12.
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and swallows
+# every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-leave-task-form.yaml
+- runFlow: mm-go-tasks.yaml
+- tapOn:
+    id: 'tasks-add-fab'
+- extendedWaitUntil:
+    visible:
+      id: 'add-task-sheet'
+    timeout: 20000
+# SHARED, not personal. A personal task is scoped to one member and would never
+# reach the joiner at all — the flow would fail while the app behaved perfectly.
+# The toggle renders its CURRENT state, not the action, and the sheet is sticky
+# across runs, so tap only when it reads personal.
+#
+# WILDCARDS ARE REQUIRED, not decoration. Maestro matches a selector as a regex
+# against an element's WHOLE accessibility string, and this control is a
+# TouchableOpacity wrapping an Icon and a Typography — so iOS publishes it as
+# `lock-open-outline, Shared with household` (icon name included, and the icon
+# CHANGES with the state: `lock-closed` when personal). A bare
+# 'Shared with household' therefore matches nothing, which is how run
+# 20260905-085639 failed here with the sheet open and the pill reading exactly
+# that. Verified against the captured hierarchy, not guessed.
+- runFlow:
+    when:
+      visible: '.*Personal \(only me\).*'
+    commands:
+      - tapOn:
+          id: 'add-task-personal-toggle'
+      - waitForAnimationToEnd:
+          timeout: 1500
+- assertVisible: '.*Shared with household.*'
+- tapOn:
+    id: 'add-task-input'
+- inputText: ${MM_TITLE}
+- hideKeyboard:
+    optional: true
+- runFlow: mm-relaunch-if-backgrounded.yaml
+- tapOn:
+    id: 'add-task-submit'
+- waitForAnimationToEnd:
+    timeout: 2500
+- runFlow: mm-dismiss-dev-chrome.yaml
+# Wait generously, and re-tap Add if the sheet is still up. Re-tapping is safe:
+# the sheet is gone once it saves, so a second tap only ever lands if the first
+# did nothing.
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'add-task-sheet'
+          commands:
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'add-task-sheet'
+                timeout: 20000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'add-task-sheet'
+                commands:
+                  - tapOn:
+                      id: 'add-task-submit'
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+- extendedWaitUntil:
+    notVisible:
+      id: 'add-task-sheet'
+    timeout: 25000
+- runFlow: mm-go-tasks.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 25000
+- assertVisible: '.*${MM_TITLE}.*'
+# Push it out so the owner's next checkpoint can include it. Unlike mm-12, a
+# manual pulse here is legitimate: this is SETUP, not the assertion.
+- runFlow: mm-sync-pulse.yaml
+- waitForAnimationToEnd:
+    timeout: 6000

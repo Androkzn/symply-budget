@@ -1,0 +1,13 @@
+{
+  "name": "roomplan",
+  "version": "1.0.0",
+  "description": "iOS RoomPlan LiDAR scan → normalized Home Projects geometry JSON.",
+  "license": "UNLICENSED",
+  "author": "SymplyEcosystem",
+  "homepage": "https://simplehouse.app",
+  "main": "index.js",
+  "dependencies": {},
+  "peerDependencies": {
+    "expo": "*"
+  }
+}

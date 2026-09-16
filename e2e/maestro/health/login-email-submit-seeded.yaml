@@ -1,0 +1,80 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:auth
+  - mutation
+  - smoke
+# Matrix: HEALTH-AUTH-007 — seeded fleet account login succeeds.
+---
+# clearState reinstalls the app, so AppDelegate re-pins Metro (:8085) on launch.
+# The dev-client deep link would race the booting runtime and crash it.
+- stopApp
+- launchApp:
+    clearState: true
+    clearKeychain: true
+    permissions:
+      all: allow
+      faceid: allow
+- runFlow: subflows/health-dismiss-expo-dev-chrome.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      APP_ID: com.symply.health
+      E2E_MATRIX_ROW: HEALTH-AUTH-007
+# Prefer dev deep-link autologin (avoids iOS 26 inputText flakiness).
+- openLink: ${E2E_LOGIN_URL}
+- waitForAnimationToEnd:
+    timeout: 12000
+- runFlow: subflows/health-dismiss-expo-dev-chrome.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'auth-sign-in-email'
+    commands:
+      - tapOn:
+          id: 'auth-sign-in-email'
+      - extendedWaitUntil:
+          visible:
+            id: 'auth-email-input'
+          timeout: 15000
+      - tapOn:
+          id: 'auth-email-input'
+      - inputText: ${E2E_EMAIL}
+      - tapOn:
+          id: 'auth-password-input'
+      - inputText: ${E2E_PASSWORD}
+      - tapOn:
+          id: 'auth-sign-in-submit'
+# A signed-in-but-never-onboarded-on-THIS-install account (exactly what a
+# `clearState`/`clearKeychain` reinstall produces) lands on the shared
+# onboarding welcome instead of Home — `hasCompletedOnboarding` comes from the
+# login response, not something a fresh install alone satisfies. Missing this
+# branch is why this flow (the only one in the suite that does a true fresh
+# install) reproduced 2026-08-01 hitting the 90s `health-home-screen` timeout
+# while actually sitting on onboarding — every other flow reaches Home via
+# `launch-health.yaml`, which already handles this exact case.
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-agree-terms'
+    commands:
+      - tapOn:
+          id: 'onboarding-agree-terms'
+      - tapOn:
+          id: 'onboarding-get-started'
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - runFlow: subflows/push-through-health-onboarding.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'health-home-screen'
+    timeout: 90000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      APP_ID: com.symply.health
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /auth/login
+      E2E_VERIFY_STATUS: '200'

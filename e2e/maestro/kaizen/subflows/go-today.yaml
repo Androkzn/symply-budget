@@ -1,0 +1,8 @@
+appId: com.symply.kaizen
+---
+- tapOn:
+    id: 'tab-index'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: 'Today'
+    timeout: 20000

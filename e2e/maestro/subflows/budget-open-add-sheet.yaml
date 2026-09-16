@@ -1,0 +1,49 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Opens the Planning / Spending "add" bottom sheet from the header "+".
+#
+# The three add CTAs (Add Manually / Scan Receipt / Add with AI) used to sit in a
+# permanent row above the list; they now live in a sheet behind the standard "+"
+# in the right header. Their testIDs are UNCHANGED — the only new step is this
+# one, so a flow that used to tap `budget-add-spent` now runs this first and then
+# taps exactly the same id.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-add-menu'
+    timeout: 30000
+- tapOn:
+    id: 'budget-add-menu'
+    retryTapIfNoChange: true
+# RE-TAP IF THE SHEET DID NOT COME UP.
+#
+# `retryTapIfNoChange` only retries when the hierarchy is UNCHANGED, and the
+# miss here is not that: the tap registers, something else changes, and the
+# sheet still does not appear — most often right after a launch or a device
+# reboot, while the tab bar and chat FAB are still settling above it (they sit
+# at zIndex 9999/10000, see the in-screen-overlay note in
+# BudgetReceiptScanScreen). One tap then loses silently and every caller fails
+# on `budget-add-actions-sheet`, which reads as a broken screen rather than a
+# missed tap. Observed 2026-09-08 taking down budget-receipt-foreign-currency
+# in the full suite, having passed standalone minutes earlier.
+#
+# 26 flows open this sheet, so the retry belongs here rather than in each.
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-add-actions-sheet'
+          commands:
+            - tapOn:
+                id: 'budget-add-menu'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-add-actions-sheet'
+    timeout: 15000

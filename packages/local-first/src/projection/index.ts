@@ -1,0 +1,45 @@
+export { defineLedgerSchema, type LedgerSchema, type LedgerSchemaInput } from './schema';
+export { deterministicRowId, isDeterministicRowId } from './deterministic-id';
+export {
+  decodeRowLww,
+  encodeRowLww,
+  isEncodedRowLww,
+  type EncodedRowLww,
+} from './lww-codec';
+export {
+  LEDGER_INDEX_THRESHOLD,
+  MAX_OP_DELTA_BYTES,
+  MAX_OP_DELTA_ROWS,
+  MAX_PARKED_ROWS,
+  MAX_TRACKED_CONFLICTS,
+  RESTORE_AUTHOR,
+  RESTORE_HLC,
+  bucketsForRange,
+  chunkRowsForOp,
+  compareStamps,
+  createLedgerProjection,
+  decodeLedgerOpPayload,
+  encodeLedgerOpPayload,
+  planTableStrategy,
+  restoreStamp,
+  type LedgerProjection,
+} from './projection';
+export type {
+  ApplyDeltaResult,
+  LedgerConflict,
+  LedgerConflictKind,
+  LedgerDelta,
+  LedgerLww,
+  LedgerOpPayload,
+  LedgerRow,
+  LedgerSnapshot,
+  OpStamp,
+  ParkedField,
+  PersistedRowLww,
+  ProjectableLedger,
+  RowDelta,
+  RowEnvelope,
+  RowEnvelopeWrite,
+  RowLww,
+  RowWrite,
+} from './types';

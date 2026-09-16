@@ -1,0 +1,138 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-020
+---
+# WHAT THIS PROVES
+# ----------------
+# The Device sync surface is never in the state the matrix row is really about:
+# controls with nothing behind them and no explanation. Exactly one of these is
+# true at any moment, and this flow asserts BOTH directions of that:
+#
+#   NOT READY → `lf-sync-gate-notice` explains that the home is still opening,
+#               and the invite / join / devices bodies do NOT mount at all.
+#   READY     → the bodies mount and NEITHER `lf-sync-gate-notice` nor
+#               `lf-invite-gate-notice` is anywhere on the surface.
+#
+# Both come from the same source: `gateNotice(gate)` returns a notice exactly
+# when `gate.ready` is false, and `HouseDeviceSyncScreen` mounts the three
+# bodies exactly when `gate.ready` is true (lines 96, 128-145). The bodies carry
+# their own `gateNotice` too, which is why the READY branch also asserts
+# `lf-invite-gate-notice` absent — a body that mounted while ungated would
+# render its notice inside a card that already claims to be working.
+#
+# READ THIS BEFORE TRUSTING A GREEN RESULT
+# ----------------------------------------
+# On a device that IS enrolled — which is every device this suite runs on — the
+# NOT-READY branch is NOT deterministically reachable, and this flow does not
+# pretend otherwise:
+#
+#   * `gate.localFirstOn` false is unreachable through BOTH entry points. The
+#     Settings row is gated on `isHouseLocalFirst()` (SettingsScreen.tsx:786)
+#     and `app/device-sync.tsx` redirects to `/` on the same flag — so the
+#     "Device sync is off" copy in enrolmentShared.tsx:118-123 is dead on this
+#     surface. It is reachable only by flipping the brand flag at build time.
+#   * `gate.sessionOpen` false exists only in the window between app launch and
+#     `ensureHouseLocalSession()` completing after auth rehydration
+#     (ensureSession.ts:67-80). That is a race, not a state — a flow that opened
+#     device-sync fast enough to catch it would pass or fail on scheduler luck,
+#     and would then be muted, which costs the assertion below as well.
+#   * There is no `e2e-*` deep link that closes or withholds the local session
+#     (e2e-test-deeplinks.ts hosts, checked 2026-08-15), so the state cannot be
+#     forced the way `e2e-block-network` forces offline.
+#
+# So on the fleet's House-A this flow will take the READY branch. That branch is
+# not a vacuous pass: it fails if a notice is rendered next to working controls,
+# and the NOT-READY branch fails if the bodies mount without a session. What it
+# does NOT cover is the member-facing copy of the pre-enrolment notice itself.
+# Covering that needs either a device with no local session (a fresh install
+# held before enrolment) or an `e2e-close-house-session` deep link; until one
+# exists, HOUSE-LF-020 is PARTIALLY automated and the gate copy is unverified by
+# any device run.
+#
+# ISOLATION: no preconditions beyond a signed-in House device — deliberately,
+# because this row is the one that describes the state every other LF row
+# assumes away, so inheriting a sibling's setup would defeat it.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-020
+- runFlow: lf-open-device-sync.yaml
+- assertVisible:
+    id: 'house-local-first-sync-card'
+
+# BRANCH A — the pre-enrolment state the row is named for.
+- runFlow:
+    when:
+      visible:
+        id: 'lf-sync-gate-notice'
+    commands:
+      - assertVisible:
+          id: 'lf-sync-gate-notice'
+      # No dead controls: the bodies must not have mounted. Asserted on the
+      # CONTROLS and the group labels, not only on the wrapper Views — a bare
+      # RN View can be an unhelpful shape in the iOS accessibility tree, and an
+      # `assertNotVisible` that the driver could never have seen either way is
+      # not evidence. Buttons and Text always land in the tree.
+      - assertNotVisible:
+          id: 'lf-invite-create'
+      - assertNotVisible:
+          id: 'lf-join-submit'
+      - assertNotVisible:
+          id: 'lf-devices-refresh'
+      - assertNotVisible: 'INVITE SOMEONE'
+      - assertNotVisible: 'JOIN SOMEONE ELSE.S HOME'
+      - assertNotVisible:
+          id: 'lf-invite-panel'
+      - assertNotVisible:
+          id: 'lf-join-panel'
+      - assertNotVisible:
+          id: 'lf-devices-panel'
+
+# BRANCH B — enrolled and ready, which is what House-A will actually hit.
+- runFlow:
+    when:
+      notVisible:
+        id: 'lf-sync-gate-notice'
+    commands:
+      # The bodies live below the sync button inside the card's ScrollView, so
+      # scroll before asserting rather than trusting the fold. Anchored on the
+      # bodies' BUTTONS rather than their wrapper Views, for the same
+      # accessibility-tree reason as branch A.
+      - scrollUntilVisible:
+          element:
+            id: 'lf-invite-create'
+          direction: DOWN
+          centerElement: true
+          timeout: 20000
+      - assertVisible:
+          id: 'lf-invite-create'
+      # The complement of branch A: a working surface carries no notice, and no
+      # body renders its own either.
+      - assertNotVisible:
+          id: 'lf-sync-gate-notice'
+      - assertNotVisible:
+          id: 'lf-invite-gate-notice'
+      - scrollUntilVisible:
+          element:
+            id: 'lf-devices-refresh'
+          direction: DOWN
+          centerElement: true
+          timeout: 20000
+      - assertVisible:
+          id: 'lf-devices-refresh'
+      - assertNotVisible:
+          id: 'lf-devices-gate-notice'
+      - assertNotVisible:
+          id: 'lf-join-gate-notice'
+
+- runFlow: lf-leave-device-sync.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

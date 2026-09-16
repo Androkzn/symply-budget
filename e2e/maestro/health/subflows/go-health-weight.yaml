@@ -1,0 +1,31 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Switch to the Weight tab (route health-weight, label Weight, header "Weight").
+#
+# CORRECTED 2026-07-29, verified on-device: Weight has NO `defaultHidden` in
+# `brands/symply-health/brand.cjs` — it is pinned to the main bar by default
+# ("Default pinned set: Dashboard / Weight / Nutrition / Activity / More —
+# Trends starts in the 'More' hub … so Weight can take its slot", confirmed
+# with product 2026-07-28). This subflow previously routed through the More
+# hub's overflow list on the belief Weight lived there; that was true before
+# the 2026-07-28 tab reorder and is not true on the current build — the old
+# path fails outright (`more-tab-health-weight` does not exist; the row moved
+# to the bar as `tab-health-weight`). A member on a fresh install pins/unpins
+# tabs from the Customise panel, so this can drift again — if this subflow
+# ever fails on `tab-health-weight`, check `brand.cjs`'s current default set
+# before assuming the tab, not the harness, moved.
+#
+# Do not confuse this screen with the Home weight card. Home logs a bare number
+# into MMKV; this tab owns the window navigator, the dashboard widgets, the
+# customise panel, the goal editor and the per-entry edit/delete verbs.
+- runFlow: dismiss-weight-keyboard.yaml
+- tapOn:
+    id: 'tab-health-weight'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-weight-screen'
+    timeout: 30000

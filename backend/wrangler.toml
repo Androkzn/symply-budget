@@ -1,0 +1,506 @@
+#:schema node_modules/wrangler/config-schema.json
+# Symply Budget — separate Worker + D1 from Symply House.
+# Same codebase (auth, households, budget/savings). Deploy:
+#   npx wrangler deploy --env staging
+#   npx wrangler deploy --env production
+name = "simple-budget-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+[vars]
+ENVIRONMENT = "development"
+REVENUECAT_APP_IDS = "app953a4d0ce1,appf5f29e3159"  # RevenueCat apps (iOS,Android) in shared project projc09063c5 — webhook app_id filter
+REVENUECAT_PRO_ENTITLEMENT_ID = "entl30eb804c13"  # Shared "pro" entitlement id in project projc09063c5 (maps V2 active_entitlements → pro)
+JWT_ISSUER = "simple-budget"
+JWT_AUDIENCE = "simple-budget-app"
+BUDGET_API_ENABLED = "true"
+# LOCAL_FIRST_API_ENABLED — the `/v2` gate — is a per-env SECRET, never a
+# `[vars]` entry: vars and secrets share one namespace on `env`, so a var here
+# SHADOWS the secret and every `wrangler deploy` silently re-arms `/v2`, which
+# is the one thing this kill switch must not do (plan §1.7a, Commit 3). The
+# gate is fail-CLOSED (`=== 'true'`), so an unprovisioned secret 404s Budget's
+# certified two-device `/v2` AND stops the cron mailbox / checkpoint TTL sweeps
+# (`src/cron/scheduled.ts`) — hence the deploy:fleet preflight.
+# Provision: scripts/secrets/sync-child-worker-secrets.sh
+# Verify:    backend/scripts/verify-local-first-api-secret.sh
+# wrangler dev: put LOCAL_FIRST_API_ENABLED=true in backend/.dev.vars
+APP_BRAND = "symply-budget"
+ACCESS_TOKEN_EXPIRY = "900"
+REFRESH_TOKEN_EXPIRY = "2592000"
+APP_URL = "http://localhost:3000"
+API_URL = "http://localhost:8788"
+REPORTS_BUCKET_NAME = "simple-budget-reports-staging"
+AIHOUSEKEEPER_BRIEFING_MODEL = "claude-sonnet-4-6-20260217"
+AIHOUSEKEEPER_NUDGE_MODEL = "claude-haiku-4-5-20251001"
+AIHOUSEKEEPER_FALLBACK_MODEL = "claude-sonnet-4-5-20250929"
+AIHOUSEKEEPER_MIN_APP_VERSION = "3.0.0"
+AIHOUSEKEEPER_REALTIME_MODEL = "gpt-realtime"
+AIHOUSEKEEPER_REALTIME_VOICE = "marin"
+# Google OAuth — CLIENT_ID is non-secret; CLIENT_SECRET via `wrangler secret put`.
+GOOGLE_OAUTH_CLIENT_ID = "144228018802-hga4shft7puttamh36gfgr7aa5rrpchl.apps.googleusercontent.com"
+GOOGLE_SIGNIN_CLIENT_IDS = "144228018802-pj9u6tp8uvh1k81l8d1ji0v2ccb33iq5.apps.googleusercontent.com,144228018802-reptk64t883gv90j8otk9ruqaq9qectv.apps.googleusercontent.com,144228018802-hga4shft7puttamh36gfgr7aa5rrpchl.apps.googleusercontent.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "simple-budget-db-staging"
+database_id = "0f460078-1c98-483b-88db-ec50df26d1ab"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "REPORTS_BUCKET"
+bucket_name = "simple-budget-reports-staging"
+
+[[kv_namespaces]]
+binding = "CONFIG_KV"
+id = "a18c3056d74d418c9b6b4df791378fc2"
+
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiterDO"
+
+[[durable_objects.bindings]]
+name = "CHAT_ROOM"
+class_name = "ChatRoomDO"
+
+[[durable_objects.bindings]]
+name = "HOUSEHOLD_COORDINATOR"
+class_name = "HouseholdCoordinatorDO"
+
+# --- Cloudflare Queues ---
+# DLQ retention defaults to 4d; not settable in wrangler.toml (CLI/API only).
+# Target 14d (1209600s): documents/engineering/ops/dlq-retention.md
+
+[[queues.producers]]
+binding = "AIHOUSEKEEPER_OUTBOUND_QUEUE"
+queue = "simple-budget-aihousekeeper-outbound-staging"
+
+[[queues.consumers]]
+queue = "simple-budget-aihousekeeper-outbound-staging"
+max_batch_size = 25
+max_batch_timeout = 10
+max_retries = 3
+max_concurrency = 25
+dead_letter_queue = "simple-budget-aihousekeeper-outbound-staging-dlq"
+
+[[queues.producers]]
+binding = "AIHOUSEKEEPER_OUTBOUND_DLQ"
+queue = "simple-budget-aihousekeeper-outbound-staging-dlq"
+
+[[queues.consumers]]
+queue = "simple-budget-aihousekeeper-outbound-staging-dlq"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+
+[[queues.producers]]
+binding = "GARDEN_PLAN_QUEUE"
+queue = "simple-budget-garden-plan-staging"
+
+[[queues.consumers]]
+queue = "simple-budget-garden-plan-staging"
+max_batch_size = 5
+max_batch_timeout = 5
+max_retries = 3
+max_concurrency = 10
+dead_letter_queue = "simple-budget-garden-plan-staging-dlq"
+
+[[queues.producers]]
+binding = "GARDEN_PLAN_DLQ"
+queue = "simple-budget-garden-plan-staging-dlq"
+
+[[queues.consumers]]
+queue = "simple-budget-garden-plan-staging-dlq"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+
+[[queues.producers]]
+binding = "TASK_ENRICHMENT_QUEUE"
+queue = "simple-budget-task-enrichment-staging"
+
+[[queues.consumers]]
+queue = "simple-budget-task-enrichment-staging"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+max_concurrency = 25
+dead_letter_queue = "simple-budget-task-enrichment-staging-dlq"
+
+[[queues.producers]]
+binding = "TASK_ENRICHMENT_DLQ"
+queue = "simple-budget-task-enrichment-staging-dlq"
+
+[[queues.consumers]]
+queue = "simple-budget-task-enrichment-staging-dlq"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+# Home Projects AI schematic
+[[queues.producers]]
+binding = "HOME_PROJECT_SCHEMATIC_QUEUE"
+queue = "simple-budget-home-project-schematic-staging"
+
+[[queues.consumers]]
+queue = "simple-budget-home-project-schematic-staging"
+max_batch_size = 1
+max_batch_timeout = 5
+max_retries = 3
+max_concurrency = 5
+dead_letter_queue = "simple-budget-home-project-schematic-staging-dlq"
+
+[[queues.producers]]
+binding = "HOME_PROJECT_SCHEMATIC_DLQ"
+queue = "simple-budget-home-project-schematic-staging-dlq"
+
+[[queues.consumers]]
+queue = "simple-budget-home-project-schematic-staging-dlq"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+
+
+[[migrations]]
+tag = "v1"
+# JobManagerDO retained in migration history (deployed); binding removed CA-9/A0.
+new_sqlite_classes = ["JobManagerDO", "RateLimiterDO"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ChatRoomDO"]
+
+[[migrations]]
+tag = "v3"
+# CA-9/A0: JobManagerDO class file removed; v1/v3 migration tags retained above.
+deleted_classes = ["JobManagerDO"]
+
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = ["HouseholdCoordinatorDO"]
+
+[observability]
+enabled = true
+head_sampling_rate = 1.0
+
+[env.staging]
+preview_urls = false
+name = "simple-budget-api-staging"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+REVENUECAT_APP_IDS = "app953a4d0ce1,appf5f29e3159"  # RevenueCat apps (iOS,Android) in shared project projc09063c5 — webhook app_id filter
+REVENUECAT_PRO_ENTITLEMENT_ID = "entl30eb804c13"  # Shared "pro" entitlement id in project projc09063c5 (maps V2 active_entitlements → pro)
+# Sentry backend DSN (publishable). Empty ⇒ disabled. See documents/engineering/sentry.md.
+SENTRY_DSN = "https://25fd656fb01b62876393e76b3caaaa43@o4506338522431488.ingest.us.sentry.io/4511730659622912"
+JWT_ISSUER = "simple-budget"
+JWT_AUDIENCE = "simple-budget-app"
+BUDGET_API_ENABLED = "true"
+# LOCAL_FIRST_API_ENABLED — the `/v2` gate — is a per-env SECRET, never a
+# `[vars]` entry: vars and secrets share one namespace on `env`, so a var here
+# SHADOWS the secret and every `wrangler deploy` silently re-arms `/v2`, which
+# is the one thing this kill switch must not do (plan §1.7a, Commit 3). The
+# gate is fail-CLOSED (`=== 'true'`), so an unprovisioned secret 404s Budget's
+# certified two-device `/v2` AND stops the cron mailbox / checkpoint TTL sweeps
+# (`src/cron/scheduled.ts`) — hence the deploy:fleet preflight.
+# Provision: scripts/secrets/sync-child-worker-secrets.sh
+# Verify:    backend/scripts/verify-local-first-api-secret.sh
+# wrangler dev: put LOCAL_FIRST_API_ENABLED=true in backend/.dev.vars
+APP_BRAND = "symply-budget"
+ACCESS_TOKEN_EXPIRY = "900"
+REFRESH_TOKEN_EXPIRY = "2592000"
+APP_URL = "https://simple-budget-api-staging.a-tekhtelev.workers.dev"
+API_URL = "https://simple-budget-api-staging.a-tekhtelev.workers.dev"
+REPORTS_BUCKET_NAME = "simple-budget-reports-staging"
+AIHOUSEKEEPER_BRIEFING_MODEL = "claude-sonnet-4-6-20260217"
+AIHOUSEKEEPER_NUDGE_MODEL = "claude-haiku-4-5-20251001"
+AIHOUSEKEEPER_FALLBACK_MODEL = "claude-sonnet-4-5-20250929"
+AIHOUSEKEEPER_MIN_APP_VERSION = "3.0.0"
+AIHOUSEKEEPER_REALTIME_MODEL = "gpt-realtime"
+AIHOUSEKEEPER_REALTIME_VOICE = "marin"
+# Google OAuth — CLIENT_ID is non-secret; CLIENT_SECRET via `wrangler secret put`.
+GOOGLE_OAUTH_CLIENT_ID = "144228018802-hga4shft7puttamh36gfgr7aa5rrpchl.apps.googleusercontent.com"
+GOOGLE_SIGNIN_CLIENT_IDS = "144228018802-pj9u6tp8uvh1k81l8d1ji0v2ccb33iq5.apps.googleusercontent.com,144228018802-reptk64t883gv90j8otk9ruqaq9qectv.apps.googleusercontent.com,144228018802-hga4shft7puttamh36gfgr7aa5rrpchl.apps.googleusercontent.com"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "simple-budget-db-staging"
+database_id = "0f460078-1c98-483b-88db-ec50df26d1ab"
+migrations_dir = "migrations"
+
+[[env.staging.r2_buckets]]
+binding = "REPORTS_BUCKET"
+bucket_name = "simple-budget-reports-staging"
+
+[[env.staging.kv_namespaces]]
+binding = "CONFIG_KV"
+id = "a18c3056d74d418c9b6b4df791378fc2"
+
+[[env.staging.durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiterDO"
+
+[[env.staging.durable_objects.bindings]]
+name = "CHAT_ROOM"
+class_name = "ChatRoomDO"
+
+[[env.staging.durable_objects.bindings]]
+name = "HOUSEHOLD_COORDINATOR"
+class_name = "HouseholdCoordinatorDO"
+
+[env.staging.observability]
+enabled = true
+head_sampling_rate = 1.0
+
+[[env.staging.queues.producers]]
+binding = "AIHOUSEKEEPER_OUTBOUND_QUEUE"
+queue = "simple-budget-aihousekeeper-outbound-staging"
+
+[[env.staging.queues.consumers]]
+queue = "simple-budget-aihousekeeper-outbound-staging"
+max_batch_size = 25
+max_batch_timeout = 10
+max_retries = 3
+max_concurrency = 25
+dead_letter_queue = "simple-budget-aihousekeeper-outbound-staging-dlq"
+
+[[env.staging.queues.producers]]
+binding = "AIHOUSEKEEPER_OUTBOUND_DLQ"
+queue = "simple-budget-aihousekeeper-outbound-staging-dlq"
+
+[[env.staging.queues.consumers]]
+queue = "simple-budget-aihousekeeper-outbound-staging-dlq"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+
+[[env.staging.queues.producers]]
+binding = "GARDEN_PLAN_QUEUE"
+queue = "simple-budget-garden-plan-staging"
+
+[[env.staging.queues.consumers]]
+queue = "simple-budget-garden-plan-staging"
+max_batch_size = 5
+max_batch_timeout = 5
+max_retries = 3
+max_concurrency = 10
+dead_letter_queue = "simple-budget-garden-plan-staging-dlq"
+
+[[env.staging.queues.producers]]
+binding = "GARDEN_PLAN_DLQ"
+queue = "simple-budget-garden-plan-staging-dlq"
+
+[[env.staging.queues.consumers]]
+queue = "simple-budget-garden-plan-staging-dlq"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+
+[[env.staging.queues.producers]]
+binding = "TASK_ENRICHMENT_QUEUE"
+queue = "simple-budget-task-enrichment-staging"
+
+[[env.staging.queues.consumers]]
+queue = "simple-budget-task-enrichment-staging"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+max_concurrency = 25
+dead_letter_queue = "simple-budget-task-enrichment-staging-dlq"
+
+[[env.staging.queues.producers]]
+binding = "TASK_ENRICHMENT_DLQ"
+queue = "simple-budget-task-enrichment-staging-dlq"
+
+[[env.staging.queues.consumers]]
+queue = "simple-budget-task-enrichment-staging-dlq"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+# Home Projects AI schematic
+[[env.staging.queues.producers]]
+binding = "HOME_PROJECT_SCHEMATIC_QUEUE"
+queue = "simple-budget-home-project-schematic-staging"
+
+[[env.staging.queues.consumers]]
+queue = "simple-budget-home-project-schematic-staging"
+max_batch_size = 1
+max_batch_timeout = 5
+max_retries = 3
+max_concurrency = 5
+dead_letter_queue = "simple-budget-home-project-schematic-staging-dlq"
+
+[[env.staging.queues.producers]]
+binding = "HOME_PROJECT_SCHEMATIC_DLQ"
+queue = "simple-budget-home-project-schematic-staging-dlq"
+
+[[env.staging.queues.consumers]]
+queue = "simple-budget-home-project-schematic-staging-dlq"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+
+
+[env.staging.triggers]
+crons = ["*/5 * * * *"]
+
+[env.production]
+preview_urls = false
+name = "simple-budget-api"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+REVENUECAT_APP_IDS = "app953a4d0ce1,appf5f29e3159"  # RevenueCat apps (iOS,Android) in shared project projc09063c5 — webhook app_id filter
+REVENUECAT_PRO_ENTITLEMENT_ID = "entl30eb804c13"  # Shared "pro" entitlement id in project projc09063c5 (maps V2 active_entitlements → pro)
+# Sentry backend DSN (publishable). Empty ⇒ disabled. See documents/engineering/sentry.md.
+SENTRY_DSN = "https://25fd656fb01b62876393e76b3caaaa43@o4506338522431488.ingest.us.sentry.io/4511730659622912"
+JWT_ISSUER = "simple-budget"
+JWT_AUDIENCE = "simple-budget-app"
+BUDGET_API_ENABLED = "true"
+# LOCAL_FIRST_API_ENABLED — the `/v2` gate — is a per-env SECRET, never a
+# `[vars]` entry: vars and secrets share one namespace on `env`, so a var here
+# SHADOWS the secret and every `wrangler deploy` silently re-arms `/v2`, which
+# is the one thing this kill switch must not do (plan §1.7a, Commit 3). The
+# gate is fail-CLOSED (`=== 'true'`), so an unprovisioned secret 404s Budget's
+# certified two-device `/v2` AND stops the cron mailbox / checkpoint TTL sweeps
+# (`src/cron/scheduled.ts`) — hence the deploy:fleet preflight.
+# Provision: scripts/secrets/sync-child-worker-secrets.sh
+# Verify:    backend/scripts/verify-local-first-api-secret.sh
+# wrangler dev: put LOCAL_FIRST_API_ENABLED=true in backend/.dev.vars
+APP_BRAND = "symply-budget"
+ACCESS_TOKEN_EXPIRY = "900"
+REFRESH_TOKEN_EXPIRY = "2592000"
+APP_URL = "https://simple-budget-api.a-tekhtelev.workers.dev"
+API_URL = "https://simple-budget-api.a-tekhtelev.workers.dev"
+REPORTS_BUCKET_NAME = "simple-budget-reports"
+AIHOUSEKEEPER_BRIEFING_MODEL = "claude-sonnet-4-6-20260217"
+AIHOUSEKEEPER_NUDGE_MODEL = "claude-haiku-4-5-20251001"
+AIHOUSEKEEPER_FALLBACK_MODEL = "claude-sonnet-4-5-20250929"
+AIHOUSEKEEPER_MIN_APP_VERSION = "3.0.0"
+BUDGET_DEBUG_LOGS = "true"
+AIHOUSEKEEPER_REALTIME_MODEL = "gpt-realtime"
+AIHOUSEKEEPER_REALTIME_VOICE = "marin"
+# Google OAuth — CLIENT_ID is non-secret; CLIENT_SECRET via `wrangler secret put`.
+GOOGLE_OAUTH_CLIENT_ID = "144228018802-hga4shft7puttamh36gfgr7aa5rrpchl.apps.googleusercontent.com"
+GOOGLE_SIGNIN_CLIENT_IDS = "144228018802-pj9u6tp8uvh1k81l8d1ji0v2ccb33iq5.apps.googleusercontent.com,144228018802-reptk64t883gv90j8otk9ruqaq9qectv.apps.googleusercontent.com,144228018802-hga4shft7puttamh36gfgr7aa5rrpchl.apps.googleusercontent.com"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "simple-budget-db"
+database_id = "a76e7e47-dbb1-457c-ba9b-80a27d4fc97d"
+migrations_dir = "migrations"
+
+[[env.production.r2_buckets]]
+binding = "REPORTS_BUCKET"
+bucket_name = "simple-budget-reports"
+
+[[env.production.kv_namespaces]]
+binding = "CONFIG_KV"
+id = "b5bc4866109a483799607a785f3e983e"
+
+[[env.production.durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiterDO"
+
+[[env.production.durable_objects.bindings]]
+name = "CHAT_ROOM"
+class_name = "ChatRoomDO"
+
+[[env.production.durable_objects.bindings]]
+name = "HOUSEHOLD_COORDINATOR"
+class_name = "HouseholdCoordinatorDO"
+
+[env.production.observability]
+enabled = true
+head_sampling_rate = 1.0
+
+[[env.production.queues.producers]]
+binding = "AIHOUSEKEEPER_OUTBOUND_QUEUE"
+queue = "simple-budget-aihousekeeper-outbound"
+
+[[env.production.queues.consumers]]
+queue = "simple-budget-aihousekeeper-outbound"
+max_batch_size = 25
+max_batch_timeout = 10
+max_retries = 3
+max_concurrency = 25
+dead_letter_queue = "simple-budget-aihousekeeper-outbound-dlq"
+
+[[env.production.queues.producers]]
+binding = "AIHOUSEKEEPER_OUTBOUND_DLQ"
+queue = "simple-budget-aihousekeeper-outbound-dlq"
+
+[[env.production.queues.consumers]]
+queue = "simple-budget-aihousekeeper-outbound-dlq"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+
+[[env.production.queues.producers]]
+binding = "GARDEN_PLAN_QUEUE"
+queue = "simple-budget-garden-plan"
+
+[[env.production.queues.consumers]]
+queue = "simple-budget-garden-plan"
+max_batch_size = 5
+max_batch_timeout = 5
+max_retries = 3
+max_concurrency = 10
+dead_letter_queue = "simple-budget-garden-plan-dlq"
+
+[[env.production.queues.producers]]
+binding = "GARDEN_PLAN_DLQ"
+queue = "simple-budget-garden-plan-dlq"
+
+[[env.production.queues.consumers]]
+queue = "simple-budget-garden-plan-dlq"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+
+[[env.production.queues.producers]]
+binding = "TASK_ENRICHMENT_QUEUE"
+queue = "simple-budget-task-enrichment"
+
+[[env.production.queues.consumers]]
+queue = "simple-budget-task-enrichment"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+max_concurrency = 25
+dead_letter_queue = "simple-budget-task-enrichment-dlq"
+
+[[env.production.queues.producers]]
+binding = "TASK_ENRICHMENT_DLQ"
+queue = "simple-budget-task-enrichment-dlq"
+
+[[env.production.queues.consumers]]
+queue = "simple-budget-task-enrichment-dlq"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+# Home Projects AI schematic
+[[env.production.queues.producers]]
+binding = "HOME_PROJECT_SCHEMATIC_QUEUE"
+queue = "simple-budget-home-project-schematic"
+
+[[env.production.queues.consumers]]
+queue = "simple-budget-home-project-schematic"
+max_batch_size = 1
+max_batch_timeout = 5
+max_retries = 3
+max_concurrency = 5
+dead_letter_queue = "simple-budget-home-project-schematic-dlq"
+
+[[env.production.queues.producers]]
+binding = "HOME_PROJECT_SCHEMATIC_DLQ"
+queue = "simple-budget-home-project-schematic-dlq"
+
+[[env.production.queues.consumers]]
+queue = "simple-budget-home-project-schematic-dlq"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+
+
+[env.production.triggers]
+crons = ["*/5 * * * *"]

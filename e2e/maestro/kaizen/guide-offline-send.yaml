@@ -1,0 +1,22 @@
+appId: com.symply.kaizen
+---
+# GUIDE-011 — offline coach send surfaces a user-visible error, never a silent drop.
+# setAirplaneMode is Android-only; on iOS sim it is a no-op — still assert the happy path
+# does not crash and document ERROR scoring separately on Android.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow: subflows/go-guide.yaml
+- assertVisible:
+    id: 'kaizen-guide-screen'
+- tapOn:
+    text: 'Enable AI'
+    optional: true
+- tapOn:
+    id: 'kaizen-guide-composer'
+- inputText: 'Quick check-in while offline'
+- setAirplaneMode: enabled
+- tapOn:
+    text: 'Send'
+- extendedWaitUntil:
+    visible: 'I could not reach the coach. Please try again.'
+    timeout: 30000
+- setAirplaneMode: disabled

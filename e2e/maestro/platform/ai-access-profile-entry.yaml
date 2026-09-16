@@ -1,0 +1,35 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:ai-access
+  - readonly
+  - regression
+# Matrix: PLAT-AIACC-041
+---
+- runFlow: subflows/launch-platform.yaml
+- runFlow: ../subflows/open-profile.yaml
+- assertVisible:
+    id: 'profile-screen'
+- runFlow:
+    when:
+      visible:
+        id: 'profile-ai-access-button'
+    commands:
+      - tapOn:
+          id: 'profile-ai-access-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'ai-access-screen'
+          timeout: 20000
+      - assertVisible: 'Unlock AI'
+- runFlow:
+    when:
+      notVisible:
+        id: 'profile-ai-access-button'
+    commands:
+      - openLink: simplehouse://ai-access
+      - extendedWaitUntil:
+          visible:
+            id: 'ai-access-screen'
+          timeout: 20000
+      - assertVisible: 'Unlock AI'

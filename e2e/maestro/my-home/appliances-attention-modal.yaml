@@ -1,0 +1,23 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home
+  - readonly
+  - regression
+# Matrix: HOUSE-APPL-001–003, HOUSE-APPL-004 (FAB visible; create form IMP-deferred)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-home-tab.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'home-attention-warranties'
+    commands:
+      - tapOn:
+          id: 'home-attention-warranties'
+      - extendedWaitUntil:
+          visible:
+            id: 'appliances-add-fab'
+          timeout: 20000
+      - assertVisible:
+          id: 'appliances-add-fab'

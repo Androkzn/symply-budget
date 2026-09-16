@@ -1,0 +1,21 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:onboarding
+  - readonly
+  - regression
+# Matrix: HOUSE-ONB-008
+---
+# Invalid invite code/token — inline error, no membership.
+- runFlow: ../subflows/launch-logged-in.yaml
+- openLink: simplehouse://join/ZZZZZZ
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'invite-unavailable-title'
+    timeout: 30000
+- assertVisible:
+    id: 'invite-unavailable-title'
+- assertVisible: 'Invite Unavailable'
+# The Request-to-Join action must not exist for an unusable invite.
+- assertNotVisible: 'Request to Join'

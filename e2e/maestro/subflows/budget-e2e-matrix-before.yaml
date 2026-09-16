@@ -1,0 +1,24 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Budget matrix tagging — clear/tag observability buffers, then recover the dashboard
+# (e2e-clear-log / e2e-tag-matrix deep links can leave chat/settings stacks open).
+- runFlow:
+    file: e2e-clear-log.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+- runFlow:
+    file: e2e-tag-matrix.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: ${E2E_MATRIX_ROW}
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- openLink: simplebudget:///
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow: budget-recover-dashboard.yaml

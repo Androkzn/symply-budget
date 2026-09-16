@@ -1,0 +1,46 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:dashboard
+  - regression
+# Matrix: BUDGET-DASH-032 — offline month stepper preserves prior data / surfaces error
+# Safety net: guarantees airplane mode is off when this flow ends even if a
+# non-optional assertion fails before reaching the offline-off call in the
+# body (see budget-offline-sweep.yaml for the observed cross-flow cascade).
+onFlowComplete:
+  - runFlow: ../subflows/budget-offline-off.yaml
+---
+- runFlow: ../subflows/budget-offline-off.yaml
+- runFlow: budget-recover-session.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-dismiss-welcome-if-needed.yaml
+- openLink: simplebudget:///
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'budget-dashboard-loading'
+    commands:
+      - extendedWaitUntil:
+          notVisible:
+            id: 'budget-dashboard-loading'
+          timeout: 90000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-dashboard'
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-month-prev'
+    timeout: 90000
+- assertVisible:
+    id: 'budget-month-next'
+- runFlow: ../subflows/budget-offline-on.yaml
+- tapOn:
+    id: 'budget-month-prev'
+- waitForAnimationToEnd:
+    timeout: 3000
+# Prior month data should still render (cached); no crash.
+- assertVisible:
+    id: 'budget-dashboard'
+- runFlow: ../subflows/budget-offline-off.yaml

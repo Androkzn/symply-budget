@@ -1,0 +1,56 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:budget-chat
+  - readonly
+  - regression
+# Matrix: BUDGET-budget-chat (see documents/engineering/testing/matrices/)
+# Budget household chat — @assistant AI mention path (BudgetChatRoomScreen).
+# New rooms default to AI enabled (Allow-AI toggle defaults ON), so the created
+# room accepts @assistant. Proves the user message with the @assistant mention
+# posts (sendMessage → POST /:roomId/messages, which the backend routes to
+# generateAssistantReply). The AI reply itself needs a server ANTHROPIC_API_KEY +
+# entitlement, so we assert the sent mention text rather than the model reply.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-open-chat-rooms.yaml
+# Rooms are reused by name across runs (budget-enter-chat-room.yaml's
+# deliberate design) with no cleanup — 'E2E Assistant Flow' accumulated enough
+# history from repeated debugging runs to make the compose bar take 30s+ to
+# render, well past any reasonable wait. No confirmed-delete precedent exists
+# elsewhere in this suite to safely retire the old room (every other flow
+# only checks the delete button exists, never taps+confirms it) — renamed to
+# start clean rather than guess at untested deletion UI.
+- runFlow:
+    file: ../subflows/budget-create-chat-room.yaml
+    env:
+      ROOM_NAME: 'E2E Assistant Flow 2'
+- tapOn:
+    id: 'chat-room-input'
+- inputText: '@assistant give me one budgeting tip'
+- runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+- waitForAnimationToEnd:
+    timeout: 1500
+# This room is reused by name across runs (budget-enter-chat-room.yaml's
+# deliberate design) and accumulates history — a long scroll-heavy view can
+# take a while to settle, and a plain tapOn's default wait isn't enough
+# (reproduced: "chat-room-send" not found after 17s while the message list
+# was still laying out). extendedWaitUntil first, THEN tap, for real patience.
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-send'
+    timeout: 30000
+- tapOn:
+    id: 'chat-room-send'
+# NOT the same "Maestro drops the first onChangeText" race budget-chat-message.yaml
+# guards against — here the AI reply itself only appears once the backend has
+# received and processed the message, so a live reply IS proof the send
+# worked. An erase+retype+resend retry here fires WHILE the AI reply is still
+# streaming in (continuous re-renders make a plain visibility check flaky in
+# that window), and retapping send mid-stream is what actually fails — not a
+# real "text didn't land" case. Just wait longer; nothing to retry.
+- extendedWaitUntil:
+    visible: '.*@assistant give me one budgeting tip.*'
+    timeout: 30000
+- runFlow: ../subflows/budget-exit-chat.yaml

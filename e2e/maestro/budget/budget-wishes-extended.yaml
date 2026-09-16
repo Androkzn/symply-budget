@@ -1,0 +1,107 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:wishes
+  - mutation
+  - regression
+# Matrix: BUDGET-WISH-020 (offline note) + WISH-024 (modal inputs testIDs)
+# Safety net: guarantees airplane mode is off when this flow ends even if a
+# non-optional assertion fails before reaching its own offline-off call in the
+# body (see budget-offline-sweep.yaml for the observed cross-flow cascade).
+onFlowComplete:
+  - runFlow: ../subflows/budget-offline-off.yaml
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-WISH-010
+- openLink: simplebudget:///wishes
+- extendedWaitUntil:
+    visible:
+      id: 'wishes-new-button'
+    timeout: 30000
+- tapOn:
+    id: 'wishes-new-button'
+- extendedWaitUntil:
+    visible:
+      id: 'wish-modal-save'
+    timeout: 15000
+- tapOn:
+    id: 'wish-modal-title'
+- inputText: 'E2E Wish Modal'
+- hideKeyboard:
+    optional: true
+- assertVisible:
+    id: 'wish-modal-title'
+- assertVisible:
+    id: 'wish-modal-notes'
+- assertVisible:
+    id: 'wish-modal-cost'
+- assertVisible:
+    id: 'wish-modal-add-photo'
+# Title was already entered above; dismiss the keyboard so the save button is
+# unobscured, then persist. (Re-tapping + re-typing here doubled the title and
+# left the modal mid-edit on iOS 26.)
+- hideKeyboard:
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: 'wish-modal-save'
+# Save POSTs to the live staging Worker; the new wish card may render below the
+# fold in a data-polluted list — scroll to reveal it (iOS-26 swipe fallback),
+# then assert with a generous timeout.
+- scrollUntilVisible:
+    element:
+      text: '.*E2E Wish Modal.*'
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      notVisible: '.*E2E Wish Modal.*'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+- extendedWaitUntil:
+    visible: '.*E2E Wish Modal.*'
+    timeout: 45000
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'wish-card-.*'
+    optional: true
+- tapOn:
+    text: '.*E2E Wish Modal.*'
+- extendedWaitUntil:
+    visible:
+      id: 'wish-detail-screen'
+    timeout: 30000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'wish-send-note'
+    timeout: 30000
+- runFlow: ../subflows/budget-offline-on.yaml
+- tapOn: 'Add a note…'
+- inputText: 'Offline note attempt'
+- tapOn:
+    id: 'wish-send-note'
+- extendedWaitUntil:
+    visible:
+      text: 'Error'
+    timeout: 15000
+    optional: true
+- runFlow: ../subflows/budget-offline-off.yaml
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

@@ -1,0 +1,98 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:reports
+  - mutation
+  - regression
+# Matrix: HOUSE-RPT-007,008,013,016,018,019 — upload contract with console verify
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-reports.yaml
+- assertVisible:
+    id: 'reports-screen'
+# Cancel upload source without picking (HOUSE-RPT-007 proxy — no upload-url).
+# WRONG LITERAL FIXED (all three disclaimer gates below): the accept button is
+# titled 'I Understand & Accept' (AIDisclaimerModal.tsx:286), and Maestro matches a
+# regex against an element's WHOLE text — 'I Understand' never matched, so the
+# disclaimer was never accepted and each of these gates was dead.
+- tapOn:
+    id: 'reports-upload-fab'
+- runFlow:
+    file: ../subflows/accept-ai-disclaimer.yaml
+    env:
+      APP_ID: com.symply.house
+- runFlow:
+    file: ../subflows/dismiss-reports-upload-modal.yaml
+    env:
+      APP_ID: com.symply.house
+- assertVisible:
+    id: 'reports-screen'
+# Confirm-without-file blocked (HOUSE-RPT-008) — modal dismissed, no picker.
+- tapOn:
+    id: 'reports-upload-fab'
+- runFlow:
+    file: ../subflows/accept-ai-disclaimer.yaml
+    env:
+      APP_ID: com.symply.house
+- runFlow:
+    file: ../subflows/dismiss-reports-upload-modal.yaml
+    env:
+      APP_ID: com.symply.house
+# Real upload with matrix observability (HOUSE-RPT-006,013,018,019).
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_MATRIX_ROW: HOUSE-RPT-006
+      E2E_APP_SCHEME: simplehouse
+- tapOn:
+    id: 'reports-upload-fab'
+- runFlow:
+    file: ../subflows/accept-ai-disclaimer.yaml
+    env:
+      APP_ID: com.symply.house
+- extendedWaitUntil:
+    visible:
+      id: 'reports-source-device'
+    timeout: 15000
+- tapOn:
+    id: 'reports-source-device'
+- runFlow:
+    file: ../subflows/pick-document-from-files.yaml
+    env:
+      DOC_NAME: 'bc-assessment.pdf'
+      DOC_NAME_REGEX: 'bc-assessment[.]pdf'
+      APP_ID: com.symply.house
+# WRONG LITERAL FIXED: the success alert body is 'Report uploaded successfully! AI
+# processing will begin shortly…' (ReportsScreen.tsx:366/503). Maestro matches the
+# WHOLE string, so the bare prefix never matched — the wait always timed out and the
+# gate below never opened, leaving the upload's success unverified.
+- extendedWaitUntil:
+    visible: 'Report uploaded successfully.*'
+    timeout: 90000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Report uploaded successfully.*'
+    commands:
+      - tapOn: 'OK'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /reports/upload-url
+      E2E_VERIFY_STATUS: '200'
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_MATRIX_ROW: HOUSE-RPT-006
+      E2E_APP_SCHEME: simplehouse
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /confirm-upload
+      E2E_VERIFY_STATUS: '200'
+- assertVisible:
+    id: 'reports-screen'

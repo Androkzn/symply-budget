@@ -1,0 +1,61 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:mortgage
+  - regression
+# Matrix: MORT-300 — the header gear on the Mortgage tab opens the property
+# MANAGEMENT hub (not the generic Budget settings). From there the user can reach
+# a property's Edit and Statements screens. Assumes/creates a mortgage first.
+# iOS-26: assert on stable testIDs / visible labels, never scroll position. Per-
+# property rows carry a dynamic id in their testID, so tap by the visible action
+# label ("Edit" / "Statements") instead.
+---
+- runFlow: ../subflows/budget-ensure-mortgage.yaml
+
+# The gear (budget-settings-button) opens Mortgage settings while on this tab.
+- tapOn:
+    id: 'budget-settings-button'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000
+- assertVisible:
+    id: 'mortgage-settings-add'
+# The managed property is listed with edit / statements / delete affordances.
+- assertVisible: 'Edit'
+- assertVisible: 'Statements'
+- assertVisible: 'Delete'
+
+# Edit → the property edit form, then back to the hub.
+- tapOn: 'Edit'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-edit-screen'
+    timeout: 15000
+- assertVisible:
+    id: 'mortgage-edit-nickname'
+- assertVisible:
+    id: 'mortgage-edit-save'
+- tapOn:
+    id: 'screen-back-button'
+    optional: true
+- back
+
+# Statements → the clean/edit-data manager, then back to the hub.
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000
+- tapOn: 'Statements'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-statements-screen'
+    timeout: 15000
+- assertVisible:
+    id: 'mortgage-statements-add'
+- back
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000

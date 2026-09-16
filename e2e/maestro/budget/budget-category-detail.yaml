@@ -1,0 +1,55 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:plan
+  - readonly
+  - regression
+# Matrix: BUDGET-plan (see documents/engineering/testing/matrices/)
+# Dashboard category row → Category Detail (BudgetCategoryDetailScreen). Covers the
+# previously-untested navigation budget-category-row-<id> → BudgetCategoryDetail
+# (getCategoryProductTrends → GET /categories/:id/products). Category rows only
+# render for months with recorded category spend, so the tap is guarded and the
+# flow still passes on an empty month.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'budget-dashboard-loading'
+    commands:
+      - extendedWaitUntil:
+          notVisible:
+            id: 'budget-dashboard-loading'
+          timeout: 30000
+- assertVisible:
+    id: 'budget-screen'
+- runFlow:
+    when:
+      visible:
+        id: 'budget-dashboard'
+    commands:
+      - assertVisible:
+          id: 'budget-dashboard'
+- runFlow:
+    when:
+      visible:
+        id: 'budget-category-row-.*'
+    commands:
+      - tapOn:
+          id: 'budget-category-row-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-category-detail-summary'
+          timeout: 20000
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-screen'
+          timeout: 15000
+- assertVisible:
+    id: 'budget-screen'
+- assertVisible:
+    id: 'budget-dashboard'
+    optional: true

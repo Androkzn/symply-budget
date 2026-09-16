@@ -1,0 +1,178 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Park the Health HOME list at the end that makes a given control tappable.
+#
+#     - runFlow:
+#         file: subflows/focus-health-home.yaml
+#         env:
+#           FOCUS_ID: health-today-label
+#           HOME_ANCHOR: top
+#
+# ## The contract
+#
+# `HOME_ANCHOR` is `top` or `bottom`; `FOCUS_ID` is the control that must end up
+# on screen, and the closing `assertVisible` is a hard guard — if the pairing is
+# wrong for the current card order this says so, instead of letting a tap land
+# on whatever is underneath.
+#
+#   top     greeting · [notification / HealthKit permission cards, if either is
+#           outstanding] · TODAY rings
+#   bottom  AT A GLANCE · WATER (− / +) · TODAY'S NOTE · RECENT · SECTIONS
+#
+# So: `health-today-label` (and the other TODAY-ring targets) take `top`;
+# `health-water-plus`, `health-water-minus` and `health-note-input` take
+# `bottom`. (The Home WEIGHT card — log row, delta chip, kg/lb toggle and all
+# — was removed entirely 2026-08-01; weight logging now lives only on the
+# Weight tab. Unit preference changes only from More → Preferences → Units.)
+#
+# ## Why step 1b exists (added 2026-07-28)
+#
+# The ambient permission cards (`health-home-notification-permission-card`,
+# `health-home-healthkit-card`) are dismissible-per-session but start visible on
+# every cold launch — which is every flow here, via `subflows/launch-health.yaml`.
+# On the shared E2E account neither permission is ever pre-granted, so BOTH cards
+# render, adding real height between the greeting and the TODAY rings. Reaching
+# the absolute top of the list (step 1) no longer guarantees a `top` FOCUS_ID is
+# in the viewport — it can now sit just below the fold. Step 1b nudges down a
+# BOUNDED amount, the same "repeat until visible" pattern as the `bottom` leg,
+# so a `top` target still resolves whether zero, one or two cards are showing.
+#
+# ## Why this file was rewritten on 2026-07-26
+#
+# It took `FOCUS_ID` + **`LIFT_ID`** and swiped a card at a time until `LIFT_ID`
+# (a control BELOW the target) came on screen. **Every caller in the suite passes
+# `FOCUS_ID` + `HOME_ANCHOR`** — the contract had drifted and nothing caught it,
+# because an unset Maestro variable is not an error. `LIFT_ID` was therefore
+# always undefined, the conditional swipe block never fired, and the subflow
+# degraded into "scroll to the top and hope". That silently cost NINE of the ten
+# Home-block flows on the 2026-07-26 baseline: everything anchored `bottom`
+# failed on `health-water-plus` / `health-note-input` "is visible", which reads
+# like a product regression and was not one.
+#
+# ## And why the swipes work at all now
+#
+# They did not, until the defect below was fixed. `HealthHomeScreen` mounted two
+# `InputAccessoryView`s unconditionally on iOS. Under the New Architecture that
+# component renders nothing — the "Done" bar never appeared above the keypad —
+# but the mounted native accessory container SWALLOWED THE PAN GESTURE for the
+# whole screen. The Home list could not be scrolled by any means: measured
+# 2026-07-26, four 50%-height swipes produced six byte-identical screenshots,
+# `scrollUntilVisible` timed out in both directions, and `- scroll` did nothing,
+# while taps went through normally. That is what the matrix had recorded as an
+# "iOS 26 driver limitation"; it was an app defect, and a member-facing one —
+# nobody could scroll their own Home tab past AT A GLANCE.
+#
+# With the accessory views gone the list DOES scroll — but not on every attempt.
+# Measured repeatedly on 2026-07-26: the same `swipe` command that moved the list
+# on one launch produced five byte-identical screenshots on the next, and
+# `scrollUntilVisible` never drives this list in either direction. That residue
+# is the driver, not the app (see `documents/engineering/testing/matrices/health.md`,
+# "Maestro iOS-26 scroll"), and the answer to a flaky gesture is to REPEAT it
+# until the target is on screen rather than to issue it once and hope.
+#
+# So each leg below is a bounded retry that stops as soon as `FOCUS_ID` is
+# visible; a swipe that does nothing costs a second and is otherwise harmless.
+# The closing `assertVisible` is still hard — this loop makes the gesture
+# reliable, it does not soften what has to be true at the end.
+#
+# The keyboard comes down first either way: a keypad left up by a previous step
+# covers the WATER card entirely and eats the gesture.
+- runFlow: dismiss-weight-keyboard.yaml
+# RE-SELECT THE DASHBOARD TAB FIRST. A long burst of raw swipes (up to
+# 6+7+11 = 24 below, across the top/bottom legs) can land on an adjacent tab
+# instead of scrolling Home — same mechanism, same fix as
+# health-scroll-nutrition-top.yaml's identical guard (reproduced there
+# 2026-07-31: 16+12 raw swipes landed on the More tab with no tap command
+# responsible). This subflow assumed the caller was already on Home; make
+# that true instead of assuming it.
+- runFlow:
+    when:
+      notVisible:
+        id: 'health-home-screen'
+    commands:
+      - tapOn:
+          id: 'tab-index'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+# The notification/HealthKit cards' `visible` flags are per-SESSION, not
+# persisted (see dismiss-health-home-cards.yaml) — a relaunch mid-suite (the
+# retry loop in launch-health.yaml) or a fresh login brings them back even
+# after launch-health.yaml already closed them once. Every flow re-focuses
+# Home through here repeatedly, so this is the robust place to catch a
+# reappearance, not just the one-time launch step.
+- runFlow: dismiss-health-home-cards.yaml
+
+# 1. `top` — drag DOWNWARD to carry the list back up. Runs for both anchors:
+#    `bottom` needs a known starting point, because a single swipe from an
+#    unknown offset lands somewhere unknown.
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-today-label'
+          commands:
+            - swipe:
+                start: '50%,32%'
+                end: '50%,82%'
+                duration: 350
+            - waitForAnimationToEnd:
+                timeout: 700
+- waitForAnimationToEnd:
+    timeout: 1000
+
+# 1b. `top` — the permission cards above the TODAY rings are 0, 1 or 2 cards
+#     tall depending on what's outstanding on this account; nudge down a
+#     bounded amount until the actual target is on screen. A no-op (skipped
+#     by the `when`) once FOCUS_ID is already visible, so this costs nothing
+#     when no cards are showing.
+- runFlow:
+    when:
+      true: ${HOME_ANCHOR === 'top'}
+    commands:
+      - repeat:
+          times: 7
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: ${FOCUS_ID}
+                commands:
+                  - swipe:
+                      direction: UP
+                      duration: 400
+                  - waitForAnimationToEnd:
+                      timeout: 700
+
+# 2. `bottom` — drag UPWARD until the target shows. WATER and TODAY'S NOTE sit
+#    one screen down, clear of the floating tab-bar pill. Budget padded (was 8)
+#    to cover the extra list height the permission cards can add above it.
+- runFlow:
+    when:
+      true: ${HOME_ANCHOR === 'bottom'}
+    commands:
+      - repeat:
+          times: 11
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: ${FOCUS_ID}
+                commands:
+                  - swipe:
+                      start: '50%,70%'
+                      end: '50%,30%'
+                      duration: 400
+                  - waitForAnimationToEnd:
+                      timeout: 700
+
+# 3. The hard guard. Anything else is a tap into the dark.
+- assertVisible:
+    id: ${FOCUS_ID}

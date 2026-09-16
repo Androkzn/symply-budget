@@ -1,0 +1,10 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- openLink: simplehouse://my-home
+- extendedWaitUntil:
+    visible:
+      id: 'my-home-screen'
+    timeout: 30000

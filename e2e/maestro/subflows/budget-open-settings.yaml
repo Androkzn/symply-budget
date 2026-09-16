@@ -1,0 +1,15 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Opens Budget Settings via deep link — avoids flaky header gear tap on iOS 26.
+- openLink: simplebudget:///?screen=BudgetSettings
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- runFlow: budget-dismiss-welcome-if-needed.yaml
+- waitForAnimationToEnd:
+    timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-screen'
+    timeout: 45000

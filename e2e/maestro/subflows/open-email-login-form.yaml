@@ -1,0 +1,30 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Expand the email/password form when Login shows the collapsed CTA.
+- runFlow: dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'login-screen'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'auth-email-input'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'auth-sign-in-email'
+    commands:
+      - tapOn:
+          id: 'auth-sign-in-email'
+      - extendedWaitUntil:
+          visible:
+            id: 'auth-email-input'
+          timeout: 15000
+- assertVisible:
+    id: 'auth-email-input'

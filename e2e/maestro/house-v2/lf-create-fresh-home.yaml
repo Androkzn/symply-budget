@@ -1,0 +1,48 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:local-first
+---
+# Create a home this DEVICE owns and holds the key for.
+#
+# Why this is needed at all: signing in adopts every household the account owns
+# on the control plane, and this account owns five whose home keys existed only
+# on devices that were later erased. A device that adopts one of those sits at
+# `awaitingEnrolment` forever — there is no enrolled peer left to hand the key
+# over. Adding a NEW property is the way back to a usable home, because the
+# creating device mints the key itself.
+#
+# Reached through the invite screen, which is the only navigator to
+# `HouseProperties` (HouseInviteScreen.tsx:259).
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- openLink: ${E2E_APP_SCHEME}://lf-invite
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- tapOn:
+    text: '.*Propert.*'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: 'house-properties-screen'
+    timeout: 20000
+- tapOn:
+    id: 'fab-add-property'
+- extendedWaitUntil:
+    visible:
+      id: 'property-name-input'
+    timeout: 15000
+- tapOn:
+    id: 'property-name-input'
+- inputText: ${HOME_NAME}
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'property-save-btn'
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertVisible:
+    id: 'house-properties-screen'

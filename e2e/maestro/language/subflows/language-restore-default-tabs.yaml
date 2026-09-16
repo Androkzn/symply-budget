@@ -1,0 +1,39 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# After shell-customize-tabs, the bar may pin Assessment + Dialogue and evict Tutor/Plan.
+# Restore brand defaults so downstream matrix flows see the normal tab bar.
+- runFlow:
+    when:
+      visible:
+        id: 'tab-language-assessment'
+      notVisible:
+        id: 'tab-chat'
+    commands:
+      - runFlow: go-more.yaml
+      - tapOn:
+          id: 'more-customize-tabs'
+      - extendedWaitUntil:
+          visible: 'Customize Tabs'
+          timeout: 20000
+      - tapOn: 'Reset to Defaults'
+      - extendedWaitUntil:
+          visible: 'Reset tabs?'
+          timeout: 10000
+      - tapOn: 'Reset'
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - extendedWaitUntil:
+          visible:
+            id: 'customize-tabs-save'
+          timeout: 10000
+      - tapOn:
+          id: 'customize-tabs-save'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'customize-tabs-screen'
+          timeout: 20000
+      - waitForAnimationToEnd:
+          timeout: 4000

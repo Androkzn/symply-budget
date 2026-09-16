@@ -1,0 +1,233 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:dashboard
+  - feature:savings
+  - mutation
+  - regression
+# Cross-tab UI consistency check (the missing half of the backend
+# *-consistency.test.ts suite — see backend/src/routes/__tests__/). Backend
+# tests already prove the API computes the right numbers; this proves the
+# rendered LABEL actually shows the number the API returned, on two different
+# tabs, for the same real mutation.
+#
+# Method: read the Dashboard "Spent" and Savings Overview "Spendings" labels
+# BEFORE, add ONE real expense for a whole-dollar amount, read both labels
+# AFTER, and assert each moved by EXACTLY that amount. Whole dollars only —
+# formatBudgetCurrency() rounds to the nearest dollar for display, and
+# round(x+50) - round(x) == 50 for any x, so this is exact regardless of
+# whatever fractional-cent total the shared account already has (no need to
+# know or reset the baseline).
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+
+# Pollution guard: a prior aborted run may have left the golden row behind —
+# delete it before establishing the "before" baseline so the round-trip starts
+# clean (mirrors budget-spend-mutations.yaml's pattern).
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- repeat:
+    times: 5
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: '.*E2E Consistency Golden.*'
+          commands:
+            - swipe:
+                direction: LEFT
+                element:
+                  text: '.*E2E Consistency Golden.*'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-delete-spent'
+                commands:
+                  - tapOn:
+                      id: 'budget-delete-spent'
+                  - tapOn: 'Delete'
+                  - waitForAnimationToEnd:
+                      timeout: 3000
+
+# ── Force the Dashboard onto the REAL current month before touching anything.
+# budgetStore.selectedYear/selectedMonth is PERSISTED (unlike savingsStore's,
+# which is explicitly transient) — a much earlier, unrelated flow can leave it
+# on a different month, which silently breaks the whole premise of this test
+# (discovered 2026-08-05: Dashboard was stuck on "May 2026" while Savings
+# correctly showed "Aug 2026", so the same $50 expense moved one screen and
+# not the other — not an app bug, a stale-month test bug). ──
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'budget-dashboard-loading'
+    commands:
+      - extendedWaitUntil:
+          notVisible:
+            id: 'budget-dashboard-loading'
+          timeout: 30000
+- copyTextFrom:
+    id: 'budget-dashboard-month-label'
+- evalScript: |
+    ${
+    output.MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    output.now = new Date();
+    output.nowIndex = output.now.getFullYear() * 12 + output.now.getMonth();
+    output.shownParts = maestro.copiedText.trim().split(' ');
+    output.shownMonthIdx = output.MONTH_NAMES.indexOf(output.shownParts[0]);
+    output.shownYear = parseInt(output.shownParts[1], 10);
+    output.shownIndex = output.shownYear * 12 + output.shownMonthIdx;
+    output.monthsDiff = output.nowIndex - output.shownIndex;
+    output.monthTapId = output.monthsDiff > 0 ? 'budget-month-next' : 'budget-month-prev';
+    }
+- repeat:
+    while:
+      true: '${output.monthsDiff != 0}'
+    times: 36
+    commands:
+      - tapOn:
+          id: '${output.monthTapId}'
+      - waitForAnimationToEnd:
+          timeout: 500
+      - evalScript: '${output.monthsDiff = output.monthsDiff > 0 ? output.monthsDiff - 1 : output.monthsDiff + 1}'
+- waitForAnimationToEnd:
+    timeout: 1000
+- assertVisible:
+    id: 'budget-dashboard-spent-value'
+
+# ── Baseline: Dashboard "Spent" (now guaranteed on the current month) ──
+- copyTextFrom:
+    id: 'budget-dashboard-spent-value'
+- evalScript: ${output.spentBefore = maestro.copiedText}
+
+# ── Baseline: Savings Overview "Spendings" ──
+- runFlow: ../subflows/go-budget-savings.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-overview-loading'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-overview-spendings'
+    timeout: 45000
+- copyTextFrom:
+    id: 'savings-overview-spendings'
+- evalScript: ${output.savingsBefore = maestro.copiedText}
+
+# ── The one real mutation: a $50 expense, dated today (current month, so it
+# lands in whatever month/year both screens already default to). ──
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: 'E2E Consistency Golden'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: '50'
+- tapOn:
+    id: 'budget-item-form-save-header'
+# Android: the Expo dev-client menu has been observed popping open right
+# around this save tap (cause not fully pinned down — possibly overlapping
+# with the dev-client's own floating tools trigger), covering the
+# confirmation text below. Clear it before asserting.
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible: '.*E2E Consistency Golden.*'
+    timeout: 20000
+
+# ── After: Dashboard "Spent" ──
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'budget-dashboard-loading'
+    commands:
+      - extendedWaitUntil:
+          notVisible:
+            id: 'budget-dashboard-loading'
+          timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: 'budget-dashboard-spent-value'
+- copyTextFrom:
+    id: 'budget-dashboard-spent-value'
+- evalScript: ${output.spentAfter = maestro.copiedText}
+
+# ── After: Savings Overview "Spendings" ──
+- runFlow: ../subflows/go-budget-savings.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-overview-loading'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-overview-spendings'
+    timeout: 45000
+- copyTextFrom:
+    id: 'savings-overview-spendings'
+- evalScript: ${output.savingsAfter = maestro.copiedText}
+
+# ── Cleanup FIRST — delete the golden row before asserting anything, so a
+# failed check below never strands a $50 row in the shared account. ──
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- repeat:
+    times: 5
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: '.*E2E Consistency Golden.*'
+          commands:
+            - swipe:
+                direction: LEFT
+                element:
+                  text: '.*E2E Consistency Golden.*'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-delete-spent'
+                commands:
+                  - tapOn:
+                      id: 'budget-delete-spent'
+                  - tapOn: 'Delete'
+                  - waitForAnimationToEnd:
+                      timeout: 3000
+- extendedWaitUntil:
+    notVisible: '.*E2E Consistency Golden.*'
+    timeout: 20000
+- runFlow: ../subflows/go-budget-tab.yaml
+
+# ── Compute + assert: each label moved by exactly $50 ──
+- evalScript: ${output.spentDelta = parseInt(output.spentAfter.replace(/[^0-9]/g, ''), 10) - parseInt(output.spentBefore.replace(/[^0-9]/g, ''), 10)}
+- evalScript: ${output.savingsDelta = parseInt(output.savingsAfter.replace(/[^0-9]/g, ''), 10) - parseInt(output.savingsBefore.replace(/[^0-9]/g, ''), 10)}
+- assertTrue: ${output.spentDelta == 50}
+- assertTrue: ${output.savingsDelta == 50}
+# The two tabs must agree with EACH OTHER too, not just each with $50 —
+# this is the actual cross-tab consistency claim.
+- assertTrue: ${output.spentDelta == output.savingsDelta}

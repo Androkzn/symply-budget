@@ -1,0 +1,102 @@
+appId: com.symply.kaizen
+---
+# Scroll contract — every Kaizen hub tab must scroll to its bottom sentinel.
+# SCROLL-035/036: driver-limited on iOS 26 — score N/A when swipes are no-ops.
+- runFlow: subflows/launch-kaizen.yaml
+
+# Today
+- assertVisible:
+    id: 'kaizen-today-screen'
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-today-screen-scroll-end
+- runFlow:
+    file: subflows/tap-scroll-sentinel-if-visible.yaml
+    env:
+      SCROLL_END_ID: kaizen-today-screen-scroll-end
+
+# Guide
+- runFlow: subflows/go-guide.yaml
+- assertVisible:
+    id: 'kaizen-guide-screen'
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-guide-screen-scroll-end
+- runFlow:
+    file: subflows/tap-scroll-sentinel-if-visible.yaml
+    env:
+      SCROLL_END_ID: kaizen-guide-screen-scroll-end
+
+# More
+- runFlow: subflows/go-more.yaml
+- assertVisible:
+    id: 'kaizen-more-screen'
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-more-screen-scroll-end
+- runFlow:
+    file: subflows/tap-scroll-sentinel-if-visible.yaml
+    env:
+      SCROLL_END_ID: kaizen-more-screen-scroll-end
+
+# Systems
+- runFlow: subflows/go-systems.yaml
+- assertVisible:
+    id: 'kaizen-systems-screen'
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-systems-screen-scroll-end
+- runFlow:
+    file: subflows/tap-scroll-sentinel-if-visible.yaml
+    env:
+      SCROLL_END_ID: kaizen-systems-screen-scroll-end
+
+# Career
+- openLink: kaizen:///kaizen-career
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-career-screen'
+    timeout: 20000
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-career-screen-scroll-end
+- runFlow:
+    file: subflows/tap-scroll-sentinel-if-visible.yaml
+    env:
+      SCROLL_END_ID: kaizen-career-screen-scroll-end
+
+# Assess
+- openLink: kaizen:///kaizen-assess
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-assess-screen'
+    timeout: 20000
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-assess-screen-scroll-end
+- runFlow:
+    file: subflows/tap-scroll-sentinel-if-visible.yaml
+    env:
+      SCROLL_END_ID: kaizen-assess-screen-scroll-end
+
+# Learn
+- openLink: kaizen:///kaizen-learn
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-learn-screen'
+    timeout: 20000
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-learn-screen-scroll-end
+- runFlow:
+    file: subflows/tap-scroll-sentinel-if-visible.yaml
+    env:
+      SCROLL_END_ID: kaizen-learn-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

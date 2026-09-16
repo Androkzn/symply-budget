@@ -1,0 +1,164 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:spend
+  - mutation
+  - regression
+# Matrix: BUDGET-SPEND-110 — the multi-select toolbar stays PINNED while the
+# spendings list scrolls.
+#
+# Regression it guards: Cancel / Copy to month / Delete used to live in the
+# scrolling body, so ticking rows further down the list carried the batch
+# actions off screen — the user had to scroll back up to act on a selection.
+# They now ride inside the month header's sticky band (BudgetMonthHeader's
+# `children`, sticky index 0 of the Spending scroll).
+#
+# Seeds ONE spending dated TODAY so the tab is guaranteed non-empty (the Select
+# entry only renders with ≥1 expense), scrolls to the list's bottom sentinel in
+# selection mode, asserts the whole pinned band survived, then batch-deletes the
+# seed FROM THE PINNED Delete button — the control under test — to self-clean.
+#
+# NEVER Select-all here: the account is shared, and select-all would sweep real
+# spendings into the batch delete.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-SPEND-110
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+
+# --- Seed a spending in the current month ---
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: 'E2E Sticky Spend'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: '13'
+# The numeric keypad has no Done key and won't dismiss, leaving it over the sticky
+# Save footer (a tap there hits the keypad, corrupting the amount). Refocus the
+# text Name field so the keyboard becomes a dismissable text keyboard, then hide it.
+- tapOn:
+    id: 'budget-item-title'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-form-save-header'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 45000
+- extendedWaitUntil:
+    visible: '.*E2E Sticky Spend.*'
+    timeout: 20000
+
+# --- Enter selection mode and select the seeded row (top of the list) ---
+- assertVisible:
+    id: 'budget-spent-select'
+- tapOn:
+    id: 'budget-spent-select'
+- assertVisible:
+    id: 'budget-selection-toolbar'
+- tapOn:
+    text: '.*E2E Sticky Spend.*'
+- assertVisible: '1 selected'
+- assertVisible:
+    id: 'budget-batch-delete'
+
+# --- THE REGRESSION: scroll to the bottom of the list, band must survive ---
+# `budget-spendings-scroll-end` is the Spending scroll's bottom sentinel. When it
+# is ALREADY visible the list is shorter than the screen, nothing scrolls, and
+# pinned-vs-scrolling is unobservable — so the strict leg only runs when a real
+# scroll is possible. On the shared account the current month carries enough rows
+# for it to run; a sparse month degrades to the pre-scroll assertions above
+# rather than failing on a precondition it cannot control.
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-spendings-scroll-end'
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'budget-spendings-scroll-end'
+          direction: DOWN
+          timeout: 20000
+      # At the very bottom of the list every batch affordance is STILL on screen.
+      - assertVisible:
+          id: 'budget-selection-toolbar'
+      - assertVisible:
+          id: 'budget-selection-cancel'
+      - assertVisible:
+          id: 'budget-selection-selectall'
+      - assertVisible:
+          id: 'budget-batch-copy'
+      - assertVisible:
+          id: 'budget-batch-delete'
+      # …and so is the month stepper it shares that one pinned band with.
+      - assertVisible:
+          id: 'budget-spendings-month-prev'
+      # The selection itself survived the scroll (counter lives in the toolbar).
+      - assertVisible: '1 selected'
+      - takeScreenshot: budget-select-sticky-scrolled
+
+# --- Delete the seed FROM THE PINNED button, without scrolling back up ---
+- tapOn:
+    id: 'budget-batch-delete'
+- tapOn: 'Delete'
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# DATA_POLLUTION: the shared account carries stale "E2E Sticky Spend" rows from
+# prior aborted runs. Drain them idempotently, one row per pass, scrolling back
+# to the section header each time (the Select entry lives there and Maestro does
+# not auto-scroll to a tap target). NEVER Select-all — see the header note.
+- repeat:
+    times: 25
+    commands:
+      - runFlow:
+          when:
+            visible: '.*E2E Sticky Spend.*'
+          commands:
+            - scrollUntilVisible:
+                element:
+                  id: 'budget-spent-select'
+                direction: UP
+                timeout: 15000
+                optional: true
+            - tapOn:
+                id: 'budget-spent-select'
+            - waitForAnimationToEnd:
+                timeout: 2000
+            - tapOn:
+                text: '.*E2E Sticky Spend.*'
+            - tapOn:
+                id: 'budget-batch-delete'
+            - tapOn: 'Delete'
+            - waitForAnimationToEnd:
+                timeout: 3000
+- extendedWaitUntil:
+    notVisible: '.*E2E Sticky Spend.*'
+    timeout: 20000
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /budget/spent
+      E2E_VERIFY_STATUS: 201

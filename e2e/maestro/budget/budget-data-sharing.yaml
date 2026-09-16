@@ -1,0 +1,48 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:st
+  - readonly
+  - regression
+  - smoke
+# Matrix: BUDGET-st (see documents/engineering/testing/matrices/)
+# Data Sharing (shared DataSharingScreen, Budget House-Budget copy), reached via
+# Settings (the Profile gear) → SHARING → Data sharing. It used to be reached
+# from More, whose DATA SHARING section is gone: More is the overflow-tabs hub
+# now, and Data sharing sits beside the import/export rows it belongs with.
+# Asserts the screen renders + loads consents
+# (GET /smart-engine/consents). If a consent row is present, exercises the
+# destructive revoke (revoke-consent-<id> → DELETE /smart-engine/consents/:id)
+# guarded by `when visible` so the flow still passes on an account with no
+# active Soft Transfer consents.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-open-settings.yaml
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-data-sharing-link'
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 20000
+- tapOn:
+    id: 'budget-settings-data-sharing-link'
+- extendedWaitUntil:
+    visible:
+      id: 'data-sharing-screen'
+    timeout: 20000
+# Destructive revoke — only runs when a consent row is actually present.
+# (revoke-consent-<id> has a dynamic id, so we match the testID by regex prefix.)
+- runFlow:
+    when:
+      visible:
+        id: 'revoke-consent-.*'
+    commands:
+      - tapOn:
+          id: 'revoke-consent-.*'
+      # Confirm the native "Revoke" alert if one is shown.
+      - tapOn:
+          text: 'Revoke'
+          optional: true
+- assertVisible:
+    id: 'data-sharing-screen'

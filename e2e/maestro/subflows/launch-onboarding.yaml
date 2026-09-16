@@ -1,0 +1,20 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Reach onboarding welcome OR an already-onboarded Home session (shared E2E account).
+- runFlow: launch-logged-out.yaml
+- openLink: ${E2E_LOGIN_URL}
+- runFlow: dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: 'onboarding-get-started'
+    timeout: 30000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-up-next-section'
+    timeout: 90000

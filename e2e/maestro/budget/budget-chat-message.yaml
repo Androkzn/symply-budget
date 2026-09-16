@@ -1,0 +1,207 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:budget-chat
+  - mutation
+  - regression
+# Matrix: BUDGET-budget-chat (see documents/engineering/testing/matrices/)
+# Budget household chat — compose + send a message, exercise attach, open room
+# settings (BudgetChatRoomScreen). Proves the composer wires sendMessage
+# (POST /:roomId/messages): after sending, the message body appears in the feed.
+#
+# NOTE (missing testIDs): message bubbles (BudgetChatRoomScreen.tsx L499), image
+# bubbles, and the pending-image chips render NO testID — the sent text message is
+# asserted by its body text, and the image send is asserted by the pending tray
+# clearing after send (proxy for handleSend consuming the ready attachments).
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-BCHAT-001
+- runFlow: ../subflows/budget-open-chat-rooms.yaml
+- runFlow:
+    file: ../subflows/budget-create-chat-room.yaml
+    env:
+      ROOM_NAME: 'E2E Message Flow'
+- assertVisible:
+    id: 'chat-room-input'
+- tapOn:
+    id: 'chat-room-input'
+- inputText: 'Hello from Maestro E2E'
+- runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: 'chat-room-send'
+# Optimistic + server echo: the message body renders in the feed.
+- extendedWaitUntil:
+    visible: '.*Hello from Maestro E2E.*'
+    timeout: 15000
+    optional: true
+# Maestro can drop the first onChangeText on iOS New Arch, leaving the CONTROLLED
+# composer empty so Send is a silent no-op (handleSend returns on empty body).
+# Erase + retype + re-send if the body didn't land (mirrors budget-chat-extended.yaml).
+- runFlow:
+    when:
+      notVisible: '.*Hello from Maestro E2E.*'
+    commands:
+      - tapOn:
+          id: 'chat-room-input'
+      - eraseText
+      - inputText: 'Hello from Maestro E2E'
+      - runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - tapOn:
+          id: 'chat-room-send'
+      - extendedWaitUntil:
+          visible: '.*Hello from Maestro E2E.*'
+          timeout: 15000
+# Reply: long-press the sent bubble → the message action sheet offers "Reply";
+# choosing it flips the composer into the quoted reply banner (cancel to clear).
+- longPressOn: '.*Hello from Maestro E2E.*'
+- extendedWaitUntil:
+    visible: 'Reply'
+    timeout: 8000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Reply'
+    commands:
+      - tapOn: 'Reply'
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-room-reply-bar'
+          timeout: 8000
+      - tapOn:
+          id: 'chat-room-reply-cancel'
+          optional: true
+- runFlow:
+    when:
+      visible: 'Cancel'
+    commands:
+      - tapOn: 'Cancel'
+# Attach control is present (opens the photo source sheet). Full attach path is
+# optional — picker sheets vary by simulator state.
+- assertVisible:
+    id: 'chat-room-attach'
+- runFlow:
+    when:
+      visible:
+        id: 'chat-room-attach'
+    commands:
+      - tapOn:
+          id: 'chat-room-attach'
+      - extendedWaitUntil:
+          visible: 'Photo Library'
+          timeout: 8000
+          optional: true
+      - runFlow:
+          when:
+            true: ${E2E_PLATFORM == 'android'}
+          commands:
+            - addMedia:
+                - ../../../resourses/testing/Budget app - Receipt 2.jpg
+      - runFlow:
+          when:
+            visible: 'Photo Library'
+          commands:
+            - tapOn: 'Photo Library'
+            - runFlow: ../subflows/pick-photo-from-library.yaml
+            - waitForAnimationToEnd:
+                timeout: 4000
+            - tapOn:
+                id: 'chat-room-send'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 3000
+# Dismiss attach action sheet / picker before tapping the header settings cog.
+- hideKeyboard:
+    optional: true
+- runFlow:
+    when:
+      visible: 'Cancel'
+    commands:
+      - tapOn: 'Cancel'
+- runFlow:
+    when:
+      visible: 'Take Photo'
+    commands:
+      - tapOn: 'Cancel'
+      - waitForAnimationToEnd:
+          timeout: 2000
+- waitForAnimationToEnd:
+    timeout: 2000
+# Header settings button navigates to the room-settings screen.
+- hideKeyboard:
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'chat-room-settings'
+    direction: UP
+    timeout: 15000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-settings'
+    timeout: 20000
+- tapOn:
+    id: 'chat-room-settings'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-settings-screen'
+    timeout: 20000
+    optional: true
+# The header cog can miss its first tap while the composer keyboard / attach
+# sheet is still settling (Maestro reports "element not found" mid-transition).
+# Re-tap once and hard-assert the settings screen actually opens.
+- runFlow:
+    when:
+      notVisible:
+        id: 'chat-room-settings-screen'
+    commands:
+      - hideKeyboard:
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-room-settings'
+          timeout: 15000
+      - tapOn:
+          id: 'chat-room-settings'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-room-settings-screen'
+          timeout: 20000
+- runFlow:
+    when:
+      visible:
+        id: 'chat-room-settings-screen'
+    commands:
+      - assertVisible:
+          id: 'chat-room-settings-everyone-toggle'
+      - runFlow:
+          when:
+            visible:
+              id: 'chat-room-settings-delete'
+          commands:
+            - assertVisible:
+                id: 'chat-room-settings-delete'
+      - runFlow:
+          when:
+            visible: 'Save participants'
+          commands:
+            - assertVisible: 'Save participants'
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- runFlow: ../subflows/budget-exit-chat.yaml
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

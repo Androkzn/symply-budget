@@ -1,0 +1,6 @@
+FAIL [Budget-C] budget-item-form
+PASS [Budget-C] budget-spend-mutations
+FAIL [Budget-C] budget-plan-delete
+PASS [Budget-C] budget-planned-select
+FAIL [Budget-C] budget-receipt-scan-save
+PASS [Budget-C] budget-receipt-category

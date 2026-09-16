@@ -1,0 +1,32 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# Force the Expo Dev Client to load JS from Language Metro (8084).
+- runFlow:
+    when:
+      visible: 'DEVELOPMENT SERVERS'
+    commands:
+      - tapOn:
+          text: '.*8084.*'
+          optional: true
+      - tapOn:
+          text: '.*:8084'
+          optional: true
+      - tapOn:
+          text: '.*localhost.*8084.*'
+          optional: true
+      - tapOn:
+          text: '127.0.0.1'
+          optional: true
+      - tapOn:
+          point: '50%,38%'
+          optional: true
+      - openLink: ${E2E_METRO_DEVCLIENT_URL}
+      - waitForAnimationToEnd:
+          timeout: 15000
+- openLink: ${E2E_METRO_DEVCLIENT_URL}
+- waitForAnimationToEnd:
+    timeout: 8000
+- runFlow: language-dismiss-expo-dev-chrome.yaml

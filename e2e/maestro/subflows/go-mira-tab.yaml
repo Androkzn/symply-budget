@@ -1,0 +1,28 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- runFlow:
+    file: dismiss-stuck-sheet.yaml
+# Mira tab may be hidden in tab customization — deep link is reliable.
+- runFlow:
+    when:
+      visible:
+        id: 'tab-mira'
+    commands:
+      - tapOn:
+          id: 'tab-mira'
+          retryTapIfNoChange: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'mira-chat-screen'
+    commands:
+      - openLink: simplehouse://mira
+      - waitForAnimationToEnd:
+          timeout: 4000
+- extendedWaitUntil:
+    visible:
+      id: 'mira-chat-screen'
+    timeout: 30000

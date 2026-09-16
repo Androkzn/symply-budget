@@ -1,0 +1,251 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home-projects
+  - feature:smart-project
+  - mutating
+# Matrix: HOUSE-home-projects (see documents/engineering/testing/matrices/)
+#
+# The Smart Project UI, driven on a device with the flag ON.
+#
+# WHAT THIS PROVES. The whole member-facing path — entry card, description,
+# dimensions, the pitched-roof field, the optional photo step and its four
+# sources — and then the outcome of tapping generate.
+#
+# The architecture changed and this flow changed with it. Generation used to be
+# a queue job that wrote the project into D1; the client now calls
+# `POST /smart-draft/generate` (which stores nothing) and saves the returned
+# plan itself through `homeProjectsApi`, so the project lands in the device
+# ledger on a local-first household and in D1 on a server-backed one. There is
+# no draft row to poll any more.
+#
+# The final assertion accepts EITHER outcome deliberately:
+#   - the hub, meaning a project was drafted and saved end to end; or
+#   - a clear error, meaning the generate route is not deployed yet.
+# What must never happen is a spinner with no end, and that is what it pins.
+# Tighten this to assert the hub alone once the route is live on staging.
+#
+# NO FLAG BYPASS. `smartProject` is now true on staging and production, so this
+# runs against the shipped configuration rather than a patched build.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-my-home.yaml
+- runFlow: ../subflows/dismiss-home-project-alert.yaml
+- tapOn:
+    id: 'my-home-home-projects'
+# The Home Projects stack restores its last route, so this tap can land on a
+# project hub an earlier flow left behind rather than on the list. No-op when
+# the list opened normally.
+- runFlow: ../subflows/pop-restored-project-hub.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'home-projects-list-screen'
+    timeout: 20000
+- tapOn:
+    id: 'home-projects-create'
+
+# ---- the entry point, with the flag on -------------------------------------
+- assertVisible:
+    id: 'home-projects-smart-entry'
+- tapOn:
+    id: 'home-projects-smart-entry'
+
+# ---- step 1: describe -------------------------------------------------------
+- assertVisible:
+    id: 'smart-project-description'
+
+# The guidance. The only thing on this screen telling a member that finished
+# work belongs in the paragraph, which is what stops the draft re-planning it.
+- assertVisible: 'Worth including'
+
+- tapOn:
+    id: 'smart-project-description'
+# The member's own words, verbatim.
+- inputText: "I'm going to renovate my shed dimensions are length 5 m width 3m hight 2.5 m I need to add ventilation I need to add insulation. I need to add OSB panel to cover walls and ceiling. Also, I want to paint the walls that more light and put something on the floor."
+- tapOn:
+    point: '50%,12%'
+
+# ---- the worked example, behind the "i" -------------------------------------
+# A card nobody can open looks exactly like a card nobody opened, so the toggle
+# and its contents are pinned here. Exercised AFTER typing on purpose: with text
+# in the box, "Use this" must stop and ask, because applying it would replace
+# what the member wrote and nothing on this screen can undo that.
+- assertVisible:
+    id: 'smart-project-example-toggle'
+- tapOn:
+    id: 'smart-project-example-toggle'
+- assertVisible:
+    id: 'smart-project-example'
+- tapOn:
+    id: 'smart-project-example-use'
+- assertVisible: 'Replace what you have written?'
+- tapOn: 'Keep mine'
+- tapOn:
+    id: 'smart-project-example-toggle'
+- assertNotVisible:
+    id: 'smart-project-example'
+
+- assertVisible:
+    id: 'smart-project-continue'
+- tapOn:
+    id: 'smart-project-continue'
+
+# ---- step 2: measure --------------------------------------------------------
+- assertVisible:
+    id: 'smart-project-space-label-0'
+# "Wall height", not "Height". The label is the fix — plain "Height" is
+# ambiguous in exactly the space where the distinction changes the takeoff.
+- assertVisible: 'Wall height (m)'
+- tapOn:
+    id: 'smart-project-space-label-0'
+- eraseText
+- inputText: 'Shed'
+- tapOn:
+    id: 'smart-project-length_m-0'
+- inputText: '5'
+- tapOn:
+    id: 'smart-project-width_m-0'
+- inputText: '3'
+- tapOn:
+    id: 'smart-project-height_m-0'
+- eraseText
+- inputText: '2.5'
+- tapOn:
+    point: '50%,12%'
+
+# ---- the pitched-roof field -------------------------------------------------
+# Hidden until asked for, because most rooms are flat. This is the whole
+# difference between 15 m² of ceiling and 16.55 m² on this member's shed.
+- assertNotVisible:
+    id: 'smart-project-ridge_height_m-0'
+- assertVisible:
+    id: 'smart-project-pitched-toggle-0'
+- tapOn:
+    id: 'smart-project-pitched-toggle-0'
+- assertVisible:
+    id: 'smart-project-ridge_height_m-0'
+- tapOn:
+    id: 'smart-project-ridge_height_m-0'
+- eraseText
+- inputText: '3.2'
+- tapOn:
+    point: '50%,12%'
+
+# Toggling back off must remove the field, so a member who opened it by accident
+# is not stuck sending a ridge height for a flat room.
+- tapOn:
+    id: 'smart-project-pitched-toggle-0'
+- assertNotVisible:
+    id: 'smart-project-ridge_height_m-0'
+- tapOn:
+    id: 'smart-project-pitched-toggle-0'
+- tapOn:
+    id: 'smart-project-ridge_height_m-0'
+- eraseText
+- inputText: '3.2'
+- tapOn:
+    point: '50%,12%'
+
+# ---- both ways out of the step ---------------------------------------------
+# Skip and Continue both lead to step 3, and they differ: Skip resets the
+# dimension fields, Continue keeps them. Neither generates — generating is the
+# last thing on step 4, after the member has said what they want drafted.
+- assertVisible:
+    id: 'smart-project-skip'
+- assertVisible:
+    id: 'smart-project-continue'
+- tapOn:
+    id: 'smart-project-continue'
+
+# ---- step 3: photos (optional) ---------------------------------------------
+# Driven WITHOUT adding a photo, on purpose. A system photo picker or a Google
+# Drive OAuth sheet is a different app's UI, and a flow that drives one is
+# testing that app. What this flow can prove — and what would actually break a
+# member — is that the step is reachable, that it offers all four sources, and
+# that it continues with nothing attached, because it is optional.
+# The step's own heading, which is a single literal text child. NOT the
+# "Step 3 of 4 · optional" counter: that string is assembled from several JSX
+# children and a middot, and a whole-string matcher against a concatenation is
+# a false failure waiting for the next copy tweak.
+- assertVisible: 'Show us the space'
+- assertVisible:
+    id: 'smart-photo-camera'
+- assertVisible:
+    id: 'smart-photo-gallery'
+- assertVisible:
+    id: 'smart-photo-file'
+- assertVisible:
+    id: 'smart-photo-drive'
+# The grid only exists once something is in it, so an empty step must not show
+# one — an empty 3-column grid reads as photos that failed to load.
+- assertNotVisible:
+    id: 'smart-photo-grid'
+- assertVisible:
+    id: 'smart-project-continue'
+- tapOn:
+    id: 'smart-project-continue'
+
+# ---- step 4: what should we draft? -----------------------------------------
+# The promise on this step is "we only add what you tick", so the three rows
+# have to BE there — a section that silently stops being offered is a section
+# the member cannot ask for, and no type error would say so.
+#
+# Driven with all three left on, which is the default and the state that
+# exercises the whole pipeline. The unticking path is covered by the contract
+# and generator suites (`smart-project-include.test.ts`), where a model can be
+# made to over-answer on demand; proving it here would need a second full
+# generation for one assertion.
+- assertVisible: 'What should we draft?'
+- assertVisible:
+    id: 'smart-project-include-phases'
+- assertVisible:
+    id: 'smart-project-include-tasks'
+- assertVisible:
+    id: 'smart-project-include-materials'
+- assertVisible:
+    id: 'smart-project-generate'
+- tapOn:
+    id: 'smart-project-generate'
+
+# ---- the outcome ------------------------------------------------------------
+# Wait for the HUB, not for a message.
+#
+# This assertion used to accept `Drafting…` as an outcome, which is the generate
+# BUTTON's own label while the call is in flight. It therefore matched the
+# instant the tap landed, passed, and let the two real checks below degrade to
+# warnings — a flow that reported success without the feature having worked.
+# A test that can pass while the thing it tests is broken is worse than no test.
+#
+# So the success condition is now the thing that can only be true if drafting
+# actually finished: the project hub, with its draft banner. 120s because a real
+# multimodal generation plus writing the project takes tens of seconds.
+- extendedWaitUntil:
+    visible:
+      id: 'home-project-hub-title'
+    timeout: 120000
+
+# The project must be a DRAFT — private to its creator until they publish. This
+# is the product guarantee (BRD D1), so it is asserted, not hoped for.
+- assertVisible:
+    id: 'smart-draft-banner'
+- assertVisible: 'Draft — only you can see this'
+
+# ---- the materials the member ticked ---------------------------------------
+# The one assertion that proves the shopping list actually arrived. Asserted as
+# the ABSENCE of the empty state rather than as a card id: a card's testID
+# carries the selection's own id, which is minted at save time, so there is no
+# stable id to name — while `materials-empty` renders if and only if the list
+# is empty, which is exactly the failure worth catching.
+#
+# This is the half of the feature a generation can silently skip: phases come
+# back from almost any plausible plan, whereas materials are what a model drops
+# first when it is being terse, and a draft with no shopping list looks fine
+# until the member goes to buy something.
+- tapOn:
+    id: 'hub-tab-materials'
+- assertNotVisible:
+    id: 'materials-empty'
+# And the way back out of it, which is the other half of "you can edit them or
+# delete them": one at a time from a card, or the whole list at once.
+- assertVisible:
+    id: 'materials-delete-all'

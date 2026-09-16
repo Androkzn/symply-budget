@@ -1,0 +1,9 @@
+{
+  "name": "widget-sync",
+  "version": "1.0.0",
+  "description": "Writes auth + Home insight + tasks to the shared App Group and reloads the iOS Home Screen widget (New-Architecture-safe Expo module).",
+  "license": "UNLICENSED",
+  "author": "SymplyEcosystem",
+  "homepage": "https://simplehouse.app",
+  "dependencies": {}
+}

@@ -1,0 +1,31 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Switch to the More tab (route settings, label More).
+- runFlow: dismiss-weight-keyboard.yaml
+# NOT `tapOn: {id: 'health-home-screen'}` — that id matches the full-screen
+# root container, so Maestro taps its centroid instead of a fixed point. When
+# this runs right after a bottom-anchored scroll (e.g. focus-health-home.yaml
+# with HOME_ANCHOR: bottom), the centroid lands on whatever card the scroll
+# put mid-screen — `health-water-open-detail` at [92,422][310,472] dead-centers
+# on (201,437) — popping its modal, which then hides the tab bar and fails the
+# next step. Kept scoped to Home (like the old id match, so other tabs' headers
+# are untouched); the point sits in the header strip above the ScrollView, so
+# it is immune to scroll position.
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - tapOn:
+          point: '50%, 10%'
+          optional: true
+- tapOn:
+    id: 'tab-settings'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-more-screen'
+    timeout: 30000

@@ -1,0 +1,199 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:contractors
+  - mutation
+  - regression
+# Matrix: HOUSE-LABOR-004–013,038 (appointment CRUD + lifecycle)
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-LABOR-004
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-contractors.yaml
+- tapOn:
+    id: 'contractors-tab-upcoming'
+# Validation: save disabled with empty form (HOUSE-LABOR-005).
+- tapOn:
+    id: 'contractors-fab-schedule'
+- extendedWaitUntil:
+    visible:
+      id: 'appointment-form-screen'
+    timeout: 15000
+# appointment-form-save doesn't render at all when the household has zero
+# contractors seeded ("No contractors available. Add a contractor first.") —
+# reasonable UX, not a bug, but this test account has none right now.
+- assertVisible:
+    id: 'appointment-form-save'
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+# Cancel create after typing (HOUSE-LABOR-006).
+- tapOn:
+    id: 'contractors-fab-schedule'
+- extendedWaitUntil:
+    visible:
+      id: 'appointment-form-title'
+    timeout: 15000
+- inputText: 'E2E Appointment'
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+# Open first appointment detail if seeded (HOUSE-LABOR-007–013).
+- runFlow:
+    when:
+      visible:
+        id: 'contractors-appointment-row'
+    commands:
+      - tapOn:
+          id: 'contractors-appointment-row'
+      - extendedWaitUntil:
+          visible:
+            id: 'appointment-detail-screen'
+          timeout: 20000
+      - runFlow:
+          when:
+            visible: 'Confirm'
+          commands:
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  APP_ID: com.symply.house
+            - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible: 'Confirm'
+                timeout: 8000
+            - tapOn: 'Confirm'
+            - waitForAnimationToEnd:
+                timeout: 3000
+            # Local-first contract. "Confirm" calls `appointmentsApi.confirm`
+            # (AppointmentDetailScreen.tsx:160), and `appointmentsApi` is wrapped
+            # by `createHouseLocalProxy` (src/api/appointments.ts:262) with no
+            # `remoteMethods` and `strict` default — it resolves to
+            # `localAppointmentsApi.confirm` (localAppointmentsApi.ts:494). The
+            # POST .../appointments/:id/confirm must NOT reach the Worker; this
+            # previously asserted that it did.
+            - runFlow:
+                file: ../subflows/e2e-verify-no-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  APP_ID: com.symply.house
+                  E2E_VERIFY_METHOD: POST
+                  E2E_VERIFY_PATH: /confirm
+            - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+      - runFlow:
+          when:
+            visible: 'Start'
+          commands:
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  APP_ID: com.symply.house
+            - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible: 'Start'
+                timeout: 8000
+            - tapOn: 'Start'
+            - waitForAnimationToEnd:
+                timeout: 3000
+            # Same local-first contract as "Confirm" above:
+            # `appointmentsApi.start` (AppointmentDetailScreen.tsx:186) resolves
+            # to `localAppointmentsApi.start` (localAppointmentsApi.ts:536), so
+            # POST .../appointments/:id/start must never be issued.
+            - runFlow:
+                file: ../subflows/e2e-verify-no-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  APP_ID: com.symply.house
+                  E2E_VERIFY_METHOD: POST
+                  E2E_VERIFY_PATH: /start
+            - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+      - runFlow:
+          when:
+            visible: 'Visit Mode'
+          commands:
+            - tapOn: 'Visit Mode'
+            - extendedWaitUntil:
+                visible: 'End Visit'
+                timeout: 15000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'nav-back-button'
+                commands:
+                  - tapOn:
+                      id: 'nav-back-button'
+      - runFlow:
+          when:
+            visible:
+              id: 'appointment-detail-delete'
+          commands:
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  APP_ID: com.symply.house
+            - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'appointment-detail-delete'
+                timeout: 8000
+            - tapOn:
+                id: 'appointment-detail-delete'
+            - extendedWaitUntil:
+                visible: 'Cancel'
+                timeout: 10000
+            - tapOn: 'Cancel'
+            - runFlow:
+                file: ../subflows/e2e-verify-no-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  APP_ID: com.symply.house
+                  E2E_VERIFY_METHOD: DELETE
+                  E2E_VERIFY_PATH: /appointments/
+            - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+- assertVisible:
+    id: 'contractors-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

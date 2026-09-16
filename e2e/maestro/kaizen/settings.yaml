@@ -1,0 +1,28 @@
+appId: com.symply.kaizen
+---
+# Settings — app-level controls. Sync + navigate to Memory. (Biometric is
+# covered by biometric-settings-row.yaml; Log out / Re-run onboarding are
+# intentionally left untapped so the session survives.)
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/settings
+- extendedWaitUntil:
+    visible: 'Control how Kaizen supports you.'
+    timeout: 20000
+- assertVisible: 'Appearance'
+- assertVisible: 'Data'
+- assertVisible: 'Connections'
+# ('AI' + 'Security' sections are below the fold; validated later via the
+# scrollUntilVisible on 'Manage memory' which lives in the AI section.)
+# Interaction 1: kick a sync (safe, no dialog).
+- tapOn: 'Sync Kaizen'
+- assertVisible: 'Settings'
+# Interaction 2: open Manage memory (scroll-unreliable on iOS 26).
+- openLink: kaizen:///kaizen/memory
+- extendedWaitUntil:
+    visible: 'Control the facts Kaizen can use in coach context.'
+    timeout: 20000
+- assertVisible: 'Saved memories'
+- runFlow: subflows/return-to-today.yaml

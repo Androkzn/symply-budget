@@ -1,0 +1,27 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:utilities
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-utilities (see documents/engineering/testing/matrices/)
+---
+# UtilityBillsScreen — reached from UtilitiesScreen "View Bills" quick action
+# (utilitiesApi.getBills). Asserts the screen renders.
+# WARNING: the audit flags UtilityBillsScreen for a mount-time crash — useTheme() is
+# called but never imported and `colors` is used without useAppColors(); this screen may
+# RED-SCREEN until fixed (see audit §F.2 / §0.4). Flow authored to assert the intended
+# mounted state regardless.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-utilities.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'utilities-screen'
+    timeout: 15000
+- tapOn:
+    id: 'utilities-action-view-bills'
+# UtilityBillsScreen has no header title; the bills search field is its stable anchor.
+- extendedWaitUntil:
+    visible: 'Search bills'
+    timeout: 20000

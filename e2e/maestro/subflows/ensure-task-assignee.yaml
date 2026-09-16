@@ -1,0 +1,60 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Give the open task form an assignee, if it has none.
+#
+# A shared task must carry an owner: `saveDisabled` in ScheduleTaskScreen.tsx:233
+# is
+#     isSaving || !isDirty || !formData.title.trim() ||
+#     (!formData.is_personal && !formData.assigned_to)
+# and it gates BOTH save affordances — the header button (:264/:279) and the
+# footer "Save Changes" (:327). So a shared task with no assignee cannot be saved
+# at all, and any flow that edits one stalls on the form. This is correct product
+# validation, not a bug: a real user picks an assignee. Flows should satisfy the
+# rule rather than depend on the seeded task happening to have one.
+#
+# Observed 2026-09-01 on House-iPad: `task-edit-ipad` edited the title, found both
+# save paths greyed, and failed 20s later on `task-detail-screen is visible` —
+# which reads as a navigation bug rather than a validation one.
+#
+# No-op when an assignee is already set: the "Select assignee" placeholder
+# renders only while `assigned_to` is null (TaskFormBody.tsx:424-427).
+#
+# Used by task-edit-ipad; mm-edit-task-title.yaml:70 and mm-31a-attach-photo.yaml:99
+# are exposed to the same gate but hide it — their Save taps are `optional: true`,
+# so a disabled button is silent and surfaces later as an unrelated timeout. They
+# pass today only because the multi-member suite creates its own tasks, which
+# default `assigned_to` to the current user (ScheduleTaskScreen.tsx:74-83).
+- scrollUntilVisible:
+    element:
+      id: 'task-form-assignee'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Select assignee'
+    commands:
+      - tapOn:
+          id: 'task-form-assignee'
+      - scrollUntilVisible:
+          element:
+            id: 'task-form-assignee-option-0'
+          direction: DOWN
+          centerElement: true
+          timeout: 10000
+          optional: true
+      # Option testIDs are index-based, not user_id-based: a flow cannot know a
+      # household member's UUID, but option 0 always exists when the household
+      # has members. See TaskFormBody.tsx:943-947.
+      - tapOn:
+          id: 'task-form-assignee-option-0'
+      - waitForAnimationToEnd:
+          timeout: 1000
+      # The picker closes on select (TaskFormBody.tsx:953-956) and the button
+      # then shows the member's name. If this assert fires, `members` was empty
+      # — an account/household data problem, not a UI one.
+      - assertNotVisible: 'Select assignee'

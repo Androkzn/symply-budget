@@ -1,0 +1,30 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Signed-out variant of budget-e2e-matrix-before for auth-surface flows.
+#
+# After launchApp{clearState:true} the Expo Dev Client drops to its server
+# picker (JS not loaded). Firing e2e-* observability deep links here reloads the
+# dev client mid-connection and kills the Maestro driver ("Failed to connect to
+# 127.0.0.1:<port>"). So: connect to Budget Metro (:8082) FIRST, let the app JS
+# mount, and skip the clear-log/tag-matrix deep links (this flow is scored by the
+# observed Maestro verdict, not the matrix-tag ring buffer).
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- runFlow:
+    when:
+      visible: 'DEVELOPMENT SERVERS'
+    commands:
+      - openLink: ${E2E_METRO_DEVCLIENT_URL}
+      - waitForAnimationToEnd:
+          timeout: 8000
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+# Give the JS bundle time to download + mount the auth surface after connect.
+- extendedWaitUntil:
+    visible:
+      id: 'auth-sign-in-email'
+    timeout: 90000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000

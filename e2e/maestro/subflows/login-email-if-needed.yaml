@@ -1,0 +1,138 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Sign in with the shared test account. Drains the iOS "Open in app?" launch
+# prompts first.
+#
+# DEEP LINK FIRST, TYPING ONLY AS A FALLBACK — the same order Budget's proven
+# `budget-login-email-if-needed.yaml` uses, and the reason this file was changed.
+#
+# Typing an email into iOS is not reliable, and its failures do not look like
+# typing failures. Observed on House-A 2026-09-05 (run 20260905-083858, phase 1):
+# one `inputText ${E2E_EMAIL}` — one attempt, one erase, no driver retry — left
+# the field reading `a.tekhtelev@gmaia.tekhtelev@gmail.com`, i.e. the first
+# sixteen characters followed by the WHOLE address again. The screen said "Enter
+# a valid email address", `login-screen` never went away, and the suite reported
+# `FAIL [A] mm-01-signin` — which reads as a broken sign-in rather than as a
+# field that got typed into twice.
+#
+# `simplehouse://e2e-login?submit=1&email=…&password=…` has no such failure mode:
+# LoginScreen consumes the pending credentials, fills BOTH fields programmatically
+# and submits. `applyE2ELogin` OVERWRITES whatever is in the fields, so the link
+# also RECOVERS a form an earlier typing attempt corrupted — which is why it is
+# tried before the typing rather than after it fails.
+#
+# Every House runner injects `E2E_LOGIN_URL` (run-house-suite.sh:142,
+# run-house-multi-member-sync.sh builds one per device), so the link is always
+# available to this subflow. The logged-out marker is `login-screen` (the auth screen root, ALWAYS
+# present) — NOT `auth-sign-in-email`, which is only the COLLAPSED button and
+# DISAPPEARS once the form expands; gating on it stranded recovery on an
+# already-open form. Advance email→password with the email field's OWN "next"
+# return key (returnKeyType="next" + onSubmitEditing focuses password): a tapOn the
+# password field is flaky on iOS-26 — focus stays on email and inputText merges the
+# password INTO the email (`a.tekhtelev…Andrei123!`).
+- runFlow:
+    when:
+      notVisible:
+        id: 'home-up-next-section'
+    commands:
+      - repeat:
+          times: 6
+          commands:
+            - runFlow:
+                when:
+                  visible: 'Open'
+                commands:
+                  - tapOn: 'Open'
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+      - extendedWaitUntil:
+          visible:
+            id: 'login-screen'
+          timeout: 30000
+          optional: true
+      # PRIMARY: deep-link autologin, RETRIED. No typing → nothing to merge,
+      # truncate or double.
+      #
+      # Re-fired rather than fallen back on, because `applyE2ELogin` OVERWRITES
+      # both fields: firing the link again is the one action that repairs a form
+      # an earlier attempt corrupted. Typing on top of it is what creates the
+      # corruption — see the fallback below.
+      - repeat:
+          times: 3
+          commands:
+            - runFlow:
+                when:
+                  visible:
+                    id: 'login-screen'
+                  notVisible:
+                    id: 'home-up-next-section'
+                commands:
+                  - openLink: ${E2E_LOGIN_URL}
+                  - waitForAnimationToEnd:
+                      timeout: 4000
+                  - extendedWaitUntil:
+                      notVisible:
+                        id: 'login-screen'
+                      timeout: 30000
+                      optional: true
+      # FALLBACK: the email form, only if three links did not get us in.
+      #
+      # THIS BRANCH IS WHERE THE DOUBLED EMAIL COMES FROM, and it took two runs
+      # to see it. The deep link fills both fields programmatically; if the
+      # sign-in is merely SLOW, `login-screen` is still up when the wait expires,
+      # this branch runs anyway, and it types a second copy on top of the
+      # autofilled one — `a.tekhtelev@gmaa.tekhtelev@gmail.com` on run
+      # 20260905-120612, `…@gmaia.tekhtelev@gmail.com` on 20260905-083858. The
+      # form then says "Enter a valid email address" and the suite reports a
+      # failed sign-in, which is true but names the wrong cause.
+      #
+      # So: erase far more than the field can hold before typing. 200, not 50 —
+      # a corrupted value is longer than a correct one, and `inputText` APPENDS
+      # to whatever `eraseText` left behind.
+      - runFlow:
+          when:
+            visible:
+              id: 'login-screen'
+            notVisible:
+              id: 'home-up-next-section'
+          commands:
+            # Expand the email form if it is still collapsed (no-op if already open).
+            - tapOn:
+                id: 'auth-sign-in-email'
+                optional: true
+            - extendedWaitUntil:
+                visible:
+                  id: 'auth-email-input'
+                timeout: 15000
+            # Focus email, WIPE any stale/corrupted value, type the FULL email, then
+            # advance to password with the field's own "next" key (pressKey: Enter).
+            - tapOn:
+                id: 'auth-email-input'
+            - eraseText: 200
+            - inputText: ${E2E_EMAIL}
+            - pressKey: Enter
+            - inputText: ${E2E_PASSWORD}
+            - tapOn:
+                id: 'auth-sign-in-submit'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'login-screen'
+                timeout: 45000
+                optional: true
+      # Dismiss the iOS "Save Password?" prompt shown right after sign-in.
+      - runFlow:
+          when:
+            visible: 'Save Password'
+          commands:
+            - tapOn: 'Not Now'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow: go-home-tab.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'home-up-next-section'
+          timeout: 30000
+          optional: true

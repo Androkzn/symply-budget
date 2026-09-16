@@ -1,0 +1,520 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:habits
+  - mutation
+  - regression
+# Matrix: HEALTH-HABIT-140 … 162
+---
+# Habits tab — the full `HealthHabitForm` (icon grid, category, time of day,
+# the frequency/custom-days picker, the reminder toggle + time sheet, notes)
+# and the EDIT path that reuses the identical component on the detail sheet.
+#
+# WHY THIS FLOW EXISTS. `habits-add-tick-delete.yaml` only drives the QUICK-ADD
+# row (a bare name, defaulting to `daily`/`anytime`/no reminder) — the form
+# itself, reached through "Custom habit", has no device coverage: the icon
+# grid, the category chips, the time-of-day chips, the frequency picker's
+# CUSTOM DAYS sub-panel (3 day-set presets + 7 individual toggles + the
+# "cannot remove the last day" guard), the reminder toggle and its time sheet,
+# and the notes field. Neither does the EDIT path on the detail screen, which
+# is the SAME component (`HealthHabitForm`, one editor for both callers — see
+# its own header comment on why two copies is how the donor's create/edit
+# sheets drifted).
+#
+# THE CUSTOM-DAYS GUARD IS PROVEN, not just exercised: from the "Weekends"
+# preset (Sun+Sat), Sunday is toggled off by hand (one day left, Saturday),
+# then SATURDAY IS TAPPED TOO — `HealthHabitForm`'s `toggleDay` refuses to
+# drop the last remaining day, so the assertion is that it is STILL selected
+# afterwards. A regression that dropped the guard would leave a "custom"
+# habit scheduled on zero days, which is never due and can never be ticked.
+#
+# THE TIME SHEET is native `DateTimePicker` (a spinner) with no testIDs of its
+# own on iOS, so it is opened and confirmed via its `Done` text rather than
+# driven to a specific time — the reminder toggle's OWN default (09:00, see
+# `HealthHabitForm`'s `DEFAULT_REMINDER_TIME`) is what is asserted, both before
+# and after the sheet round-trips.
+#
+# STATE + TEARDOWN. Mints its own habit ("E2E schedule habit"), edits it, and
+# deletes it from the detail sheet at the end — the same pattern
+# `habits-add-tick-delete.yaml` uses and the same reason: a seeded habit is the
+# fixture other Habits flows depend on, so this never touches one.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-HABIT-140
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-habits.yaml
+
+      # --- Open the custom form (HEALTH-HABIT-140) --------------------------
+      # Local-only: toggles `customForm` state in HealthHabitsScreen.tsx — no
+      # network call.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-habits-create-custom'
+            SCROLL_DIR: down
+      - tapOn:
+          id: 'health-habits-create-custom'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-create-form'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Name, icon, category, time of day (HEALTH-HABIT-141 … 143)
+      # =================================================================
+      # Local-only: every control below just sets HealthHabitForm.tsx's own
+      # component state (setIcon / setCategory / setTimeOfDay etc, confirmed
+      # against source — none of them touch `Api`); the form's single network
+      # call fires once, on submit (verified at HEALTH-HABIT-152 below).
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-141
+      - tapOn:
+          id: 'health-habit-create-name'
+      - inputText: 'E2E schedule habit'
+      - hideKeyboard
+      - tapOn:
+          id: 'health-habit-create-icon-run'
+      - assertVisible:
+          id: 'health-habit-create-icon-run'
+          selected: true
+      - tapOn:
+          id: 'health-habit-create-category-fitness'
+      - assertVisible:
+          id: 'health-habit-create-category-fitness'
+          selected: true
+      - tapOn:
+          id: 'health-habit-create-time-evening'
+      - assertVisible:
+          id: 'health-habit-create-time-evening'
+          selected: true
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Frequency + custom days — 3 presets, an individual toggle, and the
+      # "cannot remove the last day" guard (HEALTH-HABIT-144 … 149)
+      # =================================================================
+      # Local-only: setFrequency / setCustomDays / toggleDay in
+      # HealthHabitForm.tsx — no network until the form is submitted.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-144
+      - tapOn:
+          id: 'health-habit-create-frequency-custom'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-create-custom-days'
+          timeout: 10000
+      # Every day is selected until a preset or a tap narrows it.
+      - assertVisible:
+          id: 'health-habit-create-day-1'
+          selected: true
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- "Weekdays" (HEALTH-HABIT-145) ------------------------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-145
+      - tapOn:
+          id: 'health-habit-create-dayset-weekdays'
+      - assertVisible:
+          id: 'health-habit-create-day-2'
+          selected: true
+      - assertVisible:
+          id: 'health-habit-create-day-1'
+          selected: false
+      - assertVisible:
+          id: 'health-habit-create-day-7'
+          selected: false
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- An individual day toggles off on its own (HEALTH-HABIT-146) -----
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-146
+      - tapOn:
+          id: 'health-habit-create-day-4'
+      - assertVisible:
+          id: 'health-habit-create-day-4'
+          selected: false
+      - assertVisible:
+          id: 'health-habit-create-day-3'
+          selected: true
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- "Every day" restores all seven (HEALTH-HABIT-147) ---------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-147
+      - tapOn:
+          id: 'health-habit-create-dayset-every-day'
+      - assertVisible:
+          id: 'health-habit-create-day-4'
+          selected: true
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- "Weekends", then the last-day guard (HEALTH-HABIT-148, 149) -----
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-148
+      - tapOn:
+          id: 'health-habit-create-dayset-weekends'
+      - assertVisible:
+          id: 'health-habit-create-day-1'
+          selected: true
+      - assertVisible:
+          id: 'health-habit-create-day-7'
+          selected: true
+      - assertVisible:
+          id: 'health-habit-create-day-2'
+          selected: false
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # Sunday off leaves Saturday alone; tapping Saturday too must NOT clear
+      # it — a custom schedule can never legally be due on zero days.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-149
+      - tapOn:
+          id: 'health-habit-create-day-1'
+      - assertVisible:
+          id: 'health-habit-create-day-1'
+          selected: false
+      - assertVisible:
+          id: 'health-habit-create-day-7'
+          selected: true
+      - tapOn:
+          id: 'health-habit-create-day-7'
+      - assertVisible:
+          id: 'health-habit-create-day-7'
+          selected: true
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Reminder — toggle, default time, and the sheet round-trip
+      # (HEALTH-HABIT-150, 151)
+      # =================================================================
+      # Local-only: setReminderEnabled / setReminderTime + the native
+      # DateTimePicker's own onChange, all in HealthHabitForm.tsx — the
+      # server only re-materialises reminder rows once the habit is created
+      # or updated (see `syncHabitReminders` in the backend route), which
+      # happens on submit, not on this sheet round-trip.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-150
+      - tapOn:
+          id: 'health-habit-create-reminder-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-create-reminder-time'
+            text: '9:00 AM'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-151
+      - tapOn:
+          id: 'health-habit-create-reminder-time'
+      - extendedWaitUntil:
+          visible: 'Reminder time'
+          timeout: 10000
+      - tapOn: 'Done'
+      - extendedWaitUntil:
+          notVisible: 'Reminder time'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-habit-create-reminder-time'
+          text: '9:00 AM'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Notes + submit (HEALTH-HABIT-152, 153)
+      # =================================================================
+      # Verified server-side alongside this run: `GET /health/habits` shows
+      # the new row with `frequency: "custom", custom_days: [7], icon: "run",
+      # category: "fitness", time_of_day: "evening", reminder_enabled: true,
+      # reminder_time: "09:00"`.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-152
+      - tapOn:
+          id: 'health-habit-create-notes'
+      - inputText: 'Maestro schedule test'
+      - hideKeyboard
+      # REAL mutation: HealthHabitsScreen's `onSubmit` calls addHabit() ->
+      # healthApi.createHabit() -> POST /health/habits, carrying every field
+      # set above (icon/category/time/frequency/custom_days/reminder/notes).
+      # Rendered inline on the main screen (not a modal), so a direct
+      # clear-log/verify/badge works.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-habit-create-submit'
+      - extendedWaitUntil:
+          visible: 'E2E schedule habit'
+          timeout: 15000
+      - assertNotVisible:
+          id: 'health-habit-create-form'
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/habits
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- The detail sheet reads back everything just set (HEALTH-HABIT-153)
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-153
+      - tapOn: 'Open E2E schedule habit'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-detail'
+          timeout: 15000
+      - assertVisible: 'Fitness · Evening'
+      - assertVisible:
+          id: 'health-habit-detail-schedule'
+          text: 'Sat'
+      - assertVisible: 'Reminder at 09:00'
+      - assertVisible: 'Maestro schedule test'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Edit reuses the SAME form (HEALTH-HABIT-154 … 158)
+      # =================================================================
+      # Local-only: `health-habit-detail-edit` just flips the `editing`
+      # local state in HealthHabitDetailScreen.tsx to show the form — no
+      # network until HEALTH-HABIT-157/158's submit below.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-154
+      - tapOn:
+          id: 'health-habit-detail-edit'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-edit-form'
+          timeout: 10000
+      # Pre-filled from the habit just created — the same values, on the SAME
+      # component, proving create and edit cannot drift apart.
+      - assertVisible:
+          id: 'health-habit-edit-name'
+          text: 'E2E schedule habit'
+      - assertVisible:
+          id: 'health-habit-edit-category-fitness'
+          selected: true
+      - assertVisible:
+          id: 'health-habit-edit-frequency-custom'
+          selected: true
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Switching frequency OFF custom hides the day panel (155) ---------
+      # Local-only: HealthHabitForm.tsx's own setFrequency — no network yet.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-155
+      - tapOn:
+          id: 'health-habit-edit-frequency-daily'
+      - assertNotVisible:
+          id: 'health-habit-edit-custom-days'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Reminder switched off removes the time button (156) -------------
+      # Local-only: HealthHabitForm.tsx's own setReminderEnabled — no network
+      # until the edit is submitted (HEALTH-HABIT-157/158 below).
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-156
+      - tapOn:
+          id: 'health-habit-edit-reminder-toggle'
+      - assertNotVisible:
+          id: 'health-habit-edit-reminder-time'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Rename, save, and the detail sheet reflects it live (157, 158) --
+      # Verified server-side alongside this run: `GET /health/habits` shows
+      # `name: "E2E schedule habit EDITED", frequency: "daily",
+      # custom_days: null, reminder_enabled: false`.
+      # REAL mutation: onSave (HealthHabitsScreen.tsx) calls updateHabit() ->
+      # healthApi.updateHabit() -> PUT /health/habits/:id, carrying the
+      # renamed name plus the frequency/reminder changes made at 155/156.
+      # `health-habit-detail` is an RN <Modal> that occludes the root-mounted
+      # e2e-verify-badge (see E2EVerifyBadge.tsx's own KNOWN LIMITATION note),
+      # and saving here only closes the EDIT SUB-FORM, not the sheet itself —
+      # so the existing "reflects it live" assertions run first (while still
+      # on the still-open sheet, which is the whole point of this leg), THEN
+      # the sheet is closed to verify the network call and reopened afterward
+      # for HEALTH-HABIT-159's teardown below, mirroring
+      # tasks/task-detail-mutations.yaml's close-verify-reopen pattern.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-157
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-habit-edit-name'
+      - eraseText
+      - inputText: 'E2E schedule habit EDITED'
+      - hideKeyboard
+      - tapOn:
+          id: 'health-habit-edit-submit'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-habit-edit-form'
+          timeout: 15000
+      - assertVisible: 'E2E schedule habit EDITED'
+      - assertVisible:
+          id: 'health-habit-detail-schedule'
+          text: 'Every day'
+      - assertVisible: 'No reminder'
+      - tapOn:
+          id: 'health-habit-detail-close'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-habit-detail'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/habits/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - tapOn: 'Open E2E schedule habit EDITED'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-detail'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # =================================================================
+      # Teardown — delete from the detail sheet (HEALTH-HABIT-159)
+      # =================================================================
+      # REAL mutation: deleteHabit() -> healthApi.deleteHabit() -> DELETE
+      # /health/habits/:id. Confirmed delete auto-closes the sheet (same as
+      # habits-add-tick-delete.yaml's HEALTH-HABIT-110), so the badge is
+      # reachable right after the existing wait with no extra close tap.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HABIT-159
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-habit-detail-delete'
+      - extendedWaitUntil:
+          visible: 'Delete habit'
+          timeout: 15000
+      - tapOn: 'Delete'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-habit-detail'
+          timeout: 15000
+      - assertNotVisible: 'E2E schedule habit EDITED'
+      - assertVisible: 'Sleep 7+ hours'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/habits/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Back to the Health tab (HEALTH-HABIT-160) ------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

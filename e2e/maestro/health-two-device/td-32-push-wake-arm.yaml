@@ -1,0 +1,52 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+  - feature:notifications
+# Matrix: HEALTH-TD-032 — arm device B to receive an opaque `health_sync_wake`,
+# then park it in the background.
+#
+# THE DEFECT THIS LEG EXISTS FOR (plan §2 item 4c). The Worker's peer query
+# excludes `excludeUserId`. For Budget/House that means "every device except
+# mine". For Health — one user, N devices (§1.2) — it means "every device except
+# the only user's", i.e. NOBODY: `user_id != <the only user>` matches zero rows
+# and the wake is silently never sent. The backend fix is to exclude by
+# `sourceDeviceId` instead. This suite is where that fix stops being a unit test.
+#
+# WHAT THIS FLOW CAN AND CANNOT PROVE, stated plainly so nobody reads more into a
+# green run than is there:
+#   • it CAN put B into the exact state a wake needs — notifications granted,
+#     `registerHealthLocalPushToken` run against an open session, app backgrounded;
+#   • it CANNOT observe the Worker's delivery decision. The runner does that,
+#     by grepping the Metro log for B's `/v2/push/register` and for the
+#     `health_sync_wake` issued after A's deposit, and by delivering the real
+#     payload with `xcrun simctl push` (a simulator has no APNs connection of its
+#     own — there is no way to have the Worker's push arrive here directly).
+#   • td-33 CANNOT distinguish wake-driven convergence from foreground-driven
+#     convergence by screen content alone. What it asserts instead is the thing
+#     only a correctly handled wake produces: silence. See its header.
+#
+# Backgrounding is the point — `handleHealthSyncWakeNotification` is only
+# interesting when the app is NOT already syncing on the foreground path.
+---
+- runFlow: td-launch.yaml
+# The permission is the precondition `registerHealthLocalPushToken` bails on:
+# `if (!hasPermission) return;` — a denied prompt makes the whole leg unprovable
+# rather than failing it, which is why td-dismiss-chrome answers this alert
+# with Allow.
+- runFlow: ../health/subflows/go-health-notifications.yaml
+- assertVisible:
+    id: 'health-notifications-screen'
+# Back to Home so the app is parked on a screen whose content td-33 can read
+# without any further navigation once it is foregrounded again.
+- runFlow: ../health/subflows/go-health-home.yaml
+- assertVisible:
+    id: 'health-home-screen'
+- waitForAnimationToEnd:
+    timeout: 3000
+# Park it. The runner performs A's mutation and the `simctl push` while this
+# device sits here.
+- pressKey: Home
+- waitForAnimationToEnd:
+    timeout: 3000

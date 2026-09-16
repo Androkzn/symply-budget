@@ -1,0 +1,36 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:aihousekeeper
+  - readonly
+  - regression
+# Matrix: HOUSE-AIHK-004…006, 020 (approvals queue)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- openLink: simplehouse://aihousekeeper-approvals
+- extendedWaitUntil:
+    visible:
+      id: 'aihousekeeper-approvals-screen'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible: 'All caught up'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible: 'Approve'
+    timeout: 45000
+    optional: true
+- runFlow:
+    when:
+      visible: 'All caught up'
+    commands:
+      - assertVisible: 'All caught up'
+- runFlow:
+    when:
+      visible: 'Approve'
+    commands:
+      - assertVisible: 'Approve'
+      - assertVisible: 'Dismiss'
+- assertVisible:
+    id: 'aihousekeeper-approvals-screen'

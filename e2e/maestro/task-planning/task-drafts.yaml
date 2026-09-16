@@ -1,0 +1,32 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:task-planning
+  - readonly
+  - regression
+# Matrix: HOUSE-TPLAN-001…006, 022 (task drafts)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- openLink: simplehouse://tasks?screen=TaskDrafts
+- extendedWaitUntil:
+    visible:
+      id: 'task-drafts-screen'
+    timeout: 30000
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: task-drafts-screen-scroll-end
+- runFlow:
+    when:
+      visible:
+        id: 'task-drafts-empty-state'
+    commands:
+      - assertVisible:
+          id: 'task-drafts-empty-state'
+- runFlow:
+    when:
+      visible: 'Task Drafts'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true

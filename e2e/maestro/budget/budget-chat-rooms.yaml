@@ -1,0 +1,29 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:budget-chat
+  - readonly
+  - regression
+  - smoke
+# Matrix: BUDGET-budget-chat (see documents/engineering/testing/matrices/)
+# Budget household chat — rooms list + create-room (BudgetChatRoomsListScreen).
+# Proves: FAB opens the rooms list, "+ New" opens the create sheet, and creating
+# a room wires POST /budget-chat-rooms and navigates into the new room.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-open-chat-rooms.yaml
+- assertVisible:
+    id: 'chat-rooms-screen'
+- assertVisible:
+    id: 'chat-rooms-new-button'
+- runFlow:
+    file: ../subflows/budget-create-chat-room.yaml
+    env:
+      ROOM_NAME: 'E2E Rooms Flow'
+# Landed inside the freshly created room → its composer is present.
+- assertVisible:
+    id: 'chat-room-input'
+- assertVisible:
+    id: 'chat-room-send'
+- runFlow: ../subflows/budget-exit-chat.yaml

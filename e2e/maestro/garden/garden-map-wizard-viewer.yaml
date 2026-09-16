@@ -1,0 +1,72 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:garden
+  - readonly
+  - regression
+# Matrix: HOUSE-GARD-027 (a saved map plan is listed, openable, and labelled honestly)
+---
+# WHAT THE LIST DOES WITH A PLAN THAT HAS NO PICTURE.
+#
+# Two bugs lived here and both were invisible to every other kind of test,
+# because in each case the plan itself was perfect:
+#
+#  - the list's `canView` required `display_image_key`, so a map-drawn plan
+#    rendered as a greyed-out card that did nothing when tapped;
+#  - the viewer gated its whole render on `!imageUrl`, so the same plan showed
+#    a spinner forever.
+#
+# Both are "the data is fine, the screen refuses to show it", which unit tests
+# cannot see and a human notices instantly. That is exactly the shape a UI suite
+# exists for.
+#
+# DEPENDS ON `garden-map-wizard-save.yaml` having run — it is what puts a
+# map-drawn plan in the list. In sequential mode the garden flows run in
+# alphabetical order, so `-save` precedes `-viewer`. The guard below states that
+# dependency out loud instead of failing with "no card found".
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-GARD-027
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-gardening.yaml
+- assertVisible:
+    id: 'garden-plans-screen'
+
+# The provenance caption. A map plan carries a `boundary_source` like an
+# AI-traced one does, so the label used to read "AI-traced from confirmed plot"
+# — telling a member a model drew the outline they dragged corner by corner
+# themselves. `content_type` is checked first now, and this is the assertion
+# that keeps that ordering.
+- extendedWaitUntil:
+    visible: '.*Drawn on the map.*'
+    timeout: 25000
+
+# Tapped by CARD id, not by the caption. The caption is the thing under test
+# here, and a flow that taps the string it is also asserting cannot tell "the
+# card is tappable" apart from "the caption happens to be there". The list is
+# newest-first and the map plan was just created, so the first card is it.
+- tapOn:
+    id: 'garden-plan-card-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plan-viewer-screen'
+    timeout: 25000
+
+# It opened AND it rendered — the card was tappable (canView) and the viewer
+# took its satellite branch instead of waiting for an image that will never
+# arrive (the spinner).
+- assertNotVisible:
+    id: 'garden-plan-viewer-loading'
+- assertVisible:
+    id: 'garden-plan-viewer-edit-button'
+
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plans-screen'
+    timeout: 20000

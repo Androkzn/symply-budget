@@ -1,0 +1,28 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home-projects
+  - readonly
+  - regression
+# Matrix: reserved for future deferred home-project rows (geometry scan, etc.).
+# HPROJ-015…016, 019…020 → home-projects-hub-mutations.yaml.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-my-home.yaml
+- runFlow: ../subflows/dismiss-home-project-alert.yaml
+- tapOn:
+    id: 'my-home-home-projects'
+# The Home Projects stack RESTORES its last route, so this tap can land on a
+# project hub left behind by an earlier flow instead of the list. Six flows
+# failed back-to-back that way on 2026-09-01, all parked on the same restored
+# hub ("BlankE2E Hub Mutations"). No-op when the list opened normally.
+- runFlow: ../subflows/pop-restored-project-hub.yaml
+# Wait for the destination rather than asserting into the navigation. A bare
+# assert here races the push and reports the Home Projects screen missing while
+# My Home is still on top — same fix as `home-projects-hub`.
+- extendedWaitUntil:
+    visible:
+      id: 'home-projects-list-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'home-projects-create'

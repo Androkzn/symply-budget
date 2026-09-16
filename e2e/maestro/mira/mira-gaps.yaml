@@ -1,0 +1,191 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:mira
+  - mutation
+  - regression
+# Matrix: HOUSE-MIRA-005, 007, 009–014, 016, 018
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-mira-tab.yaml
+- assertVisible:
+    id: 'mira-chat-screen'
+# Empty send blocked (HOUSE-MIRA-005)
+- runFlow:
+    when:
+      visible:
+        id: 'mira-chat-send'
+    commands:
+      - tapOn:
+          id: 'mira-chat-send'
+      - assertVisible:
+          id: 'mira-chat-input'
+# Send + session survives tab switch (HOUSE-MIRA-004/014/018)
+- runFlow:
+    when:
+      visible:
+        id: 'mira-chat-input'
+    commands:
+      - tapOn:
+          id: 'mira-chat-input'
+      - inputText: 'Session persistence check'
+      - hideKeyboard:
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'mira-chat-send'
+          timeout: 15000
+          optional: true
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            E2E_MATRIX_ROW: HOUSE-MIRA-014
+      - runFlow:
+          when:
+            visible:
+              id: 'mira-chat-send'
+          commands:
+            - tapOn:
+                id: 'mira-chat-send'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /chat
+            E2E_VERIFY_STATUS: '200'
+      - runFlow: ../subflows/go-home-tab.yaml
+      - runFlow: ../subflows/go-mira-tab.yaml
+      - extendedWaitUntil:
+          visible: 'Session persistence check'
+          timeout: 20000
+          optional: true
+# Photo attach + send (HOUSE-MIRA-007)
+- runFlow:
+    when:
+      visible:
+        id: 'mira-chat-attach'
+    commands:
+      - tapOn:
+          id: 'mira-chat-attach'
+      - extendedWaitUntil:
+          visible: 'Photo Library'
+          timeout: 10000
+          optional: true
+      - runFlow:
+          when:
+            visible: 'Photo Library'
+          commands:
+            - tapOn: 'Photo Library'
+            - runFlow: ../subflows/pick-photo-from-library.yaml
+            - waitForAnimationToEnd:
+                timeout: 4000
+            - runFlow:
+                file: ../subflows/e2e-matrix-before.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  E2E_MATRIX_ROW: HOUSE-MIRA-007
+            - tapOn:
+                id: 'mira-chat-send'
+                optional: true
+            - runFlow:
+                file: ../subflows/e2e-matrix-after.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  E2E_VERIFY_METHOD: POST
+                  E2E_VERIFY_PATH: /chat
+# Voice start + cancel (HOUSE-MIRA-010, 011)
+- runFlow:
+    when:
+      visible:
+        id: 'mira-chat-voice-toggle'
+    commands:
+      - tapOn:
+          id: 'mira-chat-voice-toggle'
+      # FIRST mic consent on this device. This branch only became reachable once
+      # dismiss-ios-popover.yaml stopped the iPad Photos popover owning the a11y
+      # tree, so the prompt has never been answered here. `getUserMedia`
+      # (src/services/voice-chat.ts:301) raises a real UIAlertController —
+      # NSMicrophoneUsageDescription is set (ios/SymplyEcosystem/Info.plist:104)
+      # — and it blocks `mira-chat-overflow-menu` below exactly as the popover
+      # did. Nothing grants microphone host-side: run-house-suite.sh sets faceid
+      # only, and no script runs `simctl privacy grant`.
+      #
+      # `.*`-wrapped because Maestro matches the node's WHOLE a11y string, and
+      # the title is “SymplyEcosystem” Would Like to Access the Microphone.
+      # ALLOW, not deny: a denial is remembered for the life of the simulator and
+      # would make HOUSE-MIRA-010/011 unfixable without erasing the device.
+      - extendedWaitUntil:
+          visible: '.*Access the Microphone.*'
+          timeout: 5000
+          optional: true
+      - runFlow:
+          when:
+            visible: '.*Access the Microphone.*'
+          commands:
+            - tapOn:
+                text: 'Allow'
+                optional: true
+            - tapOn:
+                text: 'OK'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - extendedWaitUntil:
+          visible:
+            id: 'mira-chat-voice-end'
+          timeout: 15000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'mira-chat-voice-end'
+          commands:
+            - tapOn:
+                id: 'mira-chat-voice-end'
+      # `handleVoiceToggle` catches EVERY enter() failure — session mint, BYOK,
+      # WebRTC — with Alert.alert('Voice mode', …)
+      # (AihousekeeperChatScreen.tsx:534-539). Another UIAlertController, and it
+      # blocks `mira-chat-overflow-menu` the same way. Voice start is
+      # best-effort here: a backend that cannot mint a session must degrade to a
+      # skip, not to a red run on an unrelated step. 'Voice mode' is the alert's
+      # exact title node, and does not match the toggle's own 'Start voice mode'.
+      - runFlow:
+          when:
+            visible: 'Voice mode'
+          commands:
+            - tapOn: 'OK'
+            - waitForAnimationToEnd:
+                timeout: 2000
+# Clear conversation (HOUSE-MIRA-009)
+- tapOn:
+    id: 'mira-chat-overflow-menu'
+- extendedWaitUntil:
+    visible: 'Clear chat'
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Clear chat'
+    commands:
+      - tapOn: 'Clear chat'
+      - extendedWaitUntil:
+          visible: 'Clear'
+          timeout: 8000
+          optional: true
+      - runFlow:
+          when:
+            visible: 'Cancel'
+          commands:
+            - tapOn: 'Cancel'
+# Home brief deep-link (HOUSE-MIRA-016)
+- runFlow: ../subflows/go-home-tab.yaml
+- tapOn:
+    id: 'home-mira-brief'
+- extendedWaitUntil:
+    visible:
+      id: 'mira-chat-screen'
+    timeout: 15000
+- assertVisible:
+    id: 'mira-chat-screen'

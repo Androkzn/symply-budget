@@ -1,0 +1,55 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:scroll
+  - readonly
+  - regression
+# Matrix: HEALTH-SCROLL-003
+---
+- runFlow: subflows/launch-health.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-note-input
+            HOME_ANCHOR: bottom
+      - tapOn:
+          id: 'health-note-input'
+      - inputText: 'Keyboard scroll check'
+      - assertVisible:
+          id: 'health-note-input'
+      # RETARGETED 2026-08-01: this used to blur via the PRIVACY section
+      # further down the list, but the PRIVACY block (and 'Private to your
+      # account' below it) was removed from Home entirely — it now lives on
+      # More (`HealthMoreScreen.tsx`, "PRIVACY & DATA"), covered by
+      # more-settings-controls.yaml, not by this flow. 'WATER' is the WidgetCard
+      # section label directly ABOVE 'TODAY'S NOTE' (WaterWidget, a plain
+      # non-touchable Typography — see `WidgetCard`/`WaterWidget` in
+      # HealthHomeWidgets.tsx) and is already on screen from the same
+      # `focus-health-home.yaml` bottom-anchor above, so it needs no extra
+      # scroll. Tapping a non-touchable label still proves the same contract
+      # this flow is actually about: `keyboardShouldPersistTaps="handled"` lets
+      # the tap reach the ScrollView and blur the focused note field instead of
+      # being swallowed by the keyboard (see `dismiss-health-keypad.yaml`'s
+      # header for the same mechanism used elsewhere in this suite).
+      - tapOn: 'WATER'
+      # Dismissing the keyboard reflows the ScrollView. Re-anchor to the top and
+      # assert the greeting tagline — proves both that the blur-tap actually
+      # landed (a swallowed tap would leave the keyboard up, covering this) and
+      # that the list still scrolls normally afterward.
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow: subflows/health-scroll-home-top.yaml
+      - assertVisible: 'Track your wellness at your own pace — your data is private to you.'
+
+      # --- Teardown --------------------------------------------------------
+      # Tapping WATER blurs the note field, which PERSISTS it — this flow is
+      # tagged readonly but writes `health.notes.v1` all the same. Clear it, or
+      # home-note-and-water-edges inherits a note it did not write.
+      - openLink: simplehealth://e2e-health-set-note?text=
+      - waitForAnimationToEnd:
+          timeout: 2000

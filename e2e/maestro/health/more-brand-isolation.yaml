@@ -1,0 +1,80 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:more
+  - readonly
+  - regression
+# Matrix: HEALTH-MORE-044, HEALTH-TAB-005
+---
+# Health runs the SHARED `src/` shell, so a brand gate that regresses does not
+# crash — it quietly surfaces another app's chrome inside Symply Health. The unit
+# suite pins this at the component level (HEALTH-MORE-044); this proves it on the
+# real, fully-composed screen where a stray shared row would actually appear.
+#
+# Every string below belongs to House / Budget / Kaizen / Language and must never
+# render in Health. "Symply apps" is the one legitimate cross-app surface (the
+# ecosystem grid) and is asserted PRESENT so this flow cannot pass by rendering
+# an empty screen.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-MORE-044
+
+      # --- Home tab carries no foreign chrome ------------------------------
+      - runFlow: subflows/health-scroll-home-top.yaml
+      - assertNotVisible: 'Symply House'
+      - assertNotVisible: 'Household'
+      - assertNotVisible: 'My Home'
+      - assertNotVisible: 'Property'
+      - assertNotVisible: 'Contractors'
+      - assertNotVisible: 'AI Housekeeper'
+
+      # --- More tab carries no foreign settings rows -----------------------
+      - runFlow: subflows/go-more.yaml
+      - assertVisible:
+          id: 'health-more-screen'
+      - assertVisible: 'ACCOUNT'
+      - assertNotVisible: 'Households'
+      - assertNotVisible: 'Property details'
+      - assertNotVisible: 'Budget'
+      - assertNotVisible: 'Spending'
+      - assertNotVisible: 'Mortgage'
+      - assertNotVisible: 'Contractors'
+      - assertNotVisible: 'Documents'
+      - assertNotVisible: 'Reports'
+
+      # The ecosystem grid IS legitimate — proves the screen actually rendered.
+      - scrollUntilVisible:
+          element:
+            id: 'health-setting-symply-apps'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-setting-symply-apps'
+
+      # --- The bar itself exposes no foreign tab (HEALTH-TAB-005) ----------
+      - assertVisible:
+          id: 'tab-index'
+      - assertVisible:
+          id: 'tab-settings'
+      - assertNotVisible:
+          id: 'tab-my-home'
+      - assertNotVisible:
+          id: 'tab-tasks'
+      - assertNotVisible:
+          id: 'tab-budget'
+      - assertNotVisible:
+          id: 'tab-chat'
+      - assertNotVisible:
+          id: 'tab-contractors'
+      - assertNotVisible:
+          id: 'tab-reports'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml

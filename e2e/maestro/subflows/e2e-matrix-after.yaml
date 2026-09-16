@@ -1,0 +1,10 @@
+appId: ${APP_ID}
+tags:
+  - util
+---
+# Composite: dump observability snapshot; optionally verify network when E2E_VERIFY_PATH is set.
+- runFlow: e2e-dump-log.yaml
+- runFlow:
+    when:
+      true: ${E2E_VERIFY_PATH != null && E2E_VERIFY_PATH != ''}
+    file: e2e-verify-network.yaml

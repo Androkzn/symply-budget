@@ -1,0 +1,32 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# More tab (route `settings`, locked/pinned).
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-more-screen'
+    commands:
+      - openLink: ${E2E_APP_SCHEME}://settings
+      - runFlow: language-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+- tapOn:
+    id: 'tab-settings'
+    optional: true
+    retryTapIfNoChange: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-more-screen'
+    commands:
+      - tapOn:
+          text: 'More'
+          retryTapIfNoChange: true
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'language-more-screen'
+    timeout: 60000

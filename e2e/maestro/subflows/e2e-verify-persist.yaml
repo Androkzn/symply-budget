@@ -1,0 +1,12 @@
+appId: ${APP_ID}
+tags:
+  - util
+---
+# Assert the latest persist ring buffer entry matches matrix Console verify
+# spec. Local-first brands (Kaizen, Health) mostly write to on-device
+# SQLite/MMKV rather than the network — this is the persist-buffer sibling of
+# e2e-verify-network for those writes.
+# Env: E2E_VERIFY_STORE (required), E2E_VERIFY_OPERATION (optional), E2E_VERIFY_DETAIL_INCLUDES (optional).
+- openLink: ${E2E_APP_SCHEME}://e2e-verify-persist?store=${E2E_VERIFY_STORE}&operation=${E2E_VERIFY_OPERATION}&detailIncludes=${E2E_VERIFY_DETAIL_INCLUDES}
+- waitForAnimationToEnd:
+    timeout: 2000

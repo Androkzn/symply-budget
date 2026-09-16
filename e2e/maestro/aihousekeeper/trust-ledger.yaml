@@ -1,0 +1,18 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:aihousekeeper
+  - readonly
+  - regression
+# Matrix: HOUSE-AIHK-008…009 (trust ledger)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- openLink: simplehouse://aihousekeeper-trust-ledger
+- extendedWaitUntil:
+    visible:
+      id: 'aihousekeeper-trust-ledger-screen'
+    timeout: 30000
+    optional: true
+- extendedWaitUntil:
+    visible: 'Trust ledger'
+    timeout: 30000

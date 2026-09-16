@@ -1,0 +1,85 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:notifications
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-notifications (see documents/engineering/testing/matrices/)
+---
+# NotificationsScreen toolbar actions. The mark-all / clear-all buttons are icon-only but
+# carry accessibility labels, which Maestro matches by text:
+#   • "Mark all notifications as read" → POST /notifications/read-all
+#   • "Clear all notifications" → confirm Alert → POST /notifications/delete-all
+# Clear-all is driven up to its confirm Alert and CANCELLED so the account's history is
+# preserved. Card tap-routing (routeNotificationTap by data.type) can't be driven — rows
+# have no testID and their text is data-dependent.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-notifications.yaml
+- assertVisible:
+    id: 'notifications-screen'
+# Mark all read (idempotent, safe to fire) — verify the POST actually succeeded.
+- runFlow:
+    when:
+      visible: 'Mark all notifications as read'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible: 'Mark all notifications as read'
+          timeout: 8000
+      - tapOn: 'Mark all notifications as read'
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /notifications/read-all
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+# Clear all → confirm Alert → Cancel (preserve history) — verify Cancel truly
+# fired zero delete-all calls.
+- runFlow:
+    when:
+      visible: 'Clear all notifications'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible: 'Clear all notifications'
+          timeout: 8000
+      - tapOn: 'Clear all notifications'
+      - extendedWaitUntil:
+          visible: 'Cancel'
+          timeout: 10000
+      - tapOn: 'Cancel'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /notifications/delete-all
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+- assertVisible:
+    id: 'notifications-screen'

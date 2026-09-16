@@ -1,0 +1,119 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:smoke
+  - readonly
+  - regression
+# Matrix: HOUSE-SMOKE-015
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-settings-tab.yaml
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- assertVisible:
+    id: 'settings-screen'
+# Overflow tabs (Reports, Contractors, Utilities, …) when customizable tabs enabled.
+- runFlow:
+    when:
+      visible: 'MORE TABS'
+    commands:
+      - assertVisible: 'MORE TABS'
+- runFlow:
+    when:
+      visible:
+        id: 'more-tab-reports'
+    commands:
+      - tapOn:
+          id: 'more-tab-reports'
+      - extendedWaitUntil:
+          visible:
+            id: 'reports-screen'
+          timeout: 20000
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+      - runFlow: ../subflows/go-settings-tab.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'more-tab-contractors'
+    commands:
+      - tapOn:
+          id: 'more-tab-contractors'
+      - extendedWaitUntil:
+          visible:
+            id: 'contractors-screen'
+          timeout: 20000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+      - runFlow: ../subflows/go-settings-tab.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'more-tab-utilities'
+    commands:
+      - tapOn:
+          id: 'more-tab-utilities'
+      - extendedWaitUntil:
+          visible:
+            id: 'utilities-screen'
+          timeout: 20000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+      - runFlow: ../subflows/go-settings-tab.yaml
+# What the More hub itself still carries. Garden and Spaces live in MORE TABS —
+# Projects is pinned to the bar by default, so it is deliberately NOT expected
+# here — and CUSTOMIZATION / INSIGHTS are the only two non-tab groups left on
+# this screen. Everything else (Floor Plans, preferences, the AI config screens,
+# notifications, data sharing) moved behind the header gear.
+- assertVisible:
+    id: 'more-tab-gardening'
+    optional: true
+- assertVisible:
+    id: 'more-tab-spaces'
+    optional: true
+- assertVisible:
+    id: 'more-customize-tabs'
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-ai-insights'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- assertVisible:
+    id: 'settings-row-ai-insights'
+    optional: true
+# …and what the gear carries. `settings-row-floor-plans` is the one this flow
+# has always used as the "the hub rendered" marker; it is on the hub now.
+- runFlow: ../subflows/go-house-settings.yaml
+- assertVisible:
+    id: 'settings-row-floor-plans'
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-appearance'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- assertVisible:
+    id: 'settings-row-appearance'
+    optional: true
+- runFlow: ../subflows/open-profile.yaml
+- assertVisible:
+    id: 'profile-screen'

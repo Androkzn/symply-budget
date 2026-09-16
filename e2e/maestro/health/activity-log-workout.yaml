@@ -1,0 +1,275 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:activity
+  - mutation
+  - regression
+  - smoke
+# Matrix: HEALTH-ACT-101 … HEALTH-ACT-109
+---
+# Activity tab — the donor's "Workouts" surface, rebuilt local-only. Sessions go
+# to MMKV (`health.workouts.v1`) and the step count to `health.steps.v1`.
+#
+# HealthKit stays disconnected throughout: the step field is typed in by hand,
+# which is the point — the migration plan requires a working HealthKit-OFF path.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-ACT-101
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-activity.yaml
+      - assertVisible: 'LOG A WORKOUT'
+
+      # --- Type today's steps (HEALTH-ACT-102) ----------------------------
+      - tapOn:
+          id: 'health-steps-input'
+      - inputText: '7200'
+      # NOT Maestro's `hideKeyboard`: it hard-FAILS on this build's decimal pad,
+      # which is what had been failing this flow — see
+      # subflows/dismiss-health-keypad.yaml for the reproduction.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'STEPS'
+      # handleSaveSteps() (HealthActivityScreen.tsx) → setStepsForDate() →
+      # healthApi.setSteps() → POST /health/entries/steps, 200 on success.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-steps-save-button'
+      # `handleSaveSteps` chains a POST then a full GET refetch
+      # (`writeThrough`, healthRepository.ts) before the UI echoes the saved
+      # value — two sequential network round-trips, not one. 10s was tight
+      # even before this suite's shared account saw today's concurrent load;
+      # reproduced 2026-08-01 timing out with the write otherwise correct.
+      - extendedWaitUntil:
+          visible: '7200'
+          timeout: 20000
+      - assertVisible:
+          id: 'health-activity-steps-bar'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /entries/steps
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Log a strength session (HEALTH-ACT-103) ------------------------
+      # `health-workout-type-strength` is local form state (setField); the
+      # write is addWorkoutEntry() → healthApi.logWorkout() → POST
+      # /health/entries/workouts, 201 on success.
+      - tapOn:
+          id: 'health-workout-type-strength'
+      - tapOn:
+          id: 'health-workout-minutes-input'
+      - inputText: '45'
+      - tapOn:
+          id: 'health-workout-calories-input'
+      - inputText: '260'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'LOG A WORKOUT'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-workout-add-button'
+      # The donor-parity workout-type port (healthWorkoutTypes.ts) renamed this
+      # chip's label from "Strength" to the donor's own "Strength Training" —
+      # the slug (`strength`, used by `health-workout-type-strength` above) is
+      # the contract, the label is not. That rename was not the whole fix,
+      # though, and matching the bare label kept failing after it landed: the
+      # quick-pick Pressable (HealthActivityScreen.tsx's QUICK_WORKOUT_TYPES
+      # row) sets its own `accessibilityLabel` ("Workout type Strength
+      # Training"), which — like every accessible RN Touchable — merges its
+      # Typography child into ONE accessibility node, so "Strength Training" is
+      # never a standalone text node on screen; it only ever appears as a
+      # substring of that longer merged label (same for the type-picker sheet's
+      # chip and the session row's "Strength Training workout, 45 min. View
+      # details"). Maestro's plain-string match is a FULL match against
+      # whichever label it lands on, not a substring one — the exact gotcha
+      # `tab-shell-five-tabs.yaml` (HEALTH-TAB-005) and
+      # `budget-households.yaml` already document — so the bare string was
+      # never going to match, on any run. `.*…*.` is this suite's established
+      # fix for it.
+      - extendedWaitUntil:
+          visible: '.*Strength Training.*'
+          timeout: 10000
+      # The empty-state copy must be gone once a session exists.
+      - assertNotVisible:
+          id: 'health-activity-empty'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /entries/workouts
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The week summary counts it (HEALTH-ACT-104) --------------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-activity-week-workouts'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-activity-week-minutes'
+      - assertVisible:
+          id: 'health-activity-week-calories'
+
+      # --- The volume chart fills in with it (HEALTH-ACT-106) -------------
+      # Charts are SVG with no readable text, so the proof is the wrapper testID
+      # plus the note that discloses the bucketing — never a chart internal.
+      - scrollUntilVisible:
+          element:
+            id: 'health-activity-volume-chart'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertNotVisible:
+          id: 'health-activity-volume-empty'
+      - assertVisible:
+          id: 'health-activity-volume-note'
+      - assertVisible: 'One bar per day, labelled by date.'
+
+      # --- Consistency + by-type read the same session (HEALTH-ACT-107) ---
+      - scrollUntilVisible:
+          element:
+            id: 'health-activity-heatmap'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # The heatmap's own "nothing logged" caption must be gone once a day carries
+      # minutes — an outlined square and a logged day cannot look alike.
+      - assertNotVisible:
+          id: 'health-activity-heatmap-empty'
+      - scrollUntilVisible:
+          element:
+            id: 'health-activity-breakdown-strength'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertNotVisible:
+          id: 'health-activity-breakdown-empty'
+
+      # --- The steps line never draws an absent day as zero (ACT-108) -----
+      # One recorded day is not a trend, and earlier runs may have left a second
+      # one: whichever is true, the card must say which — chart plus note, or the
+      # sentence. It must never be a bare axis.
+      - scrollUntilVisible:
+          element:
+            text: 'STEPS'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          when:
+            visible:
+              id: 'health-activity-steps-chart'
+          commands:
+            - assertVisible:
+                id: 'health-activity-steps-note'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-activity-steps-chart'
+          commands:
+            - assertVisible:
+                id: 'health-activity-steps-empty'
+            - assertVisible: 'One day of steps is not a trend yet — log another day to see the line.'
+
+      # --- Teardown: delete the session (HEALTH-ACT-105) ------------------
+      # Edit/delete moved off the row and onto the session detail sheet the
+      # row opens — the row itself carries only a chevron now, matching the
+      # donor's list. Delete asks first (an `Alert.alert` confirmation), so
+      # the flow taps the row, opens the sheet, and confirms.
+      #
+      # Cleared BEFORE the row is tapped, not right before "Delete": the row's
+      # detail sheet (HealthWorkoutSessionDetail.tsx) is a native
+      # `<Modal transparent={false}>`, and firing an openLink deep link while
+      # it is presented risks the same non-deterministic dismiss House's
+      # task-detail-mutations.yaml documents. Nothing between here and the
+      # confirm below fires a request, so clearing here is still a clean slate.
+      - scrollUntilVisible:
+          element:
+            id: 'health-workout-row-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-workout-row-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-detail-delete'
+          timeout: 10000
+      - tapOn:
+          id: 'health-workout-detail-delete'
+      - extendedWaitUntil:
+          visible: 'Delete Strength Training?'
+          timeout: 10000
+      # Confirming fires `onDelete(id)`: `setSelectedWorkoutId(null)` (closes
+      # the modal) runs synchronously before `handleDelete(id)` →
+      # deleteWorkoutEntry() → healthApi.deleteEntry() → DELETE
+      # /health/entries/:id, 200 on success.
+      - tapOn: 'Delete'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-activity-empty'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- And the charts empty out with it (HEALTH-ACT-109) --------------
+      # The sessions list is empty for this range, so the volume chart has to be
+      # replaced by its sentence rather than drawing a flat zero line.
+      - scrollUntilVisible:
+          element:
+            id: 'health-activity-volume-empty'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'No active minutes logged in the last 7 days.*'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

@@ -1,0 +1,42 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Opens Invite & Household, then pushes the OWNER's half (BudgetInviteCreate).
+#
+# Invite & Household used to be one screen with two collapsible sections, so
+# this subflow's job was to unfold them. They are separate screens now, pushed
+# from three rows on the hub — so the job is the same shape (get the caller to
+# the panel it needs) but the mechanism is a navigation, not a disclosure.
+#
+# The invitee's half has its own subflow (`budget-open-join.yaml`); a flow can no
+# longer be on both at once, which is what the two-device runs actually model.
+#
+# navNonce makes every open a distinct request: the navigator de-dupes by
+# `screen:itemId:navNonce`, so re-opening the same link without it is a no-op
+# and a flow that wandered off this screen would never come back.
+- openLink: simplebudget:///?screen=BudgetInvite&navNonce=${Date.now()}
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-invite-screen'
+    timeout: 30000
+# Guarded rather than tapped unconditionally: `mm-03` re-runs this subflow
+# mid-flow to recover, and a blind tap on the hub's row when the Invite screen
+# is ALREADY on top would push a second copy of it.
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-settings-create-invite'
+    commands:
+      - tapOn:
+          id: 'budget-invite-section-invite'
+      - waitForAnimationToEnd:
+          timeout: 1500
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-create-invite'
+    timeout: 15000

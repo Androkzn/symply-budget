@@ -1,0 +1,149 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:auth
+  - mutation
+  - regression
+# Matrix: BUDGET-AUTH-004/008/012 — email + password only. Google/Apple OAuth
+# CTAs are intentionally NOT exercised here (real system OAuth sheets —
+# Chrome Custom Tab on Android, in-app sheet on iOS — proved fragile/flaky in
+# CI; removed rather than chased).
+---
+# --- Signed-out login surface (AUTH-008/012) ---
+- stopApp
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before-signedout.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-AUTH-001
+- extendedWaitUntil:
+    visible:
+      id: 'auth-sign-in-email'
+    timeout: 120000
+# AUTH-012: Sign Up entry exists but accounts are provisioned externally (corner).
+- assertVisible:
+    id: 'auth-go-register'
+# The LoginScreen auto-triggers Apple/biometric sign-in on mount; on the
+# simulator (no enrolled biometrics / no Apple account) that fails and pops a
+# blocking "Sign In Failed" alert that covers the email form. Dismiss it first.
+- runFlow:
+    when:
+      visible: 'Sign In Failed'
+    commands:
+      - tapOn:
+          text: 'OK'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+# AUTH-008: expand email form then abandon — no session without submit.
+# The "Sign in with Email" button swaps itself for the email/password inputs
+# (setShowEmailForm). Tap, let the layout settle, and retry once if the input
+# hasn't mounted yet (first tap can land mid-transition on iOS 26).
+- tapOn:
+    id: 'auth-sign-in-email'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+# extendedWaitUntil self-retries and tolerates transient XCUITest viewHierarchy
+# reads during the button→inputs swap (a `runFlow when notVisible` gate here
+# forced a hierarchy read mid-transition and hit kAXErrorInvalidUIElement).
+- extendedWaitUntil:
+    visible:
+      id: 'auth-email-input'
+    timeout: 25000
+- stopApp
+- launchApp:
+    clearState: false
+# stopApp drops the Expo Dev Client ↔ Metro (:8082) session (see
+# budget-launch-logged-in.yaml's header comment — the whole reason it avoids
+# stopApp between flows). A single `when: visible: 'DEVELOPMENT SERVERS'`
+# reconnect attempt (connect-budget-metro.yaml) wasn't enough — that screen
+# doesn't reliably show, so the auth screen loads fine off the cached bundle
+# but the deep-link login below then goes to a genuinely blank screen
+# (dev-client shell alive, JS content never rendered) instead of reaching
+# budget-screen — reproduced consistently on both platforms. Reuse
+# budget-launch-logged-in.yaml wholesale instead of hand-rolling the
+# reconnect: it's the same proven multi-attempt reconnect+dismiss+login
+# sequence every other passing flow in this suite already depends on.
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 90000
+# Sign out is on PROFILE now, and only there. More carried a duplicate under its
+# own ACCOUNT heading; that section is gone with the rest of More's rows, so an
+# app that already had one sign-out button no longer has two.
+- runFlow: ../subflows/budget-open-profile.yaml
+- scrollUntilVisible:
+    element:
+      id: 'profile-sign-out'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'profile-sign-out'
+- assertVisible: 'Are you sure you want to sign out?'
+- tapOn:
+    text: 'Cancel'
+- assertVisible:
+    id: 'profile-screen'
+# Restore signed-in session for subsequent suite flows (clearKeychain above logs out).
+#
+# Cancelling the sign-out above leaves us SIGNED IN but parked on Profile (it
+# was the More tab until Sign out moved). The old tail fired
+# `openLink ${E2E_LOGIN_URL}` blindly and then handed off to
+# budget-login-email-if-needed, whose signed-in gate keys on `budget-screen`
+# alone — not visible from here — so a fully logged-in app took the logged-out
+# branch and sat on `extendedWaitUntil login-screen`, which never appears. That
+# wait hung inside the XCUITest hierarchy read (the More screen dumped ~157KB /
+# 8.5s) instead of expiring at its 90s optional timeout, so maestro-flow-run's
+# 420s no-output watchdog scored the whole flow red — the same "passing flow
+# killed by silent recovery" mode budget-recover-dashboard already documents for
+# budget-settings-screen (2026-08-10).
+#
+# So: go straight back to Home, then make the restore CONDITIONAL on actually
+# being signed out. Deliberately a back tap + direct tab tap rather than a
+# budget-recover-dashboard call — that subflow would also land us home, but it
+# evaluates dozens of `when:` gates to do it, and every gate costs one XCUITest
+# viewHierarchy snapshot. Snapshots are exactly where the driver wedges here:
+#   [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+#   t = 427.06s Find the Application 'com.symply.budget'   ← never returns
+# (maestro-driver xctest_runner log, 2026-08-18). Fewer snapshots on this screen
+# is fewer chances to hit it, so keep this tail as short as it can be.
+#
+# Profile is pushed above the tab bar, so it needs its own back tap first; the
+# tab tap after it is what lands us on the dashboard.
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- tapOn:
+    id: 'tab-index'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 30000
+    optional: true
+# Safety net — runs only if we are genuinely logged out (deep-link login failed
+# earlier, or the sign-out Cancel did not hold).
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-screen'
+    commands:
+      - openLink: ${E2E_LOGIN_URL}
+      - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+      - runFlow: ../subflows/budget-login-email-if-needed.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 90000
+- assertNotVisible:
+    id: 'auth-sign-in-email'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

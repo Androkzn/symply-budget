@@ -1,0 +1,102 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:onboarding
+  - mutation
+  - regression
+# Matrix: HOUSE-ONB-022
+#
+# The wizard has to be walkable in BOTH directions.
+#
+# This flow used to run the whole funnel and then press the hardware back key
+# once, with every assertion after it `optional: true` — which on iOS, where
+# there is no hardware back key at all, asserted nothing whatsoever. It could
+# not have caught the actual state of the screens: from "Set Up Your Home"
+# onward NONE of them drew a back control, so the only exits from a step were
+# to finish the wizard or kill the app.
+#
+# So it now drives the real chevrons, by id, and stops short of finishing
+# onboarding — the point is the middle of the flow, not its end.
+---
+- runFlow: ../subflows/launch-onboarding.yaml
+- runFlow: ../subflows/skip-onboarding-if-onboarded.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-get-started'
+    commands:
+      # ── Forward to step 3, the first screen that used to be a one-way door.
+      - tapOn:
+          id: 'onboarding-agree-terms'
+      - tapOn:
+          id: 'onboarding-get-started'
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-create-home-name'
+          timeout: 30000
+      - tapOn:
+          id: 'onboarding-create-home-name'
+      - inputText: 'E2E Back Nav Home'
+      - hideKeyboard
+      - tapOn:
+          id: 'onboarding-create-home-submit'
+      - extendedWaitUntil:
+          visible: 'Set Up Your Spaces'
+          timeout: 30000
+
+      # ── Back one step, to the home that was just named.
+      - tapOn:
+          id: 'onboarding-space-setup-back'
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-create-home-name'
+          timeout: 15000
+      # The home EXISTS by now, so the button says what it will do — and says
+      # it instead of "Create Home", which is how we know a second home is not
+      # about to be made.
+      - assertVisible: 'Save & Continue'
+
+      # ── Forward again from the header, without re-saving the form.
+      - tapOn:
+          id: 'onboarding-create-household-forward'
+      - extendedWaitUntil:
+          visible: 'Set Up Your Spaces'
+          timeout: 15000
+
+      # ── And on, with the forward chevron rather than the Skip button, to
+      #    prove the two reach the same place.
+      - tapOn:
+          id: 'onboarding-space-setup-forward'
+      # Either the AI ask (no entitlement) or whatever it forwards an entitled
+      # account to. Both are past SpaceSetup, which is the claim being made.
+      - extendedWaitUntil:
+          notVisible: 'Set Up Your Spaces'
+          timeout: 30000
+
+      # ── Back again from wherever that landed. The AI ask keeps its own back
+      #    chevron; an entitled account was `replace`d past it and lands on the
+      #    report step, which has one too.
+      - runFlow:
+          when:
+            visible:
+              id: 'onboarding-ai-provider-back'
+          commands:
+            - tapOn:
+                id: 'onboarding-ai-provider-back'
+            - extendedWaitUntil:
+                visible: 'Set Up Your Spaces'
+                timeout: 15000
+      - runFlow:
+          when:
+            visible:
+              id: 'onboarding-upload-report-back'
+          commands:
+            - tapOn:
+                id: 'onboarding-upload-report-back'
+            - extendedWaitUntil:
+                visible: 'Set Up Your Spaces'
+                timeout: 15000
+
+      # Still mid-wizard, never dropped into the app by a back tap.
+      - assertNotVisible:
+          id: 'home-up-next-section'

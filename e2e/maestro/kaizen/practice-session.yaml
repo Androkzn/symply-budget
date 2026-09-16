@@ -1,0 +1,29 @@
+appId: com.symply.kaizen
+---
+# Practice session — data-dependent. With no questions the empty state shows;
+# with a due question the composer shows and we drive answer + self-score.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/practice
+- extendedWaitUntil:
+    visible: 'Practice'
+    timeout: 20000
+# Interaction (composer path only — guarded so the empty state still passes).
+- runFlow:
+    when:
+      visible: 'Write or paste your answer…'
+    commands:
+      - tapOn: 'Write or paste your answer…'
+      - inputText: 'A structured answer covering tradeoffs.'
+      - tapOn: '4'
+      - tapOn: 'Score with AI'
+      - assertVisible: 'Submit response'
+- assertVisible: 'Practice'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

@@ -1,0 +1,144 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home-projects
+  - mutation
+  - regression
+# Matrix: HOUSE-HPROJ-015…016, 019…020 — materials list/create, AI scope, export share.
+# Selection create uses a unique E2E name; export opens share sheet then dismisses without sending.
+# AI scope is BYOK-gated — success or error alert is dismissed via OK.
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-HPROJ-015
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-home-project-hub.yaml
+- assertVisible:
+    id: 'home-project-hub-title'
+# HOUSE-HPROJ-015 — selections list / materials tab
+#
+# The three inputs and "Add with photo" used to sit permanently open under the
+# list, and this flow asserted them on arrival. They are now behind a floating
+# button that opens a five-way menu, so the tab itself shows only the list and
+# the button — everything else is a sheet.
+- tapOn:
+    id: 'hub-tab-materials'
+- assertVisible:
+    id: 'materials-add-fab'
+# HOUSE-HPROJ-016 — create selection item
+#
+# Three steps where there used to be one: the FAB, then "Add manually" out of
+# the menu, then the sheet. Each is asserted rather than assumed, so a break in
+# the middle names which of the three moved.
+- tapOn:
+    id: 'materials-add-fab'
+- extendedWaitUntil:
+    visible:
+      id: 'materials-add-menu'
+    timeout: 10000
+- tapOn:
+    id: 'materials-add-manual'
+- extendedWaitUntil:
+    visible:
+      id: 'materials-manual-sheet'
+    timeout: 10000
+- tapOn:
+    id: 'add-selection-input'
+- inputText: 'E2E Maestro Selection'
+- tapOn:
+    id: 'add-selection-price'
+- inputText: '42'
+# No keyboard dismissal here on purpose. `hideKeyboard` is unsupported in this
+# sheet, and tapping the static text "Add material" to dismiss it hits the
+# floating BUTTON of the same name instead — which opens the add menu over the
+# list, so the row saves correctly and the assertion that follows cannot see it.
+# The save button sits above the keyboard, so it needs neither.
+- tapOn:
+    id: 'materials-manual-save'
+- extendedWaitUntil:
+    visible: '.*E2E Maestro Selection.*'
+    timeout: 20000
+# HOUSE-HPROJ-019 — AI project assist (BYOK may fail closed)
+- tapOn:
+    id: 'hub-tab-plans'
+# Renamed `ai-scope-cta` → `ai-schematic-cta` when the room-surface work landed.
+# The old id had no source left at all, so this scrolled the whole tab and then
+# failed on a screen that was working — the flow named a thing that had stopped
+# existing, which is the failure mode a testID rename always produces.
+- scrollUntilVisible:
+    element:
+      id: 'ai-schematic-cta'
+    direction: DOWN
+    timeout: 15000
+    visibilityPercentage: 50
+    optional: true
+    # Centre it: the floating tab bar covers the bottom of the viewport and
+    # Maestro measures visibility against the screen, not against what
+    # overlays it, so a "visible" CTA down there can still take the tap on
+    # the tab bar and switch tabs instead.
+    centerElement: true
+- tapOn:
+    id: 'ai-schematic-cta'
+    optional: true
+- extendedWaitUntil:
+    visible: 'OK'
+    timeout: 45000
+    optional: true
+- runFlow:
+    when:
+      visible: 'OK'
+    commands:
+      - tapOn: 'OK'
+# Without a provider key the CTA raises the BYOK modal instead, whose buttons are
+# "Add AI provider" and "Maybe later" — no OK anywhere. Left up, it outlives this
+# flow and covers My Home for the next one, which then fails on a navigation that
+# was never broken. Clean up after ourselves rather than relying on the next
+# flow's `dismiss-home-project-alert` to do it.
+- runFlow:
+    when:
+      visible: '.*Maybe later.*'
+    commands:
+      - tapOn: '.*Maybe later.*'
+      - waitForAnimationToEnd:
+          timeout: 3000
+# HOUSE-HPROJ-020 — export project (share sheet → dismiss)
+- scrollUntilVisible:
+    element:
+      id: 'export-project'
+    direction: DOWN
+    timeout: 15000
+    # Centre it: the floating tab bar covers the bottom of the viewport and
+    # Maestro measures visibility against the screen, not against what
+    # overlays it, so a "visible" CTA down there can still take the tap on
+    # the tab bar and switch tabs instead.
+    centerElement: true
+- tapOn:
+    id: 'export-project'
+- waitForAnimationToEnd:
+    timeout: 8000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Close'
+    commands:
+      - tapOn: 'Close'
+- runFlow:
+    when:
+      visible: 'Cancel'
+    commands:
+      - tapOn: 'Cancel'
+- swipe:
+    start: 50%, 25%
+    end: 50%, 95%
+    optional: true
+- assertVisible:
+    id: 'home-project-hub-title'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

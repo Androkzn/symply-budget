@@ -1,0 +1,65 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: HOUSE-MM-023 — both members edit the SAME row at the same time.
+# Runs on BOTH devices AT THE SAME TIME.
+#
+# Each device blocks its own network FIRST, so neither has seen the other's
+# write when it makes its own — a real concurrent edit, not a sequential one.
+# Then both unblock and sync until they stop changing.
+#
+# This flow deliberately does NOT assert which value wins. With both edits
+# landing in the same instant the winner is whichever HLC is higher, and
+# hard-coding that would be asserting this machine's timing rather than the
+# merge rule. The runner reads the final title off BOTH devices afterwards and
+# requires them to agree on exactly one of the two candidates — that is the
+# property TRD §8.4 (LWW-by-HLC) actually promises, and it is a stronger check
+# than an expected value.
+#
+# env: MM_ANCHOR   the stable substring identifying the contested task
+#      MM_TITLE_IN the title it currently has (anchor + " v2")
+#      MM_TITLE_OUT the title THIS device sets (anchor + " A88" | " B94")
+#
+# onFlowComplete unblocks the network unconditionally: a device left blocked by
+# a mid-flow failure poisons every later phase with what looks like a dead relay.
+onFlowComplete:
+  - runFlow: mm-network-block-off.yaml
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-go-tasks.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE_IN}.*'
+    timeout: 30000
+
+# Go dark BEFORE editing so this device cannot learn of the peer's edit.
+- runFlow: mm-network-block-on.yaml
+- runFlow:
+    file: mm-edit-task-title.yaml
+    env:
+      MM_OPEN_TITLE: ${MM_TITLE_IN}
+      MM_NEW_TITLE: ${MM_TITLE_OUT}
+- runFlow: mm-go-tasks.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE_OUT}.*'
+    timeout: 30000
+- assertVisible: '.*${MM_TITLE_OUT}.*'
+
+# Back online — exchange until both sides have each other's op.
+- runFlow: mm-network-block-off.yaml
+- repeat:
+    times: 12
+    commands:
+      - runFlow: mm-sync-pulse.yaml
+      - runFlow: mm-dismiss-stale-alerts.yaml
+      - runFlow: mm-relaunch-if-backgrounded.yaml
+- runFlow: mm-go-tasks.yaml
+# The contested row still exists under its stable anchor. WHICH token it now
+# carries is decided by the runner reading both devices, not here.
+- extendedWaitUntil:
+    visible: '.*${MM_ANCHOR}.*'
+    timeout: 30000
+- assertVisible: '.*${MM_ANCHOR}.*'

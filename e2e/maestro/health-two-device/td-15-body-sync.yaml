@@ -1,0 +1,185 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+  - feature:body
+  - mutation
+# Matrix: HEALTH-TD-015 — Wave A table 5/8: `bodyMeasurements`
+# (`body_measurements`).
+#
+# ⚠️ WHAT "MODIFY" MEANS HERE. `HealthBodyScreen` has NO edit affordance — there
+# is no `health-body-edit-*` anywhere on the screen; correcting a reading is
+# delete-and-re-add by design. But the TODAY card is keyed by METRIC
+# (`health-body-day-row-${metric}`, not by row id), so re-logging the same metric
+# on the same day REPLACES what that row displays. That is a genuine projection
+# update reaching the peer, and it is the strongest modify statement this surface
+# supports. Recorded here rather than silently substituted.
+#
+# The metric is `waist` throughout: it is a plain length (so the cm/in toggle is
+# live rather than the `health-body-percent-badge` path) and it is not one of the
+# left/right pairs whose labels differ only by a word.
+#
+# Delete is `health-body-day-remove-waist`, which fires IMMEDIATELY — there is no
+# `Alert.alert` anywhere in this screen.
+#
+# env: TD_ROLE, TD_PHASE, TD_VALUE / TD_VALUE2 (cm), TD_EXPECT
+---
+- runFlow: td-launch.yaml
+
+# ==========================================================================
+# WRITE — device A
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'write'}
+    commands:
+      - runFlow: ../health/subflows/go-health-body.yaml
+      # Anchor on today, not on whatever day a previous flow left selected —
+      # the day card is what both devices compare.
+      - tapOn:
+          id: 'health-body-today-button'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2000
+
+      # --- create / modify share the same write path (see the header) -----
+      - runFlow:
+          when:
+            true: ${TD_PHASE != 'delete'}
+          commands:
+            - runFlow:
+                file: ../health/subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: health-body-metric-waist
+                  SCROLL_DIR: down
+            - tapOn:
+                id: 'health-body-metric-waist'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-body-value-input'
+                timeout: 15000
+            - tapOn:
+                id: 'health-body-unit-cm'
+                optional: true
+            - tapOn:
+                id: 'health-body-value-input'
+            - eraseText: 12
+            - runFlow:
+                when:
+                  true: ${TD_PHASE == 'create'}
+                commands:
+                  - inputText: ${TD_VALUE}
+            - runFlow:
+                when:
+                  true: ${TD_PHASE == 'modify'}
+                commands:
+                  - inputText: ${TD_VALUE2}
+            # NOT `hideKeyboard` — decimal-pad, which that command hard-FAILS on.
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'MEASUREMENTS'
+            - tapOn:
+                id: 'health-body-add-button'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-body-day-row-waist'
+                timeout: 30000
+            - assertVisible:
+                id: 'health-body-day-row-waist'
+                text: '.*${TD_EXPECT}.*'
+
+      # --- delete ---------------------------------------------------------
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'delete'}
+          commands:
+            - runFlow:
+                file: ../health/subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: health-body-day-row-waist
+                  SCROLL_DIR: down
+            - tapOn:
+                id: 'health-body-day-remove-waist'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'health-body-day-row-waist'
+                timeout: 30000
+            - assertNotVisible:
+                id: 'health-body-day-row-waist'
+
+      - runFlow: td-sync-nudge.yaml
+
+# ==========================================================================
+# OBSERVE — device B
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'observe'}
+    commands:
+      - runFlow: ../health/subflows/go-health-body.yaml
+      - tapOn:
+          id: 'health-body-today-button'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          when:
+            true: ${TD_PHASE != 'delete'}
+          commands:
+            - repeat:
+                times: 20
+                commands:
+                  - runFlow:
+                      when:
+                        notVisible:
+                          id: 'health-body-day-row-waist'
+                          text: '.*${TD_EXPECT}.*'
+                      commands:
+                        - runFlow: td-sync-nudge.yaml
+                        - runFlow: ../health/subflows/go-health-body.yaml
+                        - tapOn:
+                            id: 'health-body-today-button'
+                            optional: true
+                        - runFlow:
+                            file: ../health/subflows/health-swipe-section-to.yaml
+                            env:
+                              TARGET_ID: health-body-day-row-waist
+                              SCROLL_DIR: down
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-body-day-row-waist'
+                  text: '.*${TD_EXPECT}.*'
+                timeout: 45000
+            - assertVisible:
+                id: 'health-body-day-row-waist'
+                text: '.*${TD_EXPECT}.*'
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'delete'}
+          commands:
+            - repeat:
+                times: 20
+                commands:
+                  - runFlow:
+                      when:
+                        visible:
+                          id: 'health-body-day-row-waist'
+                      commands:
+                        - runFlow: td-sync-nudge.yaml
+                        - runFlow: ../health/subflows/go-health-body.yaml
+                        - tapOn:
+                            id: 'health-body-today-button'
+                            optional: true
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'health-body-day-row-waist'
+                timeout: 45000
+            - assertNotVisible:
+                id: 'health-body-day-row-waist'
+            # The empty-state copy is the positive half of the same statement:
+            # the row is gone because the day is empty, not because the card
+            # failed to render.
+            - assertVisible:
+                id: 'health-body-day-empty'

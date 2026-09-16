@@ -1,0 +1,59 @@
+{
+  "$description": "Shared layout tokens — brands MUST NOT override. DTCG-shaped for Tokens Studio later.",
+  "spacing": {
+    "xxs": { "$type": "dimension", "$value": 2 },
+    "xs": { "$type": "dimension", "$value": 4 },
+    "sm": { "$type": "dimension", "$value": 8 },
+    "smd": { "$type": "dimension", "$value": 10 },
+    "md": { "$type": "dimension", "$value": 12 },
+    "base": { "$type": "dimension", "$value": 16 },
+    "lg": { "$type": "dimension", "$value": 20 },
+    "xl": { "$type": "dimension", "$value": 24 },
+    "xxl": { "$type": "dimension", "$value": 32 }
+  },
+  "radii": {
+    "xs": { "$type": "dimension", "$value": 4 },
+    "sm": { "$type": "dimension", "$value": 8 },
+    "md": { "$type": "dimension", "$value": 12 },
+    "lg": { "$type": "dimension", "$value": 16 },
+    "xl": { "$type": "dimension", "$value": 20 },
+    "full": { "$type": "dimension", "$value": 9999 }
+  },
+  "typography": {
+    "display": {
+      "size": { "$type": "dimension", "$value": 34 },
+      "weight": { "$type": "fontWeight", "$value": "700" },
+      "lineHeight": { "$type": "dimension", "$value": 41 },
+      "letterSpacing": { "$type": "dimension", "$value": -0.5 }
+    },
+    "heading": {
+      "size": { "$type": "dimension", "$value": 28 },
+      "weight": { "$type": "fontWeight", "$value": "600" },
+      "lineHeight": { "$type": "dimension", "$value": 34 },
+      "letterSpacing": { "$type": "dimension", "$value": -0.3 }
+    },
+    "title": {
+      "size": { "$type": "dimension", "$value": 24 },
+      "weight": { "$type": "fontWeight", "$value": "600" },
+      "lineHeight": { "$type": "dimension", "$value": 30 }
+    },
+    "body": {
+      "size": { "$type": "dimension", "$value": 16 },
+      "weight": { "$type": "fontWeight", "$value": "400" },
+      "lineHeight": { "$type": "dimension", "$value": 22 }
+    },
+    "caption": {
+      "size": { "$type": "dimension", "$value": 13 },
+      "weight": { "$type": "fontWeight", "$value": "400" },
+      "lineHeight": { "$type": "dimension", "$value": 18 }
+    }
+  },
+  "fonts": {
+    "family": {
+      "regular": { "$type": "fontFamily", "$value": "System" },
+      "medium": { "$type": "fontFamily", "$value": "System" },
+      "bold": { "$type": "fontFamily", "$value": "System" }
+    },
+    "nativeDesign": { "$type": "string", "$value": "default" }
+  }
+}

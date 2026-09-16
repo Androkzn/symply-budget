@@ -1,0 +1,26 @@
+appId: com.symply.kaizen
+---
+# Memory — the coach-context store. Approve/Archive appear per saved memory;
+# empty accounts show the empty state (both paths pass).
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/memory
+- extendedWaitUntil:
+    visible: 'Memory'
+    timeout: 20000
+- assertVisible: 'Saved memories'
+# Interaction: approve a pending memory when one exists.
+- runFlow:
+    when:
+      visible: 'Approve'
+    commands:
+      - tapOn: 'Approve'
+      - assertVisible: 'Approved'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

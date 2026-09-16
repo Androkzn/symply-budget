@@ -1,0 +1,133 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: BUDGET-MM-004 — owner approves the join request by matching digits.
+#
+# env: MM_SAS — the six digits the INVITEE's device derived and displayed,
+# carried here from its dev log. Asserting them on this screen is the real
+# check: this device derived its own from what the control plane reported the
+# invitee's keys to be, so the two agreeing means the control plane relayed the
+# real key rather than substituting one it could decrypt with.
+#
+# Approve lives on Settings → Invite & Household, and the key deposit that
+# follows on Settings → Device Sync; both are reached by deep link.
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: ../subflows/budget-open-invite.yaml
+# "Check for join requests" is the LAST control on this screen, under the
+# invite-created card (code, secret, expiry) and the outstanding-invites panel.
+# It is below the fold on arrival, so tapping it straight after navigating finds
+# nothing — which is what failed here once a real claim finally existed to
+# approve. Scroll to it first, the same way the panel below is reached.
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-join-requests'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    id: 'budget-settings-join-requests'
+    retryTapIfNoChange: true
+# Nothing pending is a legitimate outcome: the invitee's device claims once, so
+# on a re-run there is no request left to approve. Only assert the approval flow
+# when a request is actually waiting.
+# WAIT for the header, and gate on the header itself — never on the panel id,
+# and never with a point-in-time assert.
+#
+# Two separate failures were folded into the old three lines here, and both read
+# as "the owner never saw the request" against an app that had rendered it
+# perfectly:
+#
+#  1. WRONG DIRECTION. This scrolled DOWN for a panel that renders at the TOP.
+#     Reaching "Check for join requests" (the LAST control) leaves the list at
+#     the bottom, so the panel lands far above the fold; scrolling DOWN moved it
+#     further away, and `scrollUntilVisible` stopped anyway because the panel's
+#     own testID was partially on screen. Captured hierarchy: panel at
+#     [16,-160][386,88], header off the top, approve button fully visible at
+#     [33,21][369,71].
+#
+#  2. ASSERTING THROUGH A TRANSITION. Tapping "Check for join requests" pops back
+#     to the Invite & Household hub, and for a frame or two mid-navigation the
+#     app window snapshots EMPTY — the captured hierarchy held three status-bar
+#     nodes and nothing else, and the screenshot was a blank white screen. The
+#     panel id matched a moment earlier, the guard opened, and the assert inside
+#     then fired into that gap. No crash: the xctest log kept snapshotting
+#     com.symply.budget throughout, and a screenshot taken after the run shows
+#     the header, the claimant, the SAS and the approve button all correct.
+#
+# So: gate on 'Waiting to join' via extendedWaitUntil, which RETRIES until it
+# appears instead of sampling once. That covers the render, the navigation and
+# the poll that populates the list, and it keeps "nothing pending" a legitimate
+# outcome on a re-run — the guard simply does not open.
+- waitForAnimationToEnd:
+    timeout: 3000
+# Optional, and harmless when the panel is already at the top: it only matters
+# when the hub restores a scrolled position.
+- scrollUntilVisible:
+    element:
+      text: 'Waiting to join'
+    direction: UP
+    centerElement: true
+    timeout: 10000
+    optional: true
+- extendedWaitUntil:
+    visible: 'Waiting to join'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Waiting to join'
+    commands:
+      - assertVisible: 'Waiting to join'
+      # Not optional: digits that do not match mean the two devices disagree
+      # about the key being enrolled, and approving anyway is the exact bug this
+      # guards. Shown grouped ("123 456"), hence the surrounding wildcards.
+      - assertVisible: '.*${MM_SAS}.*'
+      - tapOn:
+          id: 'budget-settings-approve-request'
+      - extendedWaitUntil:
+          visible: 'Device approved'
+          timeout: 45000
+      - assertVisible: 'Device approved'
+      - tapOn:
+          text: '^OK$'
+          optional: true
+# Clear the "nothing pending" alert UNCONDITIONALLY.
+#
+# Tapping "See who is waiting" with nothing waiting raises a native alert
+# ("No one is waiting to join right now." / OK). iOS renders UIAlertController
+# in its own window, so Maestro cannot see it — `idb ui describe-all` returns
+# just the alert's 4 elements while Maestro reads the app window behind it. That
+# makes `when: visible: 'No one is waiting to join'` unreliable: it SKIPPED here,
+# the alert stayed up, and it then swallowed every later step — including the
+# tap for "Sync now", which reported "element not found" several steps away from
+# the real cause.
+#
+# Don't gate a dismissal on seeing the thing being dismissed. An optional tap
+# costs nothing when no alert is present.
+- tapOn:
+    text: '^OK$'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000
+# Deposit the wrapped household key for the newly approved device.
+- runFlow: ../subflows/budget-open-sync.yaml
+- tapOn:
+    id: 'budget-settings-sync-now'
+- waitForAnimationToEnd:
+    timeout: 12000
+# Unconditional: Maestro cannot see a native alert (iOS renders it in its own
+# window), so gating the dismissal on `visible: 'OK'` skips it and the alert
+# then swallows every later step. An optional tap is a no-op when absent.
+- tapOn:
+    text: '^OK$'
+    optional: true

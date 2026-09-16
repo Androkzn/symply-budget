@@ -1,0 +1,53 @@
+appId: ${APP_ID}
+tags:
+  - util
+  - app:budget
+---
+# Pick the photo that was just pushed with addMedia, then run Scan.
+# Callers MUST addMedia the intended fixture immediately before this flow —
+# iOS seed-order otherwise picks the wrong (most recent) library photo.
+# Do NOT set E2E_VERIFY_PATH=/budget/receipts/scan (Budget-A is local-first).
+- tapOn:
+    id: 'budget-receipt-remove'
+    optional: true
+- tapOn:
+    id: 'budget-receipt-gallery'
+- runFlow: pick-photo-from-library.yaml
+# Both waits are NON-optional. As `optional: true` they let a failed photo pick
+# and a failed scan slide straight into the caller's assertions, so the real
+# cause surfaced later as a confusing "budget-receipt-name not found".
+- extendedWaitUntil:
+    visible:
+      id: 'budget-receipt-remove'
+    timeout: 20000
+- tapOn:
+    id: 'budget-receipt-scan-button'
+# Wait on the CURRENCY CARD, then scroll to the first item row.
+#
+# Neither Save nor the first item name works as the "scan returned" signal any
+# more, and both failures look like a scan that did not happen:
+#   * Save lives below the summary and is off-screen the moment a scan returns
+#     real items + chips + fee pills (2026-08-15, BCL: store, deposit and $3.60
+#     tax all rendered correctly behind the fold).
+#   * `budget-receipt-name` was the replacement, and the receipt-currency card
+#     has since taken the top of the review — for a FOREIGN receipt it is four
+#     rows tall (currency, rate, charged total, provenance caption), which
+#     pushes the first item's name past an iPhone viewport. Maestro's `visible`
+#     means in the viewport, not merely in the hierarchy, so this timed out on a
+#     scan that had completely succeeded (2026-09-07).
+#
+# The card is the honest signal: it renders exactly when `scan` is set, for every
+# receipt including domestic ones, and sits at the top so it is always in view.
+# The scroll then reaches the review the callers actually assert against.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-receipt-currency-card'
+    timeout: 90000
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-name'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    text: 'OK'
+    optional: true

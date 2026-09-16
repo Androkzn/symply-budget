@@ -1,0 +1,57 @@
+# Clear a presented bottom sheet, if one is up. No-op when there isn't.
+#
+# WHY EVERY NAVIGATION SUBFLOW NEEDS THIS.
+#
+# A `BottomSheet` can end up presented with NO content in it — the defect
+# written up in `src/components/ui/BottomSheet.tsx`, where the body collapses to
+# zero height and the rows lay out past the screen edge, where `overflow: hidden`
+# clips them. On device it reads as "sheet open, contents blank".
+#
+# The blank sheet still covers the screen. So `tab-index` and every other tab
+# target sits behind it, taps land on the backdrop, and the flow fails on an
+# element the app is rendering perfectly well — usually several steps later and
+# somewhere unrelated. That one mechanism produced a long trail of unrelated-
+# looking failures: an assignee tap that "did nothing", `tasks-screen` missing,
+# `home-up-next-add-task` not found.
+#
+# A blank sheet has no close button to press, so the exits are, in order: a real
+# close control if the sheet does have content, a swipe down on the frame, and a
+# backdrop tap above it. All optional — on the normal path this whole file is a
+# no-op costing one `visible` check.
+#
+# Kept as ONE subflow rather than copied into each `go-*-tab.yaml`: it was
+# originally fixed in `go-home-tab` alone, and `schedule-and-copy` then failed in
+# `go-tasks-tab` on exactly the same blank sheet.
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+- runFlow:
+    when:
+      visible:
+        id: 'bottom-sheet-frame'
+    commands:
+      - tapOn:
+          id: 'task-detail-close'
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'bottom-sheet-frame'
+          commands:
+            - swipe:
+                start: '50%, 35%'
+                end: '50%, 95%'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible:
+              id: 'bottom-sheet-frame'
+          commands:
+            # Backdrop: above the sheet, which starts part-way down the screen.
+            - tapOn:
+                point: '50%, 8%'
+            - waitForAnimationToEnd:
+                timeout: 2000

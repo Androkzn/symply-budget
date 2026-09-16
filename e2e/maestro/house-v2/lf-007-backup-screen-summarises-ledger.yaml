@@ -1,0 +1,68 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-007
+---
+# WHAT THIS PROVES
+# ----------------
+# The Backup screen answers, without any tapping, the three questions a member
+# arrives with: which home is this about, am I safe right now, and what is
+# actually inside a backup.
+#
+# WHY THAT MATTERS
+# ----------------
+# The counts and the attachment manifest are read from the SELECTED home's
+# ledger, which means hydrating it — the one part of this screen that can be
+# slow and the one part that can silently render nothing. A render test can
+# assert the branch; only a device run proves the ledger opens on real hardware
+# and the numbers arrive.
+#
+# `house-backup-blob-manifest` is the load-bearing one (Q15): attachment BYTES
+# are not in the archive, only their descriptors. A member who believes the file
+# holds their photos and later finds it does not has been misled by this screen,
+# so the sentence must be on it before anyone relies on the file.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-007
+- runFlow: lf-backup-open-backup-screen.yaml
+# Maestro has no `finally`, so a previous flow that failed mid-way can leave the
+# schedule armed and the screen longer than this one expects. Cleanup is a
+# precondition here, not a postcondition — see lf-backup-reset-state.yaml.
+- runFlow: lf-backup-reset-state.yaml
+- assertVisible:
+    id: 'house-backup-screen'
+- assertVisible:
+    id: 'house-backup-property-picker'
+- assertVisible:
+    id: 'house-backup-status-card'
+- assertVisible:
+    id: 'house-backup-now'
+# Nothing destructive is armed on entry.
+- assertNotVisible:
+    id: 'house-backup-restore-phrase-panel'
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-summary'
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- assertVisible:
+    id: 'house-backup-summary-total'
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-blob-manifest'
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- assertVisible:
+    id: 'house-backup-blob-manifest'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

@@ -1,0 +1,6 @@
+# Maestro workspace config for Symply House.
+# Flows live in sibling feature dirs; run-house-suite.sh passes those dirs explicitly.
+excludeTags:
+  - util
+executionOrder:
+  continueOnFailure: true

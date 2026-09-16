@@ -1,0 +1,311 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:tasks
+  - mutation
+  - regression
+  - smoke
+# Matrix: HOUSE-tasks (see documents/engineering/testing/matrices/)
+---
+# TaskDetailScreen mutating actions beyond complete (which is already covered by Jest).
+# Drives the reversible / cancellable mutations so no task is destroyed:
+#   • Pause/Resume (tasksApi.update PATCH {is_active}) — toggle then toggle back.
+#   • Report a blocker (opens inline input) — open then Cancel (no POST /block fired).
+#   • Assignee picker (tasksApi.update PATCH {assigned_to}) — open sheet then dismiss.
+#   • Delete (tasksApi.delete DELETE) — tap → confirm Alert → Cancel (task preserved).
+#
+# Structure note: TaskDetailScreen is a *native modal* (closed via
+# task-detail-close, not nav-back-button). openLink calls (e2e-clear-log,
+# e2e-verify-network) while it's open can non-deterministically dismiss it
+# back to Home, and the E2EVerifyBadge itself is unreachable to Maestro while
+# any modal covers the root view — see maestro-openlink-can-dismiss-modals
+# and maestro-badge-modal-visibility-limitation in project memory. So each
+# section below: act on the modal → CLOSE it → verify on the now-safe Home
+# screen (native assertVisible works again) → reopen for the next section.
+# This also minimizes openLink calls fired while a modal is on screen to the
+# one unavoidable e2e-clear-log before each action.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-TASK-017
+- runFlow: ../subflows/open-task-detail.yaml
+- assertVisible:
+    id: 'task-detail-edit'
+
+# Pause (reversible update) — verify the write went to the LEDGER, not the
+# Worker. `tasksApi` is wrapped by `createHouseLocalProxy` (src/api/tasks.ts:759)
+# with no `remoteMethods` and `strict` left at its default, so `tasksApi.update`
+# resolves to `localTasksApi.update` (localTasksApi.ts:956) and PATCH
+# /households/:id/tasks/:id must never be issued. This block previously asserted
+# the PATCH *succeeded* on the server — a contract that certifies a local-first
+# fallthrough as a pass.
+- runFlow:
+    when:
+      visible:
+        id: 'task-detail-pause'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'task-detail-pause'
+          timeout: 8000
+      - tapOn:
+          id: 'task-detail-pause'
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - tapOn:
+          id: 'task-detail-close'
+          optional: true
+      - extendedWaitUntil:
+          notVisible:
+            id: 'task-detail-screen'
+          timeout: 8000
+          optional: true
+      # Local-first: tasksApi.update is served on-device, so the assertion is
+      # the ABSENCE of the PATCH (was e2e-verify-network + status 200).
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: PATCH
+            E2E_VERIFY_PATH: /tasks/
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      # The badge CANNOT be asserted here — the task-detail modal is still open.
+      #
+      # `E2EVerifyBadge` is mounted once at the app root, so a React Navigation
+      # native modal on top of it drops it from the accessibility tree Maestro
+      # reads. Its own header says so ("For flows that verify actions taken on a
+      # modal-presented screen, don't assert this badge"), and so does this
+      # file's header — the assertion was added anyway and could only ever time
+      # out. Confirmed 2026-08-28: the hierarchy at the failure held
+      # `bottom-sheet-frame`, `task-detail-screen` and every task-detail
+      # control, and no `e2e-verify-badge` at all.
+      #
+      # The verification still runs; `e2e-verify-no-network` fires the deep link
+      # and the result lands on the [E2E-VERIFY] console line that
+      # generate-report.mjs reads. Only the on-screen assertion is dropped.
+
+# Resume (toggle back) — reopen fresh, same local-first verification pattern.
+- runFlow: ../subflows/open-task-detail.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'task-detail-pause'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'task-detail-pause'
+          timeout: 8000
+      - tapOn:
+          id: 'task-detail-pause'
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - tapOn:
+          id: 'task-detail-close'
+          optional: true
+      - extendedWaitUntil:
+          notVisible:
+            id: 'task-detail-screen'
+          timeout: 8000
+          optional: true
+      # Local-first: tasksApi.update is served on-device, so the assertion is
+      # the ABSENCE of the PATCH (was e2e-verify-network + status 200).
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: PATCH
+            E2E_VERIFY_PATH: /tasks/
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      # The badge CANNOT be asserted here — the task-detail modal is still open.
+      #
+      # `E2EVerifyBadge` is mounted once at the app root, so a React Navigation
+      # native modal on top of it drops it from the accessibility tree Maestro
+      # reads. Its own header says so ("For flows that verify actions taken on a
+      # modal-presented screen, don't assert this badge"), and so does this
+      # file's header — the assertion was added anyway and could only ever time
+      # out. Confirmed 2026-08-28: the hierarchy at the failure held
+      # `bottom-sheet-frame`, `task-detail-screen` and every task-detail
+      # control, and no `e2e-verify-badge` at all.
+      #
+      # The verification still runs; `e2e-verify-no-network` fires the deep link
+      # and the result lands on the [E2E-VERIFY] console line that
+      # generate-report.mjs reads. Only the on-screen assertion is dropped.
+
+# Assignee picker open — verify it renders (KNOWN GAP: not verifying Cancel
+# is a no-op here). AssigneePickerSheet (src/components/tasks/
+# AssigneePickerSheet.tsx) uses the shared BottomSheet WITHOUT
+# showCloseButton and has no "Cancel" text, and three different dismiss
+# attempts (bottom-sheet-close, backdrop-tap-by-point, task-detail-close)
+# all failed to reliably close it in testing 2026-07-31 — see
+# maestro-assignee-sheet-dismiss-unresolved in project memory. Rather than
+# keep guessing at the real dismiss mechanism, this section only confirms
+# the picker opens with the current assignee checked; a follow-up should
+# find BottomSheet's actual reliable programmatic-dismiss path (possibly a
+# swipe gesture, which Maestro's tapOn can't simulate) and restore the
+# Cancel/no-PATCH verification. open-task-detail.yaml's own go-home-tab
+# fallback (openLink-based) recovers navigation for the next section either way.
+- runFlow: ../subflows/open-task-detail.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'task-detail-assignee'
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'task-detail-assignee'
+          timeout: 8000
+      - tapOn:
+          id: 'task-detail-assignee'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - assertVisible:
+          text: 'Assign task'
+
+# Report a blocker: open inline input, then Cancel — verify no POST /block fired.
+- runFlow: ../subflows/open-task-detail.yaml
+- scrollUntilVisible:
+    element:
+      id: 'task-detail-report-blocker'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'task-detail-report-blocker'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'task-detail-report-blocker'
+          timeout: 8000
+      - tapOn:
+          id: 'task-detail-report-blocker'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          when:
+            visible: 'Cancel'
+          commands:
+            - tapOn: 'Cancel'
+      - tapOn:
+          id: 'task-detail-close'
+          optional: true
+      - extendedWaitUntil:
+          notVisible:
+            id: 'task-detail-screen'
+          timeout: 8000
+          optional: true
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /block
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      # The badge CANNOT be asserted here — the task-detail modal is still open.
+      #
+      # `E2EVerifyBadge` is mounted once at the app root, so a React Navigation
+      # native modal on top of it drops it from the accessibility tree Maestro
+      # reads. Its own header says so ("For flows that verify actions taken on a
+      # modal-presented screen, don't assert this badge"), and so does this
+      # file's header — the assertion was added anyway and could only ever time
+      # out. Confirmed 2026-08-28: the hierarchy at the failure held
+      # `bottom-sheet-frame`, `task-detail-screen` and every task-detail
+      # control, and no `e2e-verify-badge` at all.
+      #
+      # The verification still runs; `e2e-verify-no-network` fires the deep link
+      # and the result lands on the [E2E-VERIFY] console line that
+      # generate-report.mjs reads. Only the on-screen assertion is dropped.
+
+# Delete → confirm Alert → Cancel — verify no DELETE call fired (task preserved
+# in the UI is not proof; only the absent network call is).
+- runFlow: ../subflows/open-task-detail.yaml
+- scrollUntilVisible:
+    element:
+      id: 'task-detail-delete'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'task-detail-delete'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'task-detail-delete'
+          timeout: 8000
+      - tapOn:
+          id: 'task-detail-delete'
+      - extendedWaitUntil:
+          visible: 'Cancel'
+          timeout: 10000
+      - tapOn: 'Cancel'
+      - tapOn:
+          id: 'task-detail-close'
+          optional: true
+      - extendedWaitUntil:
+          notVisible:
+            id: 'task-detail-screen'
+          timeout: 8000
+          optional: true
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /tasks/
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      # The badge CANNOT be asserted here — the task-detail modal is still open.
+      #
+      # `E2EVerifyBadge` is mounted once at the app root, so a React Navigation
+      # native modal on top of it drops it from the accessibility tree Maestro
+      # reads. Its own header says so ("For flows that verify actions taken on a
+      # modal-presented screen, don't assert this badge"), and so does this
+      # file's header — the assertion was added anyway and could only ever time
+      # out. Confirmed 2026-08-28: the hierarchy at the failure held
+      # `bottom-sheet-frame`, `task-detail-screen` and every task-detail
+      # control, and no `e2e-verify-badge` at all.
+      #
+      # The verification still runs; `e2e-verify-no-network` fires the deep link
+      # and the result lands on the [E2E-VERIFY] console line that
+      # generate-report.mjs reads. Only the on-screen assertion is dropped.
+
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

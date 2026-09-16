@@ -1,0 +1,38 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:multi-member
+---
+# Foreground the Dev Client if Maestro is looking at SpringBoard.
+#
+# Observed on the Budget pair 2026-08-12 (mm-20, both devices): the simulators
+# were on the iOS home screen while the flow still thought it was inside the
+# item form. `openLink` and `hideKeyboard` can background the Expo client on
+# iOS 26; a later assert then fails on a selector that is not in the hierarchy
+# because the app is not running — which reads as a product bug and is not one.
+#
+# Fingerprint SpringBoard via the Fitness icon: the app's own name can appear
+# INSIDE the app, so matching on that alone would relaunch while running.
+# Soft launch, no clearState — the local ledger is the thing under test.
+- runFlow:
+    when:
+      visible: 'Fitness'
+    commands:
+      - runFlow:
+          when:
+            visible: '^Symply House$'
+          commands:
+            - launchApp:
+                permissions:
+                  all: allow
+                  faceid: allow
+            - openLink: ${E2E_METRO_DEVCLIENT_URL}
+            - waitForAnimationToEnd:
+                timeout: 8000
+            - runFlow: mm-dismiss-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'home-screen'
+                timeout: 45000
+                optional: true

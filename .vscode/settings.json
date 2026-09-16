@@ -1,0 +1,22 @@
+{
+  "typescript.preferences.includePackageJsonAutoImports": "off",
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
+  "typescript.validate.enable": true,
+  "typescript.tsserver.watchOptions": {
+    "excludeDirectories": [
+      "**/node_modules",
+      "**/node_modules/**"
+    ]
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true
+  },
+  "typescript.tsserver.maxTsServerMemory": 4096,
+
+  "// gradle": "RN/Expo native builds go through npm/expo/EAS, not VSCode. Disable the Gradle build server + task auto-detect so it stops importing node_modules/*/android and flooding the output with configure errors.",
+  "java.gradle.buildServer.enabled": "off",
+  "gradle.autoDetect": "off"
+}

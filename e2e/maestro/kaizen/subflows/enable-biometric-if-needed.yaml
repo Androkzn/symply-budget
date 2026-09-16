@@ -1,0 +1,20 @@
+appId: com.symply.kaizen
+---
+# Enable Face ID / Touch ID from the post-login enrollment sheet (match loop
+# in scripts/run-e2e-biometric.sh satisfies the system prompt).
+- runFlow:
+    when:
+      visible:
+        id: 'auth-biometric-enable'
+    commands:
+      - tapOn:
+          id: 'auth-biometric-enable'
+      - waitForAnimationToEnd:
+          timeout: 12000
+- runFlow:
+    when:
+      visible: 'Enable Face ID'
+    commands:
+      - tapOn: 'Enable Face ID'
+      - waitForAnimationToEnd:
+          timeout: 12000

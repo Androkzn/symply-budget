@@ -1,0 +1,30 @@
+# NBR-003 — the add sheet, and the order of its doors.
+#
+# Three ways in, and the order is the design: pick on the map first (the fastest
+# and the one the feature is built around), contacts second, typing by hand last.
+# A regression that reorders them, or drops one, is invisible to every other test.
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:neighbours
+  - readonly
+  - regression
+# Matrix: HOUSE-NBR-004
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-neighbours.yaml
+- tapOn:
+    id: 'neighbours-add-fab'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbours-add-sheet'
+    timeout: 15000
+- assertVisible:
+    id: 'neighbours-add-map'
+- assertVisible:
+    id: 'neighbours-add-contacts'
+- assertVisible:
+    id: 'neighbours-add-manual'
+# Regex: the row is one accessible button labelled "<title>. <subtitle>", so the
+# subtitle is only ever seen as part of the longer string.
+- assertVisible: '.*Tap the house — we fill in the address.*'

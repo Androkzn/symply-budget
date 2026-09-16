@@ -1,0 +1,222 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:settings
+  - mutation
+  - regression
+# Matrix: BUDGET-HH-015/016/018/025 — households scroll, offline create (which
+# SUCCEEDS now: see the HH-016 section below), open-to-edit, manage members
+# Safety net: guarantees airplane mode is off when this flow ends even if a
+# non-optional assertion fails before reaching its own offline-off call in the
+# body (see budget-offline-sweep.yaml for the observed cross-flow cascade).
+onFlowComplete:
+  - runFlow: ../subflows/budget-offline-off.yaml
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-HH-010
+# Profile → Invite & Household → Households. More's ACCOUNT section is gone
+# (More is the overflow-tabs hub now) and the household hub lives under Profile's
+# SYNC & SHARING; budget-go-households.yaml is that walk, kept in one place.
+- runFlow: ../subflows/budget-go-households.yaml
+- extendedWaitUntil:
+    visible: 'Households'
+    timeout: 20000
+# Scroll contract (HH-015)
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: budget-households-screen-scroll-end
+# Edit a household (HH-018) — a TAP now, not a swipe.
+#
+# Renaming used to live behind a swipe-left on the card, revealing an Edit
+# button that opened a bottom sheet. A swipe is invisible until performed,
+# unreachable by a screen reader, undiscovered by most members, and — here — a
+# gesture whose failure looks exactly like a stale assertion: the `swipe` step
+# was `optional: true`, so this row asserted nothing at all for as long as it
+# existed. The card now opens the household's own page, and the page is a real
+# destination that can be waited for.
+- runFlow:
+    when:
+      visible:
+        id: 'household-card-.*'
+    commands:
+      - tapOn:
+          id: 'household-card-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-household-edit-screen'
+          timeout: 20000
+      # Everything about the household is here — name, photo, optional address,
+      # its people — not spread across a sheet and another screen.
+      - assertVisible:
+          id: 'household-name-input'
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible: 'Households'
+          timeout: 20000
+# Manage members (HH-025) — opens Budget's OWN enrolment screen, one level deeper.
+#
+# It used to open the shared HouseholdMembers screen, which is the server-side
+# model (email invitations, a /join/<token> link, server member rows). Budget V2
+# shares a budget by enrolling a device, so that screen listed members the
+# control plane had never heard of.
+#
+# The row moved with the rest of "everything about this household": it is on the
+# household's page now, not on a strip under its card in the list. So the hop is
+# Households → the household → Invite & Household → Invite, and back out again.
+#
+# THE ACTIVE HOUSEHOLD, not the first card. The members row only renders for the
+# household the ENGINE has active — the roster and every invite act on the active
+# session and take no household id, so a background household's page shows a
+# "Switch to this household" card and `household-activate-btn` instead. Tapping
+# `household-card-.*` takes the FIRST card, and which household that is, and
+# whether it is active, are both run-order dependent: the list sorts newest-first
+# and budget-household-switch.yaml moves the active household around on the same
+# device pair. Guarding the row on `when: visible: household-manage-members-.*`
+# would therefore skip the whole branch and report green having asserted nothing
+# — the same false green that HH-018's `optional: true` swipe used to be.
+#
+# So the precondition is ESTABLISHED rather than hoped for: tap the card whose
+# merged label ends in "Active". Maestro text selectors are full-string regexes,
+# so the unterminated `.*Active` requires the label to END with the badge's word,
+# and the badge is the card's last child (see the note on `HouseholdCard`, which
+# is why that card carries no `accessibilityLabel` and no trailing chevron). With
+# the active household open, the members row is unconditional — if it is missing,
+# this row fails instead of vanishing.
+- runFlow:
+    when:
+      visible:
+        id: 'household-card-.*'
+    commands:
+      - tapOn:
+          text: '.*Active'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-household-edit-screen'
+          timeout: 20000
+      # Unconditional: we opened the active household, so this row must be here.
+      - extendedWaitUntil:
+          visible:
+            id: 'household-manage-members-.*'
+          timeout: 15000
+      - tapOn:
+          id: 'household-manage-members-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-invite-screen'
+          timeout: 20000
+      # The hub's rows PUSH: the owner's controls are on the screen the Invite
+      # row leads to, not inside a section it unfolds.
+      - assertVisible:
+          id: 'budget-invite-section-invite'
+      - tapOn:
+          id: 'budget-invite-section-invite'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-settings-create-invite'
+          timeout: 15000
+      # The legacy server-side affordance must not be what we landed on.
+      - assertNotVisible: 'Invite via link'
+      # Back out the way we came: Invite → the hub → the household.
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-invite-screen'
+          timeout: 20000
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-household-edit-screen'
+          timeout: 20000
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible: 'Households'
+          timeout: 20000
+# Offline create (HH-016) — a SUCCESS path now, not an error path.
+#
+# This row used to expect an "Error" alert, and correctly: creating a household
+# was `POST /households`, so airplane mode failed it and the only thing left to
+# assert was that the app said so. BR-016 made creating local —
+# `createLocalBudgetHousehold` mints the id, a fresh HDK at epoch 1 and the
+# default categories on device, and the control-plane registration that follows
+# is deliberately fire-and-forget precisely so that a household can be created
+# with no network at all. So the offline expectation inverts: the card must
+# appear, and no error may. (Airplane mode is Android-only in effect — see
+# budget-offline-on.yaml — so on iOS this reads as "creating still works", which
+# is the same assertion with less of a claim behind it.)
+#
+# Guarded, because a local household PERSISTS between runs: creating
+# unconditionally would leave one more empty ledger on the device every run.
+- runFlow: ../subflows/budget-offline-on.yaml
+- scrollUntilVisible:
+    element:
+      text: '.*E2E Offline HH.*'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      notVisible: '.*E2E Offline HH.*'
+    commands:
+      - tapOn:
+          id: 'fab-add-household'
+      - extendedWaitUntil:
+          visible:
+            id: 'household-name-input'
+          timeout: 15000
+      - tapOn:
+          id: 'household-name-input'
+      - inputText: 'E2E Offline HH'
+      # Maestro can drop most of the typed text (RN New Arch), leaving a
+      # 1-character value — reproduced: field held just "E" instead of the full
+      # string. Erase + retype if it didn't land.
+      - runFlow:
+          when:
+            notVisible: '.*E2E Offline HH.*'
+          commands:
+            - tapOn:
+                id: 'household-name-input'
+            - eraseText: 20
+            - inputText: 'E2E Offline HH'
+      - tapOn:
+          id: 'household-save-btn'
+      # Wait for the FORM to go before looking for the card. The form is only
+      # left on a successful save, so its field disappearing IS the save landing
+      # — whereas asserting the name while the form is still up would match the
+      # text input's own value and pass on a create that never happened. This is
+      # also what makes the "no Error" check below meaningful rather than a race.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'household-name-input'
+          timeout: 30000
+      - extendedWaitUntil:
+          visible: '.*E2E Offline HH.*'
+          timeout: 30000
+      # 'Error' is the title of the alert this row used to WAIT for; asserting
+      # its absence keeps the old expectation in the flow as the thing that must
+      # no longer happen.
+      - assertNotVisible: 'Error'
+- assertVisible: '.*E2E Offline HH.*'
+- runFlow: ../subflows/budget-offline-off.yaml
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- openLink: simplebudget:///
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

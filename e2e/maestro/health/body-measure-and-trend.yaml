@@ -1,0 +1,394 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:body
+  - mutation
+  - regression
+# Matrix: HEALTH-BODY-101 … HEALTH-BODY-108
+---
+# Body tab — the donor's Measure + Progress segments, rebuilt over
+# `/health/measurements`.
+#
+# The parity rebuild widened the tab from six sites to FOURTEEN, grouped the way
+# the donor's manual-entry form groups them (Upper body / Arms / Legs /
+# Composition), and gave every length site its own trend chart with the donor's
+# 1M/3M/6M/1Y/All ranges. `more-overflow-body-habits.yaml` only ever logs a waist
+# reading through the hub; this flow owns the tab itself.
+#
+# Two things Maestro cannot do here, and how they are covered instead:
+#   * it cannot assert that a tile sits INSIDE a section — the grouping function
+#     is pinned by `HealthBodyDashboard.test.tsx`; this flow asserts that each
+#     section heading and each of the new sites renders, in the donor's order;
+#   * it cannot produce a two-DAY trend line in one run (every reading lands
+#     today, and the chart plots one point per logged day), so the line is
+#     asserted through the chart-or-sentence branch below, and the explanatory
+#     empty copy is asserted hard on a site nothing else touches.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-BODY-101
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-body.yaml
+      - assertVisible: 'MEASUREMENTS'
+
+      # --- Fourteen sites in four anatomical groups (HEALTH-BODY-101) ------
+      # Walked top-down in render order: heading, then a site that only exists
+      # because of the parity widening. Each scrollUntilVisible IS the assertion
+      # — it fails if the tile never arrives.
+      - assertVisible: 'Upper body'
+      - assertVisible:
+          id: 'health-body-summary-neck'
+      - assertVisible:
+          id: 'health-body-summary-waist'
+      - scrollUntilVisible:
+          element:
+            text: 'Arms'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-summary-rightForearm'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            text: 'Legs'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-summary-rightCalf'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            text: 'Composition'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-summary-bodyFat'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+
+      # --- Log a reading into a chosen site (HEALTH-BODY-102) --------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-metric-leftArm'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-body-metric-leftArm'
+
+      # --- cm / in is a real control, not a label (HEALTH-BODY-109) --------
+      # The toggle was asserted by HEALTH-BODY-106 (as an ABSENCE, on body fat)
+      # and never pressed. The field's accessibility label is built from the
+      # active unit — `${metric} value in ${activeUnit}` — so it is the derived
+      # proof that the tap changed the SCREEN's unit and not just the highlight.
+      # `unit` is component state, but the toggle is put back anyway because the
+      # legs below assert `35 cm`.
+      #
+      # LOCAL ONLY: `health-body-unit-cm` / `health-body-unit-in` only call
+      # `setUnit(...)` (HealthBodyScreen.tsx) — plain component state, no
+      # `addBodyEntry`/API call — so no network verification is wired here.
+      - assertVisible: 'Left arm value in cm'
+      - assertVisible:
+          id: 'health-body-unit-cm'
+          selected: true
+      - tapOn:
+          id: 'health-body-unit-in'
+      - extendedWaitUntil:
+          visible: 'Left arm value in in'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-body-unit-cm'
+          selected: false
+      - tapOn:
+          id: 'health-body-unit-cm'
+      - extendedWaitUntil:
+          visible: 'Left arm value in cm'
+          timeout: 10000
+
+      - tapOn:
+          id: 'health-body-value-input'
+      - inputText: '35'
+      # The decimal pad covers the add button — dismiss it before tapping. NOT
+      # `hideKeyboard`: this field is `decimal-pad` and that command HARD-FAILS
+      # on this build's numeric keyboards.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'MEASUREMENTS'
+      # `handleLog` → `addBodyEntry` → `addBodySession` (healthBodyStorage.ts)
+      # → `healthApi.createMeasurement` → POST /health/measurements, 201.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-body-add-button'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /measurements
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # The history card follows the SELECTED site, so its header is the proof
+      # that the reading went where the chips said it would.
+      - scrollUntilVisible:
+          element:
+            text: 'LEFT ARM HISTORY'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            text: '35 cm'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+
+      # --- It reads back on the site's own tile (HEALTH-BODY-103) ----------
+      # The tile is one merged label — "Left arm: 35 cm" — so it matches as a
+      # whole string, and no other site can satisfy it.
+      - scrollUntilVisible:
+          element:
+            text: 'Left arm: 35 cm'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Left arm: 35 cm'
+
+      # --- The trend card follows the site (HEALTH-BODY-104) ---------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-trend-metric-leftArm'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # LOCAL ONLY: the trend metric chip only sets `HealthBodyTrendCard`'s own
+      # `requested` useState (HealthBodyProgress.tsx) — it re-slices the
+      # `entries` prop already in memory, no fetch.
+      - tapOn:
+          id: 'health-body-trend-metric-leftArm'
+      - scrollUntilVisible:
+          element:
+            text: 'Latest: 35 cm'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # A line needs two logged DAYS, which one run cannot make. Whichever state
+      # the account is in, one of these two branches asserts it — the card must
+      # never render a bare axis.
+      - runFlow:
+          when:
+            visible:
+              id: 'health-body-trend-chart'
+          commands:
+            - assertVisible:
+                id: 'health-body-trend-chart'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-body-trend-chart'
+          commands:
+            - assertVisible:
+                id: 'health-body-trend-empty'
+            - assertVisible: 'Log left arm on at least two days in this range to see a trend line.'
+
+      # --- An empty range says so in words (HEALTH-BODY-105) ---------------
+      # Right calf is charted by nothing else in the suite, so its range really
+      # is empty — the one place the explanatory sentence can be asserted hard.
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-trend-metric-rightCalf'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      # LOCAL ONLY: same `requested` useState as above (HealthBodyProgress.tsx)
+      # — selecting a metric chip never fetches.
+      - tapOn:
+          id: 'health-body-trend-metric-rightCalf'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-body-trend-empty'
+          timeout: 20000
+      - assertVisible: 'No right calf readings in the past 3 months.'
+      # The range picker feeds the same sentence — 3M and 1M must not read alike.
+      # LOCAL ONLY: the range chip only sets the card's own `range` useState
+      # (HealthBodyProgress.tsx) — the window is applied client-side over the
+      # already-loaded `entries`, no fetch.
+      - tapOn:
+          id: 'health-body-trend-range-30'
+      - extendedWaitUntil:
+          visible: 'No right calf readings in the past month.'
+          timeout: 20000
+
+      # --- Body fat is a percentage, not a length (HEALTH-BODY-106) --------
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-metric-bodyFat'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-body-metric-bodyFat'
+      - assertVisible:
+          id: 'health-body-percent-badge'
+      # The cm / in toggle is replaced, not merely ignored.
+      - assertNotVisible:
+          id: 'health-body-unit-cm'
+      - tapOn:
+          id: 'health-body-value-input'
+      - inputText: '18'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'MEASUREMENTS'
+      # Same write path as the left-arm reading above: `addBodyEntry` →
+      # `addBodySession` → POST /health/measurements, 201.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-body-add-button'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /measurements
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - scrollUntilVisible:
+          element:
+            text: 'BODY FAT HISTORY'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            text: '18 %'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+
+      # --- Teardown: drop the body-fat reading (HEALTH-BODY-107) -----------
+      # The history card shows the SELECTED site only, so the delete control on
+      # screen belongs to the body-fat reading just logged. `handleDelete` →
+      # `deleteBodyEntry` (healthBodyStorage.ts): this quick-add reading is the
+      # only site on its row (each quick add is its own POST/row — see
+      # `addBodySession`), so `deleteBodyEntry` finds no sibling sites and takes
+      # the whole-row path → `healthApi.deleteMeasurement` → DELETE
+      # /health/measurements/:id, 200 (not the single-site PATCH path).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-body-delete-.*'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /measurements/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - extendedWaitUntil:
+          visible:
+            id: 'health-body-history-empty'
+          timeout: 20000
+      - assertVisible: 'No body fat readings yet.'
+
+      # --- Teardown: drop the left-arm reading (HEALTH-BODY-108) -----------
+      # Conditional because the server stores one measurement ROW per day: if
+      # both sites shared today's row, the delete above already took this one
+      # with it. Either way the history has to end empty.
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-metric-leftArm'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-body-metric-leftArm'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - runFlow:
+          when:
+            visible:
+              id: 'health-body-delete-.*'
+          commands:
+            - tapOn:
+                id: 'health-body-delete-.*'
+            - waitForAnimationToEnd:
+                timeout: 3000
+            # Same `deleteBodyEntry` whole-row path as HEALTH-BODY-107 above —
+            # DELETE /health/measurements/:id, 200.
+            - runFlow:
+                file: ../subflows/e2e-verify-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+                  E2E_VERIFY_METHOD: DELETE
+                  E2E_VERIFY_PATH: /measurements/
+                  E2E_VERIFY_STATUS: '200'
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-history-empty'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'No left arm readings yet.'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

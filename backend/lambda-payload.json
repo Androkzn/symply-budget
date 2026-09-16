@@ -1,0 +1,7 @@
+{
+  "jobId": "test-job-$(uuidgen)",
+  "reportId": "28fd554e-b641-45ea-97d3-afe8f0509854",
+  "householdId": "b5e4fe57-b3dc-46dc-9c20-98d78bf4407c",
+  "pdfS3Bucket": "simple-house-reports",
+  "pdfS3Key": "reports/b5e4fe57-b3dc-46dc-9c20-98d78bf4407c/28fd554e-b641-45ea-97d3-afe8f0509854/Electrical report.pdf"
+}

@@ -1,0 +1,18 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home
+  - readonly
+  - regression
+# Matrix: HOUSE-home (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-my-home.yaml
+- assertVisible:
+    id: 'my-home-screen'
+# Scroll contract
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: my-home-screen-scroll-end
+

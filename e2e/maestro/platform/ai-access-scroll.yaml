@@ -1,0 +1,27 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:ai-access
+  - readonly
+  - regression
+# Matrix: PLAT-AIACC-042
+---
+- runFlow: subflows/launch-platform.yaml
+- openLink: simplehouse://ai-access
+- extendedWaitUntil:
+    visible:
+      id: 'ai-access-screen'
+    timeout: 20000
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: ai-flow-scaffold-scroll-end
+- openLink: simplehouse://ai-access/manage
+- extendedWaitUntil:
+    visible:
+      id: 'ai-access-manage-screen'
+    timeout: 20000
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: ai-flow-scaffold-scroll-end

@@ -1,0 +1,44 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:local-first
+---
+# Leave the Device sync surface and park on Home.
+#
+# WHY THIS EXISTS
+# ---------------
+# Every LF flow has to be runnable ALONE and in ANY order, and this suite
+# deliberately does not `stopApp` between flows (launch-logged-in keeps the Expo
+# Dev Client ↔ Metro session alive). So a flow can start with the previous
+# flow's screen already on top — and `HouseDeviceSyncScreen` keeps real state in
+# `useState`: `note` (the sync status line), `invite`, `requests`, `copyNote`.
+# Finding the screen already mounted means inheriting all of it.
+#
+# That matters most for LF-004: `house-sync-status` renders ONLY when `note` is
+# non-null, so a leftover note from a sibling flow would let LF-004 "observe" a
+# terminal state it never caused. Leaving the surface first, and re-entering,
+# is what makes the mount fresh and `note` null again.
+#
+# Used both as a PRECONDITION (before entering) and as a TEARDOWN (after), so a
+# flow neither inherits nor exports screen state.
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'house-local-first-sync-card'
+    commands:
+      # `nav-back-button` is the ScreenHeader default (ScreenHeader.tsx:213),
+      # and EnrolmentShell renders the header with `showBackButton`.
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2000
+- runFlow: ../subflows/go-home-tab.yaml
+# Hard, not optional: if the surface is still up we cannot promise a fresh
+# mount, and a caller that silently continued would be testing stale state.
+- extendedWaitUntil:
+    notVisible:
+      id: 'house-local-first-sync-card'
+    timeout: 20000

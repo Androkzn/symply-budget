@@ -1,0 +1,9 @@
+[mm] live report: /Users/andreitekhtelev/Desktop/Symply Ecosystem/Simply Ecosystem-budget/documents/engineering/testing/reports/budget-multi-member/20260820-084724/index.html (opens shortly, self-refreshes)
+[mm] === phase 1: enrolment (ordered) ===
+    PASS [A] mm-01-signin
+    PASS [B] mm-01-signin
+    PASS [A] mm-02-owner-create-invite
+[mm] invite code=2RP7QL
+    FAIL [B] mm-03-member-join
+[mm] FAIL FAST — stopping the run at 'mm-03-member-join'
+[mm] stopping after first failure — skipping cleanup (fail fast)

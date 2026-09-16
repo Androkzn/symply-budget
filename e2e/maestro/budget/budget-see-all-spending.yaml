@@ -1,0 +1,106 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:spend
+  - readonly
+  - regression
+# Matrix: BUDGET-SPEND-081..089 (see documents/engineering/testing/matrices/budget.md)
+# Spent tab → "See all" (budget-see-all-spending) → All-spending explorer
+# (BudgetAllSpendingScreen). Covers the header link, the explorer load
+# (GET /budget/expenses), and its filter controls: time-range chips, search,
+# sort toggle, and tap-to-filter category rows. Read-only — no writes, so it is
+# safe to run before budget-auth and repeatable on any account state.
+#
+# The "See all" link + category rows only render when the month has recorded
+# spending, so every interaction is guarded by `when: visible` and the flow
+# still passes on an empty month.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/budget-go-spending.yaml
+- assertVisible:
+    id: 'budget-spendings'
+
+# Header "See all" link → All-spending explorer (guarded: needs ≥1 expense).
+- runFlow:
+    when:
+      visible:
+        id: 'budget-see-all-spending'
+    commands:
+      - tapOn:
+          id: 'budget-see-all-spending'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-all-spending'
+          timeout: 20000
+
+      # Time-range scope — switch to a wider window and back.
+      - runFlow:
+          when:
+            visible:
+              text: 'This year'
+          commands:
+            - tapOn:
+                text: 'This year'
+            - waitForAnimationToEnd:
+                timeout: 3000
+            - assertVisible:
+                id: 'budget-all-spending'
+      - runFlow:
+          when:
+            visible:
+              text: 'This month'
+          commands:
+            - tapOn:
+                text: 'This month'
+            - waitForAnimationToEnd:
+                timeout: 3000
+
+      # Sort toggle (Newest ⇄ Highest).
+      - runFlow:
+          when:
+            visible:
+              id: 'budget-all-spending-sort'
+          commands:
+            - tapOn:
+                id: 'budget-all-spending-sort'
+            - waitForAnimationToEnd:
+                timeout: 2000
+
+      # Search input accepts text and filters.
+      - runFlow:
+          when:
+            visible:
+              id: 'budget-all-spending-search'
+          commands:
+            - tapOn:
+                id: 'budget-all-spending-search'
+            - inputText: 'a'
+            - waitForAnimationToEnd:
+                timeout: 2000
+            - eraseText
+            - hideKeyboard
+
+      # Tap a category distribution row to filter (guarded — needs categorized spend).
+      - runFlow:
+          when:
+            visible:
+              id: 'budget-all-spending-category-.*'
+          commands:
+            - tapOn:
+                id: 'budget-all-spending-category-.*'
+                index: 0
+            - waitForAnimationToEnd:
+                timeout: 2000
+            - assertVisible:
+                id: 'budget-all-spending'
+
+      # Back to the Spending section.
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-spendings'
+          timeout: 15000
+
+- assertVisible:
+    id: 'budget-spendings'

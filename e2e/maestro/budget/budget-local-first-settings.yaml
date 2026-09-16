@@ -1,0 +1,191 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: BUDGET-LF-002 / BUDGET-LF-003 — Profile sync section, Sync now, Create invite
+#
+# Sync, Backup and Invite each own a screen; PROFILE carries one row per
+# destination (the SYNC & SHARING section moved there off Budget Settings). This
+# asserts the rows where they live now, checks Settings no longer duplicates
+# them, then drives Sync now and Create invite on the screens that own them.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-002
+- runFlow: ../subflows/budget-open-profile.yaml
+# One dedicated row per destination — five of them, and the CSV/Excel buttons
+# moved onto the screen the Export row opens.
+- assertVisible:
+    id: 'budget-settings-sync-link'
+- assertVisible:
+    id: 'budget-settings-sync-status'
+- assertVisible:
+    id: 'budget-settings-backup-link'
+- assertVisible:
+    id: 'budget-settings-backup-status'
+- assertVisible:
+    id: 'budget-settings-invite-link'
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-export-link'
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 15000
+- assertVisible:
+    id: 'budget-settings-households-link'
+- assertVisible:
+    id: 'budget-settings-export-link'
+- assertNotVisible:
+    id: 'budget-settings-export-csv'
+# Budget Settings kept none of it: one section, one home. (The danger zone was
+# never here either — it lives on Device Sync, beside the trusted devices.)
+- runFlow: ../subflows/budget-open-settings.yaml
+- assertNotVisible:
+    id: 'budget-local-first-sync-card'
+- assertNotVisible:
+    id: 'budget-settings-sync-link'
+- assertNotVisible:
+    id: 'budget-settings-backup-link'
+- assertNotVisible:
+    id: 'budget-danger-zone'
+# Device Sync — Sync now may succeed or show offline; dismiss whichever alert
+# appears. Reached through its own deep link rather than by walking back to
+# Profile: this half of the flow is about the screen, not about the row.
+- runFlow: ../subflows/budget-open-sync.yaml
+- assertVisible:
+    id: 'budget-settings-sync-now'
+- tapOn:
+    id: 'budget-settings-sync-now'
+- waitForAnimationToEnd:
+    timeout: 8000
+- runFlow:
+    when:
+      visible: 'OK'
+    commands:
+      - tapOn: 'OK'
+- waitForAnimationToEnd:
+    timeout: 1500
+# The danger zone lives here now, below the trusted devices.
+- scrollUntilVisible:
+    element:
+      id: 'budget-danger-zone'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- assertVisible:
+    id: 'budget-danger-zone'
+# Invite & Household — create invite (needs control-plane registration).
+# Accept success or a clear Error alert. Tapped from Profile, which is where the
+# row that leads here lives.
+- runFlow: ../subflows/budget-open-profile.yaml
+- tapOn:
+    id: 'budget-settings-invite-link'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-invite-screen'
+    timeout: 15000
+# Invite & Household is a hub: the mint control lives on the Invite screen it
+# pushes, not inside a section it unfolds.
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-settings-create-invite'
+    commands:
+      - tapOn:
+          id: 'budget-invite-section-invite'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-settings-create-invite'
+          timeout: 15000
+- tapOn:
+    id: 'budget-settings-create-invite'
+- waitForAnimationToEnd:
+    timeout: 12000
+# A successful mint lands on the QR sheet, which covers the card below it.
+- runFlow: ../subflows/budget-dismiss-invite-qr.yaml
+# Success is an inline card now (code + secret + Share), not an alert — there
+# is nothing to dismiss, so this branch only asserts what it landed on.
+- runFlow:
+    when:
+      visible: 'Invite created'
+    commands:
+      - assertVisible:
+          id: 'budget-invite-created-panel'
+      - assertVisible:
+          id: 'budget-invite-code'
+- runFlow:
+    when:
+      visible: 'Error'
+    commands:
+      - assertVisible: 'Error'
+      - tapOn: 'OK'
+# Screen chrome must still be present either way — but assert the chrome of the
+# screen we are ACTUALLY on. Invite & Household is a two-screen stack:
+# budget-invite-screen is the hub (BudgetInviteScreen), and the mint control
+# lives on budget-invite-create-screen (BudgetInviteCreateScreen) which the hub
+# PUSHES. Minting therefore ends on the create screen with the hub covered, so
+# asserting the hub's id here could never pass — it failed after 10s on
+# 2026-09-05 with every step above it green, including the created panel and the
+# invite code. The assertion predates the hub/create split.
+- runFlow:
+    when:
+      visible:
+        id: 'budget-invite-create-screen'
+    commands:
+      - assertVisible:
+          id: 'budget-invite-create-screen'
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-invite-create-screen'
+    commands:
+      - assertVisible:
+          id: 'budget-invite-screen'
+- waitForAnimationToEnd:
+    timeout: 1500
+# Back out to the budget root. The Profile row deep-links the hub onto the
+# BUDGET stack, so back from the hub lands on the budget root rather than on
+# Profile — but the real stack is budget root -> Profile -> invite hub -> invite
+# create, so minting leaves THREE levels to pop, not one. Measured 2026-09-05:
+# one pop failed, and a fixed two-pop landed on Profile and still failed. Pop
+# until the root is showing rather than encoding any depth — the guard makes
+# each tap conditional, so a shallower path simply stops early and no tap ever
+# lands on a screen that has no back button.
+- repeat:
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-screen'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+            - waitForAnimationToEnd:
+                timeout: 1200
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000
+- runFlow: ../subflows/budget-open-profile.yaml
+- assertVisible:
+    id: 'budget-local-first-sync-card'
+- openLink: simplebudget:///
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

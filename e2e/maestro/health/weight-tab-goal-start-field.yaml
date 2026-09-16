@@ -1,0 +1,314 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:weight
+  - mutation
+  - regression
+# Matrix: HEALTH-WEIGHT-450 … HEALTH-WEIGHT-452
+---
+# The weight goal's one field the sibling Goals flow drives least on purpose:
+# the optional "starting weight" (`health-goals-starting-input`).
+#
+# RETARGETED 2026-08-02 — WRONG SCREEN, NOT JUST A STALE testID. This flow used
+# to open a "GOAL & BODY DETAILS" disclosure on the WEIGHT TAB
+# (`health-weight-goal-toggle`) and type into `health-weight-goal-start-input`
+# there. That whole editor is gone from `HealthWeightScreen.tsx` — confirmed by
+# reading the current source, which renders only a READ-ONLY "Goal progress"
+# widget (`health-weight-goal-empty`/`-ring`/`-current`/`-target`/`-remaining`,
+# fed by whatever target is on file) and no target/starting/height/birth/sex/
+# activity inputs anywhere on that screen any more.
+#
+# The target and starting-weight fields moved to `HealthGoalsScreen.tsx`
+# ("Goals", `health-goals-screen`, reached from More → Preferences → "Goals
+# and targets" — see `subflows/go-health-goals.yaml`) as a flat, always-open
+# "WEIGHT GOAL" card (`health-goals-weight-card`) rather than a collapsible
+# disclosure: `health-goals-target-input`, `health-goals-starting-input`,
+# `health-goals-starting-date-input`, `health-goals-weight-save`,
+# `health-goals-weight-clear`. `health-goals-hydration-weight-and-suggested.
+# yaml` (HEALTH-GOALS-144…148) already drives that whole card, typing target
+# AND starting together and erasing starting in its own teardown — this flow's
+# original reason to exist (a field a sibling flow left untouched) still holds,
+# just against the new screen: HEALTH-GOALS-146 there types both fields at
+# once, never in isolation, and never proves a typed starting value survives a
+# real reload. That is what the three legs below still isolate:
+#   · HEALTH-WEIGHT-450 — a target saved with starting left BLANK is a
+#     genuinely different wire payload (`starting: null` is sent, not
+#     omitted — see `HealthGoalsScreen.tsx`'s `saveWeightSection`), so this
+#     proves the other field is not held hostage by the one left empty;
+#   · HEALTH-WEIGHT-451 — a TYPED starting value, proven not just on-screen
+#     but by leaving the screen and coming back, which forces `useFocusEffect`
+#     to re-hydrate from the server (`applySnapshot`) — the read-back this
+#     matrix cares about, since the screen does NOT resync its own draft
+#     fields from the save response;
+#   · HEALTH-WEIGHT-452 — teardown, erase-then-save-then-clear, same order as
+#     the sibling flow's own teardown and for the same reason: "Clear target"
+#     never touches `starting`, so clearing the target first would strand the
+#     starting weight on the shared account.
+#
+# GATED the same way the sibling flow is: only on an account with no target of
+# its own. `health-goals-weight-clear` does not render at all until a target
+# exists, so its ABSENCE is the "no target" signal (there is no collapsed
+# "No target set" sentence on this screen — the card is always expanded).
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-WEIGHT-450
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-goals.yaml
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-goals-target-input'
+            SCROLL_DIR: down
+      - assertVisible: 'WEIGHT GOAL'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-goals-weight-clear'
+          commands:
+            - assertVisible:
+                id: 'health-goals-starting-input'
+                text: ''
+
+            # --- Blank start still saves the target (HEALTH-WEIGHT-450) -----
+            # `decimal-pad`; Maestro's own `hideKeyboard` HARD-FAILS on this
+            # build's numeric pad, so dismissal goes through the shared
+            # subflow — same anchor `health-goals-hydration-weight-and-
+            # suggested.yaml` already proved safe (a plain Typography inside
+            # `SectionHeading`, not the card's own Pressable heading).
+            - tapOn:
+                id: 'health-goals-target-input'
+            - inputText: '68'
+            - runFlow:
+                file: subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'WEIGHT GOAL'
+            # Real backend call: Save always sends `starting` (null here, the
+            # field is untouched) alongside `target` in one `saveWeightSection`
+            # -> `saveWeightGoal` -> `healthApi.saveGoal` -> `PUT /health/goals`
+            # (200) — `HealthGoalsScreen.tsx` / `healthWeightStorage.ts`.
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+            - tapOn:
+                id: 'health-goals-weight-save'
+            # 2026-08-02: failed here — `health-goals-message` never appeared
+            # within 15s. The live report (weight-tab-goal-start-field.html,
+            # step 198/199) rules out `saveWeightSection` itself: the Save
+            # tap above is reported COMPLETED, but its own backend-call
+            # window shows `/health/nutrition/entries`, `/health/custom-
+            # foods`, `/health/foods/suggestions`,
+            # `/health/challenges/progress/today` — screen-mount fetches
+            # that belong to the NUTRITION tab, not a single `PUT /health/
+            # goals`. The failing assertion's window then shows ZERO
+            # backend activity for the full 15s (the save was never actually
+            # fired), and the post-timeout screenshot shows the app sitting
+            # on the Nutrition tab with real diary data — not on `health-
+            # goals-screen` at all. Same signature already root-caused in
+            # `activity-goals-and-session-edit.yaml` / `water-tab-goal-
+            # units-custom.yaml`: Metro's DevLoadingView "Refreshing…"
+            # banner from a concurrent Fast Refresh remount, which resets
+            # navigation and re-fetches everything, isn't bounded by any
+            # fixed duration, and can swallow a tap mid-remount. The two
+            # `dismiss-health-keypad` taps immediately before this Save
+            # (steps 152/191 in the report, both "Tap text=Done") share the
+            # tell: 7073ms and 7348ms and flagged WARNED, i.e. Maestro
+            # retrying against a view hierarchy that kept changing under it
+            # — not a normal ~1s tap. Gate on the banner clearing rather
+            # than bumping 15s again, which would only be a bigger guess at
+            # the same wrong target.
+            - extendedWaitUntil:
+                notVisible: 'Refreshing...'
+                timeout: 20000
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-goals-message'
+                  text: 'Targets updated\.'
+                timeout: 15000
+            # `Clear target` is gated on `targetKg !== null`, so its presence
+            # now is itself the assertion the write landed — the same shape of
+            # proof the retired `health-weight-goal-clear` gave.
+            - assertVisible:
+                id: 'health-goals-weight-clear'
+            - assertVisible:
+                id: 'health-goals-starting-input'
+                text: ''
+            - runFlow:
+                file: ../subflows/e2e-verify-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+                  E2E_VERIFY_METHOD: PUT
+                  E2E_VERIFY_PATH: /health/goals
+                  E2E_VERIFY_STATUS: '200'
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+
+            # --- Typed, it survives a real reload (HEALTH-WEIGHT-451) -------
+            - tapOn:
+                id: 'health-goals-starting-input'
+            - inputText: '65'
+            - runFlow:
+                file: subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'WEIGHT GOAL'
+            - assertVisible:
+                id: 'health-goals-starting-input'
+                text: '65'
+            # Real backend call: same Save handler, this time with
+            # `starting: 65` -> `PUT /health/goals` (200).
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+            - tapOn:
+                id: 'health-goals-weight-save'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-goals-message'
+                  text: 'Targets updated\.'
+                timeout: 15000
+            - runFlow:
+                file: ../subflows/e2e-verify-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+                  E2E_VERIFY_METHOD: PUT
+                  E2E_VERIFY_PATH: /health/goals
+                  E2E_VERIFY_STATUS: '200'
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+            # THE READ-BACK. `HealthGoalsScreen` does not resync its draft
+            # fields from a save response (`saveWeightSection` only updates
+            # `snapshot.weight`, not `startingWeight`), so the field still
+            # reading '65' immediately after Save is not proof it reached the
+            # wire — only the 200 above is. Leaving and re-entering forces
+            # `useFocusEffect` -> `hydrate` -> `applySnapshot`, which DOES
+            # repopulate the field from the server, so THIS is the proof the
+            # value actually round-tripped.
+            - tapOn:
+                id: 'nav-back-button'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-more-screen'
+                timeout: 30000
+            - runFlow: subflows/go-health-goals.yaml
+            - runFlow:
+                file: subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: 'health-goals-starting-input'
+                  SCROLL_DIR: down
+            - assertVisible:
+                id: 'health-goals-starting-input'
+                text: '65'
+            - assertVisible:
+                id: 'health-goals-target-input'
+                text: '68'
+
+            # --- Teardown: erase start, save, THEN clear (HEALTH-WEIGHT-452) ---
+            # `Clear target` only patches `{ target: null, goalType: null }` —
+            # confirmed against `clearTarget` — it never touches `starting`.
+            # Tapping it alone would strand `startingKg: 65` on the shared
+            # account, so this erases the start field and Saves FIRST — an
+            # explicit `starting: null`, the same "erase, THEN save, THEN
+            # clear" order the sibling Goals flow's own teardown uses.
+            - tapOn:
+                id: 'health-goals-starting-input'
+            - eraseText
+            - runFlow:
+                file: subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'WEIGHT GOAL'
+            - assertVisible:
+                id: 'health-goals-starting-input'
+                text: ''
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+            - tapOn:
+                id: 'health-goals-weight-save'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-goals-message'
+                  text: 'Targets updated\.'
+                timeout: 15000
+            - runFlow:
+                file: ../subflows/e2e-verify-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+                  E2E_VERIFY_METHOD: PUT
+                  E2E_VERIFY_PATH: /health/goals
+                  E2E_VERIFY_STATUS: '200'
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+            # Real backend call: `onPress={() => clearTarget()}` -> the same
+            # `PUT /health/goals` (200), this time with target/goalType null.
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+            - tapOn:
+                id: 'health-goals-weight-clear'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'health-goals-weight-clear'
+                timeout: 20000
+            - assertVisible:
+                id: 'health-goals-target-input'
+                text: ''
+            - runFlow:
+                file: ../subflows/e2e-verify-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+                  E2E_VERIFY_METHOD: PUT
+                  E2E_VERIFY_PATH: /health/goals
+                  E2E_VERIFY_STATUS: '200'
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+
+      # --- Back to the Health tab ------------------------------------------
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-goals-calories-input'
+            SCROLL_DIR: up
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-more-screen'
+          timeout: 30000
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

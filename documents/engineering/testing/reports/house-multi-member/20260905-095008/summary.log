@@ -1,0 +1,6 @@
+[hmm] live report: /Users/andreitekhtelev/Desktop/Symply Ecosystem/Simply Ecosystem-house/documents/engineering/testing/reports/house-multi-member/20260905-095008/index.html (opens shortly, self-refreshes)
+[hmm] === phase 1: enrolment (ordered) ===
+    PASS [A] mm-01-signin
+    FAIL [B] mm-01-signin
+[hmm] FAIL FAST — stopping the run at 'mm-01-signin'
+[hmm] stopping after first failure — skipping cleanup (fail fast)

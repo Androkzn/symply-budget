@@ -1,0 +1,196 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Boot Symply Health into a signed-in Home session (soft launch — no clearState).
+#
+# launchApp is REQUIRED: it starts the app when stopped and foregrounds it when
+# backgrounded. This used to happen only as a side effect of the dev-client
+# openLink in connect-health-metro.yaml — once that became conditional (it
+# crashed the app when fired during boot), nothing brought the app up and every
+# flow timed out against the springboard.
+# No clearState here: this is the soft-launch path; the auth flows own state wipes.
+- launchApp:
+    permissions:
+      all: allow
+      faceid: allow
+- runFlow: connect-health-metro.yaml
+- runFlow: health-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'health-home-screen'
+    timeout: 20000
+    optional: true
+# Recover to Home from ANY tab, not just More.
+#
+# This used to be gated on `health-more-screen`, which meant a preceding flow
+# that finished on Nutrition / Activity / Trends / Body / any overflow tab left
+# the next flow stranded: the More branch never fired, the login branch below
+# fired instead (the deep link is a no-op on an already-signed-in app), and the
+# final wait timed out with the app sitting on whatever tab it was left on. That
+# is exactly the "failed on the Nutrition tab" symptom the suite kept showing.
+#
+# `tab-index` is the Health tab button — present on every signed-in tab screen —
+# so keying on it covers the whole bar. `dismiss-weight-keyboard` first because
+# a keypad left up by the previous flow occludes the bar.
+#
+# Inlined rather than `runFlow: go-health-home.yaml` so the wait can be OPTIONAL:
+# this is a recovery step, and a hard 30s failure here would pre-empt the
+# login/deep-link recovery branches below that might still have fixed it.
+- runFlow:
+    when:
+      visible:
+        id: 'tab-index'
+      notVisible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: dismiss-weight-keyboard.yaml
+      - tapOn:
+          id: 'tab-index'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+          optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'login-screen'
+    commands:
+      - runFlow: health-login-if-needed.yaml
+# A signed-in-but-never-onboarded-on-THIS-install account (e.g. a fresh
+# simulator, or a reinstalled build that invalidated the local session and
+# forced a re-login) lands on the shared onboarding welcome instead of Home
+# — `hasCompletedOnboarding` comes from the login response, not something a
+# deep-link re-auth alone satisfies. Push through it the same way a member
+# would: agree, then Get Started, then the full Goals/Permissions chain
+# (already authenticated, so this lands straight on Home, no second sign-in).
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-agree-terms'
+    commands:
+      - tapOn:
+          id: 'onboarding-agree-terms'
+      - tapOn:
+          id: 'onboarding-get-started'
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - runFlow: push-through-health-onboarding.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: 'health-home-screen'
+      true: ${E2E_LOGIN_URL != null && E2E_LOGIN_URL != ''}
+    commands:
+      - runFlow: connect-health-metro.yaml
+      - openLink: ${E2E_LOGIN_URL}
+      - waitForAnimationToEnd:
+          timeout: 15000
+      - runFlow: health-dismiss-expo-dev-chrome.yaml
+      - runFlow:
+          when:
+            visible:
+              id: 'login-screen'
+          commands:
+            - runFlow: health-login-if-needed.yaml
+      - runFlow:
+          when:
+            visible:
+              id: 'onboarding-agree-terms'
+          commands:
+            - tapOn:
+                id: 'onboarding-agree-terms'
+            - tapOn:
+                id: 'onboarding-get-started'
+            - waitForAnimationToEnd:
+                timeout: 8000
+            - runFlow: push-through-health-onboarding.yaml
+# Final wait — RETRIED, not a single 120s block.
+#
+# The dev client intermittently comes up BLANK: EXDevLauncher logs
+# "bundle scheme is file - unable to connect to sharedPackageConnection" and the
+# window stays empty forever. Nothing above recovers it, because every recovery
+# step keys on a screen that never renders — so the old single
+# `extendedWaitUntil ... timeout: 120000` just burned two minutes and failed the
+# flow. It cost three flows on the 2026-07-26 baseline run
+# (home-keyboard-accessories, privacy-data-paths, tab-shell-five-tabs) and the
+# failures looked like anything but what they were.
+#
+# A hard relaunch clears it every time (verified by hand: `simctl terminate` +
+# `launch` put the app straight back on Home), so that is what this does.
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-home-screen'
+          commands:
+            - launchApp:
+                stopApp: true
+                permissions:
+                  all: allow
+                  faceid: allow
+            - runFlow: connect-health-metro.yaml
+            - runFlow: health-dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-home-screen'
+                timeout: 45000
+                optional: true
+            # A relaunch can land on a non-Home tab; the bar is the way back.
+            - runFlow:
+                when:
+                  visible:
+                    id: 'tab-index'
+                  notVisible:
+                    id: 'health-home-screen'
+                commands:
+                  - tapOn:
+                      id: 'tab-index'
+                      retryTapIfNoChange: true
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'health-home-screen'
+                      timeout: 20000
+                      optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'login-screen'
+                commands:
+                  - runFlow: health-login-if-needed.yaml
+            - runFlow:
+                when:
+                  visible:
+                    id: 'onboarding-agree-terms'
+                commands:
+                  - tapOn:
+                      id: 'onboarding-agree-terms'
+                  - tapOn:
+                      id: 'onboarding-get-started'
+                  - waitForAnimationToEnd:
+                      timeout: 8000
+                  - runFlow: push-through-health-onboarding.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'health-home-screen'
+    timeout: 60000
+# NOT calling e2e-health-enable-all-features here. It exists (see
+# e2e-test-deeplinks.ts's own comment) for the flows that actually need an
+# opt-in feature — home-dashboard-rings-and-glance.yaml and
+# home-empty-and-privacy.yaml call it themselves. Turning EVERY opt-in
+# feature on for EVERY flow on EVERY launch reshapes the More tab's row
+# list (Trends/Body/Habits/Cycle/Vitality all appear), which is a real,
+# broader change most flows never asked for and were never written against
+# — reproduced 2026-07-31: home-rapid-water.yaml's own More-tab navigation
+# landed on a different screen once the list grew. Scope the fix to the
+# flows that actually need it instead of every launch.
+# A fresh account (or fresh simulator/relaunch) lands on Home with the
+# notification + HealthKit permission cards up — see
+# subflows/dismiss-health-home-cards.yaml for why this is not a one-time
+# thing. Close them here, before any flow-specific logic runs.
+- runFlow: dismiss-health-home-cards.yaml

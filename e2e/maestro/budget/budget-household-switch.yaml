@@ -1,0 +1,211 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:settings
+  - mutation
+  - regression
+# Matrix: BUDGET-HH-003 (switch household), BUDGET-HH-006 (create household save)
+#
+# BR-016 acceptance test — and a rewrite of what this flow checks.
+#
+# It used to prove the create by asserting `POST /households → 201` against D1.
+# Under local-first that assertion was not merely redundant, it was the BUG it
+# should have caught: creating through the remote API wrote a household row the
+# engine never learned about, so the next publish of the engine's set dropped it
+# from the list while it survived on the server — the orphaning that failed this
+# flow on `.*E2E Switch HH.*` run after run. The verification is inverted here:
+# creating a household must issue NO `POST /households` at all, and the proof
+# that it worked is the UI — both households listed, and the Active badge
+# following the switch.
+#
+# Card labels: RN's accessible TouchableOpacity merges the whole card into one
+# accessibility label ('E2E Switch HH, 1 member • owner, Switch'), so the name is
+# never a standalone text node and Maestro's full-string regexes have to match it
+# as a substring with .*…*. That same merge is what makes `.*Active.*` a usable
+# state check without knowing the card's `hh_local_*` id (minted on device, so it
+# can never be written into a flow): the Active badge and the Switch pill are
+# mutually exclusive children of the one card (BudgetHouseholdScreen), so the
+# trailing word says which state it is in.
+#
+# Only the "Active" half of that pair is used below. This household is *named*
+# "E2E Switch HH", so `.*Switch.*` matches its label in BOTH states and reads as
+# a state check while really being a name check — a trap worth naming, since it
+# passes and means nothing.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-HH-006
+- runFlow: ../subflows/budget-go-households.yaml
+- scrollUntilVisible:
+    element:
+      text: '.*E2E Switch HH.*'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+# Create only when it isn't already here. This flow used to create
+# unconditionally, which was harmless while the household went to D1 and vanished
+# from the device again; now it persists, so an unguarded create would mint one
+# more empty local ledger — key epoch, op log and all — on every run.
+- runFlow:
+    when:
+      notVisible: '.*E2E Switch HH.*'
+    commands:
+      - tapOn:
+          id: 'fab-add-household'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'household-name-input'
+          timeout: 20000
+      - tapOn:
+          id: 'household-name-input'
+      - inputText: 'E2E Switch HH'
+      # Maestro can drop most of the typed text (RN New Arch), leaving a
+      # 1-character value — reproduced on the sibling household flows, where the
+      # field held just "E". Erase + retype if it didn't land. The only
+      # "E2E Switch HH" on screen while the sheet is open is the input's own
+      # value, since this branch only runs when no card carries that name.
+      - runFlow:
+          when:
+            notVisible: '.*E2E Switch HH.*'
+          commands:
+            - tapOn:
+                id: 'household-name-input'
+            - eraseText: 20
+            - inputText: 'E2E Switch HH'
+      - tapOn:
+          id: 'household-save-btn'
+      # Wait for the SHEET to go before looking for the card: it is a Modal that
+      # unmounts its children and `handleSave` only closes it on success, so its
+      # disappearance IS the save landing. Asserting the name while it is still
+      # open would match the text input's own value and pass on a create that
+      # never happened.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'household-name-input'
+          timeout: 30000
+      - extendedWaitUntil:
+          visible: '.*E2E Switch HH.*'
+          timeout: 30000
+# The old `POST /households → 201` check, inverted. Creating a household must
+# reach the network for nothing — the engine mints the id, the HDK and the
+# default categories locally, and the control-plane registration that follows is
+# fire-and-forget so that creating works in airplane mode. A POST here would mean
+# the D1 path is back, which is the shape of the orphaning bug.
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: POST
+      # exact=true: a substring match on the bare collection route also matches
+      # every nested sub-resource (/households/:id/invitations, …), so a plain
+      # match would false-positive on traffic that has nothing to do with
+      # creating a household.
+      E2E_VERIFY_PATH: /households
+      E2E_VERIFY_EXACT: 'true'
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 10000
+# Normalise: "E2E Switch HH" is the active household whichever branch ran above.
+# A fresh create already activates it, but on a re-run it is just another card,
+# and the only name-addressable way to activate one is to tap the CARD — the
+# Switch pill carries the household's generated id, not its name. `handleManage`
+# activates a background household before pushing BudgetInvite (that screen mints
+# invites for whatever the ENGINE has active, so it has to move the session
+# first), which is exactly the activation this needs; back out and the list
+# repaints from the engine.
+- runFlow:
+    when:
+      notVisible: '.*E2E Switch HH.*Active.*'
+    commands:
+      - tapOn:
+          text: '.*E2E Switch HH.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-invite-screen'
+          timeout: 20000
+      - tapOn:
+          id: 'nav-back-button'
+      - extendedWaitUntil:
+          visible: 'Households'
+          timeout: 20000
+# The detour above remounts the screen, so the list is back at the top and the
+# card may be under the fold again. Every badge assertion below has to have the
+# card actually on screen: "no longer Active" passes for free on a card that is
+# merely scrolled out of view.
+- scrollUntilVisible:
+    element:
+      text: '.*E2E Switch HH.*'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- assertVisible: '.*E2E Switch HH.*Active.*'
+# BOTH households are listed (BUDGET-HH-006) — the statement BR-016 exists to
+# make: creating a household ADDS a session, it does not replace the one this
+# device already had. Before BR-016 the list collapsed back to a single card on
+# the next refresh, which is how the just-created household disappeared.
+#
+# Counted with `index: 1` on the CARD rather than by name, because the other
+# household is the member's real one and its name is whatever the account's
+# display name is — so a second match exists only when a second household does.
+#
+# This used to count `household-manage-members-*`, the "Manage members & invites"
+# strip each card carried. That strip is gone: the card itself is now the tap
+# target and everything about a household lives on its own page. `household-card-*`
+# is the per-card testID that replaced it, and it is the more honest counter —
+# it counts cards rather than one particular row inside them.
+- assertVisible:
+    id: 'household-card-.*'
+    index: 1
+# Switching moves the active household (BUDGET-HH-003). The Switch pill renders
+# only on a card that is NOT active, so the first match belongs to some other
+# household; tapping it calls `activateLocalBudgetHousehold`, which hydrates that
+# household's rows and moves the on-disk active pointer.
+#
+# Match on "Active" and never on a floating "Switch". This household is *named*
+# "E2E Switch HH", so a state check written as `.*E2E Switch HH.*Switch.*` is
+# really a name check that matches on the name alone; absence of the badge is the
+# unambiguous half of the pair. Paired with the `assertVisible` on the bare name,
+# so the check cannot be satisfied by the card having disappeared — which is the
+# failure mode BR-016 is about.
+#
+# The pill coming BACK is then asserted with `.*E2E Switch HH.*Switch` — no
+# trailing `.*`, and that is the whole trick. Maestro text selectors are
+# full-string regexes, so an unterminated pattern requires the merged label to
+# END with the pill's word, and the badge/pill is the card's last child
+# (BudgetHouseholdScreen renders avatar → name → subtitle → badge-or-pill). The
+# name's own "Switch" sits mid-label and can never satisfy that, while the active
+# card's label ends in "Active" and cannot either.
+- tapOn:
+    id: 'household-switch-.*'
+- waitForAnimationToEnd:
+    timeout: 3000
+- scrollUntilVisible:
+    element:
+      text: '.*E2E Switch HH.*'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- assertVisible: '.*E2E Switch HH.*'
+- extendedWaitUntil:
+    notVisible: '.*E2E Switch HH.*Active.*'
+    timeout: 20000
+- assertVisible: '.*E2E Switch HH.*Switch'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+- openLink: simplebudget:///
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- runFlow: ../subflows/go-budget-tab.yaml

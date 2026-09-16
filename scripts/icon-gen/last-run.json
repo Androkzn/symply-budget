@@ -1,0 +1,18 @@
+{
+  "at": null,
+  "provider": "openai",
+  "brands": {
+    "symply-health": {
+      "requested": 1,
+      "ok": 1,
+      "failed": 0,
+      "icons": [
+        {
+          "slug": "widget-mark",
+          "concept": "a small dashboard widget grid",
+          "ok": true
+        }
+      ]
+    }
+  }
+}

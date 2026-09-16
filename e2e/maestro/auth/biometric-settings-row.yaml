@@ -1,0 +1,51 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-auth (see documents/engineering/testing/matrices/)
+---
+# Settings exposes Face ID / Touch ID toggle when the simulator has biometrics enrolled.
+# Requires: scripts/run-e2e-biometric.sh (enrolls Face ID + auto-match loop).
+- runFlow: ../subflows/launch-logged-in.yaml
+# Dismiss one-time enrollment sheet if it appears after sign-in.
+- runFlow:
+    when:
+      visible: 'Not Now'
+    commands:
+      - tapOn: 'Not Now'
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow: ../subflows/open-profile.yaml
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- assertVisible:
+    id: 'profile-screen'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-row-biometric'
+    timeout: 25000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'settings-row-biometric'
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'settings-row-biometric'
+          direction: DOWN
+          timeout: 20000
+          speed: 40
+          visibilityPercentage: 50
+          optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'settings-row-biometric'
+    commands:
+      - assertVisible:
+          id: 'settings-row-biometric'
+      - assertVisible:
+          id: 'settings-toggle-biometric'

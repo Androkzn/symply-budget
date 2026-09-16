@@ -1,0 +1,162 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: HOUSE-LF-022 — Backup copies: replace vs keep-every
+#
+# The one behaviour a unit test cannot show end to end: that the retention
+# switch actually changes what lands in the backup list.
+#
+# Both modes are driven against "This device", the only destination needing no
+# OS UI and no network — so the whole thing runs unattended. The proof is in the
+# ROW LABELS, which is where the two modes are distinguishable from outside:
+#
+#   replace → one file, no date in its name → "Latest backup · <when written>"
+#   dated   → a new file per run, date in the name → "<day> <month> <year>, <time>"
+#
+# Taking a backup in each mode and finding BOTH labels present is what shows
+# that `replace` overwrote its own file rather than the dated one, and that
+# switching modes left the existing archives alone.
+#
+# ISOLATION: puts retention back to `replace` at the end — the default, and the
+# mode every other flow's assertions assume.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-022
+- runFlow: lf-backup-open-backup-screen.yaml
+# Maestro has no `finally`, so a previous flow that failed mid-way can leave the
+# schedule armed and the screen longer than this one expects. Cleanup is a
+# precondition here, not a postcondition — see lf-backup-reset-state.yaml.
+- runFlow: lf-backup-reset-state.yaml
+
+# --- The default is "replace" -------------------------------------------------
+# Off out of the box: the common wish is "keep my home safe", not "keep a
+# history of my home", and a dated pile is what makes a folder unreadable.
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-keep-every-copy'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- assertVisible:
+    text: 'Keep every copy'
+- assertVisible:
+    text: 'Off — each backup replaces the last one.*'
+
+# --- One backup in replace mode ----------------------------------------------
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-now'
+    direction: UP
+    centerElement: true
+    timeout: 15000
+- tapOn:
+    id: 'house-backup-now'
+- extendedWaitUntil:
+    visible:
+      id: 'house-backup-to-device'
+    timeout: 10000
+- tapOn:
+    id: 'house-backup-to-device'
+- extendedWaitUntil:
+    visible:
+      id: 'house-recovery-phrase-sheet'
+    timeout: 180000
+- tapOn:
+    id: 'house-recovery-phrase-done'
+- extendedWaitUntil:
+    notVisible:
+      id: 'house-recovery-phrase-sheet'
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# A replace-mode archive carries no date in its name, so the row is named after
+# when the FILE was last written. Seeing this label at all is the assertion —
+# the raw name would read `symply-house-backup-home--hh_local_…`.
+- scrollUntilVisible:
+    element:
+      text: 'Latest backup.*'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- assertVisible:
+    text: 'Latest backup.*'
+
+# --- Switch to keep-every, and take another --------------------------------
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-keep-every-copy'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- tapOn:
+    id: 'house-backup-keep-every-copy'
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible:
+    text: 'A new dated file each time.*'
+
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-now'
+    direction: UP
+    centerElement: true
+    timeout: 15000
+- tapOn:
+    id: 'house-backup-now'
+- extendedWaitUntil:
+    visible:
+      id: 'house-backup-to-device'
+    timeout: 10000
+- tapOn:
+    id: 'house-backup-to-device'
+- extendedWaitUntil:
+    visible:
+      id: 'house-recovery-phrase-sheet'
+    timeout: 180000
+- tapOn:
+    id: 'house-recovery-phrase-done'
+- extendedWaitUntil:
+    notVisible:
+      id: 'house-recovery-phrase-sheet'
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# BOTH labels present is the whole assertion: the dated run made a NEW file, and
+# the replace-mode one it was standing next to was left exactly where it was.
+- scrollUntilVisible:
+    element:
+      text: 'Latest backup.*'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- assertVisible:
+    text: 'Latest backup.*'
+- assertVisible:
+    text: '\d{1,2} \w{3} \d{4},.*'
+
+# --- Put the default back -----------------------------------------------------
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-keep-every-copy'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- tapOn:
+    id: 'house-backup-keep-every-copy'
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible:
+    text: 'Off — each backup replaces the last one.*'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

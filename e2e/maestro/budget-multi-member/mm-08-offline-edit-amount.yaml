@@ -1,0 +1,69 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: BUDGET-MM-008 — edit a shared row while this device is offline.
+#
+# Both members do this to the SAME row before either syncs, which is what
+# manufactures a genuine concurrent edit (TRD §8.4) instead of a sequential one.
+# iOS sim airplane mode is a Maestro no-op, so the app's own network block is
+# used (`e2e-block-network`).
+#
+# env: MM_TITLE (row to edit), MM_AMOUNT (new value).
+onFlowComplete:
+  - runFlow: ../subflows/budget-network-block-off.yaml
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 20000
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 20000
+- runFlow: ../subflows/budget-network-block-on.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 20000
+- swipe:
+    direction: LEFT
+    element:
+      text: '.*${MM_TITLE}.*'
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    id: 'budget-edit-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 20000
+- tapOn:
+    id: 'budget-item-cost-exact'
+- eraseText: 12
+- inputText: ${MM_AMOUNT}
+- tapOn:
+    id: 'budget-item-title'
+- waitForAnimationToEnd:
+    timeout: 1000
+- tapOn:
+    id: 'budget-item-form-save-header'
+- waitForAnimationToEnd:
+    timeout: 2500
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-item-form'
+    timeout: 25000
+- assertVisible: '.*${MM_TITLE}.*'

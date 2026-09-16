@@ -1,0 +1,73 @@
+{
+  "provider": {
+    "name": "FortisBC",
+    "type": "gas"
+  },
+  "account": {
+    "number": "9876543",
+    "invoiceNumber": null,
+    "serviceAddress": "123 Main St, Surrey, BC",
+    "customerName": "Test Household"
+  },
+  "billing": {
+    "periodStart": "2026-05-12",
+    "periodEnd": "2026-06-10",
+    "billingDate": "2026-06-12",
+    "dueDate": "2026-06-26"
+  },
+  "financial": {
+    "amountDue": 68.45,
+    "previousBalance": 0,
+    "paymentsReceived": null,
+    "currentCharges": 68.45,
+    "latePaymentCharge": null
+  },
+  "usage": {
+    "quantity": 1.4,
+    "unit": "GJ",
+    "periodDays": 30,
+    "averageDailyUsage": 0.047,
+    "averageDailyCost": 2.28,
+    "meterNumber": "GAS-4421"
+  },
+  "meterReadings": [
+    {
+      "meterNumber": "GAS-4421",
+      "currentReading": 8842,
+      "currentReadingDate": "2026-06-10",
+      "previousReading": 8705,
+      "previousReadingDate": "2026-05-12",
+      "consumption": 1.4,
+      "unit": "GJ",
+      "conversionFactor": 0.0373
+    }
+  ],
+  "lineItems": [
+    { "description": "Basic charge", "amount": 18.2, "quantity": 30, "rate": 0.61, "unit": "day" },
+    { "description": "Delivery", "amount": 22.1, "quantity": 1.4, "rate": 15.79, "unit": "GJ" },
+    { "description": "Cost of gas", "amount": 21.5, "quantity": 1.4, "rate": 15.36, "unit": "GJ" },
+    { "description": "Municipal operating fee", "amount": 4.2, "quantity": null, "rate": null, "unit": null },
+    { "description": "BC clean energy levy", "amount": 2.45, "quantity": null, "rate": null, "unit": null }
+  ],
+  "taxes": [
+    { "description": "GST", "amount": 0 }
+  ],
+  "comparison": {
+    "lastBillUsage": 1.2,
+    "lastYearUsage": 1.1,
+    "unit": "GJ"
+  },
+  "rates": {
+    "basicCharge": 0.61,
+    "energyRate": 15.36
+  },
+  "confidence": {
+    "overall": 0.9,
+    "provider": 0.97,
+    "account": 0.88,
+    "billing": 0.92,
+    "financial": 0.91,
+    "usage": 0.86
+  },
+  "rawText": "FortisBC natural gas May 12 - Jun 10, 2026"
+}

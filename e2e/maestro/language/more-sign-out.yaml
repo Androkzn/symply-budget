@@ -1,0 +1,58 @@
+appId: com.symply.language
+tags:
+  - app:language
+  - feature:more
+  - regression
+  - mutation
+---
+# MORE-012 — confirm Sign out clears the session (re-login at end for suite hygiene).
+- stopApp
+- launchApp:
+    clearState: false
+- runFlow: subflows/connect-language-metro.yaml
+- runFlow: subflows/language-dismiss-expo-dev-chrome.yaml
+- runFlow: subflows/language-login-if-needed.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplelanguage
+      APP_ID: com.symply.language
+      E2E_MATRIX_ROW: E2E-MUTATION
+- runFlow: subflows/go-more.yaml
+- scrollUntilVisible:
+    element:
+      id: 'language-more-sign-out'
+    direction: UP
+    timeout: 30000
+    speed: 40
+    visibilityPercentage: 30
+- tapOn:
+    id: 'language-more-sign-out'
+- extendedWaitUntil:
+    visible: 'Cancel'
+    timeout: 15000
+- tapOn:
+    text: 'Sign out'
+    index: 1
+- waitForAnimationToEnd:
+    timeout: 8000
+# Keychain can rehydrate JWT after UI sign-out — force dev logout when still in-app.
+- runFlow:
+    when:
+      visible:
+        id: 'language-learn-screen'
+    commands:
+      - runFlow: subflows/language-e2e-logout.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'language-more-screen'
+    commands:
+      - runFlow: subflows/language-e2e-logout.yaml
+# Re-establish session for suite hygiene (same path as other Language flows).
+- runFlow: subflows/launch-language.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplelanguage
+      APP_ID: com.symply.language

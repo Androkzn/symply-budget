@@ -1,0 +1,88 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:garden
+  - readonly
+  - regression
+# Matrix: HOUSE-GARD-025 (backing out asks first, and "Keep editing" really keeps it)
+---
+# THE DISCARD GUARD, asserted from both ends.
+#
+# The wizard seeds a rectangle the instant it opens, so there is never a
+# "nothing drawn yet" state to leave silently — every exit throws away work the
+# member can see on screen. Both the header arrow and the footer's left button
+# route through the same `confirmExit`; before that they disagreed, with the
+# footer discarding silently while the arrow six points above it asked.
+#
+# THE HALF THAT ACTUALLY CATCHES BUGS is "Keep editing". A confirm dialog that
+# appears and then discards anyway is worse than no dialog, and it passes any
+# test that only checks the dialog showed up.
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-GARD-025
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-garden-map-wizard.yaml
+
+# Add a corner so there is unmistakably work in progress.
+# Panel control rather than the map handle — see garden-map-wizard-lot.yaml.
+- tapOn:
+    id: 'garden-map-wizard-add-corner'
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: 'garden-map-wizard-stat-corners'
+    text: 'Corners 5'
+
+# ---- keep editing --------------------------------------------------------
+- tapOn:
+    id: 'garden-map-wizard-back'
+- extendedWaitUntil:
+    visible: 'Discard this plan?'
+    timeout: 10000
+- assertVisible: 'Your outline and areas will not be saved.'
+- tapOn:
+    text: 'Keep editing'
+- waitForAnimationToEnd:
+    timeout: 2500
+
+# Still here, and still five corners — the alert did not quietly reset anything.
+- assertVisible:
+    id: 'garden-plan-map-wizard-screen'
+- assertVisible:
+    id: 'garden-map-wizard-panel-lot'
+- assertVisible:
+    id: 'garden-map-wizard-stat-corners'
+    text: 'Corners 5'
+
+# ---- and now actually discard --------------------------------------------
+- tapOn:
+    id: 'garden-map-wizard-back'
+- extendedWaitUntil:
+    visible: 'Discard this plan?'
+    timeout: 10000
+- tapOn:
+    text: 'Discard'
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertNotVisible:
+    id: 'garden-plan-map-wizard-screen'
+
+- extendedWaitUntil:
+    visible: 'Add yard plan'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'garden-plans-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plans-screen'
+    timeout: 15000

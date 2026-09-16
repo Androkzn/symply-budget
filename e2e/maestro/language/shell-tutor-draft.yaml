@@ -1,0 +1,25 @@
+appId: com.symply.language
+tags:
+  - app:language
+  - feature:shell
+  - regression
+---
+# SHELL-007 — switching away from Tutor with a draft must not crash or duplicate sessions.
+- runFlow: subflows/launch-language.yaml
+- runFlow: subflows/go-tutor.yaml
+- assertVisible:
+    id: 'language-tutor-screen'
+- tapOn:
+    id: 'language-tutor-composer'
+- inputText: 'hola'
+- waitForAnimationToEnd:
+    timeout: 3000
+- hideKeyboard
+- waitForAnimationToEnd:
+    timeout: 2000
+- runFlow: subflows/go-plan.yaml
+- assertVisible:
+    id: 'language-plan-screen'
+- runFlow: subflows/go-tutor.yaml
+- assertVisible:
+    id: 'language-tutor-screen'

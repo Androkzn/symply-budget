@@ -1,0 +1,58 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:st
+  - readonly
+  - regression
+# Matrix: PLAT-ST (see documents/engineering/testing/matrices/platform.md)
+# "Symply apps" grid, reached via More → Symply apps. Asserts the screen renders
+# the sibling apps with an install-status pill, loads consents
+# (GET /smart-engine/consents), and that confirming an install routes into the
+# read-only data-sharing consent card (nothing is POSTed — we cancel out).
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-house-settings.yaml
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-symply-apps'
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 20000
+- tapOn:
+    id: 'settings-row-symply-apps'
+- extendedWaitUntil:
+    visible:
+      id: 'symply-apps-screen'
+    timeout: 20000
+# The active House app is not listed; the four siblings are.
+- assertVisible:
+    id: 'sibling-app-symply-budget'
+- assertVisible:
+    id: 'sibling-app-symply-kaizen'
+# Each sibling row carries a status pill (not-installed on a fresh sim).
+- assertVisible:
+    id: 'app-status-not-installed'
+# Kaizen has no registered profile-consent route from House, so confirming it
+# installed stays on this screen (no share-step redirect) — a stable spot to
+# assert the "Open" action appears once a sibling is marked installed. Not
+# tapped: it would background House into Kaizen mid-flow.
+- tapOn:
+    id: 'already-installed-symply-kaizen'
+- assertVisible:
+    id: 'open-symply-kaizen'
+# Confirming Budget is installed routes into the baseline data-sharing consent
+# card (House → Budget profile.core.v1). Nothing is written until "Accept".
+- tapOn:
+    id: 'already-installed-symply-budget'
+- extendedWaitUntil:
+    visible:
+      id: 'share-data-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'consent-confirmation-card'
+# Cancel out — read-only flow, no consent granted.
+- tapOn:
+    text: 'Not now'
+- assertVisible:
+    id: 'symply-apps-screen'

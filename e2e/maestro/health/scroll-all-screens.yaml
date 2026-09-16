@@ -1,0 +1,49 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:scroll
+  - readonly
+  - regression
+# Matrix: HEALTH-scroll (see documents/engineering/testing/matrices/)
+---
+# Scroll contract — both Health screens must scroll to their last section.
+# Requires a session — run after login-email-submit-seeded in config.yaml order.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # Home — scroll to bottom sentinel.
+      - assertVisible:
+          id: 'health-home-screen'
+      - runFlow:
+          file: ../subflows/assert-screen-scrolls.yaml
+          env:
+            SCROLL_END_ID: health-home-screen-scroll-end
+      - runFlow: subflows/health-scroll-home-down.yaml
+      # REMOVED 2026-08-01: `health-coming-soon-section` no longer exists on
+      # Home — that section (and the rest of the roadmap copy) now lives only
+      # on More (`HealthMoreScreen.tsx`, no matching testID there either yet —
+      # a real gap, not silently faked here). The generic scroll-end sentinel
+      # above already proves Home's own scroll contract; this was an extra,
+      # stale, feature-specific check bolted on top of it.
+
+      # More — scroll to bottom sentinel.
+      - runFlow: subflows/go-more.yaml
+      - assertVisible:
+          id: 'health-more-screen'
+      - runFlow:
+          file: ../subflows/assert-screen-scrolls.yaml
+          env:
+            SCROLL_END_ID: health-more-screen-scroll-end
+      - runFlow: subflows/health-scroll-more-down.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'health-sign-out'
+          direction: DOWN
+          timeout: 30000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible:
+          id: 'health-sign-out'

@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "144228018802",
+    "project_id": "symply-ecosystem",
+    "storage_bucket": "symply-ecosystem.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:144228018802:android:a49ada89d62f8a70dc70eb",
+        "android_client_info": {
+          "package_name": "com.symply.budget"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "144228018802-hga4shft7puttamh36gfgr7aa5rrpchl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC90nyhaVE5X_6KgjujBTTgaCxMUbs03-s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "144228018802-hga4shft7puttamh36gfgr7aa5rrpchl.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "144228018802-34hbt3ts5u237gakfuomn7ag9e3jtf0o.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.symply.health"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:144228018802:android:3b742d8d1483bea6dc70eb",
+        "android_client_info": {
+          "package_name": "com.symply.house"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "144228018802-hga4shft7puttamh36gfgr7aa5rrpchl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC90nyhaVE5X_6KgjujBTTgaCxMUbs03-s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "144228018802-hga4shft7puttamh36gfgr7aa5rrpchl.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "144228018802-34hbt3ts5u237gakfuomn7ag9e3jtf0o.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.symply.health"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

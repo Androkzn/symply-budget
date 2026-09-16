@@ -1,0 +1,185 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:scan
+  - readonly
+  - regression
+# Matrix: HEALTH-AI-670 … HEALTH-AI-677
+---
+# Scan tab — every control driven in MEAL mode, and the mode reset proved.
+#
+# ── WHY THIS FLOW EXISTS ────────────────────────────────────────────────────
+#
+# `scan-modes-and-sources.yaml` drives the mode picker in both directions but
+# does everything ELSE in LABEL mode only: the disabled-Run boundary, the four
+# import tiles, the Drive picker and its dismissal are all asserted once, on one
+# side of a switch that changes the prompt, the review card and the save path.
+# `switchMode` also calls `reset()`, which clears the shots, the draft, the
+# confirmation and the message — so "meal mode is label mode with different
+# copy" is an assumption, not a fact, and this flow is the half that checks it.
+#
+# ── WHAT THIS FLOW DELIBERATELY DOES NOT DO ─────────────────────────────────
+#
+# Same boundary as its sibling: it does not complete a scan. Camera, Gallery and
+# File hand off to NATIVE pickers, which put a system sheet on top of the app,
+# and in a serial suite a sheet that fails to dismiss strands every flow after
+# it. There is also no Health fixture in `src/services/e2e-document-pick.ts` to
+# feed a deterministic image (its `VALID_KEYS` are Kaizen-only). So this flow
+# drives every control it can drive honestly and stops at the picker boundary;
+# `runScan`, `HealthMealDraftReview` and `handleSaveFood` are pinned at the unit
+# layer, where `HealthScanScreen.tsx` sits at 100%.
+#
+# NON-MUTATING. Mode and shots are component state and the picker is cancelled,
+# so nothing is written and no teardown is required. It can sit anywhere in the
+# order, and it is safe to run immediately after `scan-modes-and-sources.yaml`
+# because that flow leaves the screen in LABEL mode, which is where this one
+# starts.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-AI-670
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-scan.yaml
+      - assertVisible: 'WHAT ARE YOU SCANNING'
+
+      # --- Enter meal mode (HEALTH-AI-670) --------------------------------
+      # The screen always opens in LABEL mode (`useState<ScanMode>('label')`),
+      # so this is the entry every case below depends on.
+      # Local-only: `switchMode`/`reset()` (HealthScanScreen.tsx) only touch
+      # `useState` (mode, shots, drafts) — no network call in either.
+      - assertVisible:
+          id: 'health-scan-mode-label'
+          selected: true
+      - tapOn:
+          id: 'health-scan-mode-meal'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-scan-mode-meal'
+            selected: true
+          timeout: 10000
+      - assertVisible: 'MEAL PHOTO'
+
+      # --- Run is dead in MEAL mode too (HEALTH-AI-671) -------------------
+      # `disabled={shots.length === 0 || busy}` is mode-independent, and the
+      # switch just cleared the shots — so the boundary has to hold on this side
+      # as well. Behavioural rather than an `enabled:` selector: pressing a
+      # disabled Pressable is a no-op, so the proof is that the processing
+      # overlay never rises and no message card appears.
+      # Local-only: `handleScan`'s `if (shots.length === 0 || busy) return;`
+      # guard (HealthScanScreen.tsx) means this tap never reaches
+      # `healthAiApi.analyzeMealPhoto` — no network verify applies; the
+      # overlay/message assertions below are the whole proof.
+      - assertVisible: 'Read this photo'
+      - tapOn:
+          id: 'health-scan-run'
+      - assertNotVisible:
+          id: 'health-scan-overlay'
+      - assertNotVisible:
+          id: 'health-scan-message'
+      # And nothing was picked, so the shot list is absent entirely.
+      - assertNotVisible:
+          id: 'health-scan-shots'
+
+      # --- All four import tiles survive the switch (HEALTH-AI-672) -------
+      # The shared Camera / Gallery / File / Drive row is rendered ONCE for both
+      # modes, and `reset()` must not leave it disabled — `disabled={busy ||
+      # shots.length >= MAX_SHOTS}` and neither holds here.
+      - assertVisible:
+          id: 'health-scan-camera'
+      - assertVisible:
+          id: 'health-scan-gallery'
+      - assertVisible:
+          id: 'health-scan-file'
+      - assertVisible:
+          id: 'health-scan-drive'
+
+      # --- The hint is the MEAL one, not the label one (HEALTH-AI-673) ----
+      # `MODE_COPY[mode]` drives three strings at once. A picker that flipped
+      # `selected` without re-reading the copy would look correct and send the
+      # photo to the wrong prompt.
+      - assertVisible:
+          id: 'health-scan-hint'
+          text: '.*kitchen scale.*'
+
+      # --- Drive opens in MEAL mode (HEALTH-AI-674) -----------------------
+      # `CloudFilePicker` is an in-app RN Modal with no system chrome, so both
+      # directions are safe to drive — the one modal-dismissal assertion this
+      # screen can make, and it is made on BOTH modes so a mode-dependent
+      # regression in the accepted MIME set cannot hide.
+      # Nested modal: `extendedWaitUntil`, never a bare assert — the sheet
+      # animates in and a same-frame assertion races it.
+      # Local (to this harness): `CloudFilePicker` talks to
+      # `googleDriveService`/`dropboxService` (src/services/cloud-storage/
+      # google-drive.ts, dropbox.ts), which call Google/Dropbox directly via
+      # raw `fetch()`, never through `apiClient` — those requests never reach
+      # the E2E-NET ring buffer, so open/dismiss can only be verified as UI
+      # state (below), not as a network assertion.
+      - tapOn:
+          id: 'health-scan-drive'
+      - extendedWaitUntil:
+          visible:
+            id: 'cloud-picker-modal'
+          timeout: 30000
+
+      # --- …and Cancel leaves meal mode exactly as it was (HEALTH-AI-675) -
+      # Dismissing a picker must not have picked, and must not have reset the
+      # mode either — a cancel that dropped the member back into LABEL mode
+      # would silently send their next photo to the wrong prompt.
+      - tapOn:
+          id: 'cloud-picker-cancel'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'cloud-picker-modal'
+          timeout: 30000
+      - assertVisible:
+          id: 'health-scan-screen'
+      - assertVisible:
+          id: 'health-scan-mode-meal'
+          selected: true
+      - assertVisible: 'MEAL PHOTO'
+      - assertNotVisible:
+          id: 'health-scan-shots'
+
+      # --- The screen still scrolls to its end in meal mode (AI-676) ------
+      # The meal review card is a different subtree from the label one, so the
+      # scroll end is worth re-proving on this side.
+      - scrollUntilVisible:
+          element:
+            id: 'health-scan-screen-scroll-end'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+
+      # --- Leave the screen in its DEFAULT mode (HEALTH-AI-677) -----------
+      # Mode is component state and does not survive a remount, but leaving it
+      # as found is what lets this flow sit anywhere in the order without
+      # changing what the next one sees.
+      - scrollUntilVisible:
+          element:
+            id: 'health-scan-mode-label'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-scan-mode-label'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-scan-mode-label'
+            selected: true
+          timeout: 10000
+      - assertVisible: 'NUTRITION LABEL'
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

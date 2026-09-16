@@ -1,0 +1,126 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Soft launch: avoid stopApp between flows — keeps Expo Dev Client ↔ Metro (:8083) session.
+# Fast path when Home is already up; full re-auth only when needed.
+- runFlow: dismiss-expo-dev-chrome.yaml
+# Before the first `home-screen` check, not after: this is a soft launch, so a
+# BYOK modal raised by the PREVIOUS flow is still up and covers whatever the
+# next assertion is looking for.
+- runFlow: dismiss-byok-modal.yaml
+# Same soft-launch leakage as the BYOK modal above, but for NAVIGATION: this
+# flow inherits whatever screen the previous one left pushed. Three separate
+# clusters failed that way on 2026-09-01 (six home-projects flows on a restored
+# project hub; property-* flows on property-detail-screen), every one reported
+# as "the root screen is not visible" rather than as residue. No-op when the
+# previous flow ended on home.
+- runFlow: pop-to-app-root.yaml
+- runFlow: house-adopt-or-start-home.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'home-screen'
+    commands:
+      - runFlow: dismiss-biometric-enrollment.yaml
+      - assertVisible:
+          id: 'home-screen'
+- runFlow:
+    when:
+      notVisible:
+        id: 'home-screen'
+    commands:
+      - runFlow: house-recover-home.yaml
+      - runFlow:
+          when:
+            notVisible:
+              id: 'home-screen'
+          commands:
+            - openLink: ${E2E_LOGIN_URL}
+            - runFlow: dismiss-expo-dev-chrome.yaml
+            - waitForAnimationToEnd:
+                timeout: 8000
+            - runFlow: login-email-if-needed.yaml
+            - runFlow: go-home-tab.yaml
+      - runFlow:
+          when:
+            notVisible:
+              id: 'home-screen'
+          commands:
+            - openLink: ${E2E_APP_SCHEME}://
+            - runFlow: connect-house-metro.yaml
+            - runFlow: dismiss-expo-dev-chrome.yaml
+            - openLink: ${E2E_LOGIN_URL}
+            - runFlow: dismiss-expo-dev-chrome.yaml
+            - waitForAnimationToEnd:
+                timeout: 8000
+            - runFlow: login-email-if-needed.yaml
+            - runFlow: go-home-tab.yaml
+      - runFlow:
+          when:
+            notVisible:
+              id: 'home-screen'
+          commands:
+            - launchApp:
+                clearState: false
+            - runFlow: connect-house-metro.yaml
+            - runFlow: dismiss-expo-dev-chrome.yaml
+            - openLink: ${E2E_LOGIN_URL}
+            - runFlow: dismiss-expo-dev-chrome.yaml
+            - waitForAnimationToEnd:
+                timeout: 8000
+            - runFlow: login-email-if-needed.yaml
+            - runFlow: go-home-tab.yaml
+      - runFlow: dismiss-expo-dev-chrome.yaml
+      - runFlow: dismiss-biometric-enrollment.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'home-screen'
+          timeout: 90000
+      - runFlow:
+          when:
+            visible:
+              id: 'auth-sign-in-email'
+          commands:
+            - openLink: ${E2E_LOGIN_URL}
+            - runFlow: dismiss-expo-dev-chrome.yaml
+            - waitForAnimationToEnd:
+                timeout: 8000
+            - runFlow: login-email-if-needed.yaml
+            - runFlow: go-home-tab.yaml
+      # The gate needs `isAuthenticated`, but `house-adopt-or-start-home` runs
+      # near the top of this file — BEFORE any sign-in above. A flow that signs
+      # in through the recovery branches can therefore raise the gate after the
+      # only handler has already run, and then die on `home-screen` below.
+      # Same ordering hazard, second gate. Signing in runs
+      # `ensureHouseLocalSession` -> `recover-this-home` when every property on
+      # the ledger is `awaitingEnrolment`, which raises the RECOVERY overlay
+      # after sign-in. `house-adopt-or-start-home` runs once, at line 13, before
+      # any sign-in branch — so it has already been skipped by then. And because
+      # `app/_layout.tsx:213` makes the two gates mutually exclusive, the address
+      # handler below is a guaranteed no-op while recovery is up. Mint a home
+      # here, before the address gate is sampled.
+      - runFlow: house-adopt-or-start-home.yaml
+      - runFlow: house-clear-address-gate.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'home-screen'
+          timeout: 90000
+      - extendedWaitUntil:
+          notVisible:
+            id: 'auth-sign-in-email'
+          timeout: 30000
+          optional: true
+      # Maestro resolves selectors by testID and does NOT test occlusion, so
+      # `assertVisible: home-screen` passes happily while a full-screen overlay
+      # covers it. `HouseRecoverHomeScreen` renders `StyleSheet.absoluteFill`
+      # AFTER `<Stack />` (`app/_layout.tsx:646`), so on 2026-09-01 every step of
+      # `logout-profile` — including `tapOn profile-sign-out` — reported
+      # COMPLETED while the taps landed on recovery rows, and the flow only died
+      # later on the sign-out alert. Fail HERE, where the cause is, instead of
+      # certifying a covered app and surfacing it steps downstream.
+      - assertNotVisible:
+          id: 'house-recover-home-screen'
+      - assertVisible:
+          id: 'home-screen'

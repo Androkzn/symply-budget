@@ -1,0 +1,24 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Opens Manage Sub-budgets (BudgetSubBudgetsScreen) via deep link — avoids iOS 26
+# scroll flakiness on the long Budget Settings screen.
+- openLink: simplebudget:///?screen=BudgetSubBudgets
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-sub-budgets-screen'
+    timeout: 30000
+# Screen mounts with a spinner while caps + categories load — wait for content.
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-sub-budgets-loading'
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-sub-budget-add'
+    timeout: 30000

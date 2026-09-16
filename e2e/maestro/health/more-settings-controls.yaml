@@ -1,0 +1,309 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:more
+  - mutation
+  - regression
+  - smoke
+# Matrix: HEALTH-MORE-035 042 047 073 092 093 094 103
+---
+# HealthMoreScreen — the settings controls that stay ON this tab. Drives each
+# control that opens something in place or shows an explainer, and asserts the
+# resulting state and its effect.
+#
+# SPLIT OF CONCERNS
+#   * rows that NAVIGATE away  → more-navigation-rows.yaml
+#   * the unit picker itself (choose/restore) → more-units-picker.yaml
+#   * the two DATA verbs (export / clear all) → more-data-safety.yaml
+#   * the unpinned-tab hub at the top → more-overflow-*.yaml
+#
+# REWRITTEN 2026-07-26. Weight units used to be an iOS Alert; the tab now opens
+# an inline picker (`health-units-picker`) with both options and a tick
+# on the current one, because an Alert cannot show which unit is already chosen.
+# The old legs tapped `'Choose how weight is displayed and entered.'`, a string
+# that no longer exists, so they could only ever fail. The "Apple Health sync"
+# COMING SOON row is gone too — that capability shipped as the connect card, and
+# the roadmap row was telling the member it had not been built.
+#
+# RETARGETED 2026-08-01: the setting itself was generalised from a
+# weight-only kg/lb toggle to ONE global unit system (`health-setting-units`
+# / `health-unit-system-metric` / `health-unit-system-imperial`,
+# `HealthMoreScreen.tsx`) that also governs height/distance — this file's own
+# ids (`health-setting-weight-units`, `health-weight-unit-kg/-lb`) and the
+# "Kilograms (kg)"/"Pounds (lb)" subtitle text were left pointing at the
+# retired names, so every leg here failed on device. Same rename applied to
+# the sibling flow, since renamed again to `more-units-picker.yaml` (2026-08-01)
+# once its own Home leg was retired — see that file's header.
+#
+# STATE: needs a session. Writes ONE thing (the weight unit) and puts it back,
+# which is why this is tagged `mutation` rather than `readonly`.
+#
+# GATED / SKIPS-GRACEFULLY: the body is wrapped in
+# `runFlow: when: visible: health-home-screen` — it runs only when the installed
+# app already holds a session; otherwise the app sits at the Health login surface
+# and this flow SKIPS instead of hard-failing.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-more.yaml
+      - assertVisible:
+          id: 'health-more-screen'
+      - assertVisible: 'ACCOUNT'
+      # HEALTH-MORE-042 — the section header a previous matrix row claimed was
+      # asserted on device when nothing asserted it.
+      - assertVisible: 'PREFERENCES'
+
+      # --- Weight units → inline picker (HEALTH-MORE-092/093/094) ----------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-MORE-092
+      - tapOn:
+          id: 'health-setting-units'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-units-picker'
+          timeout: 10000
+      # Both options are on screen AT ONCE — the whole reason this replaced the
+      # Alert. Asserted by id, not by text: "Imperial (lb, ft/in, mi)" is also the row's own
+      # subtitle once it is chosen, so a text match cannot tell the two apart.
+      - assertVisible:
+          id: 'health-unit-system-metric'
+      - assertVisible:
+          id: 'health-unit-system-imperial'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # Choose pounds. The panel closes and the row's own subtitle follows.
+      # REAL mutation: chooseUnitSystem() -> setUnitSystem() ->
+      # healthApi.saveGoal({unit_system}) -> PUT /health/goals, 200
+      # (HealthMoreScreen.tsx, healthLocalStorage.ts, src/api/health.ts).
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-MORE-094
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-unit-system-imperial'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-units-picker'
+          timeout: 10000
+      - extendedWaitUntil:
+          visible:
+            id: 'health-setting-units-subtitle'
+          timeout: 10000
+      - assertVisible: 'Imperial (lb, ft/in, mi)'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # TEARDOWN for this leg: back to kilograms so the rest of the suite (and
+      # more-units-picker.yaml, which re-drives this same picker) starts
+      # from the default. Same REAL mutation as above, opposite value.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-setting-units'
+          retryTapIfNoChange: true
+      - tapOn:
+          id: 'health-unit-system-metric'
+          retryTapIfNoChange: true
+      # Same three-step settle the imperial leg above uses (picker closes ->
+      # subtitle repaints -> text assertion), NOT a single wait on the text
+      # alone. Reproduced 2026-08-02: a bare `extendedWaitUntil` on 'Metric
+      # (kg, cm, km)' here timed out at 10s on device — the option row inside
+      # the still-open picker renders this same string for the UNselected
+      # metric choice, so the word being "visible" proves nothing about the
+      # tap actually landing; waiting for the picker to close is what does.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-units-picker'
+          timeout: 10000
+      - extendedWaitUntil:
+          visible:
+            id: 'health-setting-units-subtitle'
+          timeout: 10000
+      - assertVisible: 'Metric (kg, cm, km)'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- The picker's CANCEL path (HEALTH-MORE-093) ----------------------
+      # Opening and closing without choosing must write nothing. There is no
+      # Alert "Cancel" any more; dismissing is tapping the row a second time.
+      # Verified as a NO-OP against the same PUT /health/goals the real choice
+      # above uses — `chooseUnitSystem` is only ever called from an option
+      # Pressable's own `onPress` (HealthMoreScreen.tsx), never from the row
+      # that opens/closes the panel.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-setting-units'
+      - assertVisible:
+          id: 'health-units-picker'
+      - tapOn:
+          id: 'health-setting-units'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-units-picker'
+          timeout: 10000
+      - assertVisible: 'Metric (kg, cm, km)'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The other three PREFERENCES rows render a LIVE summary ----------
+      # They navigate, so more-navigation-rows.yaml opens them; here we only
+      # prove the tab renders each one with a summary rather than a blank second
+      # line (the subtitles are computed from the stored preferences).
+      - assertVisible:
+          id: 'health-setting-goals-subtitle'
+      - assertVisible:
+          id: 'health-setting-notifications-subtitle'
+      - assertVisible:
+          id: 'health-setting-widget-subtitle'
+
+      # --- "Where your data lives" → info Alert (HEALTH-MORE-073) ----------
+      # Renamed from "On-device storage" by the parity work, and deliberately:
+      # Health is backend-backed, so the old title and its "on this device only"
+      # body were a privacy claim the product had retracted. Asserting the new
+      # wording is asserting the true one.
+      - scrollUntilVisible:
+          element:
+            id: 'health-setting-on-device-storage'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-setting-on-device-storage'
+      - extendedWaitUntil:
+          visible: 'Where your data lives'
+          timeout: 10000
+      # The two claims that matter, both still made in words:
+      - assertVisible:
+          text: '.*never shared with other Symply apps.*'
+      - assertVisible:
+          text: '.*never sent to an AI provider.*'
+      # NOTE: that second claim is currently FALSE — the shipped AI coach sends
+      # the member's own figures to a provider. Pinned in
+      # src/features/health/__tests__/areas/more.signout-privacy-posture.test.ts
+      # (HEALTH-MORE-083). When the copy is corrected, this line changes with it.
+      - tapOn: 'OK'
+
+      # --- Apple Health → the stateful connect CARD (HEALTH-MORE-047) ------
+      # `HealthKitConnectCard` replaced the old static "not connected"
+      # SettingItem: it owns every state (unavailable / not-requested / denied /
+      # connected), names the data types it would read, and always says manual
+      # entry keeps working. Tapping it no longer opens an Alert, so the old
+      # `tapOn` + `.*HealthKit is not connected.*` leg could never pass.
+      #
+      # REWRITTEN 2026-07-30: the card is now `layout="compact"` here — a single
+      # actionable row, with the body/manual-note/scope-list moved behind the
+      # (i) button's bottom sheet instead of sitting inline on the settings
+      # list. Open the sheet before asserting the copy that used to be inline.
+      - scrollUntilVisible:
+          element:
+            id: 'health-setting-apple-health'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-setting-apple-health-title'
+      - tapOn:
+          id: 'health-setting-apple-health-info'
+      - assertVisible:
+          id: 'health-setting-apple-health-body'
+      # The card must never imply a connection is required to log by hand.
+      - assertVisible:
+          id: 'health-setting-apple-health-manual-note'
+      # It states which data types it would read — a scope claim, not a colour.
+      - assertVisible:
+          id: 'health-setting-apple-health-scope-label'
+      # NOT `tapOn: {id: 'bottom-sheet-overlay'}` — that id's view is
+      # `pointerEvents="box-none"` and Maestro's id-lookup can't find it on
+      # this build (see home-dashboard-rings-and-glance.yaml). A raw point
+      # tap in the visible backdrop strip hits the same TouchableOpacity.
+      - tapOn:
+          point: '50%, 10%'
+      # NOT asserted: `-action`. On a simulator the bridge reports `unavailable`,
+      # and that state deliberately offers no button at all
+      # (HEALTH-MORE-053) — the unit suite owns the four states; this leg owns
+      # "the card is the surface".
+
+      # --- Coming soon is down to ONE row (HEALTH-MORE-035 / 103) ----------
+      # 'Apple Health sync' is deliberately asserted ABSENT: it shipped, and a
+      # roadmap row for a working feature is an untruth in the same family as
+      # the privacy copy above.
+      - scrollUntilVisible:
+          element:
+            text: 'Body photos.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Needs its own storage and deletion review first'
+      - assertNotVisible: 'Apple Health sync'
+      - assertNotVisible: 'Scoped, opt-in, privacy-reviewed'
+
+      # --- Sign out → confirm Alert; Cancel keeps the session -------------
+      # LOCAL-ONLY, not just this Cancel path: `handleSignOut`'s "Sign out"
+      # choice calls `logout()` (src/stores/authStore.ts), which flips Zustand
+      # auth state, clears SecureStore tokens and resets local stores — no
+      # `apiClient` call at all, confirmed against source. So there is no
+      # backend endpoint to verify even a CONFIRMED sign-out against here, and
+      # no fake no-network check is added for this Cancel.
+      - scrollUntilVisible:
+          element:
+            id: 'health-sign-out'
+          direction: DOWN
+          timeout: 30000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-sign-out'
+      - assertVisible: 'Are you sure you want to sign out?'
+      - tapOn: 'Cancel'
+      - assertVisible:
+          id: 'health-more-screen'

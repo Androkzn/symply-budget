@@ -1,0 +1,65 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: BUDGET-MM-006 — this member records a spending, then syncs it out.
+#
+# env: MM_TITLE, MM_AMOUNT. Runs on either device.
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 20000
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 20000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: ${MM_TITLE}
+- runFlow: ../subflows/budget-relaunch-if-backgrounded.yaml
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-cost-exact'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: ${MM_AMOUNT}
+# Blur the cost field so onEndEditing flushes the native value into RN state
+# before save (New Arch + Maestro race).
+- tapOn:
+    id: 'budget-item-title'
+- waitForAnimationToEnd:
+    timeout: 1000
+- tapOn:
+    id: 'budget-item-form-save-header'
+- waitForAnimationToEnd:
+    timeout: 2500
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-item-form'
+    timeout: 25000
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 20000
+- assertVisible: '.*${MM_TITLE}.*'
+# Push it to the household — one sync, no navigation away from the list.
+- runFlow: ../subflows/budget-sync-pulse.yaml
+- waitForAnimationToEnd:
+    timeout: 12000
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml

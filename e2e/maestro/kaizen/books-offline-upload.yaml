@@ -1,0 +1,52 @@
+appId: com.symply.kaizen
+---
+# SYS-139 — offline book upload fails loudly (no phantom uploaded state).
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/books
+- extendedWaitUntil:
+    visible: 'Upload book PDF'
+    timeout: 20000
+- runFlow: subflows/scroll-kaizen-to-top.yaml
+- scrollUntilVisible:
+    element:
+      id: kaizen-upload-source-file
+    direction: DOWN
+    timeout: 30000
+    speed: 90
+- setAirplaneMode: enabled
+- waitForAnimationToEnd:
+    timeout: 3000
+- openLink: kaizen://e2e-force-import-fail
+- waitForAnimationToEnd:
+    timeout: 2000
+- openLink: kaizen://e2e-pick?key=kaizen-book
+- waitForAnimationToEnd:
+    timeout: 2000
+- openLink: kaizen:///kaizen/books
+- waitForAnimationToEnd:
+    timeout: 4000
+- runFlow: subflows/scroll-kaizen-to-top.yaml
+- scrollUntilVisible:
+    element:
+      id: kaizen-upload-source-file
+    direction: DOWN
+    timeout: 30000
+    speed: 90
+- tapOn:
+    id: 'kaizen-upload-source-file'
+- extendedWaitUntil:
+    visible: 'Import failed'
+    timeout: 45000
+- tapOn:
+    text: 'OK'
+    optional: true
+- assertNotVisible:
+    id: 'kaizen-upload-selected-file'
+    optional: true
+- setAirplaneMode: disabled
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible: 'Upload book PDF'

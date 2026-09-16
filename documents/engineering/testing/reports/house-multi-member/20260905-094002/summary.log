@@ -1,0 +1,8 @@
+[hmm] live report: /Users/andreitekhtelev/Desktop/Symply Ecosystem/Simply Ecosystem-house/documents/engineering/testing/reports/house-multi-member/20260905-094002/index.html (opens shortly, self-refreshes)
+[hmm] === phase 1: enrolment (ordered) ===
+    PASS [A] mm-01-signin
+    PASS [B] mm-01-signin
+    PASS [A] mm-13-owner-pre-invite-task
+    FAIL [A] mm-02-owner-create-invite
+[hmm] FAIL FAST — stopping the run at 'mm-02-owner-create-invite'
+[hmm] stopping after first failure — skipping cleanup (fail fast)

@@ -1,0 +1,19 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Open Backup & Restore and scroll to the restore half of it.
+#
+# Restore used to be its own screen behind its own Settings row. It now lives
+# inside `HouseBackupScreen` — the archive list restores on tap, and "RESTORE
+# FROM ELSEWHERE" reaches Drive, Dropbox and Files — matching Budget's single
+# Backup & Restore screen. This subflow keeps its name so every caller that says
+# "take me to restore" still works; what changed is where restore is.
+- runFlow: lf-backup-open-backup-screen.yaml
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-restore-sources'
+    direction: DOWN
+    centerElement: true
+    timeout: 20000

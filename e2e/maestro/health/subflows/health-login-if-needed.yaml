@@ -1,0 +1,56 @@
+appId: ${APP_ID}
+tags:
+  - util
+  - app:health
+---
+# Health login boundary — shared LoginScreen. Reaches Home from ANY logged-out state:
+#   • the collapsed "Sign in with email" button (auth-sign-in-email), OR
+#   • an already-expanded email form (auth-email-input) that may hold a stale or
+#     field-merge-corrupted value such as `a.tekhtelev…Andrei123!`.
+# The logged-out marker is `login-screen` (the auth screen root, ALWAYS present) — NOT
+# `auth-sign-in-email`, which is only the collapsed button and DISAPPEARS once the form
+# is expanded. Gating on it stranded recovery on an already-open/corrupted form.
+# Prefer simplehealth://e2e-login deep link; fall back to typing the email form.
+- runFlow:
+    when:
+      visible:
+        id: 'login-screen'
+    commands:
+      - runFlow: health-dismiss-expo-dev-chrome.yaml
+      - runFlow:
+          when:
+            true: ${E2E_LOGIN_URL != null && E2E_LOGIN_URL != ''}
+          commands:
+            - openLink: ${E2E_LOGIN_URL}
+            - waitForAnimationToEnd:
+                timeout: 8000
+            - runFlow: health-dismiss-expo-dev-chrome.yaml
+      # FALLBACK typing — only if the deep-link did not log us in (still on login-screen).
+      - runFlow:
+          when:
+            visible:
+              id: 'login-screen'
+          commands:
+            # Expand the email form if it is still collapsed (no-op if already open).
+            - tapOn:
+                id: 'auth-sign-in-email'
+                optional: true
+            - extendedWaitUntil:
+                visible:
+                  id: 'auth-email-input'
+                timeout: 15000
+            # Focus email, WIPE any stale/corrupted value, type the FULL email, then advance
+            # to the password field with the email field's OWN "next" return key
+            # (returnKeyType="next" + onSubmitEditing focuses the password input). A tapOn
+            # the password field is flaky on iOS-26: focus stays on email and the following
+            # inputText merges the password INTO the email → `a.tekhtelev…Andrei123!`.
+            - tapOn:
+                id: 'auth-email-input'
+            - eraseText: 50
+            - inputText: ${E2E_EMAIL}
+            - pressKey: Enter
+            - inputText: ${E2E_PASSWORD}
+            - tapOn:
+                id: 'auth-sign-in-submit'
+            - waitForAnimationToEnd:
+                timeout: 12000

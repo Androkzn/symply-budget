@@ -1,0 +1,34 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Force `HealthNutritionScreen`'s `hydrate(date)` to re-run after a diary write
+# made from a DIFFERENT, PUSHED screen (e.g. `HealthAddFoodScreen` /
+# `HealthManualFoodForm`, popped back to with `- back`).
+#
+# WHY THIS EXISTS. A stack POP never remounts the screen it reveals, and
+# `HealthNutritionScreen`'s own effect only re-fetches on a `date` CHANGE —
+# `useEffect(() => { void hydrate(date); }, [date, hydrate])` — confirmed
+# against source. Every existing Nutrition flow writes through the SCREEN'S
+# OWN handlers, which call `setEntries(await ...)` directly and so never hit
+# this gap; `HealthManualFoodForm` reached via Add-Food calls `addMealEntry`
+# itself and hands the result back only as a confirmation STRING, not a new
+# entries array, so the already-mounted Nutrition screen underneath stays
+# stale until the day is stepped away and back. This is also why a teardown
+# sweep (`health-clear-maestro-meals.yaml`) run straight after a `- back` from
+# Add-Food would silently find nothing to delete — the row exists in storage
+# but not yet in this screen's rendered tree — so callers MUST run this first.
+#
+# Assumes the day stepper is already reachable; call
+# `health-scroll-nutrition-top.yaml` first if unsure.
+- tapOn:
+    id: 'health-nutrition-prev-day'
+- extendedWaitUntil:
+    visible: 'Yesterday'
+    timeout: 10000
+- tapOn:
+    id: 'health-nutrition-next-day'
+- extendedWaitUntil:
+    visible: 'Today'
+    timeout: 10000

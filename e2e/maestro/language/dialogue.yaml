@@ -1,0 +1,111 @@
+appId: com.symply.language
+tags:
+  - app:language
+  - feature:dialogue
+  - readonly
+  - regression
+# Matrix: LANGUAGE-dialogue (see documents/engineering/testing/matrices/)
+---
+# Conversation practice: each scenario tile → generate → assert the dialogue opens.
+# Each tile fires POST /dialogues/generate with its scenario id. Tiles lack testIDs
+# (audit gap) — matched by label. The post-action proxy for the donor call is that the
+# "Writing your scene…" spinner shows and/or the generated scene (bubbles / KEY
+# VOCABULARY) renders. Restaurant is verified fully; the other four assert the generate
+# call fired (spinner or scene) with a lighter touch to bound live-AI runtime.
+# TODO(testIDs): add testIDs to the 5 scenario tiles.
+- runFlow: subflows/launch-language.yaml
+# Prefer deep link — nav card copy varies when assessment/plan state changes.
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-dialogue-screen'
+    commands:
+      - openLink: simplelanguage://language-dialogue
+      - runFlow: subflows/language-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+- runFlow:
+    when:
+      visible: 'Conversation practice'
+    commands:
+      - tapOn: 'Conversation practice'
+- extendedWaitUntil:
+    visible:
+      id: 'language-dialogue-screen'
+    timeout: 30000
+# All five scenario tiles present.
+- scrollUntilVisible:
+    element:
+      id: 'language-dialogue-scenario-restaurant'
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: 'language-dialogue-scenario-restaurant'
+- assertVisible:
+    id: 'language-dialogue-scenario-doctor'
+- assertVisible:
+    id: 'language-dialogue-scenario-workplace'
+- assertVisible:
+    id: 'language-dialogue-scenario-airport'
+- assertVisible:
+    id: 'language-dialogue-scenario-hotel'
+# Restaurant — full verification of a generated scene.
+- tapOn:
+    id: 'language-dialogue-scenario-restaurant'
+- assertVisible:
+    text: 'Writing your scene…|KEY VOCABULARY'
+- extendedWaitUntil:
+    visible:
+      id: 'language-dialogue-generated'
+    timeout: 120000
+# Remaining scenarios — assert each tile triggers a fresh generate.
+- scrollUntilVisible:
+    element:
+      id: 'language-dialogue-scenario-workplace'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'language-dialogue-scenario-workplace'
+- extendedWaitUntil:
+    visible:
+      id: 'language-dialogue-generated'
+    timeout: 120000
+- scrollUntilVisible:
+    element:
+      id: 'language-dialogue-scenario-doctor'
+    direction: UP
+    timeout: 15000
+    speed: 40
+    visibilityPercentage: 30
+- tapOn:
+    id: 'language-dialogue-scenario-doctor'
+- extendedWaitUntil:
+    visible:
+      id: 'language-dialogue-generated'
+    timeout: 120000
+- scrollUntilVisible:
+    element:
+      id: 'language-dialogue-scenario-airport'
+    direction: DOWN
+    timeout: 15000
+    speed: 40
+    visibilityPercentage: 30
+- tapOn:
+    id: 'language-dialogue-scenario-airport'
+- extendedWaitUntil:
+    visible:
+      id: 'language-dialogue-generated'
+    timeout: 120000
+- scrollUntilVisible:
+    element:
+      id: 'language-dialogue-scenario-hotel'
+    direction: DOWN
+    timeout: 15000
+    speed: 40
+    visibilityPercentage: 30
+- tapOn:
+    id: 'language-dialogue-scenario-hotel'
+- extendedWaitUntil:
+    visible:
+      id: 'language-dialogue-generated'
+    timeout: 120000

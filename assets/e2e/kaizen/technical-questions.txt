@@ -1,0 +1,22 @@
+Technical Questions
+Exported Jun 30, 2026 · 4 questions
+
+1. Mm-hmm. Cool. And tell me a bit more about the design. So you talked about the front end being initially fully web. Uh, web app. But the backend, what was the API structure like?
+   ScalePad · Software Developer · Technical · Jun 30, 2026
+
+In terms of API structure, we are using DynamoDB. And amplify right now. Uh, for, like, managing our tables, uh, Lambda functions, we're heavily using Lambda functions. Um, and, uh, half a year ago, uh, I, um. performed, like, huge refactoring, and we moved almost all logic to backend side, because our plan was to expand. to different platforms. All our functionality. So I made a huge refactoring and moved to like, right now I think we have almost 150 different Lambda functions. Now that, um… support our functionality. Initially, it was like, maybe 30 or. 40. So it helped a lot when I decided to redesign this. Uh, approach, uh, to mostly backend side, uh, it reduces complexity, uh, and, uh, like, uh, rewriting code in many, in many places. Observability. It's a… it's a very… Important point here because with AWS and Lambda functions, you have a lot of tools. to make, uh, observable errors, warnings, and, uh, improve behavior if… We are talking about like Lambdas that's responsible for using AI for our products. And yeah, that.
+
+2. Cool. And so you talked about using Amplify. So do you only use Dynamo, or do you also have a relational database in place?
+   ScalePad · Software Developer · Technical · Jun 30, 2026
+
+Oh, no, we use just DynamoDB tables.
+
+3. Okay, and how do you, like, how complex is your database? What's the, like, do you only have one Dynamo table, or do you have multiple tables?
+   ScalePad · Software Developer · Technical · Jun 30, 2026
+
+Oh, yeah, we decided to use multiple tables approach. Well, it was a kind of legacy thing, because, uh, like, um… I redesigned it completely to one table. Was it, like… Could be a very big switch and we just keep using old legacy structure of multiple dynamic data tables, reusing a lot of… Global secondary indexes for optimizing queries or using nested objects. That we fetched together… So basically, yeah.
+
+4. Okay. Have you had any challenges working with Dynamo?
+   ScalePad · Software Developer · Technical · Jun 30, 2026
+
+(no answer recorded)

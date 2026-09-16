@@ -1,0 +1,14 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Switch to the Trends tab (route health-trends, label Trends).
+- runFlow: dismiss-weight-keyboard.yaml
+- tapOn:
+    id: 'tab-health-trends'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-trends-screen'
+    timeout: 30000

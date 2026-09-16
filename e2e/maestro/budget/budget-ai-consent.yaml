@@ -1,0 +1,58 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:ai-access
+  - readonly
+  - regression
+# Matrix: BUDGET-ai-consent (see documents/engineering/testing/matrices/)
+# Per-provider data-sharing consent gate on the shared app/ai-access/connect.tsx
+# (Apple App Review Guideline 5.1.2(i)). Budget sends household/budget/financial
+# data to third-party AI, so the connect screen must disclose what is shared and —
+# for Gemini only — warn that the free tier trains on + human-reviews content.
+#
+# PLATFORM NOTE: the disclosure sits in a long ScrollView, and Maestro's scroll is
+# unreliable on iOS-26 New Architecture (scrollUntilVisible + swipe both stall).
+# So the exact disclosure COPY is hard-verified by the unit test
+# app/ai-access/__tests__/connect-consent.test.tsx; this E2E hard-checks what is
+# reliable on-device — each provider's connect screen loads with the right title,
+# and the Gemini-only free-tier warning is present while Anthropic's never mounts
+# (the App-Review differentiator, checkable with no scroll). Deep-content asserts
+# are best-effort. Readonly: no key is entered or submitted.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+
+# ── Gemini: the high-risk provider (free tier trains + human-reviews) ─────────
+- openLink: ${E2E_APP_SCHEME}:///ai-access/connect?provider=gemini
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'ai-access-connect-screen'
+    timeout: 20000
+- assertVisible: 'Connect Google Gemini'
+# Best-effort: scroll to + confirm the Gemini free-tier training warning. Maestro's
+# iOS-26 scroll is flaky, so this does not gate the flow (copy is unit-tested).
+- scrollUntilVisible:
+    element:
+      id: 'ai-free-tier-warning'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'ai-free-tier-warning'
+    timeout: 3000
+    optional: true
+
+# ── Anthropic: NO free-tier warning (the App-Review differentiator) ──────────
+- openLink: ${E2E_APP_SCHEME}:///ai-access/connect?provider=anthropic
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'ai-access-connect-screen'
+    timeout: 20000
+- assertVisible: 'Connect Anthropic Claude'
+# Anthropic renders NO free-tier warning card — the element is conditionally
+# mounted for Gemini only, so it is absent from the hierarchy entirely (no scroll
+# needed). This is the hard compliance guarantee: Anthropic ≠ Gemini free tier.
+- assertNotVisible:
+    id: 'ai-free-tier-warning'

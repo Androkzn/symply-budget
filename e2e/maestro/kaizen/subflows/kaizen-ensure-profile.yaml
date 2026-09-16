@@ -1,0 +1,15 @@
+appId: com.symply.kaizen
+---
+# Re-seed dev profile only when onboarding gate copy is visible on Today.
+- runFlow:
+    when:
+      visible: 'Choose systems during onboarding to begin.'
+    commands:
+      - openLink: ${E2E_SETUP_URL}
+      - waitForAnimationToEnd:
+          timeout: 12000
+      - openLink: kaizen://today
+      - extendedWaitUntil:
+          visible:
+            id: 'kaizen-today-screen'
+          timeout: 60000

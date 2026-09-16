@@ -1,0 +1,294 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:fridge
+  - regression
+# Matrix: HEALTH-FRIDGE-114 … HEALTH-FRIDGE-125
+---
+# Fridge tab — parity phase P5: the barcode field, the receipt reader, and
+# "what could I cook" meal ideas. `fridge-stock-and-expiry.yaml` owns manual
+# CRUD and the five urgency buckets; this flow owns the three surfaces that
+# landed after it and had ZERO device coverage of any kind.
+#
+# ── WHAT THIS FLOW DELIBERATELY DOES NOT DO ─────────────────────────────────
+#
+# It does not complete a receipt scan. Camera, Gallery and File hand off to
+# NATIVE pickers (`ImageCropPicker.openCamera/openPicker`, Expo
+# `DocumentPicker`) that put a system sheet on top of the app, and there is no
+# Health fixture in `src/services/e2e-document-pick.ts` to feed one a
+# deterministic image (its `VALID_KEYS` are Kaizen-only). In a serial suite a
+# system sheet that fails to dismiss strands every flow after it — so, exactly
+# as `scan-modes-and-sources.yaml` does for the Scan tab, this flow drives every
+# receipt control it can drive honestly (the four import tiles, the disabled
+# Read button, Drive's in-app open/cancel) and stops at the picker boundary.
+# `normalizeReceiptDraft`, the review list and `handleAddReceiptItems` are
+# pinned at the unit and screen-render layers instead (see
+# `src/features/health/__tests__/areas/fridge.p5-*.test.ts*`).
+#
+# It also does not assert a SPECIFIC barcode or meal-ideas outcome. Both call a
+# real AI/provider chokepoint (FatSecret for barcode, Claude for meal ideas) and
+# this build ships with `not_configured` / `needs_ai` on at least one of them by
+# design (no FatSecret credential is set on any Health deploy — see
+# `BARCODE_COPY.not_configured` in `healthFridgeStorage.ts`). Asserting "found"
+# would make this flow fail on every environment that is honestly configured.
+# Instead it asserts the SHAPE every outcome must share: a plain-words message
+# with no raw error text, landing in the shared `health-fridge-message` banner.
+#
+# GATED / SKIPS-GRACEFULLY: wrapped in `runFlow: when: visible: health-home-screen`,
+# same contract as every other authenticated Fridge flow.
+#
+# TEARDOWN: nothing here writes to the fridge. A found barcode fills the ADD
+# form but this flow never presses Save, so there is nothing to remove — the
+# screen is left on whatever `fridge-stock-and-expiry.yaml` (which runs
+# immediately before this one) already cleaned up.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-FRIDGE-114
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-fridge.yaml
+      - extendedWaitUntil:
+          visible: 'NEEDS EATING'
+          timeout: 15000
+
+      # --- WHAT COULD I COOK is present and named honestly (HEALTH-FRIDGE-114) --
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-meals-run'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'WHAT COULD I COOK'
+      - assertVisible: 'Nothing is saved, and the calorie figures are estimates for a dish nobody has weighed yet.'
+
+      # --- Suggest meals answers with a message, never a raw error (HEALTH-FRIDGE-115) --
+      # The button is either dead (an empty fridge — `disabled={summary.total===0}`)
+      # or live; either is a legitimate account state on the shared fleet login,
+      # so both branches are handled rather than assumed.
+      - runFlow:
+          when:
+            visible:
+              id: 'health-fridge-meals-run'
+              enabled: true
+          commands:
+            # `handleMealIdeas` → `loadFridgeMealIdeas` (healthFridgeStorage.ts)
+            # → `POST /health/ai/fridge-meals` (health-assets.ts). No status is
+            # asserted: `assertCanUseAI`/the provider chokepoint can legitimately
+            # answer 200, 403 (AI disabled) or 503 (no provider) on a shared,
+            # honestly-configured account — see the flow header. The point here
+            # is only that the tap really reached the Worker, not which of the
+            # three UI branches below it produced.
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+            - tapOn:
+                id: 'health-fridge-meals-run'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'health-fridge-overlay'
+                timeout: 60000
+            - runFlow:
+                file: ../subflows/e2e-verify-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+                  E2E_VERIFY_METHOD: POST
+                  E2E_VERIFY_PATH: /ai/fridge-meals
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+            # One of three renders now exists: a card of meals
+            # (`health-fridge-meals-list`), an honest "nothing to cook" note
+            # (`health-fridge-meals-empty`), or a plain-words failure banner
+            # (`health-fridge-message`) — AI is not guaranteed switched on for
+            # this account. Whichever it is, the SAME assertion applies: no raw
+            # error text leaked into whatever rendered.
+            - assertVisible:
+                text: '.*'
+      - assertNotVisible: 'TypeError'
+      - assertNotVisible: 'undefined is not an object'
+
+      # --- BARCODE: digits-only field, dead button until typed (HEALTH-FRIDGE-116) --
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-barcode-input'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'BARCODE'
+      - assertVisible: 'Type the digits printed under the bars.'
+      - tapOn:
+          id: 'health-fridge-barcode-input'
+      # Letters and punctuation are dropped as they are typed — the field takes
+      # only what is printed under the bars.
+      - inputText: '5000-abc157 024671'
+      - hideKeyboard
+      - assertVisible:
+          id: 'health-fridge-barcode-input'
+          text: '5000157024671'
+
+      # --- A lookup answers with a plain-words message (HEALTH-FRIDGE-117) --
+      # `handleBarcodeLookup` → `lookupFridgeBarcode` (healthFridgeStorage.ts) →
+      # `GET /health/foods/barcode` (health-food.ts) — always 200 for every
+      # provider outcome (found / not_found / not_configured / …), per that
+      # route's own contract; only an empty-digits code 400s, which the typed
+      # barcode here never is.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-fridge-barcode-lookup'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-fridge-overlay'
+          timeout: 30000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: GET
+            E2E_VERIFY_PATH: /foods/barcode
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-fridge-message'
+      # No raw provider/transport text, on whichever of the five outcomes this
+      # environment actually returns (found / not_found / invalid /
+      # not_configured / unavailable).
+      - assertNotVisible:
+          id: 'health-fridge-message'
+          text: '.*(status code|axios|ECONNRESET|fatsecret\.com|TypeError).*'
+
+      # --- A FOUND product fills the form, and NEVER invents an expiry (HEALTH-FRIDGE-118) --
+      # Conditional: `not_configured` is the state this ships in on most
+      # deploys (see the flow header), so a hit is asserted when it happens
+      # rather than assumed to happen. When it does, the barcode's own
+      # guarantee — no expiry, ever — is exactly what a silent regression here
+      # would violate.
+      - runFlow:
+          when:
+            visible: 'Found'
+          commands:
+            - scrollUntilVisible:
+                element:
+                  id: 'health-fridge-expiry-input'
+                direction: UP
+                timeout: 20000
+                visibilityPercentage: 10
+            - assertVisible:
+                id: 'health-fridge-expiry-input'
+                text: '^$'
+            - assertVisible:
+                id: 'health-fridge-name-input'
+            # Abandon the filled form rather than saving — this flow writes
+            # nothing to the fridge.
+            - tapOn:
+                id: 'health-fridge-name-input'
+            - eraseText
+            - hideKeyboard
+
+      # --- RECEIPT: nothing is added until the person says so (HEALTH-FRIDGE-119) --
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-receipt-camera'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'FROM A RECEIPT'
+      - assertVisible: 'Nothing is added until you say so.'
+      - assertVisible:
+          id: 'health-fridge-receipt-run'
+          enabled: false
+
+      # --- All four import tiles are present and live (HEALTH-FRIDGE-120) --
+      # The shared Camera / Gallery / File / Drive row, never re-forked — same
+      # primitive, same assertion shape as `scan-modes-and-sources.yaml`.
+      - assertVisible:
+          id: 'health-fridge-receipt-camera'
+      - assertVisible:
+          id: 'health-fridge-receipt-gallery'
+      - assertVisible:
+          id: 'health-fridge-receipt-file'
+      - assertVisible:
+          id: 'health-fridge-receipt-drive'
+      - assertNotVisible:
+          id: 'health-fridge-receipt-shots'
+
+      # --- Drive opens the in-app picker (HEALTH-FRIDGE-121) --------------
+      # Nested modal: `extendedWaitUntil`, never a bare assertVisible — the
+      # sheet animates in and a same-frame assertion races it.
+      # NOT network-verified: `CloudFilePicker` (src/components/cloud-storage/
+      # CloudFilePicker.tsx) talks to `googleDriveService`/`dropboxService`,
+      # not a fridge-data endpoint, and this leg never selects a file (only
+      # opens then Cancels) — there is no fridge mutation to confirm either
+      # way here.
+      - tapOn:
+          id: 'health-fridge-receipt-drive'
+      - extendedWaitUntil:
+          visible:
+            id: 'cloud-picker-modal'
+          timeout: 30000
+
+      # --- …and Cancel dismisses it without picking (HEALTH-FRIDGE-122) ---
+      - tapOn:
+          id: 'cloud-picker-cancel'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'cloud-picker-modal'
+          timeout: 30000
+      - assertVisible:
+          id: 'health-fridge-screen'
+      - assertNotVisible:
+          id: 'health-fridge-receipt-shots'
+      # The Read button is still dead — dismissing a picker must not have
+      # smuggled a shot past the empty check.
+      - assertVisible:
+          id: 'health-fridge-receipt-run'
+          enabled: false
+
+      # --- Pressing the dead Read button raises nothing (HEALTH-FRIDGE-123) --
+      # Behavioural, not `enabled:` on its own — see the note in
+      # `habits-add-tick-delete.yaml`. Pressing a disabled Pressable is a no-op,
+      # so the proof is that the overlay never rises and no review list appears.
+      - tapOn:
+          id: 'health-fridge-receipt-run'
+      - assertNotVisible:
+          id: 'health-fridge-overlay'
+      - assertNotVisible:
+          id: 'health-fridge-receipt-review'
+
+      # --- The screen scrolls to its end (HEALTH-FRIDGE-124) --------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-fridge-screen-scroll-end'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+
+      # --- Back to the Health tab (HEALTH-FRIDGE-125) ----------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

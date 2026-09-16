@@ -1,0 +1,514 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:home
+  - mutation
+  - regression
+# Matrix: HEALTH-HOME-139 … HEALTH-HOME-144, HEALTH-HOME-191 (HEALTH-HOME-138 retired
+# 2026-07-29; HOME-191 numbered out of sequence — added 2026-08-01, see its own comment below)
+---
+# Home's donor-parity dashboard widgets shipped 2026-07-27 —
+# `HealthWeeklyTrendsWidget` ("WEEKLY TRENDS") and `HealthFoodChallengesWidget`
+# ("FOOD CHALLENGES") — had ZERO Maestro coverage and zero Jest coverage before
+# this flow (no test file anywhere imports either component; see the matrix
+# Revision entry). Both are ON by default (`DEFAULT_HOME_WIDGETS`).
+#
+# HEALTH-HOME-138 RETIRED (2026-07-29): this flow used to also cover
+# `HealthCalorieRingCard` ("TODAY'S CALORIES") — a whole second card showing
+# the exact kcal figure the TODAY ring already showed a few widgets up, plus
+# three macro bars. The widget is gone; the macro bars are not — they moved
+# into the calories metric's own drill-down sheet (opened from the TODAY
+# ring), now asserted by `home-dashboard-rings-and-glance.yaml`'s HOME-130
+# leg. There is nothing left here for HOME-138 to cover.
+#
+# NOT the Nutrition-tab surfaces of the same name: `HealthTodayChallengesCard`
+# (Nutrition tab) is a DIFFERENT component in a DIFFERENT file, owned by a
+# different workstream — this flow only ever taps `health-home-*` testIDs,
+# never the Nutrition tab's `health-challenges-card-*` ones.
+#
+# WHY WEEKLY TRENDS AND FOOD CHALLENGES BRANCH ON DATA: both are read-only
+# views over server state this flow does not seed (`GET
+# /health/summary/weekly-trend`, `GET /health/challenges` + per-challenge
+# weekly-progress) — a weight/meal history the shared account may or may not
+# currently hold, and a set of active food challenges nothing in this suite
+# creates yet (`HealthChallengesScreen` itself has no Maestro coverage — see
+# the matrix Flagged section). Each leg below asserts WHICHEVER state is
+# actually on screen rather than assuming one, the same `when: visible` /
+# `when: notVisible` branch pattern `trends-charts.yaml` uses for its own
+# chart-or-sentence legs.
+#
+# SCROLL: same rationale as `home-dashboard-rings-and-glance.yaml` — these two
+# cards sit directly after TODAY (the Home WEIGHT card that used to separate
+# them from TODAY was removed 2026-08-01) and above AT A GLANCE, below
+# `subflows/focus-health-home.yaml`'s pre-widget `top` tuning and above its
+# `bottom` tuning, so each leg scrolls with its own bound rather than assume
+# either preset still reaches it.
+#
+# MUTATION: the FOOD CHALLENGES "Challenge Details" disclosure writes MMKV
+# `health.foodChallengesWidget.expanded.v1` — the one real local write this
+# flow makes, and it restores whatever the toggle read on entry.
+- runFlow: subflows/launch-health.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # ======================================================================
+      # WEEKLY TRENDS — top-level empty-vs-populated branch (HEALTH-HOME-139)
+      # ======================================================================
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-139
+      - runFlow: subflows/dismiss-weight-keyboard.yaml
+      - runFlow: subflows/dismiss-health-home-cards.yaml
+      - repeat:
+          times: 6
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-today-label'
+                commands:
+                  - swipe:
+                      start: '50%,32%'
+                      end: '50%,82%'
+                      duration: 350
+                  - waitForAnimationToEnd:
+                      timeout: 700
+      - repeat:
+          times: 16
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-weekly-trends-label'
+                commands:
+                  - swipe:
+                      direction: UP
+                      duration: 400
+                  - waitForAnimationToEnd:
+                      timeout: 700
+      - assertVisible:
+          id: 'health-weekly-trends-label'
+      # Either the whole widget says "log a few days" (no trend at all), or it
+      # renders the legend/stat-row/delta-row skeleton — never both, never
+      # neither.
+      - runFlow:
+          when:
+            visible:
+              id: 'health-home-weekly-trends-empty'
+          commands:
+            - assertVisible: 'Log a few days of meals and weight to see this week compared with last.'
+      - runFlow:
+          when:
+            visible:
+              id: 'health-home-weekly-trends'
+          commands:
+            - assertVisible:
+                id: 'health-home-weekly-trends-legend-calories'
+            - assertVisible:
+                id: 'health-home-weekly-trends-legend-weight'
+            - assertVisible:
+                id: 'health-home-weekly-trends-stat-this-week-calories'
+            - assertVisible:
+                id: 'health-home-weekly-trends-stat-last-week-calories'
+            - assertVisible:
+                id: 'health-home-weekly-trends-stat-this-week-weight'
+            - assertVisible:
+                id: 'health-home-weekly-trends-stat-last-week-weight'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- WEEKLY TRENDS — per-metric chart-or-sentence branch (HOME-140) --
+      # SCROLL: unlike HOME-139 above, this leg needs its OWN scroll bound.
+      # HOME-139's assertions (legend/caption/stat row/delta row) all fit in
+      # the same fold that makes `health-weekly-trends-label` visible, so its
+      # loop is a no-op here (see the big SCROLL comment at the top of this
+      # file). But the calories/weight chart-or-sentence blocks render BELOW
+      # the delta row, inside the SAME widget, and routinely sit just past
+      # that fold — confirmed 2026-07-31: `chart-calories` and
+      # `chart-calories-empty` both came back not-visible even though the
+      # widget itself (`health-home-weekly-trends`) and every element above
+      # the chart blocks were on screen, i.e. neither branch was wrong, the
+      # target was simply still off screen. Use the same explicit-coordinate
+      # swipe proven for the FOOD CHALLENGES leg below (bare `direction: UP`
+      # is the unreliable one on this list) with a small `times` bound —
+      # this only needs to cross one widget's internal chart block, not a
+      # whole card further down the list.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-140
+      - runFlow:
+          when:
+            visible:
+              id: 'health-home-weekly-trends'
+          commands:
+            - repeat:
+                times: 10
+                commands:
+                  - runFlow:
+                      when:
+                        notVisible:
+                          id: 'health-home-weekly-trends-chart-calories.*'
+                      commands:
+                        - swipe:
+                            start: '50%,70%'
+                            end: '50%,30%'
+                            duration: 400
+                        - waitForAnimationToEnd:
+                            timeout: 700
+            - runFlow:
+                when:
+                  visible:
+                    id: 'health-home-weekly-trends-chart-calories'
+                commands:
+                  - assertVisible:
+                      id: 'health-home-weekly-trends-chart-calories'
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-home-weekly-trends-chart-calories'
+                commands:
+                  - assertVisible:
+                      id: 'health-home-weekly-trends-chart-calories-empty'
+            - repeat:
+                times: 10
+                commands:
+                  - runFlow:
+                      when:
+                        notVisible:
+                          id: 'health-home-weekly-trends-chart-weight.*'
+                      commands:
+                        - swipe:
+                            start: '50%,70%'
+                            end: '50%,30%'
+                            duration: 400
+                        - waitForAnimationToEnd:
+                            timeout: 700
+            - runFlow:
+                when:
+                  visible:
+                    id: 'health-home-weekly-trends-chart-weight'
+                commands:
+                  - assertVisible:
+                      id: 'health-home-weekly-trends-chart-weight'
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-home-weekly-trends-chart-weight'
+                commands:
+                  - assertVisible:
+                      id: 'health-home-weekly-trends-chart-weight-empty'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- WEEKLY TRENDS — legend tap combines both metrics (HOME-191) -----
+      # RESET: HOME-140 above scrolls PAST the legend row to reach the chart
+      # blocks further down the widget, so rather than assume that leftover
+      # scroll position still shows the legend, redo the same reset +
+      # scroll-to-widget dance HOME-139 uses (same rationale HOME-141 below
+      # applies for its own leg). The legend row sits in the SAME fold as
+      # `health-weekly-trends-label` — HOME-139's own note — so no further
+      # scroll is needed once that label is visible.
+      #
+      # ADDED 2026-08-01 alongside axis/label legibility fixes on the two
+      # separate charts. Device-verified the same day: the first run failed
+      # here (`chart-combined-empty` expected visible but wasn't) because the
+      # leg checked the visible/notVisible branch on the tap frame instead of
+      # waiting for the post-tap render — fixed with the `extendedWaitUntil`
+      # above rather than a blind sleep.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-191
+      - runFlow: subflows/dismiss-weight-keyboard.yaml
+      - runFlow: subflows/dismiss-health-home-cards.yaml
+      - repeat:
+          times: 6
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-today-label'
+                commands:
+                  - swipe:
+                      start: '50%,32%'
+                      end: '50%,82%'
+                      duration: 350
+                  - waitForAnimationToEnd:
+                      timeout: 700
+      - repeat:
+          times: 16
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-weekly-trends-label'
+                commands:
+                  - swipe:
+                      direction: UP
+                      duration: 400
+                  - waitForAnimationToEnd:
+                      timeout: 700
+      - runFlow:
+          when:
+            visible:
+              id: 'health-home-weekly-trends'
+          commands:
+            # Default: two separate charts, never a combined one, on entry.
+            - assertVisible:
+                id: 'health-home-weekly-trends-legend-calories'
+            - assertNotVisible:
+                id: 'health-home-weekly-trends-chart-combined'
+            - tapOn:
+                id: 'health-home-weekly-trends-legend-calories'
+            # `chart-combined` is a single wrapper around EITHER the chart or
+            # its own empty sentence (see `HealthWeeklyTrendsWidget.tsx`), so
+            # it goes from not-rendered to rendered the instant the toggle
+            # flips — waiting for IT to appear (rather than racing the
+            # visible/notVisible branch check immediately after the tap,
+            # which read the pre-render tree once and failed here on a live
+            # run 2026-08-01) is what makes the branch below trustworthy.
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-home-weekly-trends-chart-combined'
+                timeout: 8000
+            - runFlow:
+                when:
+                  visible:
+                    id: 'health-home-weekly-trends-chart-combined-empty'
+                commands:
+                  - assertVisible:
+                      id: 'health-home-weekly-trends-chart-combined-empty'
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-home-weekly-trends-chart-combined-empty'
+                commands:
+                  - assertVisible:
+                      id: 'health-home-weekly-trends-chart-combined'
+            # The OTHER legend drives the SAME shared toggle — tapping it
+            # switches the combined view back off again.
+            - tapOn:
+                id: 'health-home-weekly-trends-legend-weight'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'health-home-weekly-trends-chart-combined'
+                timeout: 8000
+            - assertVisible:
+                id: 'health-home-weekly-trends-legend-weight'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # ======================================================================
+      # FOOD CHALLENGES — empty state, both affordances route to the
+      # Challenges tab (HEALTH-HOME-141)
+      # ======================================================================
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-141
+      - runFlow: subflows/dismiss-weight-keyboard.yaml
+      - runFlow: subflows/dismiss-health-home-cards.yaml
+      - repeat:
+          times: 6
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-today-label'
+                commands:
+                  - swipe:
+                      start: '50%,32%'
+                      end: '50%,82%'
+                      duration: 350
+                  - waitForAnimationToEnd:
+                      timeout: 700
+      # Bare `direction: UP` (no coordinates) is the swipe `focus-health-home.yaml`
+      # documents as unreliable on this exact list — "the same swipe command that
+      # moved the list on one launch produced five byte-identical screenshots on
+      # the next" (Maestro iOS-26 driver residue, not the app). It happens not to
+      # matter for the WEEKLY TRENDS leg above: with both permission cards
+      # dismissed, `health-weekly-trends-label` already sits inside the fold, so
+      # that loop's 16 iterations no-op (already visible) rather than proving the
+      # gesture works. FOOD CHALLENGES sits a full WEEKLY TRENDS card further
+      # down — a real ~500pt scroll the weak swipe measurably failed to cover
+      # (2026-07-31 run: 20 no-op-mostly iterations left Home still pinned near
+      # the top). Use the same explicit-coordinate 40%-of-screen swipe
+      # `focus-health-home.yaml`'s `bottom` anchor relies on for equivalent
+      # distance — it is the one proven to actually move this list.
+      - repeat:
+          times: 20
+          commands:
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-food-challenges-label'
+                commands:
+                  - swipe:
+                      start: '50%,70%'
+                      end: '50%,30%'
+                      duration: 400
+                  - waitForAnimationToEnd:
+                      timeout: 700
+      - assertVisible:
+          id: 'health-food-challenges-label'
+      - runFlow:
+          when:
+            visible:
+              id: 'health-home-food-challenges-empty'
+          commands:
+            - assertVisible: 'No Challenges Set'
+            # The loop above stops as soon as `health-food-challenges-label`
+            # clears the fold — enough for the card's own header/copy to
+            # register as visible, but on an account carrying enough WEIGHT
+            # history to lengthen the card above it (reproduced 2026-08-01:
+            # two duplicate 68kg/2026-07-26 rows pushed this card down), the
+            # "Add Challenge" button further down inside this same card can
+            # still sit below the fold. Nudge on the button itself before
+            # tapping it, same bounded-retry pattern as every other swipe in
+            # this file.
+            - repeat:
+                times: 6
+                commands:
+                  - runFlow:
+                      when:
+                        notVisible:
+                          id: 'health-home-food-challenges-add'
+                      commands:
+                        - swipe:
+                            start: '50%,70%'
+                            end: '50%,30%'
+                            duration: 400
+                        - waitForAnimationToEnd:
+                            timeout: 700
+            - tapOn:
+                id: 'health-home-food-challenges-add'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-challenges-screen'
+                timeout: 20000
+            - tapOn:
+                id: 'tab-index'
+                retryTapIfNoChange: true
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-home-screen'
+                timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- FOOD CHALLENGES — populated legend + chart (HOME-142) -----------
+      # CONDITIONAL: only runs if the account already carries an active
+      # challenge — nothing in this suite creates one (HealthChallengesScreen
+      # has no Maestro flow of its own yet). See report Notes.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-142
+      - runFlow:
+          when:
+            visible:
+              id: 'health-home-food-challenges'
+          commands:
+            - assertVisible:
+                id: 'health-home-food-challenges-chart'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- FOOD CHALLENGES — details disclosure persists (HOME-143) --------
+      # CONDITIONAL, same gate as HOME-142. Restores whatever it found.
+      #
+      # LOCAL-ONLY: the toggle taps below are this flow's one real write —
+      # confirmed via handleToggleChallengesExpanded (HealthHomeScreen.tsx),
+      # which calls saveChallengesWidgetExpanded (healthChallengesStorage.ts).
+      # That function is `storageHelpers.setBoolean` against
+      # `health.foodChallengesWidget.expanded.v1` — no apiClient call
+      # anywhere in the path — so there is no backend endpoint to verify here.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-143
+      - runFlow:
+          when:
+            visible:
+              id: 'health-home-food-challenges-details-toggle'
+          commands:
+            - runFlow:
+                when:
+                  visible:
+                    id: 'health-home-food-challenges-details-list'
+                commands:
+                  # Currently expanded — collapse, confirm, restore.
+                  - tapOn:
+                      id: 'health-home-food-challenges-details-toggle'
+                  - extendedWaitUntil:
+                      notVisible:
+                        id: 'health-home-food-challenges-details-list'
+                      timeout: 8000
+                  - tapOn:
+                      id: 'health-home-food-challenges-details-toggle'
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'health-home-food-challenges-details-list'
+                      timeout: 8000
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-home-food-challenges-details-list'
+                commands:
+                  # Currently collapsed — expand, confirm, restore.
+                  - tapOn:
+                      id: 'health-home-food-challenges-details-toggle'
+                  - extendedWaitUntil:
+                      visible:
+                        id: 'health-home-food-challenges-details-list'
+                      timeout: 8000
+                  - tapOn:
+                      id: 'health-home-food-challenges-details-toggle'
+                  - extendedWaitUntil:
+                      notVisible:
+                        id: 'health-home-food-challenges-details-list'
+                      timeout: 8000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- FOOD CHALLENGES — pencil edit routes to Challenges (HOME-144) ---
+      # UNCONDITIONAL — `pencilButton` (`${testID}-edit`) is the SAME element
+      # rendered in both the empty AND the populated return of
+      # `HealthFoodChallengesWidget`, so this runs whatever state the account
+      # is in, unlike HOME-142/143. Distinct from the empty state's own
+      # Add-Challenge button (HOME-141 already drives that one).
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-HOME-144
+      - runFlow:
+          when:
+            visible:
+              id: 'health-home-food-challenges-edit'
+          commands:
+            - tapOn:
+                id: 'health-home-food-challenges-edit'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-challenges-screen'
+                timeout: 20000
+            - tapOn:
+                id: 'tab-index'
+                retryTapIfNoChange: true
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-home-screen'
+                timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml

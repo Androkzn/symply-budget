@@ -1,0 +1,138 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:mortgage
+  - regression
+# Matrix: MORT-310 — MANAGE MULTIPLE PROPERTIES: add a second mortgage, confirm
+# both are listed (switch between them), then DELETE the new one ENTIRELY via its
+# edit screen (a full wipe of that property). Deletes only the throwaway "E2E
+# Cottage" — never the shared account's primary "Main home" — and is self-cleaning
+# so the suite can re-run. A newly created property sorts FIRST (active + newest),
+# so "first Edit" opens Cottage; the flow still asserts the nickname before
+# deleting as a guard against nuking the wrong property.
+---
+- runFlow: ../subflows/budget-ensure-mortgage.yaml
+
+# Open the management hub via the gear.
+- tapOn:
+    id: 'budget-settings-button'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000
+
+# Add a second property (GV: 300k @ 4% fixed, "E2E Cottage").
+- tapOn:
+    id: 'mortgage-settings-add'
+- extendedWaitUntil:
+    visible: 'Set up mortgage'
+    timeout: 15000
+- tapOn: 'Main home' # name field (placeholder)
+- inputText: 'E2E Cottage'
+- tapOn: 'Set up mortgage' # dismiss keyboard via header
+- tapOn: '500000' # amount field (placeholder)
+- inputText: '300000'
+- tapOn: 'Set up mortgage'
+- tapOn: '5.0' # rate field (placeholder)
+- inputText: '4.0'
+- tapOn: 'Set up mortgage'
+- tapOn: '2875.46'
+- inputText: '2875.46'
+- tapOn: 'Set up mortgage'
+# 'Save mortgage' sits below the fold on this long form; iOS-26 RN New-Arch
+# scrollUntilVisible is unreliable — reveal via coordinate swipes (mirrors
+# budget/mortgage-setup.yaml).
+- runFlow:
+    when:
+      notVisible: 'Save mortgage'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+- tapOn: 'Save mortgage'
+
+# Back on the hub: BOTH properties are listed (multiple mortgages managed here).
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 20000
+- assertVisible: '.*E2E Cottage.*'
+- assertVisible: '.*Main home.*'
+
+# Switch the active property back and forth (tapping a row selects it).
+# Rows merge into the a11y label 'Switch to <nickname>' — match with a regex.
+- tapOn: '.*Main home.*'
+- tapOn: '.*E2E Cottage.*'
+
+# The everyday switch path is the header TITLE dropdown, not this hub. Back on
+# the dashboard, the title names the focused property and re-picks from the sheet.
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-view'
+    timeout: 20000
+- tapOn:
+    id: 'mortgage-switcher-trigger'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-switcher-sheet'
+    timeout: 10000
+- assertVisible: '.*Switch to Main home.*'
+- assertVisible: '.*Switch to E2E Cottage.*'
+- tapOn: '.*Switch to Main home.*'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-view'
+    timeout: 20000
+# The title followed the selection.
+- assertVisible: 'Main home'
+
+# Back to the hub for cleanup.
+- tapOn:
+    id: 'budget-settings-button'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000
+
+# Delete the throwaway ENTIRELY via its edit screen. Self-cleaning: remove EVERY
+# 'E2E Cottage' (this run's plus any leaked by a prior aborted run) so the suite
+# re-runs. A cottage is active + newest, so it always sorts above the primary —
+# the FIRST Edit row is always a cottage while any remain.
+- repeat:
+    times: 25
+    commands:
+      - runFlow:
+          when:
+            visible: '.*E2E Cottage.*'
+          commands:
+            - tapOn: 'Edit' # first row = newest = an E2E Cottage
+            - extendedWaitUntil:
+                visible:
+                  id: 'mortgage-edit-screen'
+                timeout: 15000
+            # Guard: make sure we're about to delete a throwaway, not the primary.
+            - assertVisible: '.*E2E Cottage.*'
+            - tapOn:
+                id: 'mortgage-edit-delete'
+            - assertVisible: 'Delete property?'
+            - tapOn: 'Delete'
+            - extendedWaitUntil:
+                visible:
+                  id: 'mortgage-settings-screen'
+                timeout: 15000
+            - waitForAnimationToEnd
+
+# Back on the hub, every throwaway is gone and the primary survives.
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000
+- assertVisible: '.*Main home.*'
+- assertNotVisible: '.*E2E Cottage.*'

@@ -1,0 +1,94 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:platform
+  - readonly
+  - regression
+# Matrix: HEALTH-MORE-076, HEALTH-MORE-082, HEALTH-MORE-083
+---
+# The shared BYOK / "AI assistance" entry (src/components/ai/useAIAccessEntry.ts),
+# as it appears on SYMPLY HEALTH.
+#
+# Every brand's More/Settings screen renders this row verbatim — same gate, same
+# destination (`/ai-access`), same copy, same icon — so no brand forks it. The
+# unit suite (src/features/health/__tests__/areas/platform.aiAccess.test.tsx)
+# proves the hook never reads the active brand and that HealthMoreScreen honours
+# every entitlement shape by mocking the entitlement query; what it CANNOT prove
+# is that the row survives the real, fully-composed app: the live
+# `/ai-access` GET, the feature-flag store, and expo-router's actual `/ai-access`
+# route all have to agree for a Health member to ever see this row and land on
+# the shared hub.
+#
+# The seeded fleet account (a.tekhtelev@gmail.com) has AI enabled in staging as
+# of this writing, so this flow asserts the SHOWN + ROUTES case. It does not
+# attempt the hidden case — that needs flipping the account's entitlement, which
+# is Health's identical copy of a fleet-wide corner nobody else drives from a
+# device either (see the unit suite's HEALTH-MORE-078 for that case instead).
+#
+# Read-only: the flow opens the hub and returns without connecting a provider or
+# writing anything, so no teardown is required.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-MORE-076
+      - runFlow: subflows/go-more.yaml
+
+      # --- the row is visible, with brand-neutral copy (HEALTH-MORE-076) ---
+      # Scrolls to `health-setting-export` (the row directly BELOW AI
+      # assistance — HealthMoreScreen.tsx renders Export my data immediately
+      # after it), not to the AI-assistance row itself. Reproduced 2026-08-02:
+      # AI assistance is the second-to-last row before the tab bar, so
+      # scrolling until IT clears 10% visibility only pokes its top few
+      # points above the fold — enough for an id-based assertVisible (any
+      # bounding-box overlap counts) but not enough for the row's own text to
+      # actually be on screen. Scrolling to the row below it instead pulls AI
+      # assistance well clear of the tab-bar-occlusion zone.
+      - scrollUntilVisible:
+          element:
+            id: 'health-setting-export'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible:
+          id: 'health-setting-ai-assistance'
+      - assertVisible: 'AI assistance'
+      # No other brand's naming rides along with the shared row.
+      - assertNotVisible: 'Symply House'
+      - assertNotVisible: 'SimpleHouse'
+
+      # --- it opens the SHARED hub, not a Health-local screen (HEALTH-MORE-082) ---
+      - tapOn:
+          id: 'health-setting-ai-assistance'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'ai-access-screen'
+          timeout: 20000
+      # `app/ai-access/index.tsx` — same "Unlock AI" title and brand-templated
+      # subtitle for every app; Health's own name appears only inside that
+      # sentence ("Use Symply Health-managed AI…"), never as a screen identity
+      # of its own. No other brand's name may appear here at all.
+      - assertVisible: 'Unlock AI'
+      - assertVisible: 'Symply Health'
+      - assertNotVisible: 'Symply House'
+      - assertNotVisible: 'Symply Budget'
+      - assertNotVisible: 'Symply Kaizen'
+
+      # --- back returns to Health's own More tab (HEALTH-MORE-083) ---
+      # No testID on the scaffold's back control — it exposes an
+      # accessibilityLabel only, matched the same way more-navigation-rows.yaml
+      # matches it.
+      - tapOn: 'Go back'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-more-screen'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml

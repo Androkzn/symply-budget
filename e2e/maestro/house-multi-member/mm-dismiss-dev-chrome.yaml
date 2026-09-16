@@ -1,0 +1,167 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:multi-member
+---
+# Expo Dev Client chrome that blocks Maestro taps on Debug builds.
+#
+# A near-copy of ../subflows/dismiss-expo-dev-chrome.yaml with ONE deliberate
+# difference: the DEVELOPMENT SERVERS branch prefers ${MM_METRO_PORT}, not the
+# hardcoded 8083 the single-device suite uses. Picking 8083 here would attach
+# this suite's two simulators to the single-device suite's bundler.
+#
+# Safe no-ops when already on the real app surface.
+# Repeat — iOS stacks "Open in …?" over Dev Launcher / Dev Menu.
+- repeat:
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            visible: 'Login Failed'
+          commands:
+            - tapOn:
+                text: 'OK'
+                optional: true
+            - tapOn:
+                text: 'Cancel'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Open'
+          commands:
+            - tapOn: 'Open'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      # iOS's native Keychain "Save Password?" prompt after a password-field
+      # submit — an OS-level dialog outside the app's own view hierarchy.
+      - runFlow:
+          when:
+            visible: 'Save Password?'
+          commands:
+            - tapOn: 'Not Now'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Enable Face ID?'
+          commands:
+            - tapOn: 'Not Now'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Would Like to Send You Notifications'
+          commands:
+            # ALLOW, not deny. mm-32 needs the local scheduler to be able to
+            # post a notification, and a denied prompt is remembered for the
+            # whole life of the simulator — a single stray "Don't Allow" here
+            # would make the reminder phase unfixable without erasing the
+            # device. Every other House suite denies it; this one must not.
+            - tapOn:
+                text: 'Allow'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000
+      # THE REDBOX, by its own id.
+      #
+      # A dev-client bundle fetch that times out under load paints
+      # "Could not connect to development server" over the app, and until this
+      # branch existed the suite had no way back: the Reload branch below aims a
+      # coordinate tap at '92%,11%' for the Expo dev LAUNCHER, which on a redbox
+      # is empty space. Every later step then failed against a red screen — on
+      # run 20260905-111753 it surfaced as `profile-screen is visible` FAILED in
+      # mm-03, three layers from the cause, with Metro demonstrably still up
+      # (`packager-status:running` on :8093, same pid all morning).
+      #
+      # The redbox publishes real testIDs, so this needs no coordinates. Reload
+      # re-fetches the bundle; the app keeps its session, and the ledger wait in
+      # mm-01 is what would catch it if the reload cost us the local session.
+      - runFlow:
+          when:
+            visible:
+              id: 'redbox-reload'
+          commands:
+            - tapOn:
+                id: 'redbox-reload'
+            - waitForAnimationToEnd:
+                timeout: 15000
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'redbox-reload'
+                timeout: 60000
+                optional: true
+      - runFlow:
+          when:
+            visible: 'DEVELOPMENT SERVERS'
+          commands:
+            - tapOn:
+                text: '.*${MM_METRO_PORT}.*'
+                optional: true
+            - tapOn:
+                text: '.*:${MM_METRO_PORT}'
+                optional: true
+            - tapOn:
+                text: '.*localhost.*${MM_METRO_PORT}.*'
+                optional: true
+            - openLink: ${E2E_METRO_DEVCLIENT_URL}
+            - waitForAnimationToEnd:
+                timeout: 12000
+      - runFlow:
+          when:
+            visible: 'Continue'
+          commands:
+            - tapOn: 'Continue'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      # TWO different surfaces say "Reload", and they are not in the same place.
+      #
+      #   * the Dev MENU's reload row — top right, which is what '92%,11%' was
+      #     measured against;
+      #   * the dev client's FAILED-TO-LOAD screen — "There was a problem loading
+      #     the project." over a full-width Reload BUTTON near the bottom
+      #     (~50%,84%), with "Go home" and "Copy" beneath it.
+      #
+      # Only the coordinate existed, so on the error screen this branch fired,
+      # tapped empty space at the top right, reported COMPLETED, and left the
+      # device on the error screen for the rest of the flow. That is exactly how
+      # every previous run of this suite died: device B's first bundle request
+      # timed out under machine load (`Failed to load app from
+      # http://127.0.0.1:<port>`), the recovery tapped nothing, and mm-01 ended
+      # as `Assertion 'id: home-screen is visible' failed` — which reads as a
+      # broken sign-in rather than as a bundle that never arrived.
+      #
+      # The error screen's Reload is a real Button and idb lists it by label, so
+      # tap the ELEMENT first and keep the coordinate only as the Dev Menu
+      # fallback. Re-opening the dev-client URL afterwards is what actually
+      # restarts the download; Reload alone can land back on the same error.
+      - runFlow:
+          when:
+            visible: 'There was a problem loading the project.'
+          commands:
+            - tapOn:
+                text: '^Reload$'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 5000
+            - runFlow:
+                when:
+                  visible: 'There was a problem loading the project.'
+                commands:
+                  - openLink: ${E2E_METRO_DEVCLIENT_URL}
+                  - waitForAnimationToEnd:
+                      timeout: 15000
+      - runFlow:
+          when:
+            visible: 'Reload'
+          commands:
+            - tapOn:
+                text: '^Reload$'
+                optional: true
+            - tapOn:
+                point: '92%,11%'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2000

@@ -1,0 +1,44 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home-projects
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-home-projects (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-my-home.yaml
+- runFlow: ../subflows/dismiss-home-project-alert.yaml
+- assertVisible:
+    id: 'my-home-home-projects'
+- tapOn:
+    id: 'my-home-home-projects'
+# The Home Projects stack restores its last route, so this tap can land on a
+# project hub an earlier flow left behind. No-op when the list opened normally.
+- runFlow: ../subflows/pop-restored-project-hub.yaml
+# Wait for the destination rather than asserting into the navigation — a bare
+# assert races the push and blames the Home Projects screen for a tap that had
+# not landed yet. Same fix as `home-projects-hub`.
+- extendedWaitUntil:
+    visible:
+      id: 'home-projects-list-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'home-projects-create'
+- tapOn:
+    id: 'home-projects-create'
+- assertVisible:
+    id: 'template-bathroom_reno'
+- tapOn:
+    id: 'template-bathroom_reno'
+- tapOn: 'Continue'
+- assertVisible:
+    id: 'home-project-title'
+- tapOn: 'Continue'
+- assertVisible:
+    id: 'home-project-create-submit'
+- tapOn:
+    id: 'home-project-create-submit'
+- assertVisible:
+    id: 'home-project-hub-title'

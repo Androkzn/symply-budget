@@ -1,0 +1,57 @@
+---
+description: Backend deployment — staging + production together (Symply Ecosystem)
+globs: backend/**
+alwaysApply: false
+---
+
+# Backend deployment — Symply Ecosystem
+
+When deploying **shared Worker** changes (same `src/index.ts`, all brand wrangler configs), deploy the full fleet — staging all brands, then production all brands. **Only from the `main` checkout.** Never from an `<app>-v2` clone (`documents/ecosystem/BRANCHING.md`).
+
+```bash
+eval "$(./scripts/secrets/export-env.sh)"
+cd backend
+npm run deploy:fleet
+```
+
+**House-only** (default wrangler.toml, no `-c`):
+
+```bash
+npm run deploy:house:all
+# deprecated alias: npm run deploy:all
+```
+
+Rapid-development policy: agents may run this **without asking** — **from the `main` checkout only**. Never `deploy:fleet` from an `<app>-v2` clone. Shared backend lands on `main` (flagged off if unfinished). See `documents/ecosystem/BRANCHING.md`.
+
+## URLs
+
+| Env | URL |
+|-----|-----|
+| House Staging | `https://simple-house-api-staging.a-tekhtelev.workers.dev` |
+| House Production | `https://simple-house-api.a-tekhtelev.workers.dev` |
+| Budget Staging | `https://simple-budget-api-staging.a-tekhtelev.workers.dev` |
+| Budget Production | `https://simple-budget-api.a-tekhtelev.workers.dev` |
+| Kaizen Staging | `https://symply-kaizen-api-staging.a-tekhtelev.workers.dev` |
+| Kaizen Production | `https://symply-kaizen-api.a-tekhtelev.workers.dev` |
+| Health Staging | `https://symply-health-api-staging.a-tekhtelev.workers.dev` |
+| Health Production | `https://symply-health-api.a-tekhtelev.workers.dev` |
+
+## Per-brand (when only one Worker changed)
+
+```bash
+eval "$(./scripts/secrets/export-env.sh)"
+cd backend
+npm run deploy:house:all      # or deploy:budget:all / deploy:kaizen:all / deploy:health:all
+```
+
+**Language** uses separate `backend-language/` — `npm run deploy:language:all` (not part of `deploy:fleet`).
+
+Rapid-development policy: agents may run this **without asking** — from the `main` checkout only. Never from an `<app>-v2` clone.
+
+- Mobile dev → **staging** API (per brand Worker)
+- Cron-limit warning on production deploy can be ignored if Version ID updates
+- Separate D1 / R2 / KV per env — run migrations for **both** envs when schema changes
+- House, Budget, Kaizen, and Health are **separate** backends — migrate account data with `migrate:house-to-budget` / `migrate:house-to-kaizen`
+- Health D1 migrate: `db:migrate:health:*` runs `refuse-health-0092.sh` (blocks while `0092_*` migration exists unless `HEALTH_ALLOW_0092=1`)
+
+See `documents/ecosystem/SERVICES.md` and `AGENTS.md`.

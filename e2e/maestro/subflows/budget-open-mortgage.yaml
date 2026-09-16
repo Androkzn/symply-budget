@@ -1,0 +1,40 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Launch Symply Budget (via the shared, reliable Metro soft-launch + deep-link
+# autologin) and open the Mortgage tab. Uses budget-launch-logged-in.yaml — the SAME
+# launch path as every other Budget flow — instead of a bespoke `launchApp` + typed
+# email/password: the cold `launchApp` dropped the Expo Dev Client ↔ Metro session
+# (logging the app out), and the typed login merged email+password into one field on
+# iOS-26 (`a.tekhtelev…Andrei123!`) → sign-in failed → `budget-screen` never appeared.
+#
+# The Mortgage tab lives in the "More" overflow (defaultHidden) and is NOT
+# deep-linkable — an `openLink simplebudget:///mortgage` resets to the auth root — so
+# navigate through the UI with stable testIDs: "More" = `tab-settings`, the overflow
+# row = `more-tab-mortgage` (an in-app router.push that reaches the hidden tab).
+# Lands on either `mortgage-empty` or `mortgage-view`.
+- runFlow: budget-launch-logged-in.yaml
+
+# Open the Mortgage tab through the More hub (stable testIDs, no deep link).
+- tapOn:
+    id: 'tab-settings'
+- waitForAnimationToEnd:
+    timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: 'more-tab-mortgage'
+    timeout: 15000
+- tapOn:
+    id: 'more-tab-mortgage'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-empty'
+    timeout: 20000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-view'
+    timeout: 8000
+    optional: true

@@ -1,0 +1,420 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:body
+  - mutation
+  - regression
+# Matrix: HEALTH-BODY-200 … 235
+---
+# Body tab — the comprehensive-sites rebuild (migration 0131), everything
+# `body-measure-and-trend.yaml` predates: the DETAILED-SITES switch, DATE
+# NAVIGATION on entry, and the session sheet (many sites saved as ONE row).
+#
+# `body-measure-and-trend.yaml` owns the tab's original shape (quick add, one
+# metric's trend, one metric's history) and still runs unchanged — every
+# testID it depends on survived the rebuild. This flow owns what was added
+# on top, so a regression in either surface fails in the flow that owns it.
+#
+# Two things Maestro cannot do here, and how they are covered instead:
+#   * it cannot assert that a detailed site's tile is ABSENT and then prove it
+#     is the switch (not something else) that brought it back — the toggle's
+#     row-count arithmetic is pinned by `body.screen.test.tsx`
+#     (HEALTH-BODY-200…202); this flow asserts the visible BEHAVIOUR: a site
+#     invisible before the toggle and visible after it;
+#   * it cannot produce a two-DAY session in one run to prove the compare
+#     card widens with `showDetailed` — that is `body.screen.test.tsx`
+#     HEALTH-BODY-203; this flow proves the SESSION write and the date
+#     picker, which do not need a second day.
+#
+# STATE assumption: opens on today, with the detailed-sites switch OFF (the
+# tab's own default — nothing here relies on another flow's leftover state).
+# TEARDOWN: deletes every reading it writes (`right_wrist` for the session,
+# `iliac` — logged directly through quick add under "detailed" — and the
+# back-dated waist), each confirmed by its own history card returning to
+# empty, so nothing leaks into `more-overflow-body-habits.yaml`'s cheap
+# single-waist-reading check or into a later run of this flow.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-BODY-200
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-body.yaml
+
+      # --- Detailed sites are hidden by default (HEALTH-BODY-200) ----------
+      # `iliac` is a 0131 comprehensive site with no legacy column — a clean
+      # proof that the switch, not scroll position, is what is gating it.
+      - assertNotVisible:
+          id: 'health-body-summary-iliac'
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-detailed-toggle'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-body-detailed-toggle'
+          selected: false
+
+      # --- The switch reveals every remaining site (HEALTH-BODY-201) -------
+      # LOCAL ONLY: `health-body-detailed-toggle` only calls
+      # `setShowDetailed(...)` (HealthBodyScreen.tsx) — pure component state,
+      # no fetch.
+      - tapOn:
+          id: 'health-body-detailed-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-body-summary-iliac'
+          timeout: 10000
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-metric-iliac'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+
+      # --- Quick-add a detailed site while the switch is on (teardown #1) --
+      - tapOn:
+          id: 'health-body-metric-iliac'
+      - tapOn:
+          id: 'health-body-value-input'
+      - inputText: '90'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD A MEASUREMENT'
+      # `handleLog` → `addBodyEntry` → `addBodySession` (healthBodyStorage.ts)
+      # → `healthApi.createMeasurement` → POST /health/measurements, 201.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-body-add-button'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /measurements
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - scrollUntilVisible:
+          element:
+            text: 'ILIAC CREST HISTORY'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            text: '90 cm'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+
+      # --- Date navigation: back a day, forward is blocked at today --------
+      - scrollUntilVisible:
+          element:
+            text: 'MEASUREMENT DATE'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Today'
+      # "Back to today" only appears once the day has actually moved.
+      - assertNotVisible:
+          id: 'health-body-today-button'
+      # LOCAL ONLY (whole date-nav block below): `health-body-prev-day` /
+      # `health-body-next-day` / `health-body-today-button` only call
+      # `setDate(...)` (HealthBodyScreen.tsx) — the day is component state,
+      # read by the next quick add/session save, not fetched or written itself.
+      - tapOn:
+          id: 'health-body-prev-day'
+      - assertVisible: 'Yesterday'
+      - assertVisible:
+          id: 'health-body-today-button'
+      # A tap that must do NOTHING is still asserted — the label must not move.
+      - tapOn:
+          id: 'health-body-next-day'
+      - tapOn:
+          id: 'health-body-next-day'
+      - assertVisible: 'Today'
+      - tapOn:
+          id: 'health-body-prev-day'
+      - assertVisible: 'Yesterday'
+
+      # --- A quick add now, back-dated, is stamped YESTERDAY (teardown #2) -
+      - tapOn:
+          id: 'health-body-metric-waist'
+      - tapOn:
+          id: 'health-body-value-input'
+      - inputText: '81'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'MEASUREMENT DATE'
+      # Same write path as the iliac reading above, back-dated: `handleLog` →
+      # `addBodyEntry(date=yesterday)` → `addBodySession` → POST
+      # /health/measurements, 201.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-body-add-button'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /measurements
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - scrollUntilVisible:
+          element:
+            text: 'RECORDED ON YESTERDAY'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-body-day-row-waist'
+      - assertVisible: '81 cm'
+      # LOCAL ONLY: same `setDate(...)` as the date-nav block above.
+      - tapOn:
+          id: 'health-body-today-button'
+      - assertVisible: 'Today'
+
+      # --- The session sheet: many sites, one row (teardown #3) ------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-session-toggle'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'Log a full session'
+      # LOCAL ONLY: `health-body-session-toggle` only calls
+      # `setSessionOpen(...)` (HealthBodyScreen.tsx) — pure component state.
+      - tapOn:
+          id: 'health-body-session-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-body-session'
+          timeout: 10000
+      - assertVisible: 'Close session form'
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-session-field-rightWrist'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-body-session-field-rightWrist'
+      - inputText: '16'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD A MEASUREMENT'
+      # The button counts what will actually be written.
+      - assertVisible: 'Save 1 site'
+      # `handleSaveSession` → `addBodySession` (healthBodyStorage.ts) →
+      # `healthApi.createMeasurement` → POST /health/measurements, 201.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-body-session-save'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /measurements
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Saved sheet empties — re-opening must not offer to save it twice.
+      - extendedWaitUntil:
+          visible: 'Fill in at least one site'
+          timeout: 15000
+
+      # --- It reads back on the day's list AND the site's own history ------
+      - scrollUntilVisible:
+          element:
+            text: 'RECORDED ON TODAY'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-body-day-row-rightWrist'
+      - assertVisible: '16 cm'
+
+      # --- Ratios / composition / left-right dashboard is present -----------
+      # The donor's own GRADED colours must never appear here — this app states
+      # the figure and the direction, and lets the reader judge it.
+      - scrollUntilVisible:
+          element:
+            text: 'RATIOS'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible: 'BODY COMPOSITION'
+
+      # --- Teardown: drop the session reading (right wrist) -----------------
+      # `handleDelete` → `deleteBodyEntry` (healthBodyStorage.ts): the session
+      # save above wrote only this one site, so the row has no sibling sites
+      # and the whole-row path fires → `healthApi.deleteMeasurement` → DELETE
+      # /health/measurements/:id, 200.
+      - tapOn:
+          id: 'health-body-metric-rightWrist'
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-delete-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-body-delete-.*'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /measurements/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - extendedWaitUntil:
+          visible:
+            id: 'health-body-history-empty'
+          timeout: 15000
+      - assertVisible: 'No right wrist readings yet.'
+
+      # --- Teardown: drop the back-dated waist reading ----------------------
+      # Same whole-row DELETE path as above — this quick add was also the only
+      # site on its row.
+      - tapOn:
+          id: 'health-body-metric-waist'
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-delete-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-body-delete-.*'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /measurements/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - extendedWaitUntil:
+          visible:
+            id: 'health-body-history-empty'
+          timeout: 15000
+      - assertVisible: 'No waist readings yet.'
+
+      # --- Teardown: drop the iliac reading, then close the detailed switch -
+      # Same whole-row DELETE path as above.
+      - tapOn:
+          id: 'health-body-metric-iliac'
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-delete-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-body-delete-.*'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /measurements/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - extendedWaitUntil:
+          visible:
+            id: 'health-body-history-empty'
+          timeout: 15000
+      - assertVisible: 'No iliac crest readings yet.'
+      - scrollUntilVisible:
+          element:
+            id: 'health-body-detailed-toggle'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      # LOCAL ONLY: `setShowDetailed(...)`, same as the opening toggle above.
+      - tapOn:
+          id: 'health-body-detailed-toggle'
+      - assertNotVisible:
+          id: 'health-body-summary-iliac'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

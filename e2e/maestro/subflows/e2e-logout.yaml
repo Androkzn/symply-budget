@@ -1,0 +1,9 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Dev-only: flip auth off via {scheme}://e2e-logout (Keychain survives Maestro clearState).
+- openLink: ${E2E_APP_SCHEME}://e2e-logout
+- waitForAnimationToEnd:
+    timeout: 5000

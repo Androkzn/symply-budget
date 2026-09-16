@@ -1,0 +1,15 @@
+[hmm] live report: /Users/andreitekhtelev/Desktop/Symply Ecosystem/Simply Ecosystem-house/documents/engineering/testing/reports/house-multi-member/20260905-102733/index.html (opens shortly, self-refreshes)
+[hmm] === phase 1: enrolment (ordered) ===
+    PASS [A] mm-01-signin
+    PASS [B] mm-01-signin
+    PASS [A] mm-13-owner-pre-invite-task
+    PASS [A] mm-02-owner-create-invite
+[hmm] WARNING: could not read the invite off House-A — falling back to /tmp/metro-house-mm.log, which is SHARED
+[hmm] invite code=4FMANN household='Home 1'
+    PASS [B] mm-03-member-join
+[hmm] SAS read off House-B's own screen: 294 072
+    PASS [A] mm-04-owner-approve
+    PASS [B] mm-05-member-enrol-sync
+    FAIL [B] mm-12-member-backfill
+[hmm] FAIL FAST — stopping the run at 'mm-12-member-backfill'
+[hmm] stopping after first failure — skipping cleanup (fail fast)

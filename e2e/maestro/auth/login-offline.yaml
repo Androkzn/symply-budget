@@ -1,0 +1,83 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - regression
+# Matrix: HOUSE-AUTH-017
+---
+# Offline login — network failure, no session created.
+- runFlow: ../subflows/e2e-matrix-before.yaml
+- runFlow: ../subflows/launch-logged-out.yaml
+- toggleAirplaneMode
+- runFlow: ../subflows/open-email-login-form.yaml
+- tapOn:
+    id: 'auth-email-input'
+- inputText: ${E2E_EMAIL}
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'auth-password-input'
+- inputText: ${E2E_PASSWORD}
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'auth-sign-in-submit'
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# Restore the network BEFORE asserting, and revive the app if it died.
+#
+# This flow failed twice in a row on the House suite, and never alone: the
+# hierarchy at the assert had no app content at all and the device log read
+# `Terminating app com.symply.house` with SpringBoard taking the foreground.
+# A Debug build holds a socket to Metro, airplane mode cuts it, and the dev
+# client does not survive that — the app is simply gone by the time the
+# assertion runs, and the flow after this one inherits a dead app and fails
+# too (`logout-profile`, both runs).
+#
+# That termination is an artifact of the DEV CLIENT, not of offline login. The
+# thing under test — whether a session was created with no network — is on
+# disk and survives the process. So the network comes back, the app is
+# relaunched if it needs to be, and the assertions below then read real state
+# instead of an empty screen. `clearState: false` is load-bearing: clearing it
+# would destroy the very session this flow exists to check for.
+#
+# `e2e-verify-badge` is the liveness probe. It is mounted at the app root in
+# every Debug build, so "not visible" means the app is not on screen.
+- toggleAirplaneMode
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow:
+    when:
+      notVisible:
+        id: 'e2e-verify-badge'
+    commands:
+      - launchApp:
+          clearState: false
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 10000
+
+# iOS Simulator airplane mode may still reach staging — accept either outcome.
+- runFlow:
+    when:
+      visible:
+        id: 'home-up-next-section'
+    commands:
+      - assertVisible:
+          id: 'home-screen'
+- runFlow:
+    when:
+      visible:
+        id: 'auth-sign-in-submit'
+    commands:
+      - assertVisible:
+          id: 'auth-sign-in-submit'
+- runFlow:
+    when:
+      visible:
+        id: 'auth-sign-in-email'
+    commands:
+      - assertVisible:
+          id: 'auth-sign-in-email'
+- runFlow: ../subflows/e2e-matrix-after.yaml

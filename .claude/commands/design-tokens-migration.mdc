@@ -1,0 +1,136 @@
+---
+description: "Instructions for migrating views from hardcoded values to DesignTokens. Apply when migrating typography, spacing, corner radii, or button metrics to use DesignTokens.swift tokens."
+globs:
+alwaysApply: false
+---
+
+# DesignTokens Migration Guide
+
+> Full migration tracker: `documents/DesignSystem_Migration_Plan.md`
+> Token definitions: `step/Config/DesignTokens.swift`
+
+## Before You Start
+
+1. Read `step/Config/DesignTokens.swift` to see all available tokens
+2. Only migrate values that **exactly match** a token — don't force mismatches
+3. Do NOT change colors, logic, behavior, or view structure
+4. Do NOT fix lint errors unless explicitly asked
+
+## Typography Migration
+
+| Before | After |
+|---|---|
+| `.scaledFont(size: 34, weight: .bold, design: .rounded)` | `.scaledFont(DesignTokens.Typography.display)` |
+| `.scaledFont(size: 34, weight: .bold, design: .monospaced)` | `.scaledFont(DesignTokens.Typography.displayMono)` |
+| `.scaledFont(size: 28, weight: .semibold, design: .rounded)` | `.scaledFont(DesignTokens.Typography.heading)` |
+| `.scaledFont(size: 24, weight: .semibold, design: .rounded)` | `.scaledFont(DesignTokens.Typography.title)` |
+| `.scaledFont(size: 20, weight: .medium)` | `.scaledFont(DesignTokens.Typography.titleSmall)` |
+| `.scaledFont(size: 18, weight: .semibold)` | `.scaledFont(DesignTokens.Typography.bodyLarge)` |
+| `.scaledFont(size: 16, weight: .regular)` | `.scaledFont(DesignTokens.Typography.body)` |
+| `.scaledFont(size: 16, weight: .medium)` | `.scaledFont(DesignTokens.Typography.bodyMedium)` |
+| `.scaledFont(size: 17, weight: .semibold)` | `.scaledFont(DesignTokens.Typography.buttonLabel)` |
+| `.scaledFont(size: 15, weight: .medium)` | `.scaledFont(DesignTokens.Typography.label)` |
+| `.scaledFont(size: 14, weight: .regular)` | `.scaledFont(DesignTokens.Typography.bodySmall)` |
+| `.scaledFont(size: 14, weight: .medium)` | `.scaledFont(DesignTokens.Typography.bodySmallMedium)` |
+| `.scaledFont(size: 13, weight: .regular)` | `.scaledFont(DesignTokens.Typography.caption)` |
+| `.scaledFont(size: 12, weight: .regular)` | `.scaledFont(DesignTokens.Typography.captionSmall)` |
+| `.scaledFont(size: 11, weight: .medium)` + `.tracking(1.0)` | `.scaledFont(DesignTokens.Typography.overline)` |
+| `.scaledFont(size: 10, weight: .medium)` | `.scaledFont(DesignTokens.Typography.micro)` |
+| `.textStyle(.spotlightTitle)` | `.scaledFont(DesignTokens.Typography.title)` |
+| `.font(.system(size: N, weight: W))` | `.scaledFont(size: N, weight: W)` or matching token |
+
+When using a token, **remove** any separate `.tracking(...)` modifier — tokens apply tracking automatically.
+
+## Spacing & Layout Migration
+
+| Before | After |
+|---|---|
+| `.padding(.horizontal, 20)` (page edges) | `.padding(.horizontal, DesignTokens.Layout.pageMargin)` |
+| `.padding(.bottom, 120)` (floating CTA) | `.padding(.bottom, DesignTokens.Layout.bottomSafeArea)` |
+| Vertical spacing `32` between sections | `DesignTokens.Layout.sectionSpacing` |
+| Card spacing `12` | `DesignTokens.Layout.cardSpacing` |
+| Header bottom spacing `24` | `DesignTokens.Layout.headerBottom` |
+| Other: `2, 4, 8, 12, 16, 20, 24, 32` | `DesignTokens.Spacing.xxs/xs/sm/md/base/lg/xl/xxl` |
+
+## Contextual Spacing Guide
+
+When choosing a spacing token, **consider the context** — not just the numeric value. Each token has a semantic purpose:
+
+| Token | Value | Semantic Use |
+|---|---|---|
+| `xxs` (2pt) | Hairline separators, border offsets, fine-tuning only |
+| `xs` (4pt) | Minimal gaps — inline icon-to-text in the same line, pill padding |
+| `sm` (8pt) | Tight spacing — icon-to-title inside cards, label-to-sublabel |
+| `md` (12pt) | Card internal gaps — between distinct content blocks inside a card |
+| `base` (16pt) | Card content padding, standard internal padding |
+| `lg` (20pt) | Page margins, generous separation |
+| `xl` (24pt) | Header spacing, large visual breaks |
+| `xxl` (32pt) | Major section spacing |
+
+### Card Internal Rhythm
+
+Inside a card, use spacing that creates readable visual hierarchy:
+
+| Relationship | Recommended Token |
+|---|---|
+| Icon → Title | `sm` (8pt) or `md` (12pt) |
+| Title → Subtitle / Description | `xs` (4pt) or `sm` (8pt) |
+| Content block → Action button | `md` (12pt) or `base` (16pt) |
+| Card content padding (`.padding()`) | `base` (16pt) |
+
+**Never** use `xxs` for spacing between an icon and a title — it produces a cramped, unreadable layout. Reserve `xxs` for hairline gaps only.
+
+**Never** use arithmetic on tokens (e.g. `xxs + 1`, `base - 2`). If no token matches exactly, leave the raw value and add a `// Figma: Npx` comment.
+
+## Corner Radius Migration
+
+| Before | After |
+|---|---|
+| `.cornerRadius(4)` | `DesignTokens.CornerRadius.xs` |
+| `.cornerRadius(8)` | `DesignTokens.CornerRadius.sm` |
+| `.cornerRadius(12)` | `DesignTokens.CornerRadius.md` |
+| `.cornerRadius(16)` | `DesignTokens.CornerRadius.lg` |
+| `.cornerRadius(20)` | `DesignTokens.CornerRadius.xl` |
+| `.cornerRadius(25)` | `DesignTokens.CornerRadius.xxl` |
+
+## Button Metrics Migration
+
+| Before | After |
+|---|---|
+| `.frame(height: 56)` (primary) | `DesignTokens.ButtonMetrics.primaryHeight` |
+| `.cornerRadius(25)` (primary) | `DesignTokens.ButtonMetrics.primaryCornerRadius` |
+| `.frame(width: 44, height: 44)` (tap) | `DesignTokens.ButtonMetrics.minTapTarget` |
+| `.frame(width: 36, height: 36)` (icon) | `DesignTokens.ButtonMetrics.iconButtonSize` |
+| `.scaleEffect(0.95)` | `DesignTokens.ButtonMetrics.pressScaleStandard` |
+| `.scaleEffect(0.97)` | `DesignTokens.ButtonMetrics.pressScaleCard` |
+
+## Hero Image Migration (Detail Screens)
+
+| Before | After |
+|---|---|
+| Height `320` | `DesignTokens.HeroImage.height` |
+| `RoundedCorner(radius: 20, ...)` | `DesignTokens.HeroImage.bottomCornerRadius` |
+| Control paddings `20/15` | `DesignTokens.HeroImage.controlPadding*` |
+
+## Animation Migration
+
+| Before | After |
+|---|---|
+| `.spring(response: 0.3, dampingFraction: 0.8)` | `DesignTokens.Animation.springResponse` / `.springDamping` |
+| `.easeInOut(duration: 0.3)` (entrance) | `DesignTokens.Animation.entranceDuration` |
+| `.easeInOut(duration: 0.2)` (exit) | `DesignTokens.Animation.exitDuration` |
+
+## Per-File Checklist
+
+- [ ] Typography: raw `.scaledFont(size:weight:)` → token where match exists
+- [ ] Typography: `.textStyle(.*)` → token (legacy API)
+- [ ] Typography: `.font(.system(...))` → `.scaledFont(...)` (critical anti-pattern)
+- [ ] Remove orphaned `.tracking(...)` when token applies tracking
+- [ ] Spacing: hardcoded values → `DesignTokens.Spacing.*` / `Layout.*`
+- [ ] Corner radii → `DesignTokens.CornerRadius.*`
+- [ ] Button metrics → `DesignTokens.ButtonMetrics.*`
+- [ ] Hero image values → `DesignTokens.HeroImage.*` (detail screens)
+- [ ] Animation timing → `DesignTokens.Animation.*`
+- [ ] Shadow values → `DesignTokens.Shadow.*`
+- [ ] Leave non-matching values as raw parameters
+- [ ] Verify no lint errors introduced

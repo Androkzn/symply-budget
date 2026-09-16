@@ -1,0 +1,54 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Clear an alert left over from a PREVIOUS home-projects flow.
+#
+# home-projects-hub-mutations taps `ai-scope-cta` and waits up to 45s for the
+# alert, but that wait is `optional`. When the suggestion resolves after the
+# window the alert fires later — during the NEXT flow — where it sits over My
+# Home and swallows the tap on `my-home-home-projects`. Maestro reports the tap
+# as COMPLETED (the hierarchy does change: the alert appears), then the target
+# screen assert fails, so it reads as "the Home Projects screen is broken"
+# rather than "an alert from the last flow is still up". Observed 2026-08-26:
+# home-projects-hub and home-projects-smoke both failed this way while
+# hub-mutations passed.
+#
+# Guarded on the destination NOT already being visible so this only ever clears
+# a stray modal — a genuine failure still surfaces instead of being tapped away.
+- runFlow:
+    when:
+      notVisible:
+        id: 'home-projects-list-screen'
+    commands:
+      - runFlow:
+          when:
+            visible: 'OK'
+          commands:
+            - tapOn:
+                text: 'OK'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 3000
+      # The BYOK modal, which has no OK button at all.
+      #
+      # `ai-schematic-cta` on a device with no AI provider raises "Drawing a
+      # schematic for you needs an AI provider", whose buttons are "Add AI
+      # provider" and "Maybe later". hub-mutations dismisses with `tapOn: 'OK'`,
+      # which matches neither — so the modal outlives that flow and sits over My
+      # Home in the NEXT one. Observed 2026-08-29: every flow passed run singly,
+      # and `surface-budget` failed in the batched run with "home-projects-list-
+      # screen is visible → false", pointing at navigation that was fine.
+      #
+      # "Maybe later", never "Add AI provider": the latter LEAVES for the key
+      # screen, which would strand the next flow somewhere else entirely.
+      - runFlow:
+          when:
+            visible: '.*Maybe later.*'
+          commands:
+            - tapOn:
+                text: '.*Maybe later.*'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 3000

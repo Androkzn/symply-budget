@@ -1,0 +1,149 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:budget-chat
+  - pair
+  - pair:a
+  - mutation
+  - regression
+# Matrix: BUDGET-BCHAT-PAIR-003
+#
+# ── Two-member Budget V2 chat, stage A2 (device A / member A) ────────────────
+# Member A approves member B's device after the two screens show the same six
+# digits — the human verification step, and the only check that can catch a
+# control plane which answered "wrap the household key to THIS key" with a key
+# of its own.
+#
+# This is the stage that actually makes the household two-member: approval both
+# releases the household key to B's device AND (server side) mirrors B into the
+# legacy household_members table, which is what `/households/:id/budget-chat-rooms`
+# authorises against. Without it every later chat call from B is a 403.
+#
+# Env: PAIR_SAS — the digits DEVICE B derived and displayed, carried here from
+# stage B1's dev log. Asserting them on this screen is the end-to-end statement
+# that both devices derived the same number from the same enrolment key.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+# Approval lives on Settings → Invite & Household now, opened directly.
+- runFlow: ../subflows/budget-open-invite.yaml
+- tapOn:
+    id: 'budget-settings-join-requests'
+    retryTapIfNoChange: true
+# The requests panel renders BELOW the button, so with several requests it can
+# land off screen and `assertVisible` fails even though the request is really
+# there (confirmed against the control plane: 1 claimed invite awaiting approval
+# while this assert was failing). Scroll to it before judging.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-join-requests-panel'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-settings-join-requests-panel'
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'budget-settings-join-requests-panel'
+          direction: DOWN
+          timeout: 30000
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-join-requests-panel'
+    timeout: 45000
+    optional: true
+# "No one is waiting to join right now" means B's claim never landed — that is a
+# real failure of stage B1, not something to skip past.
+- runFlow:
+    when:
+      visible: 'No one is waiting to join'
+    commands:
+      - tapOn:
+          text: 'OK'
+          optional: true
+      - tapOn:
+          id: 'budget-settings-join-requests'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-settings-join-requests-panel'
+          timeout: 45000
+- assertVisible:
+    id: 'budget-settings-join-requests-panel'
+- assertVisible: 'Waiting to join'
+# THE assertion of this stage. `PAIR_SAS` came off DEVICE B's screen; this device
+# derived its own digits from what the control plane reported B's keys to be. If
+# those two disagree, the number below is simply not on this screen and the run
+# fails here — which is exactly the failure a substituted enrolment key should
+# produce. Displayed grouped ("123 456"), so match on the grouped form.
+- extendedWaitUntil:
+    visible: '.*${PAIR_SAS}.*'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      notVisible: '.*${PAIR_SAS}.*'
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: 'budget-settings-approve-request'
+          direction: DOWN
+          timeout: 30000
+          optional: true
+# Not optional: a missing number means the two devices disagree about the key
+# being enrolled, and approving anyway is the whole bug this flow guards.
+- assertVisible: '.*${PAIR_SAS}.*'
+# The owner is also shown WHO is waiting — an approval screen that can only name
+# a code gives them nothing to refuse on.
+- assertVisible: '.*@.*'
+- tapOn:
+    id: 'budget-settings-approve-request'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: 'Device approved'
+    timeout: 60000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Not approved'
+    commands:
+      # The claim changed under the owner between reading and approving.
+      - assertVisible: 'Device approved'
+- assertVisible: 'Device approved'
+- tapOn:
+    text: 'OK'
+    optional: true
+- runFlow:
+    file: ../subflows/e2e-verify-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /approve
+      E2E_VERIFY_STATUS: '200'
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 10000
+# Leave the settings stack for the next stage. Best-effort on purpose: this
+# stage's result is already established by the assertions above, so failing it
+# on the way BACK to the dashboard would only add a failure mode, not coverage.
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- openLink: simplebudget:///
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- runFlow: ../subflows/budget-recover-dashboard.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 60000
+    optional: true

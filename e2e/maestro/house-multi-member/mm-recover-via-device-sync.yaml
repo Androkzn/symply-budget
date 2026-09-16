@@ -1,0 +1,50 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+# The JOINER's answer to "Your homes are not on this phone yet".
+#
+# The recovery screen offers three routes and they are not interchangeable —
+# they are the two ROLES of this suite plus one a CI device cannot take:
+#
+#   house-recover-start-new     "Start a new, empty home"   → the OWNER's route.
+#                               Mints a fresh local household this device owns.
+#   house-recover-device-sync   "Set up from my other phone" → the JOINER's.
+#                               `router.push('/device-sync')`
+#                               (HouseRecoverHomeScreen.tsx:162) — the screen
+#                               that hosts the Join panel.
+#   house-recover-restore-backup                            → needs a recovery
+#                               phrase no automated device has.
+#
+# `house-adopt-or-start-home.yaml` only ever takes the FIRST, because it was
+# written for single-device suites where the lone device must own a home. Using
+# it on device B would mint B its own household instead of enrolling B into A's
+# — the two devices would then be in different homes and every sync assertion
+# afterwards would fail while the app behaved perfectly.
+#
+# Guarded and optional throughout: a device that already holds a home never
+# sees this screen, and B on a re-run is already enrolled.
+---
+- extendedWaitUntil:
+    visible:
+      id: 'house-recover-device-sync'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'house-recover-device-sync'
+    commands:
+      - tapOn:
+          id: 'house-recover-device-sync'
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - runFlow: mm-dismiss-dev-chrome.yaml
+      # Landing on Device sync is the whole point; mm-03 drives the join itself.
+      - extendedWaitUntil:
+          visible:
+            id: '${LF_SYNC_CARD}'
+          timeout: 30000
+          optional: true

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Symply Ecosystem Docs"
+  short_description: "Create ecosystem-aligned app and feature docs."
+  default_prompt: "Use this skill to create or update Symply Ecosystem app docs, BRDs, TRDs, feature specs, implementation plans, and migration docs while preserving fleet naming, Shared User rules, brand boundaries, and verification expectations."

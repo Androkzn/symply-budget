@@ -1,0 +1,41 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Opens the MORE tab and reveals the INSIGHTS group — long-term plan, previous
+# years, compare years.
+#
+# Replaces `budget-scroll-settings-to-timeline.yaml`. Those three were bare text
+# links at the bottom of Budget Settings, which is a long nested scroll that
+# `scrollUntilVisible` cannot drive in one hop under iOS 26 + Maestro; the old
+# helper existed only to walk staged anchors down it. More is a short screen
+# (overflow tabs → Customize Tabs → Insights), so a single scroll plus a bounded
+# swipe fallback gets there.
+- runFlow: go-budget-more.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-section-insights'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 5
+    centerElement: true
+    optional: true
+# Bounded, so a group that never renders fails on the wait below rather than
+# spinning until the runner's no-output watchdog kills the whole run.
+- repeat:
+    times: 4
+    while:
+      notVisible:
+        id: 'settings-row-budget-timeline'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 32%
+          duration: 700
+      - waitForAnimationToEnd:
+          timeout: 1500
+- extendedWaitUntil:
+    visible:
+      id: 'settings-row-budget-timeline'
+    timeout: 20000

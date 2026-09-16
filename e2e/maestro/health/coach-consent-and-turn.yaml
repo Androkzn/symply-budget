@@ -1,0 +1,302 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:coach
+  - mutation
+  - regression
+# Matrix: HEALTH-AI-501 … HEALTH-AI-512
+---
+# Coach tab — the P3 AI surface, on a device for the first time.
+#
+# WHY THIS FLOW EXISTS. The `AI` section of the matrix ships 173 scored rows
+# across backend vitest and Jest and had ZERO E2E: `HealthCoachScreen` was
+# entirely unproven on a device. This closes the first half of that harness gap
+# (`scan-modes-and-sources.yaml` closes the other).
+#
+# WHAT IS ASSERTED HARD vs WHAT BRANCHES. The consent gate, the composer's
+# disabled states, the transcript's empty state and Clear are all deterministic
+# and asserted hard. The MODEL's answer is not: a turn can come back as a reply,
+# as a reply carrying a proposal, or as a banner when the provider could not be
+# reached — the screen has honest copy for all three and so does this flow. What
+# is asserted unconditionally is that the turn left the composer and something
+# addressable came back; a flow that demanded a particular sentence from an LLM
+# would be red for reasons that are not regressions.
+#
+# CONSENT IS A ONE-WAY DOOR. `setCoachConsent` has no revoke affordance on this
+# screen, so once granted the card is gone for good on this account. The flow
+# therefore treats consent as a two-branch invariant (like `cycle-log-and-predict`
+# treats `last_period_start`) rather than a precondition it can restore. This is
+# recorded in the matrix's Flagged section as a product question, not papered
+# over here.
+#
+# A PROPOSAL IS DISMISSED, NEVER CONFIRMED. Confirming writes a real row
+# (water / weight / a diary entry) on the shared fleet account through a path
+# this flow cannot reliably clean up — the proposal's contents are the model's
+# choice, not the flow's. "Not now" is the direction that is safe to drive here;
+# `confirmProposal` is pinned at the unit and Worker layers instead.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-AI-501
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Opens from the More hub, not the tab bar (HEALTH-AI-501) --------
+      # Coach is `defaultHidden` because AI is opt-in for this app.
+      - runFlow: subflows/go-health-coach.yaml
+      - assertVisible: 'Coach'
+      - assertVisible: 'CONVERSATION'
+      - assertNotVisible:
+          id: 'tab-health-coach'
+
+      # --- Deny by default: the composer is inert before consent (AI-502) --
+      # Only runs on an account that has not granted yet. The gate is the whole
+      # point of the screen, so where it CAN be observed it is asserted hard.
+      - runFlow:
+          when:
+            visible:
+              id: 'health-coach-consent-card'
+          commands:
+            - assertVisible: 'BEFORE YOU START'
+            # The card names exactly what is read, and what the coach is not.
+            - assertVisible:
+                id: 'health-coach-consent-scope'
+            - assertVisible:
+                id: 'health-coach-consent-limits'
+            # Send is inert until consent: pressing it must leave the empty
+            # transcript exactly as it is. (Behavioural rather than an
+            # `enabled:` selector — see habits-add-tick-delete.yaml.)
+            - tapOn:
+                id: 'health-coach-send'
+            - assertVisible:
+                id: 'health-coach-empty'
+
+            # --- Granting unlocks the composer (HEALTH-AI-503) ------------
+            # `setCoachConsent` (healthCoachStorage.ts) → PUT /health/ai/coach/consent.
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+            - tapOn:
+                id: 'health-coach-consent-grant'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'health-coach-consent-card'
+                timeout: 30000
+            - runFlow:
+                file: ../subflows/e2e-verify-network.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+                  E2E_VERIFY_METHOD: PUT
+                  E2E_VERIFY_PATH: /health/ai/coach/consent
+                  E2E_VERIFY_STATUS: '200'
+            - extendedWaitUntil:
+                visible:
+                  id: 'e2e-verify-badge'
+                  text: '^PASS'
+                timeout: 5000
+
+      # --- Consent is now in place, whichever branch got us here (AI-504) --
+      - assertNotVisible:
+          id: 'health-coach-consent-card'
+      - assertVisible:
+          id: 'health-coach-transcript'
+
+      # --- An empty draft still cannot be sent (HEALTH-AI-505) -------------
+      # `draft.trim().length === 0` keeps Send disabled even WITH consent, so
+      # the gate is two independent conditions and both are proven.
+      - tapOn:
+          id: 'health-coach-send'
+      - assertVisible:
+          id: 'health-coach-input'
+          text: ''
+
+      # --- Typing enables it (HEALTH-AI-506) -------------------------------
+      - tapOn:
+          id: 'health-coach-input'
+      - inputText: 'How much water have I logged today?'
+      - hideKeyboard
+      - assertVisible:
+          id: 'health-coach-input'
+          text: 'How much water have I logged today?'
+
+      # --- The turn leaves the composer (HEALTH-AI-507) --------------------
+      # `handleSend` clears the draft synchronously, so an emptied field is the
+      # proof the press was accepted rather than swallowed.
+      # `sendCoachMessage` (healthCoachStorage.ts) → POST /health/ai/coach/turn.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-coach-send'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-coach-input'
+            text: ''
+          timeout: 20000
+
+      # --- Something addressable comes back (HEALTH-AI-508) ----------------
+      # A bubble on success, a banner when the provider could not be reached.
+      # The transcript is generous on time: this is a real model call.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-coach-message-.*'
+          timeout: 120000
+          optional: true
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-coach-message-.*'
+          commands:
+            - assertVisible:
+                id: 'health-coach-banner'
+
+      # --- …and it actually reached the Worker, not just the transcript ----
+      # `coachTurn` is a plain JSON POST/response (not SSE) — the interceptor
+      # records a normal status code, so a straight verify applies.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/ai/coach/turn
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- A proposal, if one came, can be turned down (HEALTH-AI-509) -----
+      - runFlow:
+          when:
+            visible:
+              id: 'health-coach-proposal'
+          commands:
+            - assertVisible: 'Not saved yet'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'health-coach-proposal-dismiss'
+                commands:
+                  # Local-only: `dismissProposal` (healthCoachStorage.ts) only
+                  # clears `message.proposal` on the on-device transcript —
+                  # there is no server route to reject a suggestion (only
+                  # `commitProposal` → POST /health/ai/coach/commit writes,
+                  # and this flow deliberately never confirms). No network
+                  # verify applies to this tap.
+                  - tapOn:
+                      id: 'health-coach-proposal-dismiss'
+                  - extendedWaitUntil:
+                      notVisible:
+                        id: 'health-coach-proposal'
+                      timeout: 20000
+
+      # --- YOUR FIGURES TODAY is arithmetic, not an answer (HEALTH-AI-510) -
+      # The grounded insights are computed from the person's own rows, so they
+      # render even when the model did not answer. Present-or-absent depends on
+      # what is logged today, so the card is asserted only when it is there.
+      - runFlow:
+          when:
+            visible:
+              id: 'health-coach-insights'
+          commands:
+            - assertVisible: 'YOUR FIGURES TODAY'
+
+      # --- The measurement summariser runs (HEALTH-AI-511) -----------------
+      # `health-coach-body-generate` is the producer behind /health/body-insights.
+      # Either observations or an explanatory message must come back — silence
+      # would mean the button did nothing.
+      - scrollUntilVisible:
+          element:
+            id: 'health-coach-body-generate'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-coach-body-scope'
+      # `generateBodyInsight` (healthCoachStorage.ts) → POST /health/ai/body-insights/generate.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-coach-body-generate'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-coach-body-observations'
+          timeout: 120000
+          optional: true
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-coach-body-observations'
+          commands:
+            - assertVisible:
+                id: 'health-coach-body-message'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/ai/body-insights/generate
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Clear empties the transcript + teardown (HEALTH-AI-512) ---------
+      # The Clear affordance only renders while there ARE messages, so its
+      # presence is itself the assertion that the turn was recorded — and
+      # tapping it is this flow's teardown for everything it said.
+      - scrollUntilVisible:
+          element:
+            id: 'health-coach-transcript'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'health-coach-clear'
+          commands:
+            # Local-only: `clearCoachTranscript` (healthCoachStorage.ts) wipes
+            # `health.coach.v1` on-device only — "the server holds no copy to
+            # clear" per that module's own doc comment. No network verify
+            # applies to this tap.
+            - tapOn:
+                id: 'health-coach-clear'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-coach-empty'
+                timeout: 30000
+            - assertNotVisible:
+                id: 'health-coach-message-.*'
+            # With no messages left the Clear affordance retracts too.
+            - assertNotVisible:
+                id: 'health-coach-clear'
+
+      # --- Back to the Health tab -----------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

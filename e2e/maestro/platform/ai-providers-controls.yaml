@@ -1,0 +1,95 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:ai-access
+  - readonly
+  - regression
+# Matrix: PLAT-AIACC-045
+# AI Providers control panel (manage.tsx). Asserts the always-present surface —
+# all three providers listed, the [Providers | Usage] segmented control, and the
+# Usage tab's estimated-spend panel (renders even with zero usage). When a
+# provider is actually connected (real key on this account), it also exercises
+# the connected-only affordances: the inline model dropdown (flagship tagged
+# "MOST CAPABLE") and the per-provider detail screen (usage + billing links).
+# Non-mutating: it opens/reads only — it never selects a model or flips the
+# default toggle (both would mutate active_provider / selected_model).
+---
+- runFlow: subflows/launch-platform.yaml
+- openLink: simplehouse://ai-access/manage
+- extendedWaitUntil:
+    visible:
+      id: 'ai-access-manage-screen'
+    timeout: 20000
+
+# All three providers are always listed (connected or not).
+- assertVisible: 'Anthropic Claude'
+- assertVisible: 'OpenAI'
+- assertVisible: 'Google Gemini'
+
+# Connection-health banner — surfaces only when the active BYOK key has gone
+# unhealthy (invalid/expired/revoked, via useAIConnectionHealth). Opportunistic:
+# on a healthy account it's absent; when present, its one-tap reconnect CTA must
+# render (routes back into the connect flow for the affected provider).
+- runFlow:
+    when:
+      visible:
+        id: 'ai-reconnect-button'
+    commands:
+      - assertVisible: 'disconnected'
+      - assertVisible:
+          id: 'ai-reconnect-button'
+
+# The [Providers | Usage] segmented control.
+- assertVisible:
+    id: 'filter-tab-providers'
+- assertVisible:
+    id: 'filter-tab-usage'
+
+# Usage tab → the estimated $/tokens panel renders (empty-state if no usage yet).
+- tapOn:
+    id: 'filter-tab-usage'
+- extendedWaitUntil:
+    visible:
+      id: 'ai-usage-panel-all'
+    timeout: 10000
+
+# Back to the provider cards.
+- tapOn:
+    id: 'filter-tab-providers'
+- extendedWaitUntil:
+    visible:
+      id: 'ai-access-manage-screen'
+    timeout: 10000
+
+# Connected path — only when a default toggle is present (a real key is stored).
+- runFlow:
+    when:
+      visible:
+        id: 'ai-default-toggle-anthropic'
+    commands:
+      # Open the inline model dropdown; the most-capable model is tagged.
+      - tapOn:
+          id: 'ai-model-row-anthropic'
+      - assertVisible: 'MOST CAPABLE'
+      # Collapse again (do NOT select — that would mutate the saved model).
+      - tapOn:
+          id: 'ai-model-row-anthropic'
+      # Enter the per-provider detail (usage + billing).
+      - tapOn:
+          id: 'ai-provider-detail-row-anthropic'
+      - extendedWaitUntil:
+          visible:
+            id: 'ai-provider-detail-screen-anthropic'
+          timeout: 15000
+      - assertVisible:
+          id: 'ai-usage-panel-anthropic'
+      - assertVisible:
+          id: 'ai-billing-link-anthropic'
+
+# Not-connected path — the card offers a Connect CTA instead.
+- runFlow:
+    when:
+      notVisible:
+        id: 'ai-default-toggle-anthropic'
+    commands:
+      - assertVisible: 'Connect'

@@ -1,0 +1,64 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Garden list → Add → "Draw on the map" → the three-step wizard, step one.
+#
+# WHY THIS IS A SUBFLOW AND NOT THREE LINES IN EACH FLOW. The route in is four
+# taps deep and every one of them has previously been a place where the garden
+# suite went green for the wrong reason (see `garden-plan-add.yaml`'s
+# WRONG LITERAL and OVER-POP notes). One copy, asserted hard, means a broken
+# entry point fails HERE rather than as "the panel is not visible" three flows
+# downstream.
+#
+# THE ENTRY POINT IS ITSELF THE THING UNDER TEST. `GardenPlanMapWizardScreen` is
+# registered in `GardeningNavigator` and reachable ONLY from the
+# `garden-plan-source-map` card on `Add yard plan`. A screen that is registered
+# and reachable by nobody is the failure mode this repo has hit before, so the
+# tap below is not navigation plumbing — it is the assertion that the surface is
+# wired.
+# Recover first. The wizard cannot be popped by `pop-to-app-root` (backing out
+# of it raises a confirm alert rather than popping), so a flow that died inside
+# it leaves every later flow stuck on a screen the deep link below cannot get
+# past. Clearing it here is what stops one failure becoming three.
+- runFlow: dismiss-garden-map-wizard.yaml
+- runFlow: open-gardening.yaml
+- assertVisible:
+    id: 'garden-plans-screen'
+- tapOn:
+    id: 'garden-plans-add-button'
+- extendedWaitUntil:
+    visible: 'Add yard plan'
+    timeout: 25000
+- assertVisible:
+    id: 'garden-plan-source-map'
+- tapOn:
+    id: 'garden-plan-source-map'
+
+# The wizard geocodes the household address through the OS geocoder before it
+# can frame the map, which is a real network round trip on a cold simulator —
+# hence the long wait rather than the usual 10s.
+- extendedWaitUntil:
+    notVisible:
+      id: 'garden-map-wizard-locating'
+    timeout: 45000
+    optional: true
+
+# HARD assert, deliberately not "either screen".
+#
+# The wizard has an honest fallback (`garden-map-wizard-unavailable`) for a home
+# whose address cannot be placed, and accepting EITHER outcome here would make
+# every flow that runs after this one pass on a device where the map never
+# opened — testing nothing while looking green. The E2E home always carries a
+# state/province (`house-clear-address-gate.yaml` is what puts it there) and a
+# province geocodes, so reaching the fallback means something is genuinely
+# wrong and this is the line that should say so.
+- extendedWaitUntil:
+    visible:
+      id: 'garden-plan-map-wizard-screen'
+    timeout: 30000
+- assertVisible:
+    id: 'garden-map-wizard-panel'
+- assertVisible:
+    id: 'garden-map-wizard-panel-lot'

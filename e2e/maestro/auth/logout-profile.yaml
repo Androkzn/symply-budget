@@ -1,0 +1,34 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - feature:platform
+  - mutation
+  - regression
+# Matrix: PLAT-AUTH-049, HOUSE-SMOKE-016
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: PLAT-AUTH-049
+- runFlow: ../subflows/open-profile.yaml
+- scrollUntilVisible:
+    element:
+      id: 'profile-sign-out'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'profile-sign-out'
+- runFlow: ../subflows/confirm-sign-out-alert.yaml
+- runFlow: ../subflows/assert-logged-out-login.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /auth/logout
+      E2E_VERIFY_STATUS: '200'

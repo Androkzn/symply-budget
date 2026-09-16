@@ -1,0 +1,54 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:settings
+  - readonly
+  - regression
+# Matrix: HOUSE-SETT-023…031 (legal, AI prefs, PDF cache, nav/widget customization rows)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-house-settings.yaml
+- assertVisible:
+    id: 'house-settings-screen'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: house-settings-screen-scroll-end
+- scrollUntilVisible:
+    element: 'Privacy Policy'
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Privacy Policy'
+    commands:
+      - tapOn: 'Privacy Policy'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+# SCROLL ORDER FIXED: this scrolled DOWN to `settings-row-persona-settings`
+# (SettingsScreen.tsx:749) but then gated on `settings-row-ai-housekeeper-settings`
+# (SettingsScreen.tsx:730) — an EARLIER row that the scroll has already gone past,
+# so the gate below could close and skip its assertions. Anchor on the row the gate
+# actually uses; persona-settings is never tapped by this flow.
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-ai-housekeeper-settings'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'settings-row-ai-housekeeper-settings'
+    commands:
+      - tapOn:
+          id: 'settings-row-ai-housekeeper-settings'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true

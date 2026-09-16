@@ -1,0 +1,155 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: BUDGET-LF-006 — Encrypted backup + restore controls on Settings
+# Asserts backup/restore/CSV chrome. Tapping Encrypted backup opens the iOS
+# share sheet (expo-sharing) before the recovery-phrase sheet — Maestro cannot
+# reliably dismiss that sheet, so we only tap CSV export (Alert-only) and leave
+# Encrypted backup as a visibility assertion.
+#
+# Export now lives on its own screen behind the Export row, with a toggle per
+# section — so the CSV tap goes through that screen, and the section list is
+# asserted on the way past.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-006
+# SYNC & SHARING lives on Profile now, not on Budget Settings.
+- runFlow: ../subflows/budget-open-profile.yaml
+- assertVisible:
+    id: 'budget-settings-backup-link'
+- assertVisible:
+    id: 'budget-settings-backup-status'
+# Export is the last of the five rows, so it is below the fold when the section
+# first comes into view.
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-export-link'
+    direction: DOWN
+    visibilityPercentage: 10
+    timeout: 15000
+- assertVisible:
+    id: 'budget-settings-export-link'
+# Export owns its own screen: a toggle per section, all on by default, with
+# Enable all / Disable all above the list.
+- tapOn:
+    id: 'budget-settings-export-link'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-export-screen'
+    timeout: 15000
+- assertVisible:
+    id: 'budget-export-enable-all'
+- assertVisible:
+    id: 'budget-export-disable-all'
+- assertVisible:
+    id: 'budget-export-toggle-spending'
+# The summary line renders AFTER the toggle Card, so it is below the fold once
+# the section list is long enough — it is a bare Typography with no
+# accessibilityRole, and asserting it unscrolled failed after the usual retry
+# window on 2026-09-05 with the three controls above it green. Scroll to it
+# rather than assume the list still fits on one screen.
+- scrollUntilVisible:
+    element:
+      id: 'budget-export-summary'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- assertVisible:
+    id: 'budget-export-summary'
+# Bulk controls drive the whole list; leave it all-on for the export below.
+# Scrolling to the summary can push them off the top and tapOn does NOT scroll,
+# so bring them back first — optional because a short list never moved them.
+- scrollUntilVisible:
+    element:
+      id: 'budget-export-disable-all'
+    direction: UP
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'budget-export-disable-all'
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: 'budget-export-enable-all'
+- waitForAnimationToEnd:
+    timeout: 1500
+# CSV export uses Alert only (no system share sheet) — safer Maestro path.
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-export-csv'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'budget-settings-export-csv'
+- waitForAnimationToEnd:
+    timeout: 20000
+- runFlow:
+    when:
+      visible: 'Export ready'
+    commands:
+      - tapOn:
+          text: 'OK'
+          optional: true
+- runFlow:
+    when:
+      visible: '^Export$'
+    commands:
+      - tapOn:
+          text: 'OK'
+          optional: true
+- runFlow:
+    when:
+      visible: 'Error'
+    commands:
+      - tapOn:
+          text: 'OK'
+          optional: true
+# Dismiss share sheet if CSV path used Sharing on this OS build.
+- runFlow:
+    when:
+      visible: 'Close'
+    commands:
+      - tapOn:
+          text: 'Close'
+          optional: true
+- runFlow:
+    when:
+      visible: 'Cancel'
+    commands:
+      - tapOn:
+          text: 'Cancel'
+          optional: true
+- pressKey: Home
+- waitForAnimationToEnd:
+    timeout: 1500
+- launchApp:
+    appId: com.symply.budget
+    clearState: false
+- runFlow: ../subflows/go-budget-tab.yaml
+# The backup row survived the relaunch — on Profile, where SYNC & SHARING lives.
+- runFlow: ../subflows/budget-open-profile.yaml
+- assertVisible:
+    id: 'budget-settings-backup-link'
+- assertVisible:
+    id: 'budget-settings-backup-status'
+- openLink: simplebudget:///
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

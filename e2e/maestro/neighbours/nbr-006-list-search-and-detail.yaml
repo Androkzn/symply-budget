@@ -1,0 +1,61 @@
+# NBR-006 — the list half, and the detail screen behind it.
+#
+# The list is the map's twin, not its fallback: search is the only way to answer
+# "who do I call about X" on a street with forty pins. This flow proves the
+# search narrows, the card opens, and the detail screen carries the two actions
+# a member actually came for — a phone number and a way to save it to Contacts.
+#
+# Sets up its own row via `ensure-e2e-neighbour`. This used to say it "depends
+# on nbr-005 having run. Ordered by filename, which is how this suite sequences
+# everywhere else" — which was simply wrong. Maestro's folder mode does not
+# order by filename, so this flow passed or failed on the order the runner
+# happened to pick, and nbr-008 deletes the row on its way out.
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:neighbours
+  - regression
+# Matrix: HOUSE-NBR-010 (search), HOUSE-NBR-011 (detail)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-neighbours.yaml
+# Creates the row if it is not already there, and leaves us on the list with the
+# search narrowed to it.
+- runFlow: ../subflows/ensure-e2e-neighbour.yaml
+
+# Search narrowed to the row. Two things about matching here, both learned the
+# hard way:
+#
+# 1. Maestro matches text against the WHOLE accessibility string, and the card is
+#    a single accessible button whose label carries the badges too — "E2E
+#    Wilsons, Next door, has our key". A bare 'E2E Wilsons' matches no node.
+# 2. But a loose `.*E2E Wilsons.*` is worse as a TAP target: it also matches the
+#    search field, whose value is that very text, so the tap lands on the box we
+#    typed into and the detail screen never opens.
+#
+# So assert on the label and tap by testID, which only a card can have.
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-card-.*'
+    timeout: 20000
+- assertVisible: '.*E2E Wilsons.*'
+- tapOn:
+    id: 'neighbour-card-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-detail-screen'
+    timeout: 20000
+- assertVisible:
+    id: 'neighbour-detail-directions'
+- assertVisible:
+    id: 'neighbour-detail-edit'
+# The occupant row, with its call and export-to-contacts actions. Asserted by
+# text rather than by id because the person's id is minted at create time.
+# Regex: the occupant row is read as one string — name, age band, number and the
+# remove button's label — so the exact phrase matches no node on its own.
+- assertVisible: '.*Sarah Wilson · main contact.*'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      APP_ID: com.symply.house
+      SCROLL_END_ID: neighbour-detail-screen-scroll-end

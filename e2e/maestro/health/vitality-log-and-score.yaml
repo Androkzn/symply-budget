@@ -1,0 +1,499 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:vitality
+  - mutation
+  - regression
+# Matrix: HEALTH-VITALITY-101 … HEALTH-VITALITY-111
+---
+# Vitality tab (header "Men's Health") — the donor's `MensHealthView`. One entry
+# per day: drive, activity + satisfaction, erection health, issues, energy /
+# clarity / mood / sleep / stress, kegels, and the donor's vitality score.
+#
+# The tab ships `defaultHidden`, so this flow enters through the More hub rather
+# than the tab bar (subflows/go-health-vitality.yaml).
+#
+# GATED / SKIPS-GRACEFULLY: the body is wrapped in
+# `runFlow: when: visible: health-home-screen` so it runs only when the installed
+# app already holds a session (same contract as activity-log-workout.yaml).
+#
+# RE-RUNNABILITY: there is no "delete today's entry" affordance — the day's row
+# is upserted, never removed — so the score card is asserted as a two-branch
+# invariant (neutral baseline vs logged) instead of a precondition that can only
+# pass once. Everything the flow TOGGLES is toggled back at the end, because a
+# toggle left on would be inverted by the next run.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-VITALITY-101
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Opens from the More hub, not the tab bar (HEALTH-VITALITY-101) -
+      - runFlow: subflows/go-health-vitality.yaml
+      - assertVisible: "Men's Health"
+      - assertVisible: 'VITALITY'
+      # The tab is reachable but NOT pinned — the hub is the only door.
+      - assertNotVisible:
+          id: 'tab-health-vitality'
+
+      # --- Ring + score + status (HEALTH-VITALITY-102) --------------------
+      - assertVisible:
+          id: 'health-vitality-ring'
+      - assertVisible:
+          id: 'health-vitality-score'
+          text: '\d+'
+      - assertVisible:
+          id: 'health-vitality-status'
+          text: '(Peak performance|Good condition|Room for improvement|Needs attention)'
+      # Exactly one of the two score-card captions holds: the neutral baseline
+      # before anything is logged today, the sub-score average after.
+      - runFlow:
+          when:
+            visible:
+              text: 'Not logged today.*neutral baseline.*'
+          commands:
+            - assertVisible:
+                id: 'health-vitality-score'
+                text: '50'
+      - runFlow:
+          when:
+            notVisible:
+              text: 'Not logged today.*neutral baseline.*'
+          commands:
+            - assertVisible: 'Average of your sexual-health, erection, energy and mental sub-scores.'
+
+      # --- All four sub-scores render (HEALTH-VITALITY-103) ---------------
+      - assertVisible:
+          id: 'health-vitality-sub-sexual'
+      - assertVisible:
+          id: 'health-vitality-sub-erection'
+      - assertVisible:
+          id: 'health-vitality-sub-energy'
+      - assertVisible:
+          id: 'health-vitality-sub-mental'
+
+      # --- Libido writes the day's entry (HEALTH-VITALITY-104) -----------
+      # `HealthScaleRow.onChange` → `persist` (HealthVitalityScreen.tsx) →
+      # `saveVitalityEntry` (healthVitalityStorage.ts) →
+      # `healthApi.saveMensHealth` → PUT /health/mens-health/entries, 200.
+      # Every scale/toggle tap in this flow shares this exact write path.
+      - scrollUntilVisible:
+          element:
+            id: 'health-vitality-libido-8'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-libido-8'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-libido-value'
+            text: '8/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # The hint reads the donor's band for the chosen level.
+      - assertVisible: 'High drive'
+      # The first write of the day flips the score card off the neutral baseline.
+      - scrollUntilVisible:
+          element: 'Average of your sexual-health, erection, energy and mental sub-scores.'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible: 'Average of your sexual-health, erection, energy and mental sub-scores.'
+      - assertNotVisible: 'Not logged today.*neutral baseline.*'
+
+      # --- Activity reveals the conditional satisfaction row (HEALTH-VITALITY-105)
+      - scrollUntilVisible:
+          element:
+            id: 'health-vitality-partner-sex'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # The whole ACTIVITY card is on screen — asserted so the negative below is
+      # about ABSENCE, not about the row being just off the viewport.
+      - assertVisible:
+          id: 'health-vitality-solo'
+      - assertVisible:
+          id: 'health-vitality-orgasm'
+      # Satisfaction only exists once there was activity to be satisfied with.
+      - assertNotVisible:
+          id: 'health-vitality-satisfaction'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-partner-sex'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-satisfaction'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible: 'Satisfaction'
+
+      # --- Morning erection reveals its quality row (HEALTH-VITALITY-106) -
+      - scrollUntilVisible:
+          element:
+            id: 'health-vitality-morning'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # The row BELOW the conditional slot is on screen, so the negative below
+      # is about absence rather than viewport position.
+      - assertVisible:
+          id: 'health-vitality-quality'
+      - assertNotVisible:
+          id: 'health-vitality-morning-quality'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-morning'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-morning-quality'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible: 'Morning quality'
+
+      # --- The issue counter is derived, not decorative (HEALTH-VITALITY-107)
+      - scrollUntilVisible:
+          element:
+            id: 'health-vitality-issue-count'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-vitality-issue-count'
+          text: 'None'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-issue-hadPerformanceAnxiety'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-issue-count'
+            text: '1 noted'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Energy scale (HEALTH-VITALITY-108) ----------------------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-vitality-energy-7'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-energy-7'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-energy-value'
+            text: '7/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Kegel sets round-trip through the clamp (HEALTH-VITALITY-109) -
+      # `handleKegels` → `persist` → same PUT /health/mens-health/entries, 200
+      # write path as above (fires on the keypad-dismiss blur too —
+      # `onBlur={handleKegels}` on `health-vitality-kegel-input` — which is why
+      # the log is cleared before the dismiss, not just the explicit Save tap).
+      - scrollUntilVisible:
+          element:
+            id: 'health-vitality-kegel-input'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-kegel-input'
+      - inputText: '3'
+      # `health-vitality-kegel-input` is `keyboardType="number-pad"`, which has
+      # no return key on iOS — and Maestro's own `hideKeyboard` HARD-FAILS on
+      # this build's numeric keyboards ("Couldn't hide the keyboard…"). It used
+      # to sit here and would have taken the whole flow down with it; the two
+      # optional dismissals in the subflow cannot.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'KEGELS'
+      - tapOn:
+          id: 'health-vitality-kegel-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-kegel-input'
+            text: '3'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - scrollUntilVisible:
+          element:
+            id: 'health-vitality-week-kegels'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-vitality-week-kegels'
+      - assertVisible:
+          id: 'health-vitality-week-days'
+      - assertVisible:
+          id: 'health-vitality-week-score'
+
+      # --- The wellness disclaimer closes the screen (HEALTH-VITALITY-110)
+      - scrollUntilVisible:
+          element:
+            id: 'health-vitality-disclaimer'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-vitality-disclaimer'
+          text: '.*not a medical assessment.*'
+
+      # --- Teardown: every toggle back off, bottom upward (HEALTH-VITALITY-111)
+      # The day's row itself cannot be deleted (the screen upserts it), but a
+      # toggle left ON would be INVERTED by the next run, so all four are reset.
+      # The scales stay where they are — re-tapping 8 and 7 is idempotent.
+      # Every write below is the same `persist` → PUT /health/mens-health/entries,
+      # 200 path as HEALTH-VITALITY-104 through -109 above.
+      - scrollUntilVisible:
+          element:
+            id: 'health-vitality-kegel-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-kegel-input'
+      - eraseText
+      - inputText: '0'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'KEGELS'
+      - tapOn:
+          id: 'health-vitality-kegel-save'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-vitality-kegel-input'
+            text: '3'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - scrollUntilVisible:
+          element:
+            id: 'health-vitality-issue-count'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-issue-hadPerformanceAnxiety'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-issue-count'
+            text: 'None'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - scrollUntilVisible:
+          element:
+            id: 'health-vitality-morning'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-morning'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-vitality-morning-quality'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - scrollUntilVisible:
+          element:
+            id: 'health-vitality-partner-sex'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-partner-sex'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-vitality-satisfaction'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Back to the Health tab ----------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

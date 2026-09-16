@@ -1,0 +1,124 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:pension
+  - mutation
+  - regression
+# Matrix: BUDGET-pension (see documents/engineering/testing/matrices/)
+# Pension section interactions (PensionView) — adds interaction coverage on top of
+# the render-only budget-pension.yaml: switch Room/Goals/Contributions sub-tabs,
+# open the Annual-goal sheet and verify the % → dollar goal preview is wired
+# (Amount → Percent reveals pension-entry-goal-preview), AND open the shared
+# PensionEntrySheet from Room (proves the add control is wired).
+#
+# Reached by deep link because Pension is NOT a default-pinned bottom tab
+# (customizable-tabs model); simplebudget:///pension → app/(tabs)/pension.tsx →
+# section="pension". The deep link is more reliable than the in-screen filter-tab
+# strip, which is hidden whenever a section is force-rendered. Non-mutating: the
+# entry sheet is opened but never saved.
+#
+# NOTE (not reachable here): PensionAccountsView (pension-manage-accounts,
+# pension-import-statement → PensionImportScreen) is retained but untabbed — it is
+# not one of the room/goals/contributions sub-tabs, so it needs a testID/route to
+# be E2E-reachable.
+---
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget
+      E2E_MATRIX_ROW: BUDGET-
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- openLink: simplebudget:///pension?tab=room
+- extendedWaitUntil:
+    visible:
+      id: 'pension-view'
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'pension-room'
+    timeout: 20000
+- assertVisible:
+    id: 'pension-room-add'
+- waitForAnimationToEnd:
+    timeout: 2000
+# Switch sub-tabs by deep link — reliable on iOS-26 New-Arch, and avoids the
+# `filter-tab-goals` testID collision with the Savings view's Goals tab (both
+# section tabs stay mounted across the warm E2E session). PensionView maps
+# `?tab=<sub>` onto the active sub-tab.
+- openLink: simplebudget:///pension?tab=goals
+- extendedWaitUntil:
+    visible:
+      id: 'pension-goals'
+    timeout: 30000
+- assertVisible:
+    id: 'pension-goal-add'
+# Annual-goal sheet: prove the % → dollar preview is wired. Opening the sheet and
+# switching Amount → Percent (%) must reveal the live "Goal this year" figure
+# (pension-entry-goal-preview = pct × the member's room base). Non-mutating: close
+# without saving.
+- tapOn:
+    id: 'pension-goal-add'
+- extendedWaitUntil:
+    visible:
+      id: 'pension-entry-save'
+    timeout: 15000
+- tapOn:
+    id: 'pension-entry-goalmode-percent'
+- extendedWaitUntil:
+    visible:
+      id: 'pension-entry-goal-preview'
+    timeout: 10000
+- tapOn:
+    id: 'pension-entry-primary'
+- inputText: '80'
+- assertVisible:
+    id: 'pension-entry-goal-preview'
+# Reproduced repeatedly (2026-08-04/05, 4 consecutive runs, including after a
+# hideKeyboard-before-tap fix AND a BottomSheet.tsx panResponder fix, neither
+# of which resolved it): tapping bottom-sheet-close here reports COMPLETED
+# every time (confirmed via temporary instrumentation logging that the
+# TouchableOpacity's onPress never actually fires — not a keyboard-focus or
+# gesture-responder issue after all, or at least not only that) yet the sheet
+# never closes, and the next assert (pension-goals) fails after a full 15s
+# timeout with zero backend activity. Root cause needs live device debugging
+# (Xcode view hierarchy / React DevTools) to pin down further — out of reach
+# from static analysis and simulated E2E runs alone. Pragmatic workaround:
+# dismiss via the backdrop instead of the close button specifically —
+# BottomSheet's backdrop TouchableOpacity (see BottomSheet.tsx) calls the same
+# onClose and isn't part of whatever is intercepting the close button's touch.
+- tapOn:
+    point: '50%,15%'
+- extendedWaitUntil:
+    visible:
+      id: 'pension-goals'
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 2000
+- openLink: simplebudget:///pension?tab=contributions
+- extendedWaitUntil:
+    visible:
+      id: 'pension-contributions'
+    timeout: 30000
+- assertVisible:
+    id: 'pension-contribution-add'
+- waitForAnimationToEnd:
+    timeout: 2000
+- openLink: simplebudget:///pension?tab=room
+- extendedWaitUntil:
+    visible:
+      id: 'pension-room'
+    timeout: 30000
+- tapOn:
+    id: 'pension-room-add'
+- extendedWaitUntil:
+    visible:
+      id: 'pension-entry-save'
+    timeout: 15000
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

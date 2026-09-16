@@ -1,0 +1,86 @@
+appId: com.symply.language
+tags:
+  - app:language
+  - feature:review
+  - mutation
+  - regression
+  - smoke
+# Matrix: LANGUAGE-review (see documents/engineering/testing/matrices/); rating
+# Good is LANG-REVIEW-008, verified end-to-end (not just a UI-text regex).
+---
+# Spaced-repetition review: reveal a card → tap a rating → assert the next card / done.
+# Load fires GET /cards/due. A rating fires POST /reviews (fire-and-forget) and
+# optimistically advances the queue. The flashcard, 4 rating buttons, and Done all lack
+# testIDs (audit gap) — matched by copy ("Tap to reveal", Again/Hard/Good/Easy, Done).
+# TODO(testIDs): add testIDs to the flashcard, the 4 rating buttons, and Done.
+- runFlow: subflows/launch-language.yaml
+- runFlow: subflows/go-review.yaml
+- assertVisible:
+    id: 'language-review-screen'
+# Cards due — reveal, assert the 4 ratings, rate Good, assert advance/complete.
+- runFlow:
+    when:
+      visible: 'Tap to reveal'
+    commands:
+      - tapOn: 'Tap to reveal'
+      - extendedWaitUntil:
+          visible: 'Good'
+          timeout: 10000
+      - assertVisible: 'Again'
+      - assertVisible: 'Hard'
+      - assertVisible: 'Good'
+      - assertVisible: 'Easy'
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplelanguage
+            E2E_MATRIX_ROW: LANG-REVIEW-008
+      - tapOn: 'Good'                     # rating 3 → POST /reviews, advance
+      - waitForAnimationToEnd:
+          timeout: 3000
+      # Backend side: LANG-REVIEW-008 was previously only a UI-text-regex
+      # check (see the "due|Review complete" assert below) — this actually
+      # confirms the POST /reviews call this tap fired.
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+          env:
+            E2E_APP_SCHEME: simplelanguage
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /reviews
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Advanced to the next card ("N / M due") or finished ("Review complete").
+      - assertVisible:
+          text: 'due|Review complete'
+# Back mid-session preserves submitted ratings (LANG-REVIEW-014).
+- runFlow:
+    when:
+      visible: 'Tap to reveal'
+    commands:
+      - tapOn: 'Tap to reveal'
+      - tapOn: 'Good'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - runFlow: subflows/go-review.yaml
+# Documented non-scroll surface (LANG-REVIEW-020).
+- runFlow:
+    when:
+      visible: 'Tap to reveal'
+    commands:
+      - swipe:
+          direction: UP
+      - assertVisible:
+          id: 'language-review-screen'
+# Nothing due — assert the empty/done state exposes Done.
+- runFlow:
+    when:
+      visible: 'Nothing due right now'
+    commands:
+      - assertVisible: 'Done'

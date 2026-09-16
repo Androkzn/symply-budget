@@ -1,0 +1,31 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Switch to the Habits tab (route health-habits, label Habits, header "Habits").
+#
+# Habits ships `defaultHidden` in brands/symply-health/brand.cjs, so like Body,
+# Cycle and Vitality it is reached through the More hub rather than the bar.
+- runFlow: go-more.yaml
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-health-habits'
+    direction: UP
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-health-habits'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- tapOn:
+    id: 'more-tab-health-habits'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-habits-screen'
+    timeout: 30000

@@ -1,0 +1,84 @@
+diff --git a/node_modules/expo-modules-core/ios/EXLegacyExpoViewProtocol.h b/node_modules/expo-modules-core/ios/EXLegacyExpoViewProtocol.h
+new file mode 100644
+index 0000000..00aacdb
+--- /dev/null
++++ b/node_modules/expo-modules-core/ios/EXLegacyExpoViewProtocol.h
+@@ -0,0 +1,13 @@
++// Copyright 2022-present 650 Industries. All rights reserved.
++
++#import <ExpoModulesCore/EXModuleRegistry.h>
++
++/**
++ The protocol required for the Objective-C views to be initialized with the legacy module registry.
++ - ToDo: Remove once all views are migrated to the new API and Swift.
++ */
++@protocol EXLegacyExpoViewProtocol
++
++- (instancetype)initWithModuleRegistry:(nullable EXModuleRegistry *)moduleRegistry;
++
++@end
+diff --git a/node_modules/expo-modules-core/ios/Fabric/ExpoFabricView.swift b/node_modules/expo-modules-core/ios/Fabric/ExpoFabricView.swift
+index 5b15751..66f57bb 100644
+--- a/node_modules/expo-modules-core/ios/Fabric/ExpoFabricView.swift
++++ b/node_modules/expo-modules-core/ios/Fabric/ExpoFabricView.swift
+@@ -209,7 +209,17 @@ open class ExpoFabricView: ExpoFabricViewObjC, AnyExpoView {
+     // The default initializer for native views. It will be called by Fabric.
+     let newBlock: @convention(block) () -> Any = {[weak appContext] in
+       guard let appContext, let moduleHolder = appContext.moduleRegistry.get(moduleHolderForName: moduleName) else {
+-        fatalError(Exceptions.AppContextLost().reason)
++        // The app context is captured weakly and the resolved view class is cached in
++        // `viewClassesRegistry` across reloads, so Fabric can still call this initializer
++        // after the context is gone — during a dev-client runtime swap, a reload, or app
++        // termination, when a mount transaction is already in flight. That is transient
++        // and recoverable (the next runtime re-injects a real initializer), but
++        // fatalError turns it into a hard SIGTRAP that kills the whole app.
++        // Hand back an inert placeholder instead, retained to match the initializer
++        // contract below. In Release there is no runtime swap, so this never triggers.
++        let placeholder = UIView()
++        _ = Unmanaged.passRetained(placeholder)
++        return placeholder
+       }
+       guard let view = moduleHolder.definition.views[viewName]?.createView(appContext: appContext) else {
+         fatalError("Cannot create a view '\(viewName)' from module '\(moduleName)'")
+diff --git a/node_modules/expo-modules-core/ios/Legacy/Protocols/EXEventEmitter.h b/node_modules/expo-modules-core/ios/Legacy/Protocols/EXEventEmitter.h
+new file mode 100644
+index 0000000..6031fdf
+--- /dev/null
++++ b/node_modules/expo-modules-core/ios/Legacy/Protocols/EXEventEmitter.h
+@@ -0,0 +1,18 @@
++// Copyright © 2018 650 Industries. All rights reserved.
++
++#import <Foundation/Foundation.h>
++
++#import <ExpoModulesCore/EXDefines.h>
++#import <ExpoModulesCore/EXExportedModule.h>
++
++// Implement this protocol in your exported module to be able
++// to send events through platform event emitter.
++
++@protocol EXEventEmitter
++
++- (void)startObserving;
++- (void)stopObserving;
++
++- (NSArray<NSString *> *)supportedEvents;
++
++@end
+diff --git a/node_modules/expo-modules-core/ios/Legacy/Protocols/EXEventEmitterService.h b/node_modules/expo-modules-core/ios/Legacy/Protocols/EXEventEmitterService.h
+new file mode 100644
+index 0000000..60ac11a
+--- /dev/null
++++ b/node_modules/expo-modules-core/ios/Legacy/Protocols/EXEventEmitterService.h
+@@ -0,0 +1,12 @@
++// Copyright © 2018 650 Industries. All rights reserved.
++
++#import <Foundation/Foundation.h>
++
++#import <ExpoModulesCore/EXDefines.h>
++#import <ExpoModulesCore/EXExportedModule.h>
++
++@protocol EXEventEmitterService
++
++- (void)sendEventWithName:(NSString *)name body:(id)body;
++
++@end

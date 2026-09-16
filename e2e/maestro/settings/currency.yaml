@@ -1,0 +1,84 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:settings
+  - regression
+# Matrix: HOUSE-SETT-049 — select a display currency (Settings → Currency)
+# Mutating round-trip: switches the display currency to Euro, proves the choice
+# persists (the Settings row subtitle re-renders reactively), then resets to
+# US Dollar so the shared test account keeps the "$" default other flows assume.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-house-settings.yaml
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- assertVisible:
+    id: 'house-settings-screen'
+# Open the Currency picker from the PREFERENCES section.
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-currency'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'settings-row-currency'
+- extendedWaitUntil:
+    visible:
+      id: 'currency-screen'
+    timeout: 15000
+# The picker lists the supported currencies, with USD selected by default.
+- assertVisible:
+    id: 'currency-row-USD'
+- assertVisible:
+    id: 'currency-row-EUR'
+- runFlow:
+    file: ../subflows/assert-screen-scrolls-optional.yaml
+    env:
+      SCROLL_END_ID: currency-screen-scroll-end
+# Re-anchor to the top so the EUR row is tappable after any end-scroll.
+- scrollUntilVisible:
+    element:
+      id: 'currency-row-EUR'
+    direction: UP
+    timeout: 10000
+    optional: true
+# REACHABILITY FIXED: the re-anchor scroll above is `optional`, so when it fails the
+# next step used to be a NON-optional tap on a row that may still be off-screen —
+# the flow exploded on the tap instead of waiting for the row to settle.
+- extendedWaitUntil:
+    visible:
+      id: 'currency-row-EUR'
+    timeout: 10000
+# Pick Euro, go back, and confirm the Settings row subtitle reflects the choice.
+- tapOn:
+    id: 'currency-row-EUR'
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'house-settings-screen'
+    timeout: 15000
+- scrollUntilVisible:
+    element: '.*Currency, Euro.*'
+    direction: DOWN
+    timeout: 15000
+- assertVisible: '.*Currency, Euro.*'
+# Reset back to US Dollar so the shared test account / other flows keep the $ default.
+- tapOn:
+    id: 'settings-row-currency'
+- extendedWaitUntil:
+    visible:
+      id: 'currency-screen'
+    timeout: 15000
+- tapOn:
+    id: 'currency-row-USD'
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'house-settings-screen'
+    timeout: 15000
+- scrollUntilVisible:
+    element: '.*Currency, US Dollar.*'
+    direction: DOWN
+    timeout: 15000
+- assertVisible: '.*Currency, US Dollar.*'

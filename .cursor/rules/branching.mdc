@@ -1,0 +1,30 @@
+---
+description: Git branching — trunk + long-running client clones; never deploy from a clone
+alwaysApply: true
+---
+
+# Branching — trunk + long-running client branches
+
+Canonical: `documents/ecosystem/BRANCHING.md`.
+
+`main` is integration and the **only** deploy source. `<app>-v2` (`house-v2`, `budget-v2`, `health-v2`, …) are months-long client programmes — one clone each, they never die.
+
+## Where code lives
+
+- `backend/**`, `packages/local-first/**`, `wrangler*.toml`, `backend/migrations/**` → **`main`**, flagged off if unfinished. Backend on a client branch is silently reverted by the next `deploy:fleet` from `main`.
+- `src/features/<app>/**`, that app’s screens, its Proxy blocks → **its `<app>-v2` branch**.
+- Claim the next migration number **on `main` first**. Two branches inventing the same number collide.
+
+## Hard rules
+
+- **Merge, never rebase.** An auto-commit harness already pushed these commits.
+- **`pull.rebase` must be `false`** — set it globally. A plain `git pull` under `pull.rebase = true` silently rebases a client branch and discards merge commits; that has already happened here. Recover with `git rebase --abort`.
+- Do not open a parallel `feat/<app>-v2-*` stack for a programme that already has an `<app>-v2` branch.
+- **Never `git stash`.** Concurrent sessions; stash has swept WIP repeatedly.
+- **Never force-push** any branch. Concurrent writers.
+- **Never deploy from a clone.** Only the `main` checkout runs `deploy:fleet` / `deploy:*:all`.
+- **`git merge main` daily** on the client branch. Do not resolve conflicts on `main`.
+- Land with `gh pr merge --merge` (**not** `--squash`). These branches keep living; squash re-conflicts the next merge.
+
+Daily on a clone: `git merge main` → work → `git push origin <app>-v2`.
+Landing: merge `main` into the branch, verify, PR into `main` with `--merge`, then pull + deploy **from the main checkout**.

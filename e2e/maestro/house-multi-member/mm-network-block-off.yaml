@@ -1,0 +1,13 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:multi-member
+---
+# Restore outbound HTTP. Always run this, including from onFlowComplete — a
+# device left blocked poisons every later phase with failures that look like a
+# broken relay.
+- openLink: ${E2E_APP_SCHEME}://e2e-unblock-network
+- runFlow: mm-dismiss-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 1500

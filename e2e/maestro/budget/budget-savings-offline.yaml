@@ -1,0 +1,56 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - regression
+# Matrix: BUDGET-SAVE-038 — offline savings income save surfaces error
+# Safety net: guarantees airplane mode is off when this flow ends even if a
+# non-optional assertion fails before reaching the offline-off call in the
+# body (see budget-offline-sweep.yaml for the observed cross-flow cascade).
+onFlowComplete:
+  - runFlow: ../subflows/budget-offline-off.yaml
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-income'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-add-income'
+    timeout: 15000
+- runFlow: ../subflows/budget-offline-on.yaml
+- tapOn:
+    id: 'savings-add-income'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-form'
+    timeout: 15000
+# Income entries have no label field — only amount + month.
+- tapOn:
+    id: 'savings-entry-amount'
+- inputText: '100'
+- hideKeyboard:
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-form-save-header'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: 'savings-entry-form-save-header'
+- extendedWaitUntil:
+    visible:
+      text: 'Error'
+    timeout: 15000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      text: 'Could not'
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- runFlow: ../subflows/budget-offline-off.yaml

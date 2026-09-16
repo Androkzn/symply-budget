@@ -1,0 +1,24 @@
+
+=== budget-savings-renewal-reminder ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Failed] budget-savings-renewal-reminder (21s)
+
+1/1 Flow Failed
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Failed] budget-recover-session (32s)
+
+1/1 Flow Failed
+

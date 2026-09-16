@@ -1,0 +1,376 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:recipes
+  - mutation
+  - regression
+# Matrix: HEALTH-FOOD-157 … 158
+---
+# Recipes tab — the CREATE form's searchable ingredient picker and the photo
+# attach control, the other half of the 2026-07-27 "Nutrition parity push"
+# gap `recipes-form-category-and-time.yaml` does not cover (that flow owns
+# the category picker and prep/cook time). Split for the same mid-run-driver-
+# drop reason as every other pair in this suite.
+#
+# NO RECIPE IS EVER SAVED HERE. This flow only needs to prove the picker
+# itself — search narrows, an empty search names itself, clearing restores
+# the list, and a pick toggles — and that `handleAddIngredient` accepts a
+# food reached THROUGH search (not just the plain list, which
+# `recipes-build-and-scale.yaml` and `recipes-form-category-and-time.yaml`
+# already exercise). The save→row→total path is already covered by those two
+# flows against a non-searched pick; re-proving it here would just be the
+# same assertion under a different food name. So the ingredient this flow
+# adds is left in the unsaved draft, which evaporates on navigation — nothing
+# to delete but the two foods this flow mints on the Foods tab.
+#
+# PHOTO ATTACH STOPS AT THE NATIVE BOUNDARY, same rule
+# `scan-modes-and-sources.yaml` applies to `HealthScanScreen`: Camera and
+# Gallery both hand off to `ImageCropPicker.openCamera`/`openPicker`, a real
+# system permission sheet with no deterministic dismiss and no Health fixture
+# to feed it. Unlike Scan's Drive tile, THIS screen's `ScanImportSources` is
+# instantiated with only `onCamera`/`onGallery` (no `onFile`/`onDrive` — see
+# the component call in `HealthRecipesScreen.tsx`), so there is no in-app
+# modal equivalent to Scan's `CloudFilePicker` to drive instead. Both tiles
+# are asserted present and enabled and neither is ever tapped.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-FOOD-157
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Mint this flow's own two ingredients ----------------------------
+      - runFlow: subflows/go-health-food.yaml
+      # 'SEARCH', NOT 'MY FOODS'. Reproduced live 2026-08-02: the Add Food
+      # redesign grew what renders ABOVE the food list on this screen —
+      # SEARCH (All/Favourites/Most used) / USUALLY AT <time> / LOG TO / ADD
+      # FOOD (the create-food form) all now sit above "MY FOODS"
+      # (HealthFoodLibraryScreen.tsx), so a landing check with no scroll can
+      # no longer reach it. 'SEARCH' is the section label this same landing
+      # check can still make with NO scroll: it is the first thing on the
+      # screen, and `health-food-name-input` right below (the create-food
+      # form) sits above 'MY FOODS' too, so there is nothing to scroll back
+      # up from.
+      - extendedWaitUntil:
+          visible: 'SEARCH'
+          timeout: 15000
+      - tapOn:
+          id: 'health-food-name-input'
+      - inputText: 'Maestro Search Apple'
+      - tapOn:
+          id: 'health-food-calories-input'
+      - inputText: '90'
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `handleSave` → `createFood` (healthFoodStorage.ts) →
+      # `POST /health/custom-foods` (health-food.ts), 201 — for both foods
+      # this flow mints below.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-save-button'
+      - scrollUntilVisible:
+          element:
+            text: '100 g · 90 kcal · 0P / 0C / 0F'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /custom-foods
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-name-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-food-name-input'
+      - inputText: 'Maestro Search Banana'
+      - tapOn:
+          id: 'health-food-calories-input'
+      - inputText: '110'
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - scrollUntilVisible:
+          element:
+            id: 'health-food-save-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-save-button'
+      - scrollUntilVisible:
+          element:
+            text: '100 g · 110 kcal · 0P / 0C / 0F'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /custom-foods
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - runFlow: subflows/go-health-recipes.yaml
+      - extendedWaitUntil:
+          visible: 'NEW RECIPE'
+          timeout: 15000
+      - assertVisible:
+          id: 'health-recipe-ingredients-empty'
+
+      # --- Photo attach: both tiles present and live, neither tapped
+      #     (FOOD-158) ----------------------------------------------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-photo-camera'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-recipe-photo-camera'
+      - assertVisible:
+          id: 'health-recipe-photo-gallery'
+      # No photo attached yet, so the preview/remove control is absent —
+      # camera and gallery are the ONLY affordance on screen.
+      - assertNotVisible:
+          id: 'health-recipe-photo-preview'
+      - assertNotVisible:
+          id: 'health-recipe-photo-message'
+
+      # --- Search narrows the picker to the user's OWN foods (FOOD-157) ---
+      # Local-only from here to the end of this section: `ingredientQuery`
+      # drives `matchFoods` (healthFoodStorage.ts) over the already-loaded
+      # `foods` array in HealthRecipesScreen.tsx — no request per keystroke,
+      # and `handleAddIngredient` only appends to the in-memory draft (no
+      # recipe is ever saved in this flow — see the header).
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-ingredient-search'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-ingredient-search'
+      - inputText: 'Apple'
+      - assertVisible: 'Use Maestro Search Apple as an ingredient'
+      - assertNotVisible: 'Use Maestro Search Banana as an ingredient'
+
+      # --- A miss names itself, not a blank list ---------------------------
+      - tapOn:
+          id: 'health-recipe-ingredient-search'
+      - eraseText
+      - inputText: 'Zzzznotmatching'
+      - assertVisible:
+          id: 'health-recipe-food-search-empty'
+          text: 'No foods match.*Zzzznotmatching.*\.'
+
+      # --- Clearing restores the full library ------------------------------
+      - tapOn:
+          id: 'health-recipe-ingredient-search'
+      - eraseText
+      - scrollUntilVisible:
+          element:
+            text: 'Use Maestro Search Apple as an ingredient'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            text: 'Use Maestro Search Banana as an ingredient'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+
+      # --- A pick reached THROUGH search toggles, then adds (FOOD-157) ----
+      - tapOn:
+          id: 'health-recipe-ingredient-search'
+      - inputText: 'Banana'
+      - assertNotVisible: 'Use Maestro Search Apple as an ingredient'
+      - tapOn:
+          id: 'health-recipe-food-.*'
+          text: 'Use Maestro Search Banana as an ingredient'
+      - assertVisible:
+          text: 'Use Maestro Search Banana as an ingredient'
+          selected: true
+      # Tapping the SAME row again deselects — `pickedFoodId` really toggles,
+      # this is not a one-way pick.
+      - tapOn:
+          id: 'health-recipe-food-.*'
+          text: 'Use Maestro Search Banana as an ingredient'
+      - assertVisible:
+          text: 'Use Maestro Search Banana as an ingredient'
+          selected: false
+      - tapOn:
+          id: 'health-recipe-food-.*'
+          text: 'Use Maestro Search Banana as an ingredient'
+      - assertVisible:
+          text: 'Use Maestro Search Banana as an ingredient'
+          selected: true
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-quantity-input'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-quantity-input'
+      - eraseText
+      - inputText: '120'
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'NEW RECIPE'
+      - scrollUntilVisible:
+          element:
+            id: 'health-recipe-add-ingredient'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-recipe-add-ingredient'
+      - extendedWaitUntil:
+          visible: 'Maestro Search Banana · 120 g'
+          timeout: 15000
+      # Adding resets `pickedFoodId` and `quantity` (the same "adding resets
+      # the picker" contract `recipes-build-and-scale.yaml` already proves),
+      # but NOT the search query — `handleAddIngredient` never touches
+      # `ingredientQuery`, so the row is still filtered to Banana and now
+      # reads deselected rather than disappearing.
+      - assertVisible:
+          text: 'Use Maestro Search Banana as an ingredient'
+          selected: false
+
+      # --- No save: the draft evaporates on navigation. Teardown is just
+      #     the two foods ---------------------------------------------------
+      # `deleteFood` (healthFoodStorage.ts) → `DELETE /health/custom-foods/:id`
+      # (health-food.ts), 200 — for both rows below.
+      - runFlow: subflows/go-health-food.yaml
+      - scrollUntilVisible:
+          element:
+            text: 'Delete Maestro Search Apple'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-delete-.*'
+          text: 'Delete Maestro Search Apple'
+      - extendedWaitUntil:
+          visible: 'Delete food'
+          timeout: 15000
+      - tapOn:
+          text: 'Delete'
+      - extendedWaitUntil:
+          notVisible: 'Delete Maestro Search Apple'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /custom-foods/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      - scrollUntilVisible:
+          element:
+            text: 'Delete Maestro Search Banana'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-food-delete-.*'
+          text: 'Delete Maestro Search Banana'
+      - extendedWaitUntil:
+          visible: 'Delete food'
+          timeout: 15000
+      - tapOn:
+          text: 'Delete'
+      - extendedWaitUntil:
+          notVisible: 'Delete Maestro Search Banana'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /custom-foods/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Back to the Health tab ------------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

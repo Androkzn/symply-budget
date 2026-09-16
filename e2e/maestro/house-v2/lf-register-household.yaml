@@ -1,0 +1,59 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:local-first
+---
+# Register THIS device's household on the control plane, so it can sync.
+#
+# A local-first home starts PRIVATE: the rows live on the device and the server
+# has never heard of the household id, which is why its checkpoint reads come
+# back 404 and its state reads 403. In that state `sync/skip` fires every
+# heartbeat with "not on the control plane … the registration marker is missing",
+# and no second device can ever converge with it — there is nothing published to
+# converge on.
+#
+# `house-settings-sync-now` is what registers it. `mm-02-owner-create-invite`
+# taps the same control for the same reason, one step before minting an invite:
+# "Register this household + device on the control plane BEFORE inviting."
+#
+# This flow is the first half of that on its own, because the same-account
+# two-device case (one member, iPhone + iPad) does not go through the invite
+# path — the second device signs in, finds the household already on the server,
+# and raises an ENROLMENT CLAIM that this device approves.
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- openLink: ${E2E_APP_SCHEME}://device-sync
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'house-local-first-sync-card'
+    timeout: 25000
+
+# Scroll the control clear: it sits at the TOP of the card, and the floating tab
+# bar overlays the bottom of the ScrollView — Maestro does not test occlusion,
+# so a covered button reports a successful tap that changes nothing.
+- scrollUntilVisible:
+    element:
+      id: 'house-settings-sync-now'
+    direction: UP
+    timeout: 10000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: 'house-settings-sync-now'
+- waitForAnimationToEnd:
+    timeout: 12000
+
+# Unconditional: iOS renders a native alert in its own window, so gating the
+# dismissal on it being "visible" skips it — and it then swallows every later
+# tap. An optional tap is a no-op when there is no alert.
+- tapOn:
+    text: '^OK$'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: 'house-local-first-sync-card'

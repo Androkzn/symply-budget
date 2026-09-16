@@ -1,0 +1,426 @@
+
+=== budget-savings-overview ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+[2026-08-26 01:29:30 +0000] Status=2, isTerminal=NO, Elapsed=00:02.
+	Waiting on Data Migration
+		Reason:(null)
+		Migration Elapsed:00:00 seconds
+
+[2026-08-26 01:29:31 +0000] Status=4, isTerminal=NO, Elapsed=00:03.
+	Waiting on System App
+
+[2026-08-26 01:29:32 +0000] Status=4, isTerminal=NO, Elapsed=00:04.
+	Waiting on System App
+
+[2026-08-26 01:29:33 +0000] Status=4, isTerminal=NO, Elapsed=00:05.
+	Waiting on System App
+
+[2026-08-26 01:29:34 +0000] Status=4, isTerminal=NO, Elapsed=00:06.
+	Waiting on System App
+
+[2026-08-26 01:29:35 +0000] Status=4294967295, isTerminal=YES, Elapsed=00:07.
+	Finished
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-overview (4m 12s)
+
+1/1 Flow Passed in 4m 12s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (1m 1s)
+
+1/1 Flow Passed in 1m 1s
+
+
+=== budget-savings-income-crud ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-income-crud (5m 51s)
+
+1/1 Flow Passed in 5m 51s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (58s)
+
+1/1 Flow Passed in 58s
+
+
+=== budget-savings-income-entry ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-income-entry (5m 34s)
+
+1/1 Flow Passed in 5m 34s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (57s)
+
+1/1 Flow Passed in 57s
+
+
+=== budget-savings-entry-controls ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-entry-controls (7m 14s)
+
+1/1 Flow Passed in 7m 14s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (51s)
+
+1/1 Flow Passed in 51s
+
+
+=== budget-savings-irregular-income ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-irregular-income (6m 18s)
+
+1/1 Flow Passed in 6m 18s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (1m)
+
+1/1 Flow Passed in 1m
+
+
+=== budget-savings-month-stepper ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-month-stepper (3m 14s)
+
+1/1 Flow Passed in 3m 14s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (1m 11s)
+
+1/1 Flow Passed in 1m 11s
+
+
+=== budget-savings-recurring-toggle ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-recurring-toggle (6m 29s)
+
+1/1 Flow Passed in 6m 29s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (1m 10s)
+
+1/1 Flow Passed in 1m 10s
+
+
+=== budget-savings-renewal-reminder ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Failed] budget-savings-renewal-reminder (7m 29s) (No visible element found: id: savings-recurring-renewal-pill)
+
+1/1 Flow Failed
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (2m 23s)
+
+1/1 Flow Passed in 2m 23s
+
+
+=== budget-savings-projection ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-projection (4m 59s)
+
+1/1 Flow Passed in 4m 59s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (1m 2s)
+
+1/1 Flow Passed in 1m 2s
+
+
+=== budget-savings-projection-targets ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-projection-targets (6m)
+
+1/1 Flow Passed in 6m
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (1m 3s)
+
+1/1 Flow Passed in 1m 3s
+
+
+=== budget-savings-goal ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-goal (6m 6s)
+
+1/1 Flow Passed in 6m 6s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (47s)
+
+1/1 Flow Passed in 47s
+
+
+=== budget-savings-goal-crud ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-goal-crud (7m 27s)
+
+1/1 Flow Passed in 7m 27s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (47s)
+
+1/1 Flow Passed in 47s
+
+
+=== budget-savings-year-history ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-year-history (5m 10s)
+
+1/1 Flow Passed in 5m 10s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (2m 33s)
+
+1/1 Flow Passed in 2m 33s
+
+
+=== budget-savings-offline ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-offline (3m 26s)
+
+1/1 Flow Passed in 3m 26s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (51s)
+
+1/1 Flow Passed in 51s
+
+
+=== budget-savings-recurring ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-recurring (8m 15s)
+
+1/1 Flow Passed in 8m 15s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (1m 2s)
+
+1/1 Flow Passed in 1m 2s
+
+
+=== budget-savings-monthly-crud ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-savings-monthly-crud (10m 47s)
+
+1/1 Flow Passed in 10m 47s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (1m 1s)
+
+1/1 Flow Passed in 1m 1s
+
+
+=== budget-savings-income-copy ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Failed] budget-savings-income-copy (4m 50s) (Assertion is false: id: savings-entry-form is visible)
+
+1/1 Flow Failed
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (59s)
+
+1/1 Flow Passed in 59s
+

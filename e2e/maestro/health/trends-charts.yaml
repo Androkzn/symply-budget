@@ -1,0 +1,329 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:trends
+  - mutation
+  - regression
+# Matrix: HEALTH-TREND-105 … HEALTH-TREND-111
+---
+# Trends tab — the CHARTS the parity rebuild added (weight dashboard, calorie
+# dashboard, macro split, logging-consistency heatmap).
+#
+# `trends-ranges.yaml` predates them and reads the tiles; this flow proves the
+# pictures themselves render, with data, and that an empty series says so in
+# words instead of drawing a flat axis.
+#
+# RETARGETED 2026-08-01: the weigh-in this flow seeds used to be logged on
+# Home (`health-weight-input` / `health-log-weight-button`); that whole card
+# was removed from Home the same day. The seed now goes through the Weight
+# tab instead (`health-weight-entry-value` / `health-weight-entry-save`, the
+# same fields `weight-tab-log-and-edit.yaml` drives), which also removes this
+# flow's old dependency on the Home wheel-picker's flaky manual-entry mode —
+# the Weight tab's field is a plain `TextInput`, not that wheel picker.
+#
+# ## Why this flow seeds first and reads Trends LAST
+#
+# Trends has no ingest of its own — it derives everything from the other tabs'
+# stores — and it hydrates ON MOUNT (no focus refresh). Every flow starts by
+# relaunching the app, so at this point the Trends tab has never been mounted in
+# this process: seeding on the Weight tab + Nutrition and only THEN opening
+# Trends is what makes "the chart has data" deterministic rather than a matter
+# of whatever the previous flow happened to leave behind.
+#
+# ## Why some legs branch
+#
+# A weight LINE needs two logged days and a run cannot age a second day into
+# existence, so the daily line is asserted through a chart-or-sentence branch.
+# Everything a single day can produce — the weekly bars, the calorie bars, the
+# macro split, the heatmap — is asserted hard.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-TREND-105
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Seed a weigh-in (HEALTH-TREND-105) ------------------------------
+      # Weight tab now, not Home — see header. `LOG A WEIGHT` only renders
+      # while today has no reading yet; normalise to the gapped state first,
+      # same guard `weight-tab-log-and-edit.yaml` uses at its own entry.
+      - runFlow: subflows/go-health-weight.yaml
+      - runFlow:
+          when:
+            notVisible: 'LOG A WEIGHT'
+          commands:
+            - scrollUntilVisible:
+                element:
+                  id: 'health-weight-delete-.*'
+                direction: DOWN
+                timeout: 20000
+                visibilityPercentage: 10
+            - runFlow:
+                file: ../subflows/e2e-clear-log.yaml
+                env:
+                  E2E_APP_SCHEME: simplehealth
+                  APP_ID: com.symply.health
+            - tapOn:
+                id: 'health-weight-delete-.*'
+                index: 0
+            # FIXED 2026-08-02: deleting from HISTORY leaves the screen
+            # scrolled to the BOTTOM, but `LOG A WEIGHT` renders near the TOP
+            # (right after the window navigator / goal progress / summary /
+            # weekly chart) — a scroll position `extendedWaitUntil` never
+            # changes on its own, it only polls the CURRENT viewport. Without
+            # scrolling back up first, this timed out even on a run where the
+            # gap genuinely reopened, because the card was simply off-screen,
+            # not because the state failed to change.
+            # `health-weight-entry-value` only exists once the card renders,
+            # so swiping up to reveal it is the same on-screen proof
+            # `LOG A WEIGHT` itself would give — and `health-swipe-section-
+            # to.yaml` is the established fix for exactly this "long hop on a
+            # Health section ScrollView" shape (see its own header).
+            - runFlow:
+                file: subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: 'health-weight-entry-value'
+                  SCROLL_DIR: up
+            - assertVisible: 'LOG A WEIGHT'
+      - scrollUntilVisible:
+          element:
+            id: 'health-weight-entry-save'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-weight-entry-value'
+      - inputText: '72'
+      # NOT `hideKeyboard` — the field above is numeric and that command
+      # HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'LOG A WEIGHT'
+      # Real backend call: `onSubmit` -> `addWeightEntry(value, unit, { date,
+      # note })` -> `healthApi.createWeight` -> `POST /health/weight/entries`
+      # (201) — HealthWeightScreen.tsx / healthLocalStorage.ts.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-weight-entry-save'
+      # FIXED 2026-08-02: this was a bare `extendedWaitUntil: visible
+      # 'HISTORY'`, which — same limitation as the `LOG A WEIGHT` wait fixed
+      # above — only polls the CURRENT viewport and never scrolls it. The tap
+      # above lands with the entry editor still on screen (this account still
+      # has other gaps this week, so the card doesn't unmount on save) and
+      # `HISTORY` is the LAST section on the tab, well below the weight-chart
+      # widget, Body Composition, Body Composition Trends and AI Insights
+      # cards that now sit between them — nowhere near the viewport at this
+      # point, so the wait always timed out. `HISTORY` (HealthWeightScreen.tsx)
+      # is an unconditional section label, not gated on this save landing, so
+      # scrolling to it here doesn't prove the write happened — that proof is
+      # the e2e-verify-network POST/201 check right below. This step's only
+      # job is to get HISTORY back on screen, matching the scroll-then-assert
+      # shape already used for the tiles below (e.g. `Latest: 72 .*`).
+      - scrollUntilVisible:
+          element:
+            text: 'HISTORY'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/weight/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow: subflows/go-health-home.yaml
+
+      # --- Seed a meal WITH macros (HEALTH-TREND-106) ----------------------
+      # Protein is what makes the macro split non-empty; a calorie-only meal
+      # would leave the stacked chart in its empty state.
+      - runFlow: subflows/go-health-nutrition.yaml
+      - tapOn:
+          id: 'health-meal-slot-lunch'
+      - tapOn:
+          id: 'health-meal-name-input'
+      - inputText: 'Chart Salad'
+      - tapOn:
+          id: 'health-meal-calories-input'
+      - inputText: '640'
+      - tapOn:
+          id: 'health-meal-protein-input'
+      - inputText: '30'
+      # NOT `hideKeyboard` — the field above is numeric and that
+      # command HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'ADD FOOD'
+      - tapOn:
+          id: 'health-meal-add-button'
+      - extendedWaitUntil:
+          visible: 'Chart Salad'
+          timeout: 20000
+
+      # --- The weight dashboard draws the seeded day (HEALTH-TREND-107) ----
+      - runFlow: subflows/go-health-trends.yaml
+      - assertVisible:
+          id: 'health-weight-dashboard'
+      # One logged day is already a week bucket, so the weekly bars must render.
+      - scrollUntilVisible:
+          element:
+            id: 'health-weight-dashboard-weekly'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertNotVisible:
+          id: 'health-weight-dashboard-weekly-empty'
+      # The daily line needs two logged days; whichever state the account is in,
+      # one of these branches asserts it. A bare axis is never acceptable.
+      - runFlow:
+          when:
+            visible:
+              id: 'health-weight-dashboard-chart'
+          commands:
+            - assertVisible:
+                id: 'health-weight-dashboard-legend'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-weight-dashboard-chart'
+          commands:
+            - assertVisible:
+                id: 'health-trends-weight-empty'
+            - assertVisible: 'Log weight on at least two days in this range to see a trend line.'
+      # The tiles read the same series the picture does.
+      - scrollUntilVisible:
+          element:
+            text: 'Latest: 72 .*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+
+      # --- The calorie dashboard bars the seeded day (HEALTH-TREND-108) ----
+      - scrollUntilVisible:
+          element:
+            id: 'health-calories-dashboard-chart'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertNotVisible:
+          id: 'health-calories-dashboard-empty'
+      # Nothing on this chart rests on colour alone: the goal is printed in
+      # words and both fills are named in a legend.
+      - assertVisible:
+          id: 'health-calories-dashboard-target-note'
+      - assertVisible:
+          id: 'health-calories-dashboard-legend'
+
+      # --- The macro split renders with its own legend (HEALTH-TREND-109) --
+      - scrollUntilVisible:
+          element:
+            id: 'health-calories-dashboard-macros'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-calories-dashboard-macro-legend'
+      - assertNotVisible:
+          id: 'health-calories-dashboard-macros-empty'
+
+      # --- The consistency heatmap counts today (HEALTH-TREND-110) ---------
+      # `-empty` is the heatmap's own "nothing logged in this range" caption; a
+      # weigh-in and a meal both landed today, so it must be gone.
+      - scrollUntilVisible:
+          element:
+            id: 'health-trends-consistency'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertNotVisible:
+          id: 'health-trends-consistency-empty'
+      - assertVisible:
+          id: 'health-trends-consistency-legend'
+      - scrollUntilVisible:
+          element:
+            id: 'health-trends-consistency-days'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-trends-consistency-rate'
+
+      # --- A narrower range keeps the pictures alive (HEALTH-TREND-111) ----
+      # Today is inside every range, so switching must not blank a chart.
+      - scrollUntilVisible:
+          element:
+            id: 'health-trends-range-7'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-trends-range-7'
+      - scrollUntilVisible:
+          element:
+            id: 'health-calories-dashboard-chart'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - scrollUntilVisible:
+          element:
+            id: 'health-trends-range-90'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-trends-range-90'
+      - assertVisible:
+          id: 'health-weight-dashboard'
+
+      # --- Teardown: remove the seeded meal and weigh-in -------------------
+      # Both are server-backed rows, so leaving them would change what every
+      # later run's charts are drawn from.
+      - runFlow: subflows/go-health-nutrition.yaml
+      - runFlow: subflows/health-scroll-nutrition-top.yaml
+      - tapOn:
+          id: 'health-meal-delete-.*'
+      # The diary may hold another day's leftovers ahead of ours; one more pass
+      # if the seeded item is still there.
+      - runFlow:
+          when:
+            visible:
+              text: 'Chart Salad'
+          commands:
+            - tapOn:
+                id: 'health-meal-delete-.*'
+      - extendedWaitUntil:
+          notVisible: 'Chart Salad'
+          timeout: 20000
+      # Newest-first, so index 0 is the 72 logged at the top of this flow.
+      # Weight deletion is a Weight-tab-only capability now — Home can no
+      # longer do it.
+      - runFlow: subflows/go-health-weight.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'health-weight-delete-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-weight-delete-.*'
+          index: 0
+      - waitForAnimationToEnd:
+          timeout: 2000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

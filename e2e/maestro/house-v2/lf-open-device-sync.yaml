@@ -1,0 +1,51 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:local-first
+---
+# Precondition helper: be on a FRESHLY MOUNTED Device sync surface.
+#
+# For the rows whose subject is what the surface SHOWS (LF-004, LF-005, LF-020)
+# rather than how it is REACHED. LF-001/002/003 own the two entry points and
+# therefore walk them by hand — they must not delegate the thing under test.
+#
+# Order matters:
+#   1. leave the surface, so the mount below is fresh (see lf-leave-device-sync);
+#   2. deep link — one hop, no Settings scroll to go stale;
+#   3. Settings row — fallback, so one broken entry point does not take out
+#      three unrelated rows. LF-003 is what pinpoints which one broke.
+- runFlow: lf-leave-device-sync.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: 'house-local-first-sync-card'
+    commands:
+      - openLink: ${E2E_APP_SCHEME}://device-sync
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: 'house-local-first-sync-card'
+    commands:
+      - runFlow: ../subflows/open-profile.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'settings-row-device-sync'
+          direction: DOWN
+          centerElement: true
+          timeout: 15000
+          optional: true
+      - tapOn:
+          id: 'settings-row-device-sync'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2500
+- extendedWaitUntil:
+    visible:
+      id: 'house-local-first-sync-card'
+    timeout: 30000
+- assertVisible:
+    id: 'lf-sync-screen'

@@ -1,0 +1,47 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:settings
+  - readonly
+  - regression
+# Matrix: BUDGET-SETT-009, BUDGET-SETT-010, BUDGET-SETT-011
+#
+# The three year-scale views moved off Budget Settings onto the MORE tab's
+# INSIGHTS group (`settings-row-budget-*`). They read the budget rather than
+# configure it, so they never belonged among the rows that shape it.
+#
+# Each row opens its screen through the app's own URL, not a stack push — More
+# is a sibling of the tab hosting the Budget stack — so the screen lands on the
+# HOME tab with More left behind. Getting back to the next row therefore means
+# returning to More (what `budget-open-insights.yaml` does), never a back tap.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+
+# ===================== Long-term plan (SETT-009) =====================
+- runFlow: ../subflows/budget-open-insights.yaml
+- tapOn:
+    id: 'settings-row-budget-timeline'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-timeline-screen'
+    timeout: 30000
+
+# ===================== Previous years (SETT-010) =====================
+- runFlow: ../subflows/budget-open-insights.yaml
+- tapOn:
+    id: 'settings-row-budget-year-history'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-year-history'
+    timeout: 30000
+
+# ===================== Compare years (SETT-011) =====================
+- runFlow: ../subflows/budget-open-insights.yaml
+- tapOn:
+    id: 'settings-row-budget-compare-years'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-compare-years'
+    timeout: 30000

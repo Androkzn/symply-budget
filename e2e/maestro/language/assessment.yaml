@@ -1,0 +1,112 @@
+appId: com.symply.language
+tags:
+  - app:language
+  - feature:assessment
+  - readonly
+  - regression
+# Matrix: LANGUAGE-assessment (see documents/engineering/testing/matrices/)
+---
+# Placement assessment: boot → answer → Submit → next → complete, asserting progress.
+- runFlow: subflows/launch-language.yaml
+# Prefer deep link — nav card label changes after assessment completes.
+- runFlow:
+    when:
+      notVisible:
+        id: 'language-assessment-screen'
+    commands:
+      - openLink: simplelanguage://language-assessment
+      - runFlow: subflows/language-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+- runFlow:
+    when:
+      visible: 'Placement assessment'
+    commands:
+      - tapOn: 'Placement assessment'
+- extendedWaitUntil:
+    visible:
+      id: 'language-assessment-screen'
+    timeout: 30000
+# Already completed from a prior run — assert results and exit.
+- runFlow:
+    when:
+      visible: 'Your estimated level'
+    commands:
+      - assertVisible: 'Your estimated level'
+      - assertVisible: 'Continue to my plan'
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - runFlow: subflows/go-learn.yaml
+# Boot error — tap Try again once, then accept error surface if API stays down.
+- runFlow:
+    when:
+      visible: 'Try again'
+    commands:
+      - tapOn: 'Try again'
+      - waitForAnimationToEnd:
+          timeout: 8000
+# Active question path — Submit or question meta must appear.
+- extendedWaitUntil:
+    visible:
+      id: 'language-assessment-submit'
+    timeout: 90000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'language-assessment-question-meta'
+    timeout: 90000
+    optional: true
+- runFlow:
+    when:
+      visible: 'Your estimated level'
+    commands:
+      - assertVisible: 'Continue to my plan'
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - runFlow: subflows/go-learn.yaml
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            visible: 'Type your answer…'
+          commands:
+            - tapOn: 'Type your answer…'
+            - inputText: 'hola'
+            - hideKeyboard
+      - tapOn:
+          id: 'language-assessment-submit'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - runFlow:
+          when:
+            visible: 'Your estimated level'
+          commands:
+            - assertVisible: 'Continue to my plan'
+- runFlow:
+    when:
+      visible:
+        id: 'language-assessment-question-meta'
+    commands:
+      - assertVisible:
+          id: 'language-assessment-question-meta'
+- runFlow:
+    when:
+      visible: 'Your estimated level'
+    commands:
+      - assertVisible: 'Your estimated level'
+      - assertVisible: 'Continue to my plan'
+- runFlow:
+    when:
+      visible:
+        id: 'language-assessment-submit'
+    commands:
+      - assertVisible:
+          id: 'language-assessment-submit'
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- runFlow: subflows/go-learn.yaml

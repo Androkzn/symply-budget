@@ -1,0 +1,10 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# Dev-only: flip auth off via {scheme}://e2e-logout (Keychain survives Maestro clearState).
+- openLink: ${E2E_APP_SCHEME}://e2e-logout
+- waitForAnimationToEnd:
+    timeout: 8000
+- runFlow: language-dismiss-expo-dev-chrome.yaml

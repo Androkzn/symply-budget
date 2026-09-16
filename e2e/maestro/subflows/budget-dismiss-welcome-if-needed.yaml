@@ -1,0 +1,107 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# ChildWelcome (Budget/Kaizen/Health) — Get Started stays disabled until terms agreed.
+# Fresh worker sims land here after login when onboarding is not marked complete.
+#
+# TIMING GUARD: after a cold launch / fresh reinstall the app shows a blank frame
+# for a beat before the onboarding welcome renders. This subflow runs early (right
+# after the Metro reconnect), so without this wait the `visible: onboarding-get-started`
+# check below runs too soon, finds nothing, skips the dismiss, and the caller then
+# fails waiting for budget-screen while the app is actually sitting on onboarding.
+# If the dashboard is already up (already-onboarded), skip the wait so those flows
+# are not delayed; otherwise give the onboarding CTA time to appear.
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-screen'
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'onboarding-get-started'
+          timeout: 12000
+          optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-get-started'
+    commands:
+      # The Terms checkbox + Get Started live in a FIXED footer (always on screen).
+      # NO scrolling is needed — and scrollUntilVisible on the OnboardingWelcome
+      # ScrollView (which holds only the feature CARDS, not the footer) never finds
+      # them and stalls the whole dismiss (a non-optional scrollUntilVisible that
+      # can't reach its target is what left the flow stuck on the Welcome screen).
+      # Tap the checkbox to ENABLE Get Started, then tap Get Started.
+      - tapOn:
+          id: 'onboarding-agree-terms'
+          retryTapIfNoChange: true
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+      # If Get Started is STILL disabled the box did not toggle (the testID tap can be
+      # swallowed by the nested Terms/Privacy links on the same row) — tap the row by
+      # coordinate, which its outer TouchableOpacity turns into a toggle.
+      - runFlow:
+          when:
+            visible:
+              id: 'onboarding-get-started'
+              enabled: false
+          commands:
+            - tapOn:
+                point: '50%, 87%'
+            - waitForAnimationToEnd:
+                timeout: 1500
+      - tapOn:
+          id: 'onboarding-get-started'
+          retryTapIfNoChange: true
+          optional: true
+      - tapOn:
+          text: 'Get Started'
+          retryTapIfNoChange: true
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 15000
+      # Regression guard: accepting terms must never pop the raw error dialog.
+      # A dead/expired session is swallowed (the API client logs out and the app
+      # routes back to login); a valid session completes onboarding. Either way
+      # "Failed to save terms acceptance: … status code 401" must NOT appear.
+      - assertNotVisible: 'Failed to save terms acceptance'
+- runFlow:
+    when:
+      visible: 'Get Started'
+    commands:
+      - tapOn:
+          id: 'onboarding-agree-terms'
+          optional: true
+          retryTapIfNoChange: true
+      - waitForAnimationToEnd:
+          timeout: 2500
+      - tapOn:
+          text: 'Get Started'
+          retryTapIfNoChange: true
+      - waitForAnimationToEnd:
+          timeout: 15000
+      - assertNotVisible: 'Failed to save terms acceptance'
+# Budget's onboarding chain is Welcome -> EssentialPermissions (notifications,
+# "step 2 of 2") -> Home (see EssentialPermissionsScreen.tsx) — a step this
+# subflow never pushed through, so a not-yet-onboarded-on-THIS-install account
+# (fresh sim/account pairing) stranded every caller on "Stay in the loop"
+# forever. Same pattern as push-through-health-onboarding.yaml: tap the
+# footer Continue by its `${testID}-continue` id — never the app's own
+# PermissionCard "Allow" button, so this deliberately never fires the native
+# OS prompt. Repeat a few times to absorb the render delay right after the
+# Get Started tap above.
+- repeat:
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'onboarding-essential-permissions-screen'
+          commands:
+            - tapOn:
+                id: 'onboarding-essential-permissions-screen-continue'
+            - waitForAnimationToEnd:
+                timeout: 3000

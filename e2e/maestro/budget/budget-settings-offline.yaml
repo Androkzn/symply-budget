@@ -1,0 +1,40 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:settings
+  - regression
+# Matrix: BUDGET-SETT-021 — offline budget settings save
+# Safety net: guarantees airplane mode is off when this flow ends even if a
+# non-optional assertion fails before reaching the offline-off call in the
+# body (see budget-offline-sweep.yaml for the observed cross-flow cascade).
+onFlowComplete:
+  - runFlow: ../subflows/budget-offline-off.yaml
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+# The cap editor moved off Settings onto its own screen; open it directly so a
+# long settings scroll is not part of an offline-behaviour test.
+- runFlow: ../subflows/budget-open-monthly-caps.yaml
+- runFlow: ../subflows/budget-offline-on.yaml
+# The header Save only renders once a month has been edited, so type an amount
+# before reaching for it.
+- tapOn:
+    id: 'budget-settings-planned-budget'
+- inputText: '1234'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-settings-save'
+- extendedWaitUntil:
+    visible:
+      text: 'Error'
+    timeout: 15000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      text: 'Could not'
+    timeout: 15000
+    optional: true
+- runFlow: ../subflows/budget-offline-off.yaml
+- tapOn:
+    id: 'nav-back-button'

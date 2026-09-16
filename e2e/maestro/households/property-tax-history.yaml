@@ -1,0 +1,67 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:households
+  - readonly
+  - regression
+# Matrix: HOUSE-PROP-002, HOUSE-PROP-005 (tax history + trend, jurisdiction copy)
+---
+# The property tax tab: per-year rows, the tax trend chart, and the relief
+# programs that apply where this property actually is.
+#
+# Relief is the jurisdiction-sensitive part. BC has the Home Owner Grant,
+# Manitoba's credit lands automatically on the bill, and Alberta and
+# Saskatchewan have no homeowner grant at all — so this flow asserts the section
+# renders coherently rather than asserting BC's copy, which would only pass for
+# a Vancouver household.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-property-detail.yaml
+
+- tapOn:
+    id: 'filter-tab-tax'
+- waitForAnimationToEnd:
+    timeout: 3000
+
+- runFlow:
+    when:
+      notVisible:
+        id: 'property-tax-empty'
+    commands:
+      - assertVisible:
+          id: 'property-tax-upload'
+
+# The tax trend chart appears once two tax years exist. Same crash surface as
+# the assessment chart.
+- runFlow:
+    when:
+      visible:
+        id: 'property-tax-chart'
+    commands:
+      - assertVisible:
+          id: 'property-tax-chart'
+      - assertVisible:
+          id: 'chart-x-axis-labels'
+
+- scrollUntilVisible:
+    element:
+      id: 'property-detail-scroll'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- assertVisible:
+    id: 'property-detail-screen'
+
+# Overview tab carries both trends side by side — the "dynamics of change" view.
+- tapOn:
+    id: 'filter-tab-overview'
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow:
+    when:
+      notVisible:
+        id: 'property-overview-empty'
+    commands:
+      - assertVisible:
+          id: 'property-overview-stats'
+- assertVisible:
+    id: 'property-detail-screen'

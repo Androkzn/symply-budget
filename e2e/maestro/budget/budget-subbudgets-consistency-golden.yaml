@@ -1,0 +1,264 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:plan
+  - mutation
+  - regression
+# Cross-tab UI consistency check for the Sub-budgets screen (companion to
+# budget-consistency-golden.yaml). Backend already proves per-category spend
+# math is correct (budget-subbudgets-consistency.test.ts); this proves the
+# Sub-budgets row for "Coffee & Snacks" actually re-renders when a REAL
+# categorized expense is added — read the row's "spent" figure before, add a
+# whole-dollar categorized expense, read it after, assert the delta is exact.
+#
+# "Coffee & Snacks" is reused from budget-sub-budgets.yaml, which already
+# depends on it existing as a real category on the shared account. If it's
+# not already capped, this creates the cap (and removes it at the end); if a
+# cap already existed (real usage or another flow), this leaves it alone —
+# only the golden expense this flow itself created is cleaned up.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+
+# Pollution guard: a prior aborted run may have left the golden expense
+# behind — delete it before establishing the baseline.
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- repeat:
+    times: 5
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: '.*E2E SubBudget Golden.*'
+          commands:
+            - swipe:
+                direction: LEFT
+                element:
+                  text: '.*E2E SubBudget Golden.*'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-delete-spent'
+                commands:
+                  - tapOn:
+                      id: 'budget-delete-spent'
+                  - tapOn: 'Delete'
+                  - waitForAnimationToEnd:
+                      timeout: 3000
+
+- evalScript: ${output.createdCap = false}
+- runFlow: ../subflows/budget-open-sub-budgets.yaml
+
+# Ensure "Coffee & Snacks" has a cap so its row (and "spent" figure) renders.
+# If it's already there (real data or another flow), skip creation entirely —
+# don't touch someone else's cap.
+- runFlow:
+    when:
+      notVisible:
+        text: '.*Coffee & Snacks.*'
+    commands:
+      - tapOn:
+          id: 'budget-sub-budget-add'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-sub-budget-category-picker'
+          timeout: 15000
+      - waitForAnimationToEnd:
+          timeout: 4000
+      # The category picker is a 2nd RN Modal presented over the editor Modal —
+      # racy on iOS-26 (see budget-sub-budgets.yaml). Give this more attempts +
+      # settle time than that flow's own retry, since a failure here has no
+      # fallback (that flow's final category tap is `optional: true`; this
+      # flow needs the category actually selected to categorize the golden
+      # expense later).
+      - repeat:
+          while:
+            notVisible:
+              id: 'budget-sub-budget-category-search'
+          times: 8
+          commands:
+            - tapOn:
+                id: 'budget-sub-budget-category-picker'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 2500
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-sub-budget-category-search'
+          timeout: 20000
+      - tapOn:
+          id: 'budget-sub-budget-category-search'
+      - inputText: 'Coffee'
+      - tapOn:
+          text: '.*Coffee & Snacks.*'
+      - tapOn:
+          id: 'budget-sub-budget-value'
+      - inputText: '999'
+      - hideKeyboard:
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - tapOn:
+          id: 'budget-sub-budget-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-sub-budgets-list'
+          timeout: 20000
+      - assertVisible:
+          text: '.*Coffee & Snacks.*'
+      - evalScript: ${output.createdCap = true}
+
+# ── Baseline: this category's "spent" figure, isolated from every other
+# capped category's row via a position-relative selector (the label directly
+# below the "Coffee & Snacks" name, within its own card). ──
+- scrollUntilVisible:
+    element:
+      text: '.*Coffee & Snacks.*'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- copyTextFrom:
+    below:
+      text: '.*Coffee & Snacks.*'
+    text: '.*spent'
+- evalScript: ${output.subBefore = maestro.copiedText}
+
+# ── The one real mutation: a $37 expense, categorized to Coffee & Snacks. ──
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: 'E2E SubBudget Golden'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-category-picker'
+- waitForAnimationToEnd:
+    timeout: 4000
+- repeat:
+    while:
+      notVisible:
+        id: 'budget-item-category-search'
+    times: 8
+    commands:
+      - tapOn:
+          id: 'budget-item-category-picker'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2500
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-category-search'
+    timeout: 20000
+- tapOn:
+    id: 'budget-item-category-search'
+- inputText: 'Coffee'
+- tapOn:
+    text: '.*Coffee & Snacks.*'
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: '37'
+- tapOn:
+    id: 'budget-item-form-save-header'
+# Android: the Expo dev-client menu has been observed popping open right
+# around this save tap (cause not fully pinned down — possibly overlapping
+# with the dev-client's own floating tools trigger), covering the
+# confirmation text below. Clear it before asserting.
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible: '.*E2E SubBudget Golden.*'
+    timeout: 20000
+
+# ── After: same row, same relative selector. ──
+- runFlow: ../subflows/budget-open-sub-budgets.yaml
+- scrollUntilVisible:
+    element:
+      text: '.*Coffee & Snacks.*'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- copyTextFrom:
+    below:
+      text: '.*Coffee & Snacks.*'
+    text: '.*spent'
+- evalScript: ${output.subAfter = maestro.copiedText}
+
+# ── Compute + assert: the row moved by exactly $37 — not just "spent
+# increased", the exact amount the mutation added. ──
+- evalScript: ${output.subDelta = parseInt(output.subAfter.replace(/[^0-9]/g, ''), 10) - parseInt(output.subBefore.replace(/[^0-9]/g, ''), 10)}
+- assertTrue: ${output.subDelta == 37}
+
+# ── Cleanup: delete the golden expense; remove the cap ONLY if we created it. ──
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+- repeat:
+    times: 5
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: '.*E2E SubBudget Golden.*'
+          commands:
+            - swipe:
+                direction: LEFT
+                element:
+                  text: '.*E2E SubBudget Golden.*'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-delete-spent'
+                commands:
+                  - tapOn:
+                      id: 'budget-delete-spent'
+                  - tapOn: 'Delete'
+                  - waitForAnimationToEnd:
+                      timeout: 3000
+- extendedWaitUntil:
+    notVisible: '.*E2E SubBudget Golden.*'
+    timeout: 20000
+
+- runFlow:
+    when:
+      true: ${output.createdCap == true}
+    commands:
+      - runFlow: ../subflows/budget-open-sub-budgets.yaml
+      - tapOn:
+          text: '.*Coffee & Snacks.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-sub-budget-remove'
+          timeout: 15000
+      - tapOn:
+          id: 'budget-sub-budget-remove'
+      - tapOn:
+          text: 'Remove'
+      - extendedWaitUntil:
+          notVisible:
+            text: '.*Coffee & Snacks.*'
+          timeout: 20000
+          optional: true
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+
+- runFlow: ../subflows/go-budget-tab.yaml

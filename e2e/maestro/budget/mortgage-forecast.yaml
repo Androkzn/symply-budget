@@ -1,0 +1,59 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:mortgage
+  - regression
+# Matrix: MORT-260 — FORECAST tab: the baseline projection to end of term (at the
+# latest known rate) and the interactive rate-scenario card. Verifies the tab
+# renders the server's forecast and that a quick-chip re-runs the client scenario
+# math live (the headline value for a flexible-rate borrower — the lifetime cost
+# is unknown at signing, so we recompute on the most recent rate). Runs on a
+# booted Budget build (com.symply.budget) against the shared account's mortgage.
+# iOS-26: the slider drag isn't scriptable, so we drive the recompute via the
+# tappable preset chips (id mortgage-scenario-chip-*), never the slider thumb.
+---
+- runFlow: ../subflows/budget-ensure-mortgage.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-view'
+    timeout: 20000
+
+# Open the Forecast segment.
+- tapOn:
+    id: 'filter-tab-forecast'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-forecast-baseline'
+    timeout: 15000
+
+# Baseline forecast to end of term is present. The heading renders with the
+# rate appended ("At today's rate (3.59%)") — needs wildcards for a substring
+# match, an exact-string assertion never matches the full rendered text.
+- assertVisible: ".*At today's rate.*"
+- assertVisible:
+    id: 'mortgage-scenario'
+- assertVisible: 'What if your rate changes?'
+
+# The scenario starts at the current rate and shows the derived figures.
+- assertVisible:
+    id: 'mortgage-scenario-rate'
+- assertVisible:
+    id: 'mortgage-scenario-payment'
+- assertVisible:
+    id: 'mortgage-scenario-equity'
+- takeScreenshot: /private/tmp/claude-501/-Users-andreitekhtelev-Desktop-Symply-Ecosystem-Simply-Ecosystem/4983ef26-99cc-4a69-aa96-14e528c0f45e/scratchpad/mort-forecast-current
+
+# Drive a "+2%" scenario via the preset chip and confirm the figures recompute.
+- tapOn:
+    id: 'mortgage-scenario-chip-plus2'
+- assertVisible:
+    id: 'mortgage-scenario-payment'
+- assertVisible:
+    id: 'mortgage-scenario-keep-payment'
+- takeScreenshot: /private/tmp/claude-501/-Users-andreitekhtelev-Desktop-Symply-Ecosystem-Simply-Ecosystem/4983ef26-99cc-4a69-aa96-14e528c0f45e/scratchpad/mort-forecast-plus2
+
+# Return to the current rate via the "Now" chip — scenario switching is reversible.
+- tapOn:
+    id: 'mortgage-scenario-chip-now'
+- assertVisible:
+    id: 'mortgage-scenario-rate'

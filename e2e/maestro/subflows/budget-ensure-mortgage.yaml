@@ -1,0 +1,54 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Open the Mortgage tab and GUARANTEE a mortgage exists, landing on `mortgage-view`.
+# If the shared test account already has one, this is a no-op past the open; if it's
+# empty (the setup form shows), it walks the setup wizard (GV-1: 500k @ 5% fixed,
+# "Main home"). Mirrors the create path in budget/mortgage-setup.yaml so every
+# management flow can assume a property exists instead of landing on the setup form
+# (the MORTGAGE_CASCADE failure).
+- runFlow: budget-open-mortgage.yaml
+
+# No mortgage yet → the empty state shows "Set up mortgage". Walk the wizard.
+- runFlow:
+    when:
+      visible:
+        id: 'mortgage-empty'
+    commands:
+      - tapOn: 'Set up mortgage'
+      - extendedWaitUntil:
+          visible:
+            text: 'Main home'
+          timeout: 10000
+      # Fill the fields BOTTOM-UP: payment → rate → principal → name (same sequence as
+      # budget/mortgage-setup.yaml). The numeric keypad has no Done key and can't be
+      # dismissed (`hideKeyboard` fails on it); it occludes the lower ~40% of the
+      # screen, so tapping a field UNDER it drops the entry (this left Payment empty
+      # and silently failed create validation). Entering the LOWEST field first and
+      # moving UP keeps every next field above the keypad and tappable — no dismiss or
+      # scroll needed. amort/term keep their defaults (25 / 5 years).
+      - tapOn: '2875.46'
+      - inputText: '2875.46'
+      - tapOn: '5.0'
+      - inputText: '5.0'
+      - tapOn: '500000'
+      - inputText: '500000'
+      - tapOn: 'Main home'
+      - inputText: 'Main home'
+      # Save is a header action (always on screen) — no scroll to the bottom button,
+      # which iOS-26 RN New-Arch does not scroll to reliably via Maestro.
+      - tapOn:
+          id: 'mortgage-setup-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'mortgage-view'
+          timeout: 40000
+
+# Either path (existing mortgage, or freshly created) lands here. No-op if already
+# on the view.
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-view'
+    timeout: 40000

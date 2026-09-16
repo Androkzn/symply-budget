@@ -1,0 +1,204 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Reach HomeProjectHubScreen from My Home → Home Projects.
+# Taps a known project title when present; otherwise creates a blank hub.
+- openLink: simplehouse://my-home
+- extendedWaitUntil:
+    visible:
+      id: 'my-home-screen'
+    timeout: 30000
+# An alert left over from a previous flow sits above My Home and swallows the
+# tap below: Maestro reports the tap COMPLETED (the hierarchy DID change — the
+# alert appeared) and the next assert then fails, so it reads as a broken Home
+# Projects screen. The three top-level home-projects flows already guard this;
+# this subflow did not, which left `home-projects-hub-mutations` and
+# `home-projects-photos` exposed to exactly the same failure.
+- runFlow: dismiss-home-project-alert.yaml
+# Tapped in a `repeat … while notVisible`, the same shape the hub's tab pills
+# needed, and for the same reason: My Home is a scrolling list of cards whose
+# heights settle after the first paint. Maestro resolves the row's coordinates,
+# the layout shifts under it, and the tap lands on a neighbouring card — it
+# reports COMPLETED, navigation never happens, and the failure surfaces twenty
+# seconds later as "home-projects-list-screen is not visible", which reads as a
+# broken Home Projects screen rather than as a tap that missed.
+#
+# `optional` on the tap is load-bearing, not defensive: once navigation DOES
+# start, this row is gone from the hierarchy while the list screen has yet to
+# appear, and a required tap would fail the flow in exactly the window where it
+# is working. The `while` guard is what stops the loop, and the hard assertion
+# below is what still fails a genuinely broken screen.
+- repeat:
+    times: 3
+    while:
+      notVisible:
+        id: 'home-projects-list-screen'
+    commands:
+      - tapOn:
+          id: 'my-home-home-projects'
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'home-projects-list-screen'
+          timeout: 10000
+          optional: true
+# The retry loop above cannot fix a RESTORED route: the Projects stack resumes
+# on its last screen, so every tap lands there again and the `while` guard stays
+# false until the repeats run out. Five flows reach the hub through this subflow
+# (hub, material-detail, hub-mutations, surface-budget, photos) and were the only
+# ones left unprotected — the four that call `pop-restored-project-hub` directly
+# were already covered. No-op when the list opened normally.
+- runFlow: pop-restored-project-hub.yaml
+# The pop is keyed on "the list is not up yet", so a list that is merely SLOW
+# reads as residue and it keeps tapping back — straight out of the Projects
+# stack and onto My Home. Observed 2026-09-02: `home-projects-surface-budget`
+# ended on `my-home-screen` and then failed on `hub-tab-plans`, a hub control,
+# with navigation never having happened. Re-enter rather than tighten the pop's
+# guard, which would re-open the residue case it exists to fix.
+- runFlow:
+    when:
+      visible:
+        id: 'my-home-screen'
+    commands:
+      - tapOn:
+          id: 'my-home-home-projects'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2000
+- extendedWaitUntil:
+    visible:
+      id: 'home-projects-list-screen'
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: 'home-project-hub-title'
+    timeout: 5000
+    optional: true
+# Bring an existing E2E project into view BEFORE deciding whether to create one.
+#
+# The reuse checks below are `when visible:`, and the list only shows a handful
+# of rows at a time. Once the household had a dozen projects the reusable one
+# was always below the fold, every check missed it, and the create branch at the
+# bottom of this file ran again — so each run added a project, which pushed the
+# reusable one further down, which guaranteed the next run added another. The
+# household reached 15 projects that way. Scrolling first breaks that loop:
+# `optional` so a genuinely empty list still falls through to create.
+- runFlow:
+    when:
+      notVisible:
+        id: 'home-project-hub-title'
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: 'E2E Hub Mutations'
+          direction: DOWN
+          timeout: 8000
+          optional: true
+- runFlow:
+    when:
+      visible: 'Bathroom reno'
+    commands:
+      - tapOn: 'Bathroom reno'
+- runFlow:
+    when:
+      visible: 'E2E Hub Mutations'
+    commands:
+      - tapOn: 'E2E Hub Mutations'
+- runFlow:
+    when:
+      visible: 'E2E Reno'
+    commands:
+      - tapOn: 'E2E Reno'
+- runFlow:
+    when:
+      visible: 'Blank'
+    commands:
+      - tapOn: 'Blank'
+- runFlow:
+    when:
+      visible: 'Paint refresh'
+    commands:
+      - tapOn: 'Paint refresh'
+- extendedWaitUntil:
+    visible:
+      id: 'home-project-hub-title'
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'home-projects-create'
+    commands:
+      - tapOn:
+          id: 'home-projects-create'
+      # SCROLL to it. The grid grew from a handful of templates to sixteen, in
+      # five groups, and `blank` is the last tile in the last group — so a bare
+      # tap stopped finding it and every flow that reaches the hub through here
+      # died with "Element not found: template-blank", pointing at a wizard that
+      # is working perfectly.
+      #
+      # `visibilityPercentage: 50` because the tile only has to be tappable, not
+      # fully on screen; the default of 100 refuses to stop on a half-shown row
+      # and scrolls past the end of the list.
+      #
+      # `centerElement` because HALF-VISIBLE IS NOT THE SAME AS TAPPABLE. The
+      # floating tab bar is drawn OVER this list, and Maestro's visibility test
+      # measures the tile against the screen bounds, not against what covers it —
+      # so the satisfied 50% could be the half hidden BEHIND the bar. The tap
+      # then landed on the tab bar and switched tabs: observed twice on House-A,
+      # once onto Budget (the bar's centre item) and once onto Chat, after which
+      # the flow failed looking for wizard fields from a completely different
+      # tab. It passed whenever the scroll happened to overshoot, which is what
+      # made this read as flake rather than as a covered tile.
+      #
+      # Centring puts the tile in the middle of the viewport, where nothing
+      # overlays it. Same idiom as the budget-multi-member flows.
+      - scrollUntilVisible:
+          element:
+            id: 'template-blank'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 50
+          centerElement: true
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'template-blank'
+          timeout: 10000
+      - tapOn:
+          id: 'template-blank'
+      - tapOn: 'Continue'
+      - tapOn:
+          id: 'home-project-title'
+      - inputText: 'E2E Hub Mutations'
+      # The wizard's Continue sits at the bottom of the step-2 form, so the
+      # software keyboard raised by inputText covers it: the tap lands on the
+      # keyboard, step never advances to 3, and `home-project-create-submit`
+      # (rendered only under `step === 3`) is reported as "Element not found".
+      # home-projects-smoke.yaml dodges this only because it never types.
+      # `optional` + a neutral-point fallback, because a BARE `hideKeyboard`
+      # ABORTS the whole flow on iPad: Maestro reports "Couldn't hide the
+      # keyboard … the app uses a custom input or doesn't expose a standard
+      # dismiss action" against the iPad keyboard's extra chrome (autofill bar,
+      # `Done` return key, its own `Hide keyboard` key). Leaving it bare traded
+      # the covered-Continue bug below for a hard abort on the iPad suite.
+      # The tap is a no-op when the keyboard is already down.
+      - hideKeyboard:
+          optional: true
+      - tapOn:
+          point: '50%,12%'
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - tapOn: 'Continue'
+      - extendedWaitUntil:
+          visible:
+            id: 'home-project-create-submit'
+          timeout: 10000
+      - tapOn:
+          id: 'home-project-create-submit'
+- extendedWaitUntil:
+    visible:
+      id: 'home-project-hub-title'
+    timeout: 30000

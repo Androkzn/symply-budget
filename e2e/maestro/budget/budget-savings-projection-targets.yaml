@@ -1,0 +1,279 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - mutation
+  - regression
+# Matrix: BUDGET-SAVE-100 / BUDGET-SAVE-101 / BUDGET-SAVE-102
+#
+# Savings → Projection is a WRITE surface, and nothing drove it on a device.
+# `budget-savings-projection.yaml` is read-only (loads the tab, checks the chart
+# labels, steps the year); the per-month goal editor behind it — the only way a
+# household sets what it wants to keep in a month — was unit-only.
+#
+# What this proves end to end:
+#   • tapping a month opens `ProjectionTargetModal` seeded for that month;
+#   • saving a target writes it (BUDGET-SAVE-100) and the month row re-reads
+#     from the SERVER's projection, not from local state — for a future month
+#     the backend returns `projectedNet = targetCents`, so the row must show
+#     exactly the figure that was typed;
+#   • clearing is NOT a $0 goal (BUDGET-SAVE-102) — the row falls back to its
+#     goal/pace projection and the typed figure disappears;
+#   • the "Plan the year" bulk entry point opens the SAME editor with
+#     "apply to all remaining months" pre-armed (BUDGET-SAVE-101).
+#
+# WHY DECEMBER, AND WHY $98,765. December is the last month of the year, so a
+# single-month edit there has `remainingCount == 1` and writes exactly one row.
+# The figure is deliberately far larger than any real month: in the December
+# run of the year the month is `current`, where the backend returns
+# `max(actualNet, target)` — an outsized target keeps the assertion exact in
+# every month of the year instead of only eleven of them.
+#
+# SHARED-DATA NOTE. This flow writes and then clears December's target. If the
+# household had a real December target it is left CLEARED, not restored — the
+# projection API exposes no read-before-write for one month. December of the
+# current year is the least load-bearing cell on the grid, and every other
+# month is untouched.
+#
+# MUTATING but self-cleaning.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget
+      E2E_MATRIX_ROW: BUDGET-SAVE-100
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-projection'
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-projection-loading'
+    timeout: 45000
+    optional: true
+# Hard assert, not a tolerated empty state: `savings-projection-empty` renders
+# only when the projection could not be fetched at all (no household / failed
+# load). A household that exists always gets 12 month rows back, so anything
+# else here is a real failure this flow must not paper over.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-projection'
+    timeout: 45000
+- assertVisible:
+    id: 'savings-projection-year-end'
+
+# ============ "Plan the year" opens the bulk editor (SAVE-101) ============
+# The bulk entry point anchors on January with every remaining month in scope,
+# so the "apply to all" row — absent from a December-only edit — renders here.
+# Cancelled on purpose: confirming would rewrite all 12 months of a shared
+# household's plan.
+# Reveal the Monthly-goals card, then NUDGE IT CLEAR of the sticky band.
+#
+# SavingsView pins the month stepper + sub-tab strip as a STICKY header drawn
+# over the scrolling content, and the Monthly-goals card is the LAST card — so
+# scrolling to it parks its header row hard against that band. Measured on
+# Budget-B 2026-08-22: `filter-tab-projection` ends at y209 and
+# `savings-projection-plan-year` spans y216-238, seven points below it, with the
+# strip's backing view drawn over that gap.
+#
+# `assertVisible` does NOT catch this: it only checks the element's frame is on
+# screen, never whether something is painted on top. So the button asserts
+# visible, the tap reports COMPLETED, the handler never runs, and the failure
+# surfaces one step later on `projection-target-save` — blaming the modal for a
+# tap that never landed. `centerElement` cannot fix it either, because the
+# scroll is already at the end of its content and has nowhere further to go.
+#
+# The swipe scrolls the content back DOWN a fifth of a screen, which moves the
+# button well clear of the band; the wait then re-confirms it before the tap.
+- scrollUntilVisible:
+    element:
+      id: 'savings-projection-plan-year'
+    direction: DOWN
+    timeout: 25000
+    optional: true
+# SLOW and SHORT on purpose. At 23% of the screen over 600ms this registered as
+# a FLING, and momentum carried the short Projection list all the way back to
+# the top — the Goal-performance card filled the screen and the button, the LAST
+# card, sat far below the fold. That is how this failed on 2026-08-23
+# (Budget-C): not too little nudge, too much. 12% over 1200ms drags without
+# throwing.
+- swipe:
+    start: 50%, 45%
+    end: 50%, 57%
+    duration: 1200
+- waitForAnimationToEnd:
+    timeout: 3000
+# Recovery: if the drag overshot, come back to the button. `centerElement` is
+# REQUIRED here — without it the scroll stops the instant the button appears,
+# which parks it at the BOTTOM edge of the viewport, inside the floating tab
+# bar's band. The tap then hits "More" and the app navigates away from Savings
+# entirely (observed 2026-08-24, Budget-C: the failure screenshot is the More
+# tab). Centring keeps it clear of both the sticky top strip and the tab bar.
+- scrollUntilVisible:
+    element:
+      id: 'savings-projection-plan-year'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-projection-plan-year'
+    timeout: 15000
+- tapOn:
+    id: 'savings-projection-plan-year'
+- extendedWaitUntil:
+    visible:
+      id: 'projection-target-save'
+    timeout: 20000
+- assertVisible:
+    id: 'projection-target-amount'
+- assertVisible:
+    id: 'projection-target-apply-all-row'
+# Drive the ROW, not the Toggle nested inside it.
+#
+# The row is a TouchableOpacity and iOS merges its subtree into ONE accessible
+# element, so `projection-target-apply-all` is not addressable on device even
+# though the switch is plainly on screen and green — asserting it fails while a
+# screenshot shows the control right there (observed 2026-08-24, Budget-C).
+#
+# The save button's title is the better witness anyway: it is what a person
+# actually reads to know the scope, and it flips between "Set goal for N
+# months" and "Set <Month> goal". Tapping the row toggles the same state the
+# switch does (`onPress` on the row calls the same setter).
+- assertVisible: '.*Set goal for \d+ months.*'
+- tapOn:
+    id: 'projection-target-apply-all-row'
+- extendedWaitUntil:
+    visible: '.*Set January goal.*'
+    timeout: 10000
+- tapOn:
+    id: 'projection-target-cancel'
+- extendedWaitUntil:
+    notVisible:
+      id: 'projection-target-save'
+    timeout: 15000
+
+# =================== set December's goal (SAVE-100) ===================
+- scrollUntilVisible:
+    element:
+      id: 'savings-projection-edit-12'
+    direction: DOWN
+    timeout: 25000
+    centerElement: true
+- tapOn:
+    id: 'savings-projection-edit-12'
+- extendedWaitUntil:
+    visible:
+      id: 'projection-target-save'
+    timeout: 20000
+# Maestro anchors text selectors to the WHOLE element text, so a bare
+# 'December' matches nothing here: the sheet titles itself "December 2026" and
+# its CTA reads "Set December goal". The screenshot at this failure shows the
+# sheet open and correct — only the selector was wrong (2026-08-24, Budget-C).
+- assertVisible: '.*December.*'
+# A single-month edit has nothing to bulk-apply to, so the bulk row must NOT be
+# here — the same sheet, correctly scoped.
+- assertNotVisible:
+    id: 'projection-target-apply-all-row'
+- tapOn:
+    id: 'projection-target-amount'
+- eraseText: 16
+- inputText: '98765'
+- hideKeyboard:
+    optional: true
+# The editor is a bottom sheet with NO KeyboardAvoidingView, so the keypad it
+# raises overlaps the sheet's own lower half — where Save lives. Wait for the
+# button to actually be on screen and assert the field before tapping, rather
+# than tapping blind into whatever is under the finger: a blind tap lands on a
+# digit key and silently rewrites the amount (observed for the equivalent
+# below-the-fold save in budget-savings-goal.yaml, 5000 → 50000). If Save never
+# becomes reachable this fails HERE, naming the real problem.
+- extendedWaitUntil:
+    visible:
+      id: 'projection-target-save'
+    timeout: 15000
+- assertVisible:
+    id: 'projection-target-amount'
+    text: '98765'
+- tapOn:
+    id: 'projection-target-save'
+- extendedWaitUntil:
+    notVisible:
+      id: 'projection-target-save'
+    timeout: 25000
+
+# --- Read it back off the SERVER's projection. The row is addressed by its own
+# testID so the figure cannot be satisfied by some other month's amount.
+- scrollUntilVisible:
+    element:
+      id: 'savings-projection-month-12'
+    direction: DOWN
+    timeout: 25000
+    centerElement: true
+- assertVisible:
+    id: 'savings-projection-month-12'
+    text: '.*\$98,765.*'
+
+# ============ clearing is not a $0 goal (SAVE-102) + cleanup ============
+- tapOn:
+    id: 'savings-projection-edit-12'
+- extendedWaitUntil:
+    visible:
+      id: 'projection-target-save'
+    timeout: 20000
+# The editor re-opened seeded with the STORED target — which is also why the
+# clear affordance is here at all (it renders only when `initialTarget != null`).
+- assertVisible:
+    id: 'projection-target-clear'
+- tapOn:
+    id: 'projection-target-clear'
+- extendedWaitUntil:
+    notVisible:
+      id: 'projection-target-save'
+    timeout: 25000
+- scrollUntilVisible:
+    element:
+      id: 'savings-projection-month-12'
+    direction: DOWN
+    timeout: 25000
+    centerElement: true
+# Cleared, not zeroed: the row went back to its goal/pace projection, so the
+# typed figure is gone. (A "$0 goal" would have kept the row pinned at $0 —
+# that distinction is what BUDGET-SAVE-102 exists for.)
+- assertNotVisible: '.*\$98,765.*'
+# Re-opening now offers no clear action, because there is no target to clear.
+- tapOn:
+    id: 'savings-projection-edit-12'
+- extendedWaitUntil:
+    visible:
+      id: 'projection-target-save'
+    timeout: 20000
+- assertNotVisible:
+    id: 'projection-target-clear'
+- tapOn:
+    id: 'projection-target-cancel'
+- extendedWaitUntil:
+    notVisible:
+      id: 'projection-target-save'
+    timeout: 15000
+
+# Leave the section on its default sub-tab for whatever runs next.
+- scrollUntilVisible:
+    element:
+      id: 'filter-tab-overview'
+    direction: UP
+    timeout: 20000
+    centerElement: true
+- tapOn:
+    id: 'filter-tab-overview'
+- assertVisible:
+    id: 'savings-view'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

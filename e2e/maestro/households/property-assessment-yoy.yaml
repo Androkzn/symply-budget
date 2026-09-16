@@ -1,0 +1,155 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:households
+  - mutation
+  - regression
+# Matrix: HOUSE-PROP-009, HOUSE-PROP-010 (manual entry → year-over-year dynamics)
+---
+# The flow the whole feature exists for: enter two years by hand, then prove the
+# app actually draws the change between them.
+#
+# Why this can only be done by entering data, not by seeding a fixture: House
+# runs local-first, so the property tabs read the on-device ledger, not the
+# server. Three years seeded through the REST API were invisible to the app.
+# Manual entry is also the ONLY way to record an assessment in private mode —
+# AI extraction is disabled there — so this flow doubles as the regression test
+# for that path.
+#
+# It also covers the crash that shipped: every chart section is wrapped in a
+# SectionCard that used `colors` without calling useAppColors(), and charts only
+# render at 2+ years. Reaching the chart at all is the assertion.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-property-detail.yaml
+
+- tapOn:
+    id: 'filter-tab-assessment'
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# --- Year one ---------------------------------------------------------------
+- assertVisible:
+    id: 'property-assessment-add-manual'
+- tapOn:
+    id: 'property-assessment-add-manual'
+- extendedWaitUntil:
+    visible:
+      id: 'property-assessment-review-save'
+    timeout: 10000
+
+# Validation must bite before anything is written: a blank value cannot save.
+- tapOn:
+    id: 'property-assessment-review-save'
+- assertVisible:
+    id: 'property-assessment-review-error'
+
+- tapOn:
+    id: 'property-assessment-review-year'
+- eraseText
+- inputText: '2025'
+- tapOn:
+    id: 'property-assessment-review-assessed'
+- eraseText
+- inputText: '1180000'
+- tapOn:
+    id: 'property-assessment-review-land'
+- eraseText
+- inputText: '470000'
+- tapOn:
+    id: 'property-assessment-review-improvement'
+- eraseText
+- inputText: '710000'
+# `optional: true` only — NO neutral-point tap. The tap was added on a wrong
+# premise (assumed iPad keyboard chrome) and was UNSAFE: 50%,12% is (417,145)
+# on an 834x1210 iPad, which lands on real controls — the profile avatar
+# (opens a camera Alert), the contractor photo circle (ActionSheet), a bare
+# TextInput on property-assessment. On iPhone 12% is inside the 118pt header,
+# outside the ScrollView, so it dismisses nothing at all. An `optional`
+# hideKeyboard cannot abort the flow, which is all that was ever needed here.
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'property-assessment-review-save'
+- extendedWaitUntil:
+    visible:
+      id: 'property-assessment-row-2025'
+    timeout: 20000
+
+# --- Year two ---------------------------------------------------------------
+- tapOn:
+    id: 'property-assessment-add-manual'
+- extendedWaitUntil:
+    visible:
+      id: 'property-assessment-review-save'
+    timeout: 10000
+- tapOn:
+    id: 'property-assessment-review-year'
+- eraseText
+- inputText: '2026'
+- tapOn:
+    id: 'property-assessment-review-assessed'
+- eraseText
+- inputText: '1270000'
+- tapOn:
+    id: 'property-assessment-review-land'
+- eraseText
+- inputText: '510000'
+- tapOn:
+    id: 'property-assessment-review-improvement'
+- eraseText
+- inputText: '760000'
+# `optional: true` only — NO neutral-point tap. The tap was added on a wrong
+# premise (assumed iPad keyboard chrome) and was UNSAFE: 50%,12% is (417,145)
+# on an 834x1210 iPad, which lands on real controls — the profile avatar
+# (opens a camera Alert), the contractor photo circle (ActionSheet), a bare
+# TextInput on property-assessment. On iPhone 12% is inside the 118pt header,
+# outside the ScrollView, so it dismisses nothing at all. An `optional`
+# hideKeyboard cannot abort the flow, which is all that was ever needed here.
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'property-assessment-review-save'
+- extendedWaitUntil:
+    visible:
+      id: 'property-assessment-row-2026'
+    timeout: 20000
+
+# --- The dynamics -----------------------------------------------------------
+# Two years exist, so the chart must now render. Before the SectionCard fix this
+# threw a ReferenceError and took the screen down with it, which is why the
+# plain "screen still visible" assertion below is load-bearing rather than
+# redundant.
+- assertVisible:
+    id: 'property-assessment-row-2025'
+- assertVisible:
+    id: 'property-assessment-row-2026'
+- extendedWaitUntil:
+    visible:
+      id: 'property-assessment-chart'
+    timeout: 15000
+- assertVisible:
+    id: 'chart-x-axis-labels'
+- assertVisible:
+    id: 'property-assessment-split-chart'
+- assertVisible:
+    id: 'property-detail-screen'
+
+# 1,270,000 against 1,180,000 is +7.6%. The row renders the derived change, so
+# a regression in the `??`-not-`||` defaulting (which would drop a real 0%) or
+# in the derivation itself shows up here as missing text.
+- assertVisible: '.*7\.6.*'
+
+# The overview tab carries both trends side by side — the same charts, reached a
+# second way, so a crash confined to one tab still fails the suite.
+- tapOn:
+    id: 'filter-tab-overview'
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: 'property-overview-stats'
+- extendedWaitUntil:
+    visible:
+      id: 'property-overview-assessment-chart'
+    timeout: 15000
+- assertVisible:
+    id: 'property-detail-screen'

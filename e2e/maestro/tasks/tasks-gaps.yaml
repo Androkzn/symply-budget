@@ -1,0 +1,222 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:tasks
+  - mutation
+  - regression
+# Matrix: HOUSE-TASK-006, 008, 012, 016, 018, 021–023, 035
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-tasks-tab.yaml
+- assertVisible:
+    id: 'tasks-screen'
+# Search narrows list (HOUSE-TASK-006) — only when tasks exist.
+- runFlow:
+    when:
+      visible:
+        id: 'task-filter-controls'
+    commands:
+      - tapOn:
+          id: 'tasks-search-bar'
+          optional: true
+      - tapOn:
+          id: 'tasks-search-input'
+      - inputText: 'gutter'
+      - hideKeyboard:
+          optional: true
+      - tapOn:
+          id: 'tasks-search-input'
+      - eraseText
+      - hideKeyboard:
+          optional: true
+# Filter chips (HOUSE-TASK-008)
+- runFlow:
+    when:
+      visible:
+        id: 'task-filter-hide-done'
+    commands:
+      - tapOn:
+          id: 'task-filter-hide-done'
+      - tapOn:
+          id: 'task-filter-hide-done'
+# Empty state CTA (HOUSE-TASK-035)
+- runFlow:
+    when:
+      visible: 'No tasks here'
+    commands:
+      - assertVisible:
+          id: 'tasks-add-fab'
+# Cancel create — no POST (HOUSE-TASK-012)
+- runFlow: ../subflows/open-add-task-from-tasks.yaml
+- tapOn:
+    id: 'add-task-input'
+- inputText: 'E2E Cancel Task'
+- runFlow:
+    when:
+      visible:
+        id: 'bottom-sheet-close'
+    commands:
+      - tapOn:
+          id: 'bottom-sheet-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'add-task-sheet'
+    timeout: 15000
+# Task detail: cancel delete (HOUSE-TASK-018), discard edit (HOUSE-TASK-016)
+#
+# NOTE — everything above runs on the Tasks tab; open-task-detail.yaml starts
+# with go-home-tab.yaml, so from here on the flow lives on HOME with task detail
+# presented as a bottom sheet. Never add a bare `nav-back-button` tap in this
+# file to get "back": that id belongs to the Tasks-stack card variant of
+# TaskDetailScreen; the sheet variant renders `task-detail-close` instead, so
+# the tap would miss and fall through to the tab bar / More hub. Re-enter with
+# open-task-detail.yaml or go-tasks-tab.yaml instead.
+- runFlow: ../subflows/open-task-detail.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'task-detail-delete'
+    commands:
+      - tapOn:
+          id: 'task-detail-delete'
+      - extendedWaitUntil:
+          visible: 'Cancel'
+          timeout: 10000
+      - tapOn: 'Cancel'
+# Subtask mutations (HOUSE-TASK-021–023)
+#
+# Clear + tag the matrix row BEFORE the Add-Subtask modal is opened. This block
+# used to sit between `inputText: 'Buy ladder'` and `tapOn: add-subtask-save`,
+# i.e. two `openLink`s fired while the RN <Modal> was presented — and an
+# openLink tears down the presented native modal, so the save tap was aiming at
+# a screen the deep link had just dismissed. Nothing is lost by moving it: the
+# only network call between here and the save tap is the save itself.
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-TASK-021
+# Those openLinks can also pop the task-detail presentation itself — on the
+# `home-task-card` path taken by open-task-detail.yaml, task detail is a Home
+# bottom sheet (TaskDetailStackHost), not a Tasks-stack card. Re-enter
+# explicitly rather than assume the screen survived; a bare `nav-back-button`
+# tap here would be worse still, since that id only exists on the Tasks-stack
+# variant (the sheet variant uses `task-detail-close`).
+- runFlow:
+    when:
+      notVisible:
+        id: 'task-detail-screen'
+    commands:
+      - runFlow: ../subflows/open-task-detail.yaml
+- scrollUntilVisible:
+    element:
+      id: 'task-detail-subtasks'
+    direction: DOWN
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'task-detail-add-subtask'
+    commands:
+      - tapOn:
+          id: 'task-detail-add-subtask'
+      # Gate on the autofocused title field, NOT `add-subtask-modal`.
+      # `add-subtask-modal` is the testID on React Native's <Modal> host
+      # (AddSubtaskModal.tsx) and that id never reaches Maestro's iOS
+      # accessibility tree — the hierarchy captured at this exact failure lists
+      # add-subtask-title / add-subtask-save / add-subtask-cancel while
+      # add-subtask-modal is absent. Same "the modal is open" fact, asserted on
+      # an element that actually exists.
+      - extendedWaitUntil:
+          visible:
+            id: 'add-subtask-title'
+          timeout: 10000
+      - tapOn:
+          id: 'add-subtask-title'
+      - inputText: 'Buy ladder'
+      - tapOn:
+          id: 'add-subtask-save'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /subtasks
+      # The verify above is one more openLink. If it popped the task-detail
+      # sheet, 'Buy ladder' goes not-visible and HOUSE-TASK-022/023 below would
+      # silently skip on a navigation accident rather than on a real absence.
+      # Re-enter and scroll back so the gate decides on the actual data.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'task-detail-screen'
+          commands:
+            - runFlow: ../subflows/open-task-detail.yaml
+            - scrollUntilVisible:
+                element:
+                  id: 'task-detail-subtasks'
+                direction: DOWN
+                timeout: 15000
+                optional: true
+      - extendedWaitUntil:
+          visible: 'Buy ladder'
+          timeout: 15000
+          optional: true
+      - runFlow:
+          when:
+            visible: 'Buy ladder'
+          commands:
+            # Same reason as HOUSE-TASK-021 above: clear + tag BEFORE the first
+            # toggle tap, not between the two taps. The two taps are a coupled
+            # pair (complete, then un-complete to leave the row clean) and an
+            # openLink landing between them can dismiss the task-detail sheet
+            # the second tap needs. The verify is unchanged — it reads the
+            # newest ring-buffer entry, which is still the second toggle's call.
+            - runFlow:
+                file: ../subflows/e2e-matrix-before.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  E2E_MATRIX_ROW: HOUSE-TASK-022
+            - tapOn: 'Buy ladder'
+            - tapOn: 'Buy ladder'
+            - runFlow:
+                file: ../subflows/e2e-matrix-after.yaml
+                env:
+                  E2E_APP_SCHEME: simplehouse
+                  E2E_VERIFY_METHOD: POST
+                  E2E_VERIFY_PATH: /complete
+            # e2e-matrix-after fires its own openLinks (dump-log + verify), so
+            # the sheet may be gone by the time the long-press runs. Re-enter
+            # explicitly and scroll back to the subtask list — `longPressOn` is
+            # a hard step and must start from a known screen.
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'task-detail-screen'
+                commands:
+                  - runFlow: ../subflows/open-task-detail.yaml
+                  - scrollUntilVisible:
+                      element:
+                        id: 'task-detail-subtasks'
+                      direction: DOWN
+                      timeout: 15000
+                      optional: true
+            - longPressOn: 'Buy ladder'
+            - extendedWaitUntil:
+                visible: 'Delete'
+                timeout: 8000
+                optional: true
+            - runFlow:
+                when:
+                  visible: 'Delete'
+                commands:
+                  - tapOn: 'Delete'
+                  - tapOn: 'Delete'
+                  - runFlow:
+                      file: ../subflows/e2e-matrix-after.yaml
+                      env:
+                        E2E_APP_SCHEME: simplehouse
+                        E2E_VERIFY_METHOD: DELETE
+                        E2E_VERIFY_PATH: /subtasks

@@ -1,0 +1,35 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:tasks
+  - mutation
+  - regression
+# Matrix: HOUSE-CHKL-003
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- openLink: simplehouse://contractors?screen=Checklists
+- extendedWaitUntil:
+    visible:
+      text: '.*[Cc]hecklist.*'
+    timeout: 30000
+- runFlow:
+    when:
+      visible: 'Create Default Checklists'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_MATRIX_ROW: HOUSE-CHKL-003
+      - tapOn: 'Create Default Checklists'
+      - extendedWaitUntil:
+          notVisible: 'No checklists yet'
+          timeout: 30000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /checklists/create-defaults

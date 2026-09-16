@@ -1,0 +1,66 @@
+-- Symply Health — FAVOURITE WORKOUT TYPES, the one piece of
+-- `WorkoutTypeSelectionView` (donor) this port had not backed yet.
+--
+-- WHY THIS EXISTS AT ALL. The donor's type picker has a Favourites tab (heart
+-- icon per row) backed by `FavouriteWorkoutTypesManager`, which persists
+-- locally AND syncs to the cloud via
+-- `UserPreferencesService.shared.updateFavouriteWorkoutTypes(rawValues)`. The
+-- RN picker (`HealthWorkoutTypePicker.tsx`) has a "RECENTLY LOGGED" section
+-- derived automatically from logged history, but nothing curated by the member
+-- — `grep -rni favourite src/features/health` / `grep -rni favorite.*workout`
+-- returned zero hits outside the unrelated exercise-library favourite. Recency
+-- and favourites answer different questions (what did I just do vs. what do I
+-- always want at the top) and the donor ships both; this closes the gap.
+--
+-- ============================ DONOR MAPPING ================================
+--
+-- Donor = `~/Desktop/Symply Ecosystem/Simply Health/`, read-only.
+-- Source: `SimpleHealth/Data/Services/FavouriteWorkoutTypesManager.swift`.
+--
+--   donor local SwiftData favourite set + cloud `updateFavouriteWorkoutTypes`
+--     → `activity_notification_preferences.favourite_workout_types`
+--
+-- ============================ DEVIATIONS ===================================
+--
+--   * ONE COLUMN ON AN EXISTING TABLE, NOT A NEW ONE. Workout types are a
+--     fixed 61-entry CLIENT enum (`WorkoutType` in
+--     `src/features/health/healthWorkoutTypes.ts`), not rows in a catalogue
+--     table — there is nothing to hang a per-row `is_favorite` boolean off,
+--     unlike `custom_foods.is_favorite` or `exercise_library`'s favourite
+--     column. The donor's own manager treats it the same way: one per-account
+--     LIST, not a join table. `activity_notification_preferences` is already
+--     the one-row-per-user "account-level preference" table this domain uses
+--     (ten `notify_*`/`receive_*` booleans, 0120), so a curated list of type
+--     slugs is a natural eleventh column rather than a new table with its own
+--     upsert-on-`user_id` ceremony duplicated from scratch.
+--
+--   * JSON TEXT, NOT A CHECK-CONSTRAINED VOCABULARY. A CHECK enumerating all
+--     61 slugs on a column that is really "N of them, in order" cannot express
+--     the multiplicity anyway (CHECK operates per-row, not per-array-element),
+--     and SQLite cannot add one to a live table without a full rebuild — the
+--     same call 0122/0124/0125 all declined. Validation of individual slugs is
+--     zod's job at the route (`backend/src/routes/health-body-extras.ts`),
+--     bounded to a sane string length and a max count of 61 (the whole
+--     vocabulary) so a malformed client cannot wedge an unbounded blob in.
+--     The Worker deliberately does NOT hard-validate against the exact
+--     `WorkoutType` enum — it does not share that RN-only type — so an older
+--     Worker reading a newer client's slug just carries it through unread.
+--
+--   * NULLABLE, NO DEFAULT. NULL means "never favourited anything", read back
+--     by the service as `[]` — the same "no row yet ⇒ donor defaults" shape
+--     `getActivityPreferences` already gives the ten booleans, extended to an
+--     empty list rather than a fabricated one.
+--
+--   * RIDES THE EXISTING `updated_at`, no new stamp or soft delete. The row is
+--     one per user, upserted in place exactly like the ten flags already on
+--     it; there is nothing to tombstone.
+--
+-- ========================= NOT APPLIED / NOT DEPLOYED ======================
+--
+-- Written but NOT run against any D1 and NOT deployed. Until it is applied,
+-- `PUT /health/activity-preferences` strips an unknown `favourite_workout_types`
+-- key (zod on the OLD schema simply has no such field yet) rather than 500ing,
+-- and the picker's heart toggle degrades to the existing "saved on this
+-- device" offline path.
+
+ALTER TABLE activity_notification_preferences ADD COLUMN favourite_workout_types TEXT;

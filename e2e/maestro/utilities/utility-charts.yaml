@@ -1,0 +1,27 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:utilities
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-utilities (see documents/engineering/testing/matrices/)
+---
+# UtilityChartsScreen — reached from UtilitiesScreen "Analytics" quick action
+# (utilitiesApi.getAnalytics). Asserts the screen renders via its testID and exercises
+# pull-to-refresh implicitly through the scroll contract.
+# WARNING: the audit flags UtilityChartsScreen for the same mount-time crash as
+# UtilityBills (useTheme()/colors referenced but not imported) — may RED-SCREEN until
+# fixed (see audit §F.3 / §0.4).
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-utilities.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'utilities-screen'
+    timeout: 15000
+- tapOn:
+    id: 'utilities-action-analytics'
+- extendedWaitUntil:
+    visible:
+      id: 'utilities-charts-screen'
+    timeout: 20000

@@ -1,0 +1,12 @@
+appId: com.symply.kaizen
+---
+# More tab: overflow hub loads with the upload/import entry point.
+# (Below-the-fold section asserts + Question-banks deep link + scroll contract
+# removed — they require reliable scrolling, which Maestro can't do here. See
+# today-screen.yaml for the Maestro/iOS-26 scroll-limitation note.)
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow: subflows/go-more.yaml
+- assertVisible:
+    id: 'kaizen-more-screen'
+- assertVisible: 'More'
+- assertVisible: 'UPLOAD & IMPORT'

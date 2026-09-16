@@ -1,0 +1,98 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Open task detail from Home Up Next, View all, or Tasks list (when tasks exist).
+- runFlow: go-home-tab.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'home-task-card'
+    commands:
+      - tapOn:
+          id: 'home-task-card'
+          index: 0
+      # The tap above can genuinely open task-detail-screen — give the modal
+      # presentation animation a moment before deciding it didn't and racing
+      # into the disruptive tasks-tab fallback below (which openLinks to
+      # simplehouse://tasks and can fight an already-in-flight navigation).
+      - extendedWaitUntil:
+          visible:
+            id: 'task-detail-screen'
+          timeout: 3000
+          optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'task-detail-screen'
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'home-up-next-view-all'
+          commands:
+            - tapOn:
+                id: 'home-up-next-view-all'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'tasks-list-item'
+          commands:
+            - openLink: simplehouse://tasks
+            # Not a hard assert: task detail may open WHILE this block runs.
+            #
+            # The outer guard reads `notVisible: task-detail-screen` once, at
+            # entry. A navigation already in flight — the header above says this
+            # block "can fight an already-in-flight navigation" — lands a moment
+            # later, and the task-detail sheet is then presented OVER the tasks
+            # screen. `tasks-screen` is behind it, so a hard wait can only time
+            # out even though the subflow has got exactly what it came for.
+            # Observed twice: the hierarchy at the failure held a fully
+            # populated `task-detail-screen`.
+            #
+            # Made optional so the guards below decide the outcome: if task
+            # detail is up, the final `notVisible: task-detail-screen` guard
+            # skips and this subflow is done.
+            - extendedWaitUntil:
+                visible:
+                  id: 'tasks-screen'
+                timeout: 20000
+                optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'tasks-list-item'
+          commands:
+            - tapOn:
+                id: 'tasks-list-item'
+                index: 0
+      - runFlow:
+          when:
+            notVisible:
+              id: 'task-detail-screen'
+          commands:
+            - runFlow: open-add-task-from-home.yaml
+            - tapOn:
+                id: 'add-task-input'
+            - inputText: 'E2E Task Detail Probe'
+            - hideKeyboard:
+                optional: true
+            - tapOn:
+                id: 'add-task-submit'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'add-task-sheet'
+                timeout: 20000
+            - runFlow:
+                when:
+                  visible:
+                    id: 'home-task-card'
+                commands:
+                  - tapOn:
+                      id: 'home-task-card'
+                      index: 0
+- extendedWaitUntil:
+    visible:
+      id: 'task-detail-screen'
+    timeout: 30000

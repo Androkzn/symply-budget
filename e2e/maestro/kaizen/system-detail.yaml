@@ -1,0 +1,57 @@
+appId: com.symply.kaizen
+---
+# System detail (Career) — hub pause + detail enable round-trip on the action control.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow: subflows/go-systems.yaml
+- runFlow:
+    file: subflows/scroll-kaizen-until-visible.yaml
+    env:
+      TARGET_ID: kaizen-system-pause-career
+      TARGET_TEXT: 'Pause'
+- tapOn:
+    id: 'kaizen-system-pause-career'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: 'Enable'
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 2000
+- runFlow:
+    file: subflows/scroll-kaizen-until-visible.yaml
+    env:
+      TARGET_ID: kaizen-system-row-career
+      TARGET_TEXT: 'career'
+- tapOn:
+    id: 'kaizen-system-row-career'
+- extendedWaitUntil:
+    visible:
+      id: kaizen-system-pause-toggle
+    timeout: 30000
+- extendedWaitUntil:
+    visible: 'Enable system'
+    timeout: 30000
+- runFlow:
+    file: subflows/scroll-kaizen-until-visible.yaml
+    env:
+      TARGET_ID: kaizen-system-pause-toggle
+      TARGET_TEXT: 'Enable system'
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'kaizen-system-pause-toggle'
+    direction: DOWN
+    timeout: 30000
+    speed: 70
+    visibilityPercentage: 40
+- tapOn:
+    id: 'kaizen-system-pause-toggle'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: 'Pause system'
+    timeout: 30000
+- assertVisible: 'Pause system'
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

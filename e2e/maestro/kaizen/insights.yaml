@@ -1,0 +1,22 @@
+appId: com.symply.kaizen
+---
+# Insights — read-only momentum panels (mastery, skills, achievements).
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/insights
+- extendedWaitUntil:
+    visible: 'Insights'
+    timeout: 20000
+- assertVisible: 'Mastery'
+- assertVisible: 'Average mastery'
+- assertVisible: 'Due questions'
+- assertVisible: 'Skills'
+- assertVisible: 'Achievements'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

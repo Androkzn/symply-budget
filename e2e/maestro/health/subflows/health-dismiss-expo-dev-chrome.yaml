@@ -1,0 +1,100 @@
+appId: ${APP_ID}
+tags:
+  - util
+  - app:health
+---
+# Expo Dev Client chrome that blocks Maestro taps on Debug builds.
+# Safe no-ops when already on the real Health app surface.
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            visible: 'Continue'
+          commands:
+            - tapOn: 'Continue'
+            - waitForAnimationToEnd:
+                timeout: 3000
+      - runFlow:
+          when:
+            visible: 'Login Failed'
+          commands:
+            - tapOn:
+                text: 'OK'
+                optional: true
+            - tapOn:
+                text: 'Cancel'
+                optional: true
+      - runFlow:
+          when:
+            visible: 'Open'
+          commands:
+            - tapOn: 'Open'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'DEVELOPMENT SERVERS'
+          commands:
+            - tapOn:
+                text: 'Symply Health'
+                optional: true
+            - tapOn:
+                text: '.*8085.*'
+                optional: true
+            - tapOn:
+                text: '.*:8085'
+                optional: true
+            - tapOn:
+                text: 'http.*'
+                optional: true
+            - tapOn:
+                point: '50%,38%'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 12000
+      - runFlow:
+          when:
+            visible: 'Reload'
+          commands:
+            - tapOn:
+                point: '92%,11%'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      # Two native iOS system alerts, not Expo dev-chrome, but they belong in
+      # this same "safe no-op dismissal loop" — both were caught blocking a
+      # fresh-account run for hours on 2026-07-29 (see the matrix's Revision
+      # log): a typed-credentials Sign In always offers to save the password
+      # to Keychain on a build/account pairing that has never submitted it
+      # before, and Finishing onboarding always offers the notifications
+      # permission. Neither is app UI, so neither has a testID — matched by
+      # their fixed system copy instead, same as this file's other legs.
+      - runFlow:
+          when:
+            visible: 'Save Password?'
+          commands:
+            - tapOn: 'Not Now'
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: 'Would Like to Send You Notifications'
+          commands:
+            - tapOn: "Don.t Allow"
+            - waitForAnimationToEnd:
+                timeout: 2000
+      # A third native alert in the same family: the simulator's Apple ID
+      # session periodically re-prompts for its Keychain password regardless
+      # of app state. Reproduced 2026-08-01 mid-flow (not at launch) on
+      # nutrition-meal-detail-tools, blocking the whole tab bar — "Element not
+      # found" for tab-health-nutrition, not a dropped tap. Caught here too
+      # for the common case where it appears before any app UI is up; see
+      # subflows/health-scroll-nutrition-top.yaml for the scoped mid-flow
+      # catch this same dialog also needed.
+      - runFlow:
+          when:
+            visible: 'Apple Account Verification'
+          commands:
+            - tapOn: 'Not Now'
+            - waitForAnimationToEnd:
+                timeout: 2000

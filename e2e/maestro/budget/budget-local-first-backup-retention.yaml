@@ -1,0 +1,382 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: BUDGET-LF-017 — Backup copies: replace vs keep-every
+#
+# The one behaviour a unit test cannot show end to end: that the retention
+# checkbox actually changes what lands in the backup list.
+#
+# Both modes are driven against "This device", the only destination needing no
+# OS UI and no network — so the whole thing runs unattended. The proof is in the
+# ROW LABELS, which is where the two modes are distinguishable from outside:
+#
+#   replace → one file, no date in its name → "Latest backup · <when written>"
+#   dated   → a new file per run, date in the name → "<day> <month> <year>, <time>"
+#
+# Taking a backup in each mode and finding BOTH labels present is what shows
+# that `replace` overwrote its own file rather than the dated one, and that
+# switching modes left the existing archives alone.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-017
+# SYNC & SHARING lives on Profile now, not on Budget Settings.
+- runFlow: ../subflows/budget-open-profile.yaml
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-backup-link'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'budget-settings-backup-link'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-screen'
+    timeout: 15000
+
+# --- Claim the device phrase before any backup runs ---------------------------
+# One phrase seals every archive, minted on first use — so the three saves below
+# reuse it and none of them opens the phrase sheet. Claiming it here (the row
+# mints on demand) is what makes that true regardless of what ran before.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-show-phrase'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'budget-backup-show-phrase'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-recovery-phrase-words'
+    timeout: 30000
+- tapOn:
+    id: 'budget-recovery-phrase-done'
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-recovery-phrase-sheet'
+    timeout: 10000
+
+# --- Start from "replace" -----------------------------------------------------
+# Off out of the box: the common wish is "keep my budget safe", not "keep a
+# history of my budget", and a dated pile is what makes a folder unreadable.
+#
+# Reset rather than asserted. This flow SETS the mode to dated half way through
+# and only restores it in its final step, so any run that fails part-way leaves
+# the switch on — and the next run then failed here, on a precondition about the
+# shipped default that a re-run can never legitimately check. The default
+# belongs to a fresh install; this flow is tagged `mutation` and has to be
+# re-runnable. What still matters, and is still asserted, is that the off state
+# says what it should.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-keep-every-copy'
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    text: 'Keep every copy'
+- runFlow:
+    when:
+      visible:
+        text: 'A new dated file each time.*'
+    commands:
+      - tapOn:
+          id: 'budget-backup-keep-every-copy'
+      - extendedWaitUntil:
+          visible:
+            text: 'Off — each backup replaces the last one.*'
+          timeout: 15000
+- assertVisible:
+    text: 'Off — each backup replaces the last one.*'
+
+# --- One backup in replace mode ----------------------------------------------
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-now'
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: 'budget-backup-now'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-to-device'
+    timeout: 10000
+- tapOn:
+    id: 'budget-backup-to-device'
+# Argon2 seals the archive on-device — slow on a loaded simulator, so the
+# progress card appearing and going away is the completion signal.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-progress'
+    timeout: 30000
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-backup-progress'
+    timeout: 180000
+# Sealed under the phrase claimed at the top — so no sheet, on any of the three.
+- assertNotVisible:
+    id: 'budget-recovery-phrase-sheet'
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# A replace-mode archive carries no date in its name, so the row is named after
+# when the FILE was last written. Seeing this label at all is the assertion —
+# the raw name would read `symply-budget-backup-home--hh_local_…`.
+# Settle at the top, then go looking for the row.
+#
+# The archive list re-reads the folder asynchronously after the run reports
+# `ok`, so nothing about it is settled at the instant the progress card
+# disappears. The status card is the signal: pinned at the top, with its own
+# testID, and it only reports a backup once `refresh()` has landed. Waiting
+# there also leaves the list scrolled to a known position, so the search below
+# starts above the row rather than past it.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-status-title'
+    direction: UP
+    timeout: 20000
+# Either healthy title: the card reads "Backed up" with automatic backup off and
+# "Protected" with it on, and this flow is about retention, not the schedule —
+# so pinning one of them would fail purely because a previous flow left the
+# switch the other way.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-status-title'
+      text: 'Backed up|Protected'
+    timeout: 60000
+# Two hops, not one long text search: matching by text costs a hierarchy dump
+# per scroll step, and the retention card is a cheap testID hop covering most of
+# the distance down to YOUR BACKUPS.
+#
+# `.*Latest backup.*`, not `Latest backup.*`. Maestro matches a text selector
+# against the WHOLE string, and the row's own label is not exposed to the
+# accessibility tree at all — the only strings carrying it belong to the row's
+# buttons ("Restore backup from Latest backup · <when>"). An unanchored-looking
+# pattern that does not start with `.*` therefore matches nothing here, which is
+# what made this assertion unsatisfiable regardless of timing or scroll
+# position.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-keep-every-copy'
+    direction: DOWN
+    timeout: 45000
+- scrollUntilVisible:
+    element:
+      text: '.*Latest backup.*'
+    direction: DOWN
+    timeout: 45000
+- assertVisible:
+    text: '.*Latest backup.*'
+
+# --- A second replace-mode backup lands on the same file ----------------------
+# Nothing new should appear in the list: same name in, same name out.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-now'
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: 'budget-backup-now'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-to-device'
+    timeout: 10000
+- tapOn:
+    id: 'budget-backup-to-device'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-progress'
+    timeout: 30000
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-backup-progress'
+    timeout: 180000
+# Sealed under the phrase claimed at the top — so no sheet, on any of the three.
+- assertNotVisible:
+    id: 'budget-recovery-phrase-sheet'
+- waitForAnimationToEnd:
+    timeout: 3000
+# Settle at the top, then go looking for the row.
+#
+# The archive list re-reads the folder asynchronously after the run reports
+# `ok`, so nothing about it is settled at the instant the progress card
+# disappears. The status card is the signal: pinned at the top, with its own
+# testID, and it only reports a backup once `refresh()` has landed. Waiting
+# there also leaves the list scrolled to a known position, so the search below
+# starts above the row rather than past it.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-status-title'
+    direction: UP
+    timeout: 20000
+# Either healthy title: the card reads "Backed up" with automatic backup off and
+# "Protected" with it on, and this flow is about retention, not the schedule —
+# so pinning one of them would fail purely because a previous flow left the
+# switch the other way.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-status-title'
+      text: 'Backed up|Protected'
+    timeout: 60000
+# Two hops, not one long text search: matching by text costs a hierarchy dump
+# per scroll step, and the retention card is a cheap testID hop covering most of
+# the distance down to YOUR BACKUPS.
+#
+# `.*Latest backup.*`, not `Latest backup.*`. Maestro matches a text selector
+# against the WHOLE string, and the row's own label is not exposed to the
+# accessibility tree at all — the only strings carrying it belong to the row's
+# buttons ("Restore backup from Latest backup · <when>"). An unanchored-looking
+# pattern that does not start with `.*` therefore matches nothing here, which is
+# what made this assertion unsatisfiable regardless of timing or scroll
+# position.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-keep-every-copy'
+    direction: DOWN
+    timeout: 45000
+- scrollUntilVisible:
+    element:
+      text: '.*Latest backup.*'
+    direction: DOWN
+    timeout: 45000
+- assertVisible:
+    text: '.*Latest backup.*'
+
+# --- Switch to "keep every copy" ----------------------------------------------
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-keep-every-copy'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'budget-backup-keep-every-copy'
+- extendedWaitUntil:
+    visible:
+      text: 'A new dated file each time.*'
+    timeout: 10000
+
+# --- A dated backup joins it, rather than replacing it ------------------------
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-now'
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: 'budget-backup-now'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-to-device'
+    timeout: 10000
+- tapOn:
+    id: 'budget-backup-to-device'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-progress'
+    timeout: 30000
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-backup-progress'
+    timeout: 180000
+# Sealed under the phrase claimed at the top — so no sheet, on any of the three.
+- assertNotVisible:
+    id: 'budget-recovery-phrase-sheet'
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# Both labels present together is the whole point: the dated run wrote a NEW
+# file (its own name), and the replace-mode file it did not touch is still
+# listed. Switching modes is a decision about the future, never a delete.
+# Settle at the top, then go looking for the row.
+#
+# The archive list re-reads the folder asynchronously after the run reports
+# `ok`, so nothing about it is settled at the instant the progress card
+# disappears. The status card is the signal: pinned at the top, with its own
+# testID, and it only reports a backup once `refresh()` has landed. Waiting
+# there also leaves the list scrolled to a known position, so the search below
+# starts above the row rather than past it.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-status-title'
+    direction: UP
+    timeout: 20000
+# Either healthy title: the card reads "Backed up" with automatic backup off and
+# "Protected" with it on, and this flow is about retention, not the schedule —
+# so pinning one of them would fail purely because a previous flow left the
+# switch the other way.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-status-title'
+      text: 'Backed up|Protected'
+    timeout: 60000
+# Two hops, not one long text search: matching by text costs a hierarchy dump
+# per scroll step, and the retention card is a cheap testID hop covering most of
+# the distance down to YOUR BACKUPS.
+#
+# `.*Latest backup.*`, not `Latest backup.*`. Maestro matches a text selector
+# against the WHOLE string, and the row's own label is not exposed to the
+# accessibility tree at all — the only strings carrying it belong to the row's
+# buttons ("Restore backup from Latest backup · <when>"). An unanchored-looking
+# pattern that does not start with `.*` therefore matches nothing here, which is
+# what made this assertion unsatisfiable regardless of timing or scroll
+# position.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-keep-every-copy'
+    direction: DOWN
+    timeout: 45000
+- scrollUntilVisible:
+    element:
+      text: '.*Latest backup.*'
+    direction: DOWN
+    timeout: 45000
+- assertVisible:
+    text: '.*Latest backup.*'
+# The DATED row, and only it. Both rows carry a date, so a bare date pattern
+# would be satisfied by the replace-mode row alone and prove nothing about the
+# dated file this section exists to check. What separates them is what follows
+# "backup from": a month for the dated archive, the words "Latest backup" for
+# the replace one.
+#
+# The hour is `{1,2}` with a trailing `.*` because the label renders 12-hour
+# time — "Sep 2, 2026, 5:46 PM". The old pattern demanded a two-digit hour and
+# ended at the minutes, so it could not match that no matter what was on screen.
+- assertVisible:
+    text: '.*backup from [A-Z][a-z]{2} [0-9]{1,2}, 20[0-9][0-9].*'
+
+# --- Put the default back so the suite is re-runnable -------------------------
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-keep-every-copy'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'budget-backup-keep-every-copy'
+- extendedWaitUntil:
+    visible:
+      text: 'Off — each backup replaces the last one.*'
+    timeout: 10000
+
+- scrollUntilVisible:
+    element:
+      id: 'nav-back-button'
+    direction: UP
+    timeout: 15000
+# One back, not two: this screen was pushed onto the BUDGET stack by the deep
+# link the Profile row opens, so back lands on the budget root directly —
+# Settings is no longer between them.
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

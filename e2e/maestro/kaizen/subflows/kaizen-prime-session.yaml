@@ -1,0 +1,47 @@
+appId: com.symply.kaizen
+tags:
+  - util
+  - app:kaizen
+  - bootstrap
+---
+# Prime a stable Today session before the main matrix pass (single login, no clearState).
+- runFlow:
+    when:
+      visible:
+        id: 'kaizen-today-screen'
+    commands: []
+- runFlow:
+    when:
+      notVisible:
+        id: 'kaizen-today-screen'
+    commands:
+      - openLink: kaizen://today
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - launchApp:
+          clearState: false
+          permissions:
+            notifications: allow
+            camera: allow
+            photos: allow
+      - runFlow: connect-kaizen-metro.yaml
+      - runFlow: kaizen-dismiss-expo-dev-chrome.yaml
+      - openLink: ${E2E_LOGIN_URL}
+      - repeat:
+          times: 4
+          commands:
+            - runFlow:
+                when:
+                  visible: 'Open'
+                commands:
+                  - tapOn: 'Open'
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - runFlow: kaizen-login-if-needed.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-today-screen'
+    timeout: 120000
+- runFlow: kaizen-ensure-profile.yaml

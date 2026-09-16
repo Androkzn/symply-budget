@@ -1,0 +1,20 @@
+appId: com.symply.kaizen
+---
+# Tap the Guide tab; fall back to deep link when the tab bar is slow after long sessions.
+- tapOn:
+    id: 'tab-mira'
+    retryTapIfNoChange: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow:
+    when:
+      notVisible:
+        id: 'kaizen-guide-screen'
+    commands:
+      - openLink: kaizen://mira
+      - waitForAnimationToEnd:
+          timeout: 8000
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-guide-screen'
+    timeout: 60000

@@ -1,0 +1,146 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - regression
+# Matrix: BUDGET-LF-018 — Google Drive backup folder + account controls
+#
+# Drives everything around the Drive integration that does NOT need a live
+# Google session, so this runs unattended:
+#
+#   - the GOOGLE DRIVE group exists, names the folder backups go to, and says
+#     that choosing one is all that is needed
+#   - the account row reports who is signed in (or that nobody is)
+#   - the folder browser opens, and when there is no usable grant it offers a
+#     RECONNECT rather than an empty list — the distinction that used to send
+#     people round a retry loop that could not work
+#
+# What it deliberately does not do is complete OAuth: Maestro cannot drive
+# Google's consent screen. With an account already connected on the device the
+# same flow still passes — the browser then shows folders instead of the
+# reconnect prompt, which is why the two states are asserted as alternatives
+# via `runFlow.when` rather than one being hardcoded.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-018
+# SYNC & SHARING lives on Profile now, not on Budget Settings.
+- runFlow: ../subflows/budget-open-profile.yaml
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-backup-link'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'budget-settings-backup-link'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-screen'
+    timeout: 15000
+
+# --- The Drive group names the folder, before anything is connected -----------
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-drive-folder-row'
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    text: 'GOOGLE DRIVE'
+- assertVisible:
+    text: 'Backup folder'
+# There is a folder to promise even before the first upload creates it — the row
+# is a statement about where backups go, and that is already true.
+- assertVisible:
+    id: 'budget-backup-drive-folder-value'
+# The whole "user does not need to do anything" claim, stated up front rather
+# than sprung on them after the tap.
+- assertVisible:
+    text: 'Pick a folder and backups start going there.*|Backups go here on their own.*'
+
+# --- The account row answers "which account?" ---------------------------------
+- assertVisible:
+    id: 'budget-backup-drive-account-row'
+- assertVisible:
+    text: 'Google account'
+
+# --- The folder browser opens -------------------------------------------------
+- tapOn:
+    id: 'budget-backup-drive-folder-row'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-folder-picker'
+    timeout: 20000
+- assertVisible:
+    text: 'Backup folder'
+# The trail is the navigation, so the root crumb is always there.
+- assertVisible:
+    id: 'budget-folder-crumb-0'
+
+# Either state is correct, and which one depends on whether a Google account was
+# connected on this device before the run:
+#   signed out  → an explanation plus a RECONNECT button (never a bare retry,
+#                 which would just reproduce the same failure)
+#   signed in   → the browser proper, with "New folder" and "Save backups here"
+- runFlow:
+    when:
+      visible:
+        id: 'budget-folder-picker-error'
+    commands:
+      - assertVisible:
+          id: 'budget-folder-picker-retry'
+      - assertVisible:
+          text: 'Connect Google Drive to choose a folder.|.*needs permission to save into your own folders.*|.*reconnect.*'
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-folder-picker-error'
+    commands:
+      - extendedWaitUntil:
+          notVisible:
+            id: 'budget-folder-picker-loading'
+          timeout: 30000
+      - assertVisible:
+          id: 'budget-folder-new'
+      - assertVisible:
+          id: 'budget-folder-use-here'
+
+# Escapable without choosing anything — a picker that can only be answered is a
+# trap, and this one changes where every future backup goes.
+- tapOn:
+    id: 'budget-folder-picker-cancel'
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-folder-picker'
+    timeout: 10000
+
+# --- Nothing was changed by looking ------------------------------------------
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-drive-folder-row'
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: 'budget-backup-drive-folder-value'
+
+- scrollUntilVisible:
+    element:
+      id: 'nav-back-button'
+    direction: UP
+    timeout: 15000
+# One back, not two: this screen was pushed onto the BUDGET stack by the deep
+# link the Profile row opens, so back lands on the budget root directly —
+# Settings is no longer between them.
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

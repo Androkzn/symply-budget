@@ -1,0 +1,108 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+  - feature:offline
+  - mutation
+# Matrix: HEALTH-TD-031 — airplane mode on B → mutate on A → B reconnects →
+# catch-up converges.
+#
+# WHY BOTH `setAirplaneMode` AND THE DEV-ONLY BLOCK DEEP LINK.
+# `setAirplaneMode` has NO EFFECT on an iOS simulator — Maestro accepts the
+# command and the device stays online. Relying on it alone would produce a flow
+# that always passes while never once going offline, which is the worst possible
+# outcome for this particular assertion. `${E2E_APP_SCHEME}://e2e-block-network`
+# (src/services/e2e-test-deeplinks.ts:216) blocks outbound HTTP inside the app in
+# `__DEV__`, which is what actually severs B. Both are fired: the airplane call
+# is the honest gesture on Android, the deep link is the one that bites here.
+#
+# THE OFFLINE ASSERTION IS LOAD-BEARING. `b-offline` ends by proving the marker
+# is NOT on B, and `b-reconnect` starts by proving it is STILL not there. Without
+# those, a catch-up assertion is indistinguishable from "B was online the whole
+# time and synced normally" — the exact failure this flow exists to exclude.
+#
+# The mutation is a habit, not a weight reading: habits are addressed by name
+# through `Open <name>`, so the marker survives being the ONLY thing on screen
+# that identifies the row, and the Habits list needs no scroll gymnastics to
+# show it.
+#
+# env: TD_STEP (b-offline|a-write|b-reconnect), TD_MARK (habit name)
+---
+- runFlow: td-launch.yaml
+
+# --- b-offline (device B) -------------------------------------------------
+- runFlow:
+    when:
+      true: ${TD_STEP == 'b-offline'}
+    commands:
+      - runFlow: ../health/subflows/go-health-habits.yaml
+      # Nothing named like this run's marker may exist yet, or the reconnect
+      # assertion would be satisfied by a leftover.
+      - assertNotVisible: '.*${TD_MARK}.*'
+      - openLink: ${E2E_APP_SCHEME}://e2e-block-network
+      - runFlow: td-dismiss-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 2500
+      - setAirplaneMode: enabled
+      - waitForAnimationToEnd:
+          timeout: 2500
+      # Prove the app survived going dark rather than crashing into the dev
+      # launcher — everything after this depends on B still running.
+      - assertVisible:
+          id: 'health-habits-screen'
+
+# --- a-write (device A, while B is dark) ---------------------------------
+- runFlow:
+    when:
+      true: ${TD_STEP == 'a-write'}
+    commands:
+      - runFlow: ../health/subflows/go-health-habits.yaml
+      - scrollUntilVisible:
+          element:
+            id: 'health-habit-add-button'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-habit-name-input'
+      - inputText: ${TD_MARK}
+      - hideKeyboard
+      - tapOn:
+          id: 'health-habit-add-button'
+      - extendedWaitUntil:
+          visible: '.*${TD_MARK}.*'
+          timeout: 30000
+      - assertVisible: '.*${TD_MARK}.*'
+      - runFlow: td-sync-nudge.yaml
+
+# --- b-reconnect (device B) ----------------------------------------------
+- runFlow:
+    when:
+      true: ${TD_STEP == 'b-reconnect'}
+    commands:
+      - runFlow: ../health/subflows/go-health-habits.yaml
+      # STILL dark, and still empty. This is the whole experiment: A's op exists
+      # and B provably does not have it.
+      - assertNotVisible: '.*${TD_MARK}.*'
+      - setAirplaneMode: disabled
+      - openLink: ${E2E_APP_SCHEME}://e2e-unblock-network
+      - runFlow: td-dismiss-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 4000
+      # Catch-up is a mailbox drain plus a checkpoint advance (He8), not a live
+      # push, so it needs foreground passes rather than one long wait.
+      - repeat:
+          times: 25
+          commands:
+            - runFlow:
+                when:
+                  notVisible: '.*${TD_MARK}.*'
+                commands:
+                  - runFlow: td-sync-nudge.yaml
+                  - runFlow: ../health/subflows/go-health-habits.yaml
+      - extendedWaitUntil:
+          visible: '.*${TD_MARK}.*'
+          timeout: 60000
+      # Written while this device was unreachable, delivered after it came back.
+      - assertVisible: '.*${TD_MARK}.*'

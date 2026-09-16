@@ -1,0 +1,35 @@
+appId: ${APP_ID}
+---
+# Scroll until a target is visible — swipes on the Kaizen ScrollView, then
+# scrollUntilVisible by text (uppercase section headers) and test id.
+# Env: TARGET_ID and/or TARGET_TEXT (at least one required)
+- repeat:
+    times: 10
+    commands:
+      - runFlow:
+          when:
+            notVisible: ${TARGET_TEXT}
+          commands:
+            - swipe:
+                start: '50%,78%'
+                end: '50%,32%'
+                duration: 350
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 350
+- scrollUntilVisible:
+    element:
+      text: ${TARGET_TEXT}
+    direction: DOWN
+    timeout: 25000
+    speed: 100
+    visibilityPercentage: 40
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: ${TARGET_ID}
+    direction: DOWN
+    timeout: 25000
+    speed: 100
+    visibilityPercentage: 40
+    optional: true

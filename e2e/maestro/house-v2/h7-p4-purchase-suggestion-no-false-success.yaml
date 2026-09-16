@@ -1,0 +1,142 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: HOUSE-LF-H7-P4-001
+---
+# WHAT THIS PROVES
+# ----------------
+# `tasks.createBudgetItemFromTask` is one of the eight P4 features that are OFF
+# under House local-first (src/features/house/local/unsupportedCopy.ts). The
+# on-device implementation raises `HouseLocalUnsupportedError`
+# (localTasksApi.ts:876) and PurchaseSuggestionChip's catch shows a toast
+# instead of flipping the chip to its success state.
+#
+# WHY THAT MATTERS
+# ----------------
+# localApiProxy.ts's own header names the failure this flow guards against:
+# "rejected rather than resolved-empty: an empty result is the exact silence the
+# coverage rule exists to prevent." If someone flips this module's proxy to
+# `strict: false`, or stubs the gap so it resolves, the chip flips to
+# `task-purchase-added`, the member believes a planned-spending item exists, and
+# no test notices — Budget already paid for this once at savings.ts:1454.
+#
+# So the load-bearing assertions here are the STATE THE FEATURE CHANGES, not a
+# label:
+#   1. `task-purchase-added` must NOT appear after the tap (no false success).
+#   2. `task-purchase-suggestion` must still be there (the chip did not consume
+#      itself).
+#   3. No POST reached `/households/:hh/tasks/:id/budget-item` — a local-first
+#      household must not silently fall through to the Worker, which holds no
+#      plaintext for it.
+#   4. DoD H7: the method identifier `tasks.createBudgetItemFromTask` and the
+#      pre-2026-08-13 developer sentence are not on screen. `.message` now
+#      carries member copy and `.method` carries the identifier (errors.ts) —
+#      putting the identifier back in `.message` would surface it wherever a
+#      screen renders the raw message.
+#
+# GUARDED, DELIBERATELY: `task.purchase_suggestion` is data-dependent, so the
+# whole block is `when: visible: task-purchase-suggestion`. When the chip is
+# absent the flow no-ops rather than failing for the wrong reason. It still
+# asserts the identifier is absent from task detail unconditionally.
+#
+# Structure note: TaskDetailScreen is a NATIVE MODAL. openLink (e2e-clear-log /
+# e2e-verify-no-network) can non-deterministically dismiss it, and
+# e2e-verify-badge is unreachable to Maestro while a modal covers the root view.
+# Same shape as tasks/task-detail-mutations.yaml: act on the modal → close it →
+# verify on Home.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-H7-P4-001
+- runFlow: ../subflows/open-task-detail.yaml
+- assertVisible:
+    id: 'task-detail-screen'
+
+# Unconditional DoD H7 check on the surface where the P4 error lands.
+- assertNotVisible: 'tasks\.createBudgetItemFromTask'
+- assertNotVisible: 'is not available offline yet'
+
+- runFlow:
+    when:
+      visible:
+        id: 'task-purchase-suggestion'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'task-purchase-add-button'
+          timeout: 8000
+      - tapOn:
+          id: 'task-purchase-add-button'
+      # The chip keeps a spinner while `busy`; give the rejection time to land
+      # so we are not asserting on the in-flight state.
+      - waitForAnimationToEnd:
+          timeout: 6000
+      - extendedWaitUntil:
+          visible:
+            id: 'task-purchase-add-button'
+          timeout: 10000
+      # (1) No false success.
+      - assertNotVisible:
+          id: 'task-purchase-added'
+      # (2) The chip is still offering the action.
+      - assertVisible:
+          id: 'task-purchase-suggestion'
+      # (4) No identifier, no developer sentence, in the toast or anywhere else.
+      - assertNotVisible: 'tasks\.createBudgetItemFromTask'
+      - assertNotVisible: 'is not available offline yet'
+      - tapOn:
+          id: 'task-detail-close'
+          optional: true
+      - extendedWaitUntil:
+          notVisible:
+            id: 'task-detail-screen'
+          timeout: 8000
+          optional: true
+      # (3) Nothing left the device for the Worker's budget-item route.
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /budget-item
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+# CLOSE THE MODAL UNCONDITIONALLY — the header above states the intent: "when
+# the chip is absent the flow no-ops rather than failing for the wrong reason."
+# It did not. `task-detail-close` lives INSIDE the
+# `when: visible: task-purchase-suggestion` block, so on a fixture task with no
+# purchase suggestion the whole block is SKIPPED, the native modal stays over
+# the tab bar, `go-home-tab` taps nothing, and the flow fails on
+# `home-screen` — teardown, not the thing under test.
+#
+# Found on the first device run of this suite (2026-08-15): the P4 assertions
+# themselves PASSED and the flow still went red. `optional: true` because the
+# guarded block legitimately closes it when the chip IS present, and a
+# double-close would then fail.
+- tapOn:
+    id: 'task-detail-close'
+    optional: true
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

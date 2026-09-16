@@ -1,0 +1,54 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Navigate to the Spending section (BudgetSpendingsView variant=spent).
+# Same SpringBoard trap as Planning — tap the tab when we are already in-app.
+- runFlow: budget-relaunch-if-backgrounded.yaml
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'tab-spending'
+    commands:
+      - tapOn:
+          id: 'tab-spending'
+          retryTapIfNoChange: true
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      notVisible:
+        id: 'tab-spending'
+    commands:
+      - openLink: simplebudget:///spending
+      - runFlow: budget-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - runFlow: budget-relaunch-if-backgrounded.yaml
+      - runFlow:
+          when:
+            visible:
+              id: 'tab-spending'
+          commands:
+            - tapOn:
+                id: 'tab-spending'
+                retryTapIfNoChange: true
+            - waitForAnimationToEnd:
+                timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings-loading'
+    timeout: 10000
+    optional: true
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-spendings-loading'
+    timeout: 90000
+    optional: true
+- runFlow: budget-relaunch-if-backgrounded.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 60000

@@ -1,0 +1,198 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - mutation
+  - regression
+# Matrix: BUDGET-SAVE-124 / BUDGET-SAVE-125
+#
+# The Projection tab's 4-method picker (Recent Average / Trend / Planned
+# Budget / Smart Blend) had ZERO device coverage — `budget-savings-projection.yaml`
+# and `-targets.yaml` predate it entirely.
+#
+# What this proves end to end:
+#   • all 4 method cards render with their own year-end figure and an "i" info
+#     button (BUDGET-SAVE-124);
+#   • the info sheet opens with a real explanation and dismisses cleanly;
+#   • tapping a non-default method card switches the tab's figures to that
+#     method (a fresh `GET …/projection?method=…` round trip, not client math);
+#   • "Set as household default" writes `PUT …/projection/method` (verified
+#     against the real network log, not just the UI) and, once the viewed
+#     method IS the stored default, the button itself disappears — the
+#     `isViewingHouseholdDefault` guard round-tripped through the server
+#     (BUDGET-SAVE-125).
+#
+# SHARED-DATA NOTE. This flow changes the household's stored default method.
+# It moves it to 'trend' to prove the round trip, then back to 'hybrid' —
+# the documented recommended default and the same value an unset household
+# resolves to — so every OTHER flow that reads Home's "Projected year-end"
+# stat sees the same method it would on a household that never touched this
+# picker. Whatever the default was before this flow ran is NOT restored.
+#
+# MUTATING but self-cleaning (rests on 'hybrid').
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget
+      E2E_MATRIX_ROW: BUDGET-SAVE-124
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-projection'
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-projection-loading'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-projection'
+    timeout: 45000
+- assertVisible:
+    id: 'savings-projection-year-end'
+
+# ============ 4 method cards + info buttons (SAVE-124) ============
+- assertVisible:
+    id: 'savings-projection-methods'
+- assertVisible:
+    id: 'savings-projection-method-historical_average'
+- assertVisible:
+    id: 'savings-projection-method-trend'
+- assertVisible:
+    id: 'savings-projection-method-planned_budget'
+- assertVisible:
+    id: 'savings-projection-method-hybrid'
+- assertVisible:
+    id: 'savings-projection-method-info-historical_average-toggle'
+- assertVisible:
+    id: 'savings-projection-method-info-trend-toggle'
+- assertVisible:
+    id: 'savings-projection-method-info-planned_budget-toggle'
+- assertVisible:
+    id: 'savings-projection-method-info-hybrid-toggle'
+- takeScreenshot: budget-savings-projection-methods
+
+# --- Planned Budget's "i" — the one whose copy can name real numbers
+# (income/payments/goal) when the household has enough set up, and says so
+# plainly when it doesn't. Either wording is legitimate on the shared account,
+# so this only proves the sheet OPENS with real content, not which branch.
+- tapOn:
+    id: 'savings-projection-method-info-planned_budget-toggle'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-projection-method-info-planned_budget-content'
+    timeout: 10000
+- assertVisible: 'Income minus your recurring payments minus your Planning-tab budget.*'
+# Dismiss via the backdrop, NOT `bottom-sheet-close` — that testID reports a
+# COMPLETED tap on device without its onPress firing (see the war story in
+# budget-pension-interactions.yaml). Tap the overlay well clear of the sheet's
+# own frame instead.
+- tapOn:
+    id: 'bottom-sheet-overlay'
+    point: '50%, 15%'
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-projection-method-info-planned_budget-content'
+    timeout: 10000
+
+# --- Smart Blend's "i" — the recommended-default explanation.
+- tapOn:
+    id: 'savings-projection-method-info-hybrid-toggle'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-projection-method-info-hybrid-content'
+    timeout: 10000
+- assertVisible: 'Our recommended default.*'
+- tapOn:
+    id: 'bottom-sheet-overlay'
+    point: '50%, 15%'
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-projection-method-info-hybrid-content'
+    timeout: 10000
+
+# ============ switch method + set as household default (SAVE-125) ============
+# Move to Trend. Whatever the household's stored default was, Trend now reads
+# as the actively VIEWED method — a fresh GET under `?method=trend`, not a
+# client-side recompute of the numbers already on screen.
+- tapOn:
+    id: 'savings-projection-method-trend'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-projection-year-end'
+    timeout: 20000
+
+# Only offered when the viewed method differs from the stored default — on
+# the rare chance Trend already WAS the default, skip straight to hybrid below
+# rather than asserting a button that legitimately isn't there.
+- runFlow:
+    when:
+      visible:
+        id: 'savings-projection-set-default'
+    commands:
+      - tapOn:
+          id: 'savings-projection-set-default'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            APP_ID: com.symply.budget
+            E2E_APP_SCHEME: simplebudget
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /projection/method
+            E2E_VERIFY_STATUS: '200'
+      - assertVisible:
+          id: 'savings-projection-default-badge'
+      # Proof the round trip landed: still viewing Trend, but now that IS the
+      # stored default, so the offer to set it disappears.
+      - extendedWaitUntil:
+          notVisible:
+            id: 'savings-projection-set-default'
+          timeout: 15000
+
+# --- Rest on Smart Blend (the shared resting state every other flow expects).
+- tapOn:
+    id: 'savings-projection-method-hybrid'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-projection-year-end'
+    timeout: 20000
+- runFlow:
+    when:
+      visible:
+        id: 'savings-projection-set-default'
+    commands:
+      - tapOn:
+          id: 'savings-projection-set-default'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            APP_ID: com.symply.budget
+            E2E_APP_SCHEME: simplebudget
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /projection/method
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'savings-projection-set-default'
+          timeout: 15000
+
+# Leave the section on its default sub-tab for whatever runs next.
+- scrollUntilVisible:
+    element:
+      id: 'filter-tab-overview'
+    direction: UP
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'filter-tab-overview'
+- assertVisible:
+    id: 'savings-view'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

@@ -1,0 +1,12 @@
+appId: com.symply.kaizen
+---
+# Learn hub (overflow route): capture card loads.
+# (Scroll contract removed — see today-screen.yaml for the Maestro/iOS-26 scroll note.)
+- runFlow: subflows/launch-kaizen.yaml
+- openLink: kaizen:///kaizen-learn
+- extendedWaitUntil:
+    visible:
+      id: 'kaizen-learn-screen'
+    timeout: 20000
+- assertVisible: 'Learn'
+- assertVisible: 'CAPTURE'

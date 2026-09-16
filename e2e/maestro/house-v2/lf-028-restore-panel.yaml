@@ -1,0 +1,100 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: HOUSE-LF-028 — Restoring from the inline archive list
+#
+# The half of restore that needs no fixture archive and no OS file picker: an
+# archive this app wrote, in the list on the screen that wrote it, one tap from
+# the phrase panel.
+#
+# This is the doorway that did not exist before the two screens were merged. The
+# archive was listed on Backup and the phrase field lived on Restore, so
+# restoring your own backup meant finding the file in Files first — which is
+# also why the ROW TAP is what is asserted here rather than the sources row.
+#
+# It stops at the panel: applying it would run a multi-minute Argon2 pass and
+# then overwrite the ledger every other House flow depends on. The wrong-phrase
+# and foreign-archive paths past this point are HOUSE-LF-013/014, still blocked
+# on a fixture archive with a known phrase.
+#
+# ISOLATION: needs an archive on the device — run after HOUSE-LF-026, or on a
+# device where any House backup has been taken. Cancels out of the panel, so the
+# ledger is untouched.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-028
+- runFlow: lf-backup-open-backup-screen.yaml
+# Maestro has no `finally`, so a previous flow that failed mid-way can leave the
+# schedule armed and the screen longer than this one expects. Cleanup is a
+# precondition here, not a postcondition — see lf-backup-reset-state.yaml.
+- runFlow: lf-backup-reset-state.yaml
+
+# --- Take a backup, so there is something of our own to restore from ----------
+- tapOn:
+    id: 'house-backup-now'
+- extendedWaitUntil:
+    visible:
+      id: 'house-backup-to-device'
+    timeout: 10000
+- tapOn:
+    id: 'house-backup-to-device'
+- extendedWaitUntil:
+    visible:
+      id: 'house-recovery-phrase-sheet'
+    timeout: 180000
+- tapOn:
+    id: 'house-recovery-phrase-done'
+- extendedWaitUntil:
+    notVisible:
+      id: 'house-recovery-phrase-sheet'
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# --- The row tap is the restore doorway ---------------------------------------
+- scrollUntilVisible:
+    element:
+      text: 'YOUR BACKUPS'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- assertNotVisible:
+    id: 'house-backup-empty'
+# Nothing destructive is armed before the tap.
+- assertNotVisible:
+    id: 'house-backup-restore-phrase-panel'
+- tapOn:
+    text: 'Latest backup.*|\d{1,2} \w{3} \d{4},.*'
+- extendedWaitUntil:
+    visible:
+      id: 'house-backup-restore-phrase-panel'
+    timeout: 20000
+
+# The panel says what is about to happen and into which home — a "Verify &
+# restore" with no home named is how the cabin's rows end up in the house.
+- assertVisible:
+    id: 'house-backup-restore-phrase'
+- assertVisible:
+    id: 'house-backup-restore-confirm'
+# The archive came from THIS home, so the foreign-archive gate stays away.
+- assertNotVisible:
+    id: 'house-backup-restore-foreign-warning'
+
+# --- Escapable without applying anything --------------------------------------
+- tapOn:
+    id: 'house-backup-restore-cancel'
+- extendedWaitUntil:
+    notVisible:
+      id: 'house-backup-restore-phrase-panel'
+    timeout: 10000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

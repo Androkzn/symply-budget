@@ -1,0 +1,130 @@
+---
+description: "Design system rules for UI implementation. Apply when creating or modifying SwiftUI views, working with colors, typography, spacing, buttons, cards, or any visual UI elements."
+globs:
+alwaysApply: false
+---
+
+# Step iOS Design System
+
+> Full specification: `documents/DesignSystem.md`
+> Token definitions: `step/Config/DesignTokens.swift`
+> Color definitions: `step/Config/ThemeConfiguration.swift`
+> Color accessors: `step/Utils/AppColors.swift`
+> Typography engine: `step/Extensions/Font+SystemScaling.swift`
+
+## Typography — Use Semantic Tokens
+
+Always use `DesignTokens.Typography.*` tokens via `.scaledFont()`:
+
+| Token | Size / Weight | Usage |
+|---|---|---|
+| `.display` | 34pt bold rounded | Hero numbers, stats |
+| `.displayMono` | 34pt bold monospaced | Timers, scores |
+| `.heading` | 28pt semibold rounded | Screen titles |
+| `.title` | 24pt semibold rounded | Card titles, section headings |
+| `.titleSmall` | 20pt medium | Sub-section titles |
+| `.bodyLarge` | 18pt semibold | Emphasized body |
+| `.body` | 16pt regular | Default body text |
+| `.bodyMedium` | 16pt medium | Emphasized callouts |
+| `.buttonLabel` | 17pt semibold | Button labels, CTAs |
+| `.label` | 15pt medium | Small card titles, tags |
+| `.bodySmall` | 14pt regular | Card descriptions, secondary body text |
+| `.bodySmallMedium` | 14pt medium | Card action labels, emphasized small text |
+| `.caption` | 13pt regular | Footnotes, timestamps |
+| `.captionSmall` | 12pt regular | Small metadata |
+| `.overline` | 11pt medium +tracking | UPPERCASE section markers |
+| `.micro` | 10pt medium | Tab bar labels |
+
+```swift
+Text("Title").scaledFont(DesignTokens.Typography.title)
+```
+
+**Never** use `.font(.system(size:weight:))` — it bypasses Dynamic Type.
+
+## Spacing — 8pt Scale
+
+```swift
+DesignTokens.Spacing.xxs  // 2pt — hairline
+DesignTokens.Spacing.xs   // 4pt — minimal
+DesignTokens.Spacing.sm   // 8pt — tight
+DesignTokens.Spacing.md   // 12pt — card gaps
+DesignTokens.Spacing.base // 16pt — card padding
+DesignTokens.Spacing.lg   // 20pt — page margins
+DesignTokens.Spacing.xl   // 24pt — header spacing
+DesignTokens.Spacing.xxl  // 32pt — section spacing
+```
+
+## Layout Constants
+
+```swift
+DesignTokens.Layout.pageMargin      // 20pt — horizontal page padding
+DesignTokens.Layout.sectionSpacing   // 32pt — between content groups
+DesignTokens.Layout.cardSpacing      // 12pt — between cards
+DesignTokens.Layout.bottomSafeArea   // 120pt — floating CTA clearance
+DesignTokens.Layout.headerBottom     // 24pt — below nav header
+```
+
+## Corner Radii
+
+| Token | Value | Usage |
+|---|---|---|
+| `.xs` | 4pt | Progress bars |
+| `.sm` | 8pt | Small cards, pills |
+| `.md` | 12pt | Standard cards, inputs |
+| `.lg` | 16pt | Large cards, bubbles |
+| `.xl` | 20pt | Video buttons |
+| `.xxl` | 25pt | Primary buttons (capsule) |
+
+## Colors
+
+Access via `Color.AppColors.*`. Key tokens:
+- `primary` / `primaryDark` — Brand teal, CTAs
+- `textPrimary` / `textSecondary` / `grayText` — Text hierarchy
+- `backgroundMain` / `backgroundSecondary` — Screen backgrounds
+- `card` / `cardBackground` — Card surfaces
+- `sheetBackground` — Bottom sheets
+- `destructive` / `error` / `success` / `warning` — Semantic states
+
+Light mode must feel premium: white sheets, reduced shadow opacity (0.08), white cards with shadow.
+
+## Buttons
+
+Use existing components from `step/Views/SharedViews/Buttons/`:
+- `PrimaryButton` — Main CTA (56pt height, capsule, scale 0.97 + medium haptic)
+- `SecondaryButton` — Alternatives (56pt, bordered, scale 0.97 + light haptic)
+- `DestructiveTextButton` — Delete/logout (heavy haptic)
+- `HeaderIconButton` — Nav bar icons (.back, .close, .sparkles)
+
+**All interactive elements** must have:
+- Minimum 44x44pt tap target (`DesignTokens.ButtonMetrics.minTapTarget`)
+- Scale feedback on press
+- Haptic feedback
+
+## Cards & Shadows
+
+Cards must have depth — never flat on background:
+```swift
+.background(Color.AppColors.cardBackground)
+.cornerRadius(DesignTokens.CornerRadius.lg)
+.shadow(color: Color.AppColors.shadowLight, radius: 4, x: 0, y: 2)
+```
+
+## Hero Image (Detail Screens)
+
+320pt height, 16:9 fill, bottom corners rounded 20pt, 4-stop gradient overlay. Use `DesignTokens.HeroImage.*` tokens.
+
+## Animation
+
+- Spring over easing: `response: 0.3, damping: 0.8`
+- Entrances: 0.3s, Exits: 0.2s
+- Image fade-in: 0.3s
+- Respect reduced motion — use opacity cross-fades
+
+## Anti-Patterns — NEVER Do
+- Hardcode hex colors → use `Color.AppColors.*`
+- Use `.font(.system(...))` → use `.scaledFont()`
+- Create tap targets < 44pt
+- Ship screens without Loading + Empty states
+- Leave cards flat without shadows
+- Use opaque overlays on video → use `.floatingControlBackground()`
+- Use HStack for icon+label media controls → always VStack (icon above text)

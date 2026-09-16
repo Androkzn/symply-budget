@@ -1,0 +1,197 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+  - feature:activity
+  - mutation
+# Matrix: HEALTH-TD-013 — Wave A table 4/8: `healthEntries` (`health_entries`),
+# ACTIVITY half. The sleep half of the same table is td-14.
+#
+# `health_entries` is one physical table with an `entry_type` discriminator, so
+# it needs both halves to be honestly covered: activity is the only half with an
+# edit and a delete affordance (`health-workout-detail-edit` /
+# `health-workout-detail-delete`), and sleep is the only half that exercises the
+# same-date overwrite. Splitting them into two flows keeps each one readable and
+# keeps the DoD row traceable to a file.
+#
+# THE MARKER IS THE DURATION. `health-workout-note-input` holds a real note (and
+# this flow writes one, as local evidence), but the LIST row renders
+# `<Type> workout, <minutes>m` — the note is only visible inside the detail
+# sheet. The observer has to see the change from the list, so the run-unique
+# minute count is what it polls for. The runner picks values no human logs by
+# accident (73, 89) precisely so `.*73m.*` cannot match a leftover row.
+#
+# env: TD_ROLE, TD_PHASE, TD_MARK (note text), TD_VALUE / TD_VALUE2 (minutes),
+#      TD_EXPECT (e.g. "73m")
+---
+- runFlow: td-launch.yaml
+
+# ==========================================================================
+# WRITE — device A
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'write'}
+    commands:
+      - runFlow: ../health/subflows/go-health-activity.yaml
+
+      # --- create ---------------------------------------------------------
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'create'}
+          commands:
+            - runFlow:
+                file: ../health/subflows/health-swipe-section-to.yaml
+                env:
+                  TARGET_ID: health-workout-minutes-input
+                  SCROLL_DIR: down
+            # The quick-pick chip when it is on screen; the full picker
+            # otherwise. `health-workout-type-yoga` is local form state either
+            # way — the write is `health-workout-add-button`.
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'health-workout-type-yoga'
+                commands:
+                  - tapOn:
+                      id: 'health-workout-type-open-picker'
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+            - tapOn:
+                id: 'health-workout-type-yoga'
+            - tapOn:
+                id: 'health-workout-minutes-input'
+            - inputText: ${TD_VALUE}
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'LOG A WORKOUT'
+            - tapOn:
+                id: 'health-workout-note-input'
+            - inputText: ${TD_MARK}
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'LOG A WORKOUT'
+            - tapOn:
+                id: 'health-workout-add-button'
+            - extendedWaitUntil:
+                visible: '.*${TD_VALUE}m.*'
+                timeout: 30000
+            - assertVisible:
+                id: 'health-workout-row-.*'
+
+      # --- modify ---------------------------------------------------------
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'modify'}
+          commands:
+            - extendedWaitUntil:
+                visible: '.*${TD_VALUE}m.*'
+                timeout: 30000
+            - tapOn: '.*${TD_VALUE}m.*'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-workout-detail'
+                timeout: 15000
+            - tapOn:
+                id: 'health-workout-detail-edit'
+            - extendedWaitUntil:
+                visible: 'EDIT SESSION'
+                timeout: 15000
+            - tapOn:
+                id: 'health-workout-minutes-input'
+            - eraseText: 8
+            - inputText: ${TD_VALUE2}
+            - runFlow:
+                file: ../health/subflows/dismiss-health-keypad.yaml
+                env:
+                  KEYPAD_ANCHOR: 'EDIT SESSION'
+            - tapOn:
+                id: 'health-workout-add-button'
+            - extendedWaitUntil:
+                visible: '.*${TD_VALUE2}m.*'
+                timeout: 30000
+            # The edit patched the existing row rather than filing a second one.
+            - assertNotVisible: '.*${TD_VALUE}m.*'
+
+      # --- delete ---------------------------------------------------------
+      # `health-workout-detail-delete` raises a native
+      # `Delete <Workout type>?` / 'This removes the session. This cannot be
+      # undone.' alert; only its `Delete` branch fires `deleteWorkoutEntry`.
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'delete'}
+          commands:
+            - extendedWaitUntil:
+                visible: '.*${TD_VALUE2}m.*'
+                timeout: 30000
+            - tapOn: '.*${TD_VALUE2}m.*'
+            - extendedWaitUntil:
+                visible:
+                  id: 'health-workout-detail-delete'
+                timeout: 15000
+            - tapOn:
+                id: 'health-workout-detail-delete'
+            - extendedWaitUntil:
+                visible: 'This removes the session\. This cannot be undone\.'
+                timeout: 15000
+            - tapOn: '^Delete$'
+            - extendedWaitUntil:
+                notVisible: '.*${TD_VALUE2}m.*'
+                timeout: 30000
+            - assertNotVisible: '.*${TD_VALUE2}m.*'
+
+      - runFlow: td-sync-nudge.yaml
+
+# ==========================================================================
+# OBSERVE — device B
+# ==========================================================================
+- runFlow:
+    when:
+      true: ${TD_ROLE == 'observe'}
+    commands:
+      - runFlow: ../health/subflows/go-health-activity.yaml
+      - runFlow:
+          when:
+            true: ${TD_PHASE != 'delete'}
+          commands:
+            - repeat:
+                times: 20
+                commands:
+                  - runFlow:
+                      when:
+                        notVisible: '.*${TD_EXPECT}.*'
+                      commands:
+                        - runFlow: td-sync-nudge.yaml
+                        - runFlow: ../health/subflows/go-health-activity.yaml
+                        - scrollUntilVisible:
+                            element:
+                              text: '.*${TD_EXPECT}.*'
+                            direction: DOWN
+                            timeout: 8000
+                            visibilityPercentage: 10
+                            optional: true
+            - extendedWaitUntil:
+                visible: '.*${TD_EXPECT}.*'
+                timeout: 45000
+            - assertVisible: '.*${TD_EXPECT}.*'
+      - runFlow:
+          when:
+            true: ${TD_PHASE == 'delete'}
+          commands:
+            - repeat:
+                times: 20
+                commands:
+                  - runFlow:
+                      when:
+                        visible: '.*${TD_EXPECT}.*'
+                      commands:
+                        - runFlow: td-sync-nudge.yaml
+                        - runFlow: ../health/subflows/go-health-activity.yaml
+            - extendedWaitUntil:
+                notVisible: '.*${TD_EXPECT}.*'
+                timeout: 45000
+            - assertNotVisible: '.*${TD_EXPECT}.*'

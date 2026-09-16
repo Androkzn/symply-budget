@@ -1,0 +1,56 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:multi-member
+---
+# One deliberate exchange with the household relay, from wherever we are.
+#
+# WHY THIS IS A SUBFLOW AND NOT ONE TAP
+# -------------------------------------
+# Budget's mm-* flows used to tap `budget-sync-status`, the SyncStatusBanner
+# mounted on BudgetScreen; that banner was deleted 2026-08-16 and those flows now
+# force a sync with the `{scheme}://e2e-budget-sync` deep link instead, which is
+# the cleaner shape if House ever wants one. **House has no such banner** either
+# — as of this suite being authored
+# there is no local-first UI in House at all (plan §5.1: the invite/enrolment
+# screen lands with H3). So the two controls this flow reaches for are a
+# CONTRACT the H3 UI must satisfy, injected by the runner as
+# ${LF_SYNC_STATUS} / ${LF_SYNC_NOW}; see the selector-contract table in
+# scripts/e2e/run-house-multi-member-sync.sh and in
+# documents/engineering/testing/HOUSE_MULTI_MEMBER_SYNC_E2E.md.
+#
+# Both taps are OPTIONAL, and the flow never asserts. That is on purpose:
+#   * if H3 ships the banner, this is one real member-initiated sync;
+#   * if H3 ships only the settings button, the second branch catches it;
+#   * if neither is on the current screen, the engine's own poll still runs and
+#     the CALLER's poll loop simply takes another lap.
+# A hard assertion here would convert "this screen has no sync control" into a
+# failure attributed to whatever phase happened to be running.
+- runFlow:
+    when:
+      visible:
+        id: '${LF_SYNC_STATUS}'
+    commands:
+      - tapOn:
+          id: '${LF_SYNC_STATUS}'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 6000
+- runFlow:
+    when:
+      notVisible:
+        id: '${LF_SYNC_STATUS}'
+    commands:
+      - tapOn:
+          id: '${LF_SYNC_NOW}'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 6000
+# Unconditional: Maestro cannot see a native alert (iOS renders it in its own
+# window), so gating the dismissal on `visible: 'OK'` skips it and the alert
+# then swallows every later step. An optional tap is a no-op when absent.
+- tapOn:
+    text: '^OK$'
+    optional: true
+- runFlow: mm-dismiss-dev-chrome.yaml

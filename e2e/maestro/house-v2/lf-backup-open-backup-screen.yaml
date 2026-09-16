@@ -1,0 +1,29 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Settings → Backup & export. NAVIGATION ONLY.
+#
+# Deliberately does NOT launch and does NOT tag the matrix row: the caller runs
+# launch-logged-in and e2e-matrix-before FIRST, so the ring buffers are clean
+# before this screen does any of its work. A helper that launched would hide
+# that ordering from the flow that depends on it.
+#
+# `settings-row-house-backup` renders only under `isHouseBrand() &&
+# isHouseLocalFirst()` (SettingsScreen.tsx). On a build with the ledger off the
+# scroll below runs out of budget and the caller fails with "element not found"
+# — which is the honest signal for "this flow's precondition is not met",
+# rather than a green run that asserted nothing.
+- runFlow: ../subflows/open-profile.yaml
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-house-backup'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: 'settings-row-house-backup'
+- extendedWaitUntil:
+    visible:
+      id: 'house-backup-screen'
+    timeout: 30000

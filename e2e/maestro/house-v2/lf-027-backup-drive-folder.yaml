@@ -1,0 +1,148 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-027 — Google Drive backup folder + account controls
+#
+# Drives everything around the Drive integration that does NOT need a live
+# Google session, so this runs unattended:
+#
+#   - the GOOGLE DRIVE group exists, names the folder backups go to, and says
+#     that choosing one is all that is needed
+#   - the account row reports who is signed in (or that nobody is)
+#   - the folder browser opens, and when there is no usable grant it offers a
+#     RECONNECT rather than an empty list — the distinction that otherwise sends
+#     people round a retry loop that cannot work
+#
+# What it deliberately does not do is complete OAuth: Maestro cannot drive
+# Google's consent screen. With an account already connected on the device the
+# same flow still passes — the browser then shows folders instead of the
+# reconnect prompt, which is why the two states are asserted as alternatives via
+# `runFlow.when` rather than one being hardcoded.
+#
+# ISOLATION: readonly. It opens the browser and backs out without choosing, so
+# no schedule is armed and no folder pointer is written.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-027
+- runFlow: lf-backup-open-backup-screen.yaml
+# Maestro has no `finally`, so a previous flow that failed mid-way can leave the
+# schedule armed and the screen longer than this one expects. Cleanup is a
+# precondition here, not a postcondition — see lf-backup-reset-state.yaml.
+- runFlow: lf-backup-reset-state.yaml
+
+# --- The Drive group names the folder, before anything is connected -----------
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-drive-folder-row'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- assertVisible:
+    text: 'GOOGLE DRIVE'
+# `Backup folder` is not a standalone label to match — the row is ONE
+# accessibility element.
+#
+# `house-backup-drive-folder-row` carries
+# `accessibilityRole="button"` and
+# `accessibilityLabel="Backup folder: <name>. Choose a different folder"`, which
+# collapses its children into a single node: the inner `Typography` reading
+# "Backup folder" is never exposed on its own. Maestro matches `text:` against
+# the WHOLE string, which is why this file's sibling assertions already spell
+# out wildcards (`'Saved on this device[\s\S]*'` in lf-021). A bare
+# `'Backup folder'` therefore matches nothing, even though the row is on screen
+# and its testID resolves.
+- assertVisible:
+    text: 'Backup folder[\s\S]*'
+# There is a folder to promise even before the first upload creates it — the row
+# is a statement about where backups go, and that is already true.
+- assertVisible:
+    id: 'house-backup-drive-folder-value'
+# The whole "you do not need to do anything else" claim, stated up front rather
+# than sprung on the member after the tap. Choosing a folder ARMS the schedule,
+# and a state change that large must not arrive as a surprise.
+- assertVisible:
+    text: 'Pick a folder and backups start going there.*|Backups go here on their own.*'
+
+# --- The account row answers "which account?" ---------------------------------
+- assertVisible:
+    id: 'house-backup-drive-account-row'
+- assertVisible:
+    text: 'Google account'
+
+# --- The folder browser opens -------------------------------------------------
+- tapOn:
+    id: 'house-backup-drive-folder-row'
+- extendedWaitUntil:
+    visible:
+      id: 'house-folder-picker'
+    timeout: 20000
+# The trail is the navigation, so the root crumb is always there.
+- assertVisible:
+    id: 'house-folder-crumb-0'
+
+# Either state is correct, and which one depends on whether a Google account was
+# connected on this device before the run:
+#   signed out  → an explanation plus a RECONNECT button (never a bare retry,
+#                 which would just reproduce the same failure)
+#   signed in   → the browser proper, with "New folder" and "Save backups here"
+- runFlow:
+    when:
+      visible:
+        id: 'house-folder-picker-error'
+    commands:
+      - assertVisible:
+          id: 'house-folder-picker-retry'
+      - assertVisible:
+          text: 'Connect Google Drive to choose a folder.|.*needs permission to save into your own folders.*|.*[Rr]econnect.*'
+- runFlow:
+    when:
+      notVisible:
+        id: 'house-folder-picker-error'
+    commands:
+      - extendedWaitUntil:
+          notVisible:
+            id: 'house-folder-picker-loading'
+          timeout: 30000
+      - assertVisible:
+          id: 'house-folder-new'
+      - assertVisible:
+          id: 'house-folder-use-here'
+
+# Escapable without choosing anything — a picker that can only be answered is a
+# trap, and this one changes where every future backup of this home goes.
+- tapOn:
+    id: 'house-folder-picker-cancel'
+- extendedWaitUntil:
+    notVisible:
+      id: 'house-folder-picker'
+    timeout: 10000
+
+# --- Nothing was changed by looking ------------------------------------------
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-drive-folder-row'
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- assertVisible:
+    id: 'house-backup-drive-folder-value'
+# In particular the schedule was NOT armed — that is what a pick would have done.
+- scrollUntilVisible:
+    element:
+      id: 'house-backup-auto-toggle'
+    direction: UP
+    centerElement: true
+    timeout: 15000
+- assertNotVisible:
+    id: 'house-backup-auto-destination-row'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

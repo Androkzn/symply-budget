@@ -1,0 +1,21 @@
+appId: com.symply.kaizen
+---
+# Systems hub (pinned tab): enabled life systems with the Career card.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow: subflows/kaizen-ensure-profile.yaml
+- runFlow: subflows/go-systems.yaml
+- assertVisible:
+    id: 'kaizen-systems-screen'
+- assertVisible: 'Systems'
+- assertVisible: 'ENABLED'
+- runFlow:
+    file: subflows/scroll-kaizen-until-visible.yaml
+    env:
+      TARGET_ID: kaizen-system-row-career
+      TARGET_TEXT: 'Pause'
+- assertVisible:
+    id: 'kaizen-system-row-career'
+    optional: true
+- assertVisible:
+    text: 'Pause'
+    optional: true

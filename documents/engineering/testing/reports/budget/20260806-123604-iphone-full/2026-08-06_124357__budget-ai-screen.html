@@ -1,0 +1,502 @@
+<!doctype html>
+<html><head><meta charset="utf-8" /><title>2026-08-06_124357__budget-ai-screen — E2E report</title>
+<style>
+:root { color-scheme: light dark; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 0; background: #f6f8fa; color: #1f2328; }
+@media (prefers-color-scheme: dark) { body { background: #0d1117; color: #e6edf3; } .step { background: #161b22 !important; border-color: #30363d !important; } .step-head { border-color: #30363d !important; } .events { background: #0d1117 !important; } header { background: #161b22 !important; border-color: #30363d !important; } table.summary td, table.summary th { border-color: #30363d !important; } .warned-note.benign { background: #21262d !important; border-color: #30363d !important; color: #8b949e !important; } .warned-note.noteworthy { background: #3a3216 !important; border-color: #6b5c1e !important; color: #e6edf3 !important; } .warned-note code { background: rgba(255,255,255,0.12) !important; } }
+header { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #d0d7de; padding: 16px 24px; z-index: 10; }
+h1 { font-size: 18px; margin: 0 0 4px; }
+.meta { font-size: 13px; color: #57606a; }
+main { max-width: 900px; margin: 0 auto; padding: 20px 24px 80px; }
+.step { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+.step.failed { border-color: #ffb0a8; }
+.step.warned { border-color: #f0d878; }
+.step-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #eaeef2; font-size: 13px; }
+.seq { color: #8b949e; font-variant-numeric: tabular-nums; }
+.label { font-weight: 600; flex: 1; }
+.dur { font-size: 11px; }
+.badge { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px; }
+.step-body { display: flex; gap: 12px; padding: 10px 12px; align-items: flex-start; }
+.shot { width: 90px; border-radius: 6px; border: 1px solid #d0d7de; display: block; }
+.shot-link { flex-shrink: 0; }
+.step-detail { flex: 1; min-width: 0; }
+.warned-note { border-radius: 6px; padding: 6px 8px; font-size: 12px; margin-bottom: 8px; line-height: 1.5; }
+.warned-note.benign { background: #f6f8fa; border: 1px solid #d0d7de; color: #57606a; }
+.warned-note.noteworthy { background: #fff8c5; border: 1px solid #f0d878; }
+.warned-note code { background: rgba(0,0,0,0.06); border-radius: 3px; padding: 1px 4px; }
+.events { background: #f6f8fa; border-radius: 6px; padding: 6px 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.ev { padding: 2px 0; word-break: break-word; }
+.ev.ok { color: #1a7f37; }
+.ev.fail { color: #b60205; font-weight: 600; }
+.ev.tag { color: #6639ba; }
+.pill { background: #eaeef2; border-radius: 4px; padding: 0 4px; font-weight: 600; }
+.tag { background: #ede4ff; color: #6639ba; border-radius: 10px; padding: 0 6px; font-size: 11px; }
+.muted { color: #8b949e; }
+.small { font-size: 12px; }
+table.summary { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+table.summary td, table.summary th { border: 1px solid #d0d7de; padding: 6px 10px; text-align: left; font-size: 13px; }
+table.summary th { background: #f6f8fa; }
+a { color: #0969da; }
+.progress-wrap { margin-top: 10px; }
+.progress-label { font-size: 12px; color: #57606a; margin-bottom: 4px; }
+.progress-bar { height: 8px; border-radius: 4px; background: #eaeef2; overflow: hidden; }
+.progress-fill { height: 100%; background: #0969da; transition: width 0.3s ease; }
+.progress-fill.done { background: #1a7f37; }
+@media (prefers-color-scheme: dark) { .progress-bar { background: #21262d !important; } }
+.progress-footer { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #d0d7de; padding: 8px 24px; z-index: 20; box-shadow: 0 -2px 8px rgba(0,0,0,0.06); }
+.progress-footer .progress-wrap { margin-top: 0; }
+body.has-progress-footer main { padding-bottom: 64px; }
+@media (prefers-color-scheme: dark) { .progress-footer { background: #161b22 !important; border-color: #30363d !important; } }
+.controls { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.controls input { flex: 1; max-width: 320px; padding: 5px 10px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 13px; background: #fff; color: inherit; }
+.controls button { padding: 5px 10px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 12px; background: #f6f8fa; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .controls input, .controls button { background: #161b22 !important; border-color: #30363d !important; color: #e6edf3; } summary { background: #161b22 !important; } details.flow-group { border-color: #30363d !important; } }
+details.flow-group { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; margin-bottom: 10px; overflow: hidden; scroll-margin-top: 90px; }
+details.flow-group.has-fail { border-color: #ffb0a8; }
+details.flow-group.has-warn:not(.has-fail) { border-color: #f0d878; }
+details.flow-group summary { list-style: none; cursor: pointer; padding: 10px 14px; display: flex; align-items: center; gap: 10px; background: #f6f8fa; user-select: none; }
+details.flow-group summary::-webkit-details-marker { display: none; }
+details.flow-group summary::before { content: '▸'; display: inline-block; transition: transform 0.15s; color: #8b949e; }
+details.flow-group[open] summary::before { transform: rotate(90deg); }
+.flow-name { font-weight: 600; flex: 1; }
+.flow-stats { font-size: 12px; color: #57606a; }
+.flow-body { padding: 12px 14px; }
+</style></head>
+<body>
+<header>
+  <h1>2026-08-06_124357__budget-ai-screen</h1>
+  <div class="meta run-info">Platform: iOS · Environment: staging · Device: Budget-iPhone</div>
+  <div class="meta">33 steps · 0 failed · 0 warned · 0 backend calls (0 failed) · 0 local writes · 0 uploads · 0 ws events · 0 verify checks (0 failed)</div>
+</header>
+<main>
+
+  <div class="step completed" id="step-4">
+    <div class="step-head">
+      <span class="seq">#4</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Launch app</span>
+      <span class="dur muted">1814ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-6">
+    <div class="step-head">
+      <span class="seq">#6</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplebudget://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8082</span>
+      <span class="dur muted">1069ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-92">
+    <div class="step-head">
+      <span class="seq">#92</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;onboarding-get-started&quot;</span>
+      <span class="dur muted">397ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-06_124357__budget-ai-screen-step-093-assertCondition-onboarding-get-started.png" target="_blank"><img class="shot" src="assets/2026-08-06_124357__budget-ai-screen-step-093-assertCondition-onboarding-get-started.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 12000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-105">
+    <div class="step-head">
+      <span class="seq">#105</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;onboarding-get-started&quot;</span>
+      <span class="dur muted">408ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-06_124357__budget-ai-screen-step-106-assertCondition-onboarding-get-started.png" target="_blank"><img class="shot" src="assets/2026-08-06_124357__budget-ai-screen-step-106-assertCondition-onboarding-get-started.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 12000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-224">
+    <div class="step-head">
+      <span class="seq">#224</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;budget-screen&quot;</span>
+      <span class="dur muted">275ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-225">
+    <div class="step-head">
+      <span class="seq">#225</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert NOT visible: id=&quot;auth-sign-in-email&quot;</span>
+      <span class="dur muted">816ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-230">
+    <div class="step-head">
+      <span class="seq">#230</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🔍 Verify NO call fired: GET /subscriptions/me</span>
+      <span class="dur muted">360ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-234">
+    <div class="step-head">
+      <span class="seq">#234</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;e2e-verify-badge&quot;</span>
+      <span class="dur muted">154ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-239">
+    <div class="step-head">
+      <span class="seq">#239</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🔍 Verify NO call fired: GET /households</span>
+      <span class="dur muted">4301ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-243">
+    <div class="step-head">
+      <span class="seq">#243</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;e2e-verify-badge&quot;</span>
+      <span class="dur muted">286ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-248">
+    <div class="step-head">
+      <span class="seq">#248</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🔍 Verify NO call fired: GET /ai-access</span>
+      <span class="dur muted">323ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-252">
+    <div class="step-head">
+      <span class="seq">#252</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;e2e-verify-badge&quot;</span>
+      <span class="dur muted">165ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-258">
+    <div class="step-head">
+      <span class="seq">#258</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🔍 Verify NO call fired: GET /chat-rooms</span>
+      <span class="dur muted">327ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-261">
+    <div class="step-head">
+      <span class="seq">#261</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;e2e-verify-badge&quot;</span>
+      <span class="dur muted">294ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-295">
+    <div class="step-head">
+      <span class="seq">#295</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;tab-index&quot;</span>
+      <span class="dur muted">1090ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-298">
+    <div class="step-head">
+      <span class="seq">#298</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;budget-screen&quot;</span>
+      <span class="dur muted">276ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-301">
+    <div class="step-head">
+      <span class="seq">#301</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplebudget:///planning</span>
+      <span class="dur muted">323ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-343">
+    <div class="step-head">
+      <span class="seq">#343</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;tab-planning&quot;</span>
+      <span class="dur muted">943ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-345">
+    <div class="step-head">
+      <span class="seq">#345</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Assert visible: id=&quot;budget-planned-spendings-loading&quot;</span>
+      <span class="dur muted">10384ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-06_124357__budget-ai-screen-step-346-assertCondition-budget-planned-spendings.png" target="_blank"><img class="shot" src="assets/2026-08-06_124357__budget-ai-screen-step-346-assertCondition-budget-planned-spendings.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within 10000ms, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-346">
+    <div class="step-head">
+      <span class="seq">#346</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert NOT visible: id=&quot;budget-planned-spendings-loading&quot;</span>
+      <span class="dur muted">693ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-347">
+    <div class="step-head">
+      <span class="seq">#347</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;budget-planned-spendings&quot;</span>
+      <span class="dur muted">143ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-349">
+    <div class="step-head">
+      <span class="seq">#349</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;budget-add-with-ai&quot;</span>
+      <span class="dur muted">923ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-351">
+    <div class="step-head">
+      <span class="seq">#351</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;budget-item-ai&quot;</span>
+      <span class="dur muted">131ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-352">
+    <div class="step-head">
+      <span class="seq">#352</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: text=&quot;Add with AI&quot;</span>
+      <span class="dur muted">132ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-353">
+    <div class="step-head">
+      <span class="seq">#353</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;budget-item-ai-input&quot;</span>
+      <span class="dur muted">136ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-354">
+    <div class="step-head">
+      <span class="seq">#354</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;budget-item-ai-generate&quot;</span>
+      <span class="dur muted">137ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-355">
+    <div class="step-head">
+      <span class="seq">#355</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;budget-item-ai-gallery&quot;</span>
+      <span class="dur muted">133ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-356">
+    <div class="step-head">
+      <span class="seq">#356</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;budget-item-ai-file&quot;</span>
+      <span class="dur muted">132ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-357">
+    <div class="step-head">
+      <span class="seq">#357</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;budget-item-ai-drive&quot;</span>
+      <span class="dur muted">130ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-358">
+    <div class="step-head">
+      <span class="seq">#358</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;budget-item-ai-input&quot;</span>
+      <span class="dur muted">911ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-359">
+    <div class="step-head">
+      <span class="seq">#359</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Type: &quot;Netflix subscription $16 monthly&quot;</span>
+      <span class="dur muted">2144ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-363">
+    <div class="step-head">
+      <span class="seq">#363</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;nav-back-button&quot;</span>
+      <span class="dur muted">1631ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-364">
+    <div class="step-head">
+      <span class="seq">#364</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;budget-planned-spendings&quot;</span>
+      <span class="dur muted">141ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No backend activity in this step's window.</div></div>
+    </div>
+  </div>
+</main>
+</body></html>

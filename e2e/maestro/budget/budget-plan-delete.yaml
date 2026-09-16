@@ -1,0 +1,168 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:plan
+  - mutation
+  - regression
+# Matrix: BUDGET-PLAN-009 — swipe delete planned item + confirm
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-PLAN-009
+- runFlow: ../subflows/budget-go-planning.yaml
+# Create a disposable planned item to delete.
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-planned'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: 'E2E Delete Planned'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: '25'
+- hideKeyboard:
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-form-save-header'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: 'budget-item-form-save-header'
+# Android: the Expo dev-client menu has been observed popping open right
+# around this save tap (cause not fully pinned down — possibly overlapping
+# with the dev-client's own floating tools trigger), covering the
+# confirmation text below. Clear it before asserting.
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible: '.*E2E Delete Planned.*'
+    timeout: 30000
+# Planned rows have 4 swipe actions (~288px); Maestro on iOS-26 RN New-Arch can't
+# swipe far enough to reveal the 4th (delete) action — a known Maestro/iOS-26
+# limitation, not an app bug. Delete via selection mode instead — same outcome,
+# robust, and independent of the swipe travel distance.
+#
+# DATA_POLLUTION: the shared test account carries "E2E Delete Planned" rows from
+# ~50 prior runs. A single selection-mode delete removes only ONE, so the final
+# notVisible assert fails on the leftovers. Drain them all with an idempotent
+# delete-ALL loop: while any "E2E Delete Planned" row is visible, enter select
+# mode, tap the top matching row, batch-delete, confirm, and let the list reload
+# — until none remain. performBatchDelete auto-exits selection mode + reloads, so
+# each pass starts clean; the while-guard exits when no E2E rows remain so the
+# reports the real failure.
+# Clear right before the drain loop (not up at budget-e2e-matrix-before, which
+# runs before the throwaway item's own create POST) so the buffer holds only
+# this loop's DELETE calls.
+- runFlow:
+    file: ../subflows/e2e-clear-log.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+- repeat:
+    times: 50
+    commands:
+      - runFlow:
+          when:
+            visible: '.*E2E Delete Planned.*'
+          commands:
+            - tapOn:
+                id: 'budget-planned-select'
+            - extendedWaitUntil:
+                visible:
+                  id: 'budget-selection-toolbar'
+                timeout: 10000
+            # TOCTOU guard (same pattern as budget-planned-select.yaml's drain
+            # loop): the outer `when: visible` gate above can pass and the row
+            # still be gone/off-screen by the time this tap runs — a list
+            # re-render, a previous pass's delete landing late, or (reproduced
+            # 2026-08-05) another flow's own leftover seeded rows ("E2E Sel
+            # Copy" from budget-planned-select, sharing this same account/month
+            # when ITS drain loop didn't finish) pushing this row out of the
+            # immediately-tappable viewport. Make the tap optional and only
+            # drive the delete when a row actually got selected; otherwise
+            # cancel back out so the next pass starts clean instead of
+            # stalling 17s on a tap that was never going to land.
+            - tapOn:
+                text: '.*E2E Delete Planned.*'
+                optional: true
+            - extendedWaitUntil:
+                visible: '.*1 selected.*'
+                timeout: 8000
+                optional: true
+            - runFlow:
+                when:
+                  visible: '.*1 selected.*'
+                commands:
+                  - tapOn:
+                      id: 'budget-batch-delete'
+                  - tapOn:
+                      text: 'Delete'
+                  - extendedWaitUntil:
+                      notVisible:
+                        id: 'budget-selection-toolbar'
+                      timeout: 15000
+                  - waitForAnimationToEnd:
+                      timeout: 4000
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-selection-toolbar'
+                commands:
+                  - tapOn:
+                      id: 'budget-selection-cancel'
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 1000
+- extendedWaitUntil:
+    notVisible: '.*E2E Delete Planned.*'
+    timeout: 20000
+
+# The notVisible assert above proves the UI side; this proves the row actually
+# left the STORE, not just the screen.
+#
+# This used to assert `DELETE /budget/items/ → 204` over the network. Budget is
+# local-first by default for the symply-budget brand
+# (`isBudgetLocalFirst()` — see src/features/budget/local/flag.ts), so
+# `budgetApi.deleteItem` is routed to the on-device ledger and NO HTTP request
+# is made at all: `DELETE /budget/items` appears zero times in a full suite's
+# Metro log. The old assertion could therefore only ever fail, and it did —
+# masking that create and delete themselves were fine (2026-08-22: the run that
+# failed here wrote `UPSERT budget_sqlite rows=1 tables=items` and then
+# `DELETE budget_sqlite rows=1 tables=items`, exactly as intended).
+#
+# `budget_sqlite` is the store the engine records into the persist buffer on
+# every op (`recordBudgetLocalWrite` in local/engine.ts), which is the
+# local-first equivalent of the network ring buffer.
+- runFlow:
+    file: ../subflows/e2e-verify-persist.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_STORE: budget_sqlite
+      E2E_VERIFY_OPERATION: delete
+      E2E_VERIFY_DETAIL_INCLUDES: items
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

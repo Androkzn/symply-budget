@@ -1,0 +1,57 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:onboarding
+  - readonly
+  - regression
+# Matrix: HOUSE-onboarding (see documents/engineering/testing/matrices/)
+#
+# GarbageSetup is the step whose SUCCESSOR moved.
+#
+# It used to hand on to FloorPlan unconditionally. FloorPlan needs a model to be
+# worth anything (it reads the drawing), so it is now part of the flow only when
+# the member has AI access — and without it GarbageSetup is the LAST step and
+# finishes onboarding itself (`src/screens/onboarding/GarbageSetupScreen.tsx`,
+# `advance()`). The fleet E2E account has no entitlement, so the expected
+# outcome here is Home, not the floor plan; both are asserted so the flow stays
+# honest on an entitled account too.
+---
+- runFlow: ../subflows/launch-onboarding.yaml
+- runFlow: ../subflows/skip-onboarding-if-onboarded.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-get-started'
+    commands:
+      # Walk far enough in to be standing on the garbage screen. Every earlier
+      # step is guarded, so this is safe from wherever the launch subflow left
+      # off.
+      - runFlow:
+          when:
+            visible:
+              id: 'onboarding-ai-provider-skip'
+          commands:
+            - tapOn:
+                id: 'onboarding-ai-provider-skip'
+      - runFlow:
+          when:
+            visible: 'Set Up Garbage Collection'
+          commands:
+            # Garbage screen shows weekday labels; assert one then skip forward.
+            - runFlow:
+                when:
+                  visible: 'Monday'
+                commands:
+                  - tapOn: 'Monday'
+            - tapOn: 'Skip for Now'
+            # → FloorPlan when AI is on, → Home when it is not. Waiting on Home
+            # first would fail the entitled path, so the branch is explicit.
+            - runFlow:
+                when:
+                  visible: 'Skip & Finish Setup'
+                commands:
+                  - tapOn: 'Skip & Finish Setup'
+            - extendedWaitUntil:
+                visible:
+                  id: 'home-up-next-section'
+                timeout: 90000

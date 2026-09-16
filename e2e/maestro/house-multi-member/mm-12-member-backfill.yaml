@@ -1,0 +1,57 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - feature:multi-member
+  - feature:enrolment
+# Matrix: HOUSE-MM-012 — a brand-new member receives the home that existed
+# BEFORE it was invited, without anyone asking it to.
+#
+# The suite already proves the home KEY arrives (mm-05) and that a task written
+# AFTER the join reaches the peer (mm-20). Neither covers what a joiner actually
+# cares about: the home that was already there. That history does not travel as
+# ops — H10 measured a full House catch-up at 452 ops per deposit, so a ten-year
+# log is 98 round trips and the log is compacted behind a checkpoint anyway — it
+# travels as a CHECKPOINT, installed by `tryInstallLatestCheckpoint('bootstrap')`
+# when the orchestrator sees an empty version vector.
+#
+# NO MANUAL SYNC ANYWHERE IN THIS FLOW. That absence is the assertion.
+# mm-20 pumps `mm-sync-pulse` until the peer's row shows up, which is right for
+# its question ("do ops merge?") and wrong for this one: a tap on "Sync now"
+# would prove the data can be FETCHED, not that joining fetches it. So this flow
+# only ever WAITS — if the row appears, the device went and got it by itself.
+#
+# env: MM_TITLE — the task the owner recorded BEFORE minting the invite (mm-13).
+---
+- runFlow: mm-dismiss-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and swallows
+# every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: mm-leave-task-form.yaml
+- runFlow: mm-go-tasks.yaml
+# Generous, because this waits on the background sync cadence rather than
+# driving it: enrolment completes, the next ordinary sync run finds an empty
+# version vector, and only then does the bootstrap fetch and install. Three
+# minutes is slack for that whole chain, not an expectation that it is slow.
+#
+# Re-entering the tab between polls is the one navigation allowed here: the
+# list renders from the ledger, and a screen that mounted before the install
+# has nothing to repaint from. It drives no sync.
+- repeat:
+    times: 12
+    commands:
+      - runFlow:
+          when:
+            notVisible: '.*${MM_TITLE}.*'
+          commands:
+            - waitForAnimationToEnd:
+                timeout: 10000
+            - runFlow: mm-dismiss-stale-alerts.yaml
+            - runFlow: mm-relaunch-if-backgrounded.yaml
+            - runFlow: mm-go-tasks.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 60000
+# The owner's task — written before this device existed in the home, and never
+# pulled by hand — is here.
+- assertVisible: '.*${MM_TITLE}.*'

@@ -1,0 +1,13 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:multi-member
+---
+# Block outbound HTTP in __DEV__ (airplane mode is a no-op on the iOS sim).
+# Handler: src/services/e2e-test-deeplinks.ts — `{scheme}://e2e-block-network`,
+# brand-agnostic, so the House scheme reaches the same switch Budget uses.
+- openLink: ${E2E_APP_SCHEME}://e2e-block-network
+- runFlow: mm-dismiss-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 1500

@@ -1,0 +1,67 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:dashboard
+  - readonly
+  - regression
+# Matrix: BUDGET-DASH-007, BUDGET-DASH-008
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'budget-dashboard-loading'
+    commands:
+      - extendedWaitUntil:
+          notVisible:
+            id: 'budget-dashboard-loading'
+          timeout: 30000
+- assertVisible:
+    id: 'budget-dashboard'
+- runFlow:
+    when:
+      visible:
+        id: 'budget-encouragement-banner'
+    commands:
+      - assertVisible:
+          id: 'budget-encouragement-banner'
+# Cashflow trend card's Savings / Spending / Monthly tabs — the SAME shared
+# SavingsTrendChart the Savings screen's Overview tab renders. Only present
+# when the savings feature is active (onOpenGoals wired + not minimal budget);
+# best-effort since a minimal-budget brand falls back to a plain, tab-less
+# spending chart instead.
+- extendedWaitUntil:
+    visible:
+      id: 'filter-tab-chart-savings'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'filter-tab-chart-savings'
+    commands:
+      - tapOn:
+          id: 'filter-tab-chart-spending'
+      - assertVisible:
+          id: 'budget-dashboard'
+      - tapOn:
+          id: 'filter-tab-chart-monthly'
+      - assertVisible:
+          id: 'budget-dashboard'
+      - tapOn:
+          id: 'filter-tab-chart-savings'
+      - assertVisible:
+          id: 'budget-dashboard'
+# "Spending by category" card renders unconditionally but sits ~6 cards down the
+# dashboard ScrollView (below savings-trend/stacked-bar/mortgage cards added later)
+# — scroll it into view before asserting.
+- scrollUntilVisible:
+    element:
+      id: 'budget-category-spending'
+    direction: DOWN
+    visibilityPercentage: 10
+    waitToSettleTimeoutMs: 800
+    timeout: 20000
+- assertVisible:
+    id: 'budget-category-spending'

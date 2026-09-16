@@ -1,0 +1,9 @@
+appId: com.symply.kaizen
+tags:
+  - util
+  - app:kaizen
+---
+# Force Expo Dev Client to load JS from Kaizen Metro (:8081).
+- openLink: ${E2E_METRO_DEVCLIENT_URL}
+- waitForAnimationToEnd:
+    timeout: 15000

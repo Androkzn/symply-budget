@@ -1,0 +1,169 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: BUDGET-LF-012 — Backup destinations + inline archive list
+#
+# "Back up now" opens an in-app sheet rather than going straight to the iOS
+# share sheet, so the whole save path is drivable from Maestro.
+#
+# Drives the one destination needing no OS UI and no network — "This device",
+# which writes the sealed archive into app Documents/budget-backups/. Google
+# Drive (OAuth consent) and Files/Share (native share sheet) stay assertion-only:
+# Maestro cannot dismiss either.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-012
+# SYNC & SHARING lives on Profile now, not on Budget Settings.
+- runFlow: ../subflows/budget-open-profile.yaml
+- scrollUntilVisible:
+    element:
+      id: 'budget-settings-backup-link'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'budget-settings-backup-link'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-screen'
+    timeout: 15000
+
+# --- The phrase exists BEFORE the first backup --------------------------------
+# One phrase now seals every archive this device writes, minted on first use.
+# Whether that has already happened depends on what ran before this flow, so the
+# phrase is claimed here explicitly — the row mints on demand — and everything
+# below can then assert the reuse behaviour without depending on run order.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-show-phrase'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'budget-backup-show-phrase'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-recovery-phrase-words'
+    timeout: 30000
+- assertVisible:
+    id: 'budget-recovery-phrase-word-1'
+- assertVisible:
+    id: 'budget-recovery-phrase-word-12'
+# The sheet offers Device/Share (plus Drive where the brand ships credentials),
+# NOT the Copy / Save-as-.txt pair — that row renders only for an app whose
+# descriptor declares no destinations, and Budget's declares three. This
+# asserted `-copy` and `-save-file` until 2026-09-02: two testIDs Budget can
+# never render, so the check could only ever fail once it was reached.
+- assertVisible:
+    id: 'budget-recovery-phrase-save-device'
+- assertVisible:
+    id: 'budget-recovery-phrase-share'
+- tapOn:
+    id: 'budget-recovery-phrase-done'
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-recovery-phrase-sheet'
+    timeout: 10000
+
+# --- Destination sheet --------------------------------------------------------
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-now'
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: 'budget-backup-now'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-destination-sheet'
+    timeout: 10000
+- assertVisible:
+    id: 'budget-backup-to-drive'
+- assertVisible:
+    id: 'budget-backup-to-files'
+- assertVisible:
+    id: 'budget-backup-to-device'
+- assertVisible:
+    id: 'budget-backup-to-share'
+# The "which one should I pick?" explainer ships with the choices — the
+# survives-losing-the-phone distinction is the whole point of the sheet.
+- assertVisible:
+    id: 'budget-backup-destination-sheet-notes'
+# Cancel first: the sheet must be escapable without creating anything.
+- tapOn:
+    id: 'budget-backup-destination-sheet-cancel'
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-backup-destination-sheet'
+    timeout: 8000
+
+# --- Save to this device (real archive, no OS UI) -----------------------------
+- tapOn:
+    id: 'budget-backup-now'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-to-device'
+    timeout: 10000
+- tapOn:
+    id: 'budget-backup-to-device'
+# Argon2 seals the archive on-device — slow on a loaded simulator, which is why
+# the progress card is the completion signal rather than a fixed wait.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-backup-progress'
+    timeout: 30000
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-backup-progress'
+    timeout: 180000
+- waitForAnimationToEnd:
+    timeout: 3000
+# The regression this guards: a backup sealed under the phrase the device
+# already has must NOT interrupt with it again. Every save used to mint fresh
+# words and demand they be written down, leaving the member with a pile of
+# phrases and no way to tell which opened which file.
+- assertNotVisible:
+    id: 'budget-recovery-phrase-sheet'
+
+# --- The archive is listed inline, not behind two more sheets ------------------
+# Waited for, not asserted point-in-time: the list re-reads the folder
+# asynchronously AFTER the run reports `ok`, so the empty state can still be on
+# screen at the instant the progress card disappears.
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-backup-empty'
+    timeout: 60000
+# Restoring from another location is a plain row, no nested picker to discover.
+#
+# Scrolled to rather than asserted where the screen happens to sit. This ran
+# straight into an assertVisible until 2026-09-02, which only ever worked
+# because dismissing the phrase sheet left the list at the right offset — a
+# coincidence, and one that died the moment the sheet stopped opening on every
+# backup. Presence of the row is what this cares about, not its scroll position.
+- scrollUntilVisible:
+    element:
+      id: 'budget-backup-restore-drive'
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: 'budget-backup-restore-files'
+
+# One back, not two: this screen was pushed onto the BUDGET stack by the deep
+# link the Profile row opens, so back lands on the budget root directly —
+# Settings is no longer between them.
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

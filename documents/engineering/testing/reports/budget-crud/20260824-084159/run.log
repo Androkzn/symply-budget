@@ -1,0 +1,24 @@
+
+=== budget-savings-overview ===
+Monitoring boot status for Budget-B (B5467863-D0C4-4420-9B73-F46636F2E0BC).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-B (B5467863-D0C4-4420-9B73-F46636F2E0BC) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-B (B5467863-D0C4-4420-9B73-F46636F2E0BC)
+
+Waiting for flows to complete...
+[Passed] budget-savings-overview (3m 49s)
+
+1/1 Flow Passed in 3m 49s
+
+Monitoring boot status for Budget-B (B5467863-D0C4-4420-9B73-F46636F2E0BC).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-B (B5467863-D0C4-4420-9B73-F46636F2E0BC) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-B (B5467863-D0C4-4420-9B73-F46636F2E0BC)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (1m 4s)
+
+1/1 Flow Passed in 1m 4s
+

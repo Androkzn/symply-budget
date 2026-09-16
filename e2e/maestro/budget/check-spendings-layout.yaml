@@ -1,0 +1,30 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:spend
+  - readonly
+  - regression
+  - smoke
+# Matrix: BUDGET-spend (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-go-spending.yaml
+# The add actions moved off the list and into the header "+" sheet, so the
+# layout this flow guards is now the sheet's: Add Manually + Scan Receipt +
+# Add with AI, all reachable without scrolling.
+- assertVisible:
+    id: 'budget-add-menu'
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- assertVisible:
+    id: 'budget-add-spent'
+- assertVisible:
+    id: 'budget-scan-receipt'
+- assertVisible:
+    id: 'budget-add-with-ai'
+- tapOn:
+    id: 'budget-add-actions-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-add-actions-sheet'
+    timeout: 10000

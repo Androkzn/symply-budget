@@ -1,0 +1,14 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - smoke
+  - regression
+# Matrix: HOUSE-SMOKE-016
+---
+# Cold launch while logged out lands on Login (no household calls before auth).
+- runFlow: ../subflows/launch-logged-out.yaml
+- assertVisible:
+    id: 'auth-sign-in-email'
+- assertNotVisible:
+    id: 'home-up-next-section'

@@ -1,0 +1,287 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:spend
+  - feature:local-first
+  - mutation
+  - regression
+# Matrix: BUDGET-BULK-001…005 (see documents/engineering/testing/matrices/budget.md)
+#
+# A stock-up is one spending spread over the months it will last. This flow
+# records one, checks the purchase month counts only its share, walks forward to
+# a month that holds a reserved share, and opens the purchase from there.
+#
+# Title carries a unique stamp so the row can be found among earlier runs' rows
+# (mutation flows leave their data; the shared E2E household accumulates).
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+
+# --- Prerequisite: a household this device can write to ----------------------
+# A freshly installed device ADOPTS the account's households and then waits for
+# a peer device to approve it (BudgetEnrolmentBanner: "Waiting for a household
+# device"). Nothing can be recorded in that state — the Spending tab never
+# renders — so mint a local household to test against, exactly as the household
+# flows do, and switch to it when it already exists. Guarded on the banner, so a
+# healthy device with a real ledger is left untouched.
+- runFlow:
+    when:
+      visible:
+        id: 'budget-enrolment-banner'
+    commands:
+      - runFlow: ../subflows/budget-go-households.yaml
+      - runFlow:
+          when:
+            notVisible: '.*E2E Bulk Household.*'
+          commands:
+            - tapOn:
+                id: 'fab-add-household'
+                retryTapIfNoChange: true
+            - extendedWaitUntil:
+                visible:
+                  id: 'household-name-input'
+                timeout: 20000
+            - tapOn:
+                id: 'household-name-input'
+            - inputText: 'E2E Bulk Household'
+            - runFlow:
+                when:
+                  notVisible: '.*E2E Bulk Household.*'
+                commands:
+                  - tapOn:
+                      id: 'household-name-input'
+                  - eraseText: 30
+                  - inputText: 'E2E Bulk Household'
+            - tapOn:
+                id: 'household-save-btn'
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'household-name-input'
+                timeout: 30000
+            - extendedWaitUntil:
+                visible: '.*E2E Bulk Household.*'
+                timeout: 30000
+      # Already minted on an earlier run but not active: its card carries the
+      # Switch pill (only non-active cards do). Tap the pill INSIDE that card.
+      - runFlow:
+          when:
+            visible: '.*E2E Bulk Household.*Switch'
+          commands:
+            - tapOn:
+                id: 'household-switch-.*'
+                childOf:
+                  text: '.*E2E Bulk Household.*'
+            - waitForAnimationToEnd:
+                timeout: 3000
+      - openLink: simplebudget:///
+      - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+      - runFlow: ../subflows/go-budget-tab.yaml
+      - extendedWaitUntil:
+          notVisible:
+            id: 'budget-enrolment-banner'
+          timeout: 30000
+
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-BULK-001
+- runFlow: ../subflows/budget-go-spending.yaml
+
+# --- BUDGET-BULK-001: the toggle estimates and previews ----------------------
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 20000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: 'E2E bulk salmon'
+- runFlow: ../subflows/budget-relaunch-if-backgrounded.yaml
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-cost-exact'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: '400'
+# Blur the cost field so onEndEditing flushes the native value into RN state
+# before the estimate reads it (New Arch + Maestro race, same as mm-06).
+- tapOn:
+    id: 'budget-item-title'
+- hideKeyboard:
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-bulk-toggle'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'budget-item-bulk-toggle'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-bulk-card'
+    timeout: 15000
+# The estimate reads the ledger on the device; with no salmon history it says so
+# and proposes 3 months. Either way the sentence and the stepper are there.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-bulk-basis'
+    timeout: 15000
+- assertVisible:
+    id: 'budget-item-bulk-months'
+# The footer sits BELOW the preview list, off the bottom of the viewport as
+# soon as the card opens — `assertVisible` checks on-screen bounds, not just
+# accessibility-tree presence, so it needs a scroll first (observed failing
+# 2026-09-12: card/basis/months all visible, footer timed out unscrolled).
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-bulk-footer'
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: 'budget-item-bulk-footer'
+
+# --- BUDGET-BULK-002: the stepper drives the preview --------------------------
+# The estimate depends on this household's history (a re-run finds last run's
+# salmon and proposes its plan), so drive the stepper to a KNOWN value: down to
+# the floor of 2 (the button is disabled there and further taps do nothing),
+# then up twice → 4 months.
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-bulk-minus'
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+- repeat:
+    times: 10
+    commands:
+      - tapOn:
+          id: 'budget-item-bulk-minus'
+- assertVisible:
+    id: 'budget-item-bulk-months'
+    text: '2 months'
+- tapOn:
+    id: 'budget-item-bulk-plus'
+- waitForAnimationToEnd:
+    timeout: 1000
+- tapOn:
+    id: 'budget-item-bulk-plus'
+- waitForAnimationToEnd:
+    timeout: 1000
+# 2 + 2 = 4 months → four preview rows, no fifth.
+- assertVisible:
+    id: 'budget-item-bulk-months'
+    text: '4 months'
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-bulk-preview-3'
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: 'budget-item-bulk-preview-3'
+- assertNotVisible:
+    id: 'budget-item-bulk-preview-4'
+# Same reasoning as BUDGET-BULK-001: scrolling to the last preview row does not
+# guarantee the footer below it is on screen too.
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-bulk-footer'
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: 'budget-item-bulk-footer'
+    text: '.*counts .* of .*'
+
+# --- BUDGET-BULK-003: save counts the share in the purchase month -------------
+- tapOn:
+    id: 'budget-item-form-save-header'
+- waitForAnimationToEnd:
+    timeout: 2500
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-item-form'
+    timeout: 25000
+- extendedWaitUntil:
+    visible: '.*E2E bulk salmon.*'
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: '.*E2E bulk salmon.*'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- assertVisible:
+    id: 'budget-spent-bulk-chip'
+    text: 'Bulk · 1 of 4 · .* total'
+
+# --- BUDGET-BULK-004: later months list the reserved share ---------------------
+# The spent tab used to stop at the current month; a plan reaching forward opens
+# the way to its last month.
+- scrollUntilVisible:
+    element:
+      id: 'budget-spendings-month-next'
+    direction: UP
+    timeout: 10000
+- tapOn:
+    id: 'budget-spendings-month-next'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-spendings-loading'
+    timeout: 60000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'budget-reserved-portion'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'budget-reserved-bulk-chip'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- assertVisible:
+    id: 'budget-reserved-bulk-chip'
+    text: 'Bulk purchase · .* · 2 of 4'
+- assertVisible: 'FROM BULK PURCHASES'
+
+# --- BUDGET-BULK-005: a reserved share opens its purchase ---------------------
+- tapOn:
+    id: 'budget-reserved-portion'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-bulk-toggle'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- assertVisible:
+    id: 'budget-item-bulk-card'
+- assertVisible:
+    id: 'budget-item-bulk-months'
+    text: '4 months'
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 45000
+# Back to the purchase month so the next flow starts where the others expect.
+- tapOn:
+    id: 'budget-spendings-month-prev'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

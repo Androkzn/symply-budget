@@ -1,0 +1,19 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Creates a household chat room and lands inside it (chat-room-screen).
+# Assumes chat-rooms-screen is visible. Env: ROOM_NAME (required).
+- tapOn:
+    id: 'chat-rooms-new-button'
+- extendedWaitUntil:
+    visible: 'New conversation'
+    timeout: 10000
+- inputText: ${ROOM_NAME}
+- tapOn:
+    id: 'chat-rooms-create-button'
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-screen'
+    timeout: 20000

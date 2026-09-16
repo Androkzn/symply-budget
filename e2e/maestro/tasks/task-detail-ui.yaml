@@ -1,0 +1,44 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:tasks
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-tasks (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-task-detail.yaml
+- assertVisible:
+    id: 'task-detail-header'
+- assertVisible: 'Task Details'
+- assertVisible:
+    id: 'task-detail-mark-complete'
+- assertVisible:
+    id: 'task-detail-pause'
+- assertVisible:
+    id: 'task-detail-delete'
+# REACHABILITY FIXED: the scroll contract used to run at the very END of this flow,
+# after task-detail-close + nav-back + go-home-tab — i.e. against the HOME screen,
+# where `task-detail-screen-scroll-end` (TaskDetailScreen.tsx:1193) can never appear.
+# assert-screen-scrolls.yaml is all-optional, so it never failed; it simply proved
+# nothing. Run it while the task-detail modal is still on screen.
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: task-detail-screen-scroll-end
+- tapOn:
+    id: 'task-detail-close'
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-up-next-section'
+    optional: true
+

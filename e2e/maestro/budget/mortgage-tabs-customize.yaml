@@ -1,0 +1,119 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:mortgage
+  - regression
+# Matrix: MORT-340 — "Customize tabs" (Mortgage settings → tab customizer).
+# Hides a tab, saves, proves the dashboard strip lost it, then resets to the
+# default strip and proves it came back. Overview is LOCKED: it has no hide
+# affordance, so the strip can never be emptied.
+#
+# SELF-CLEANING: the layout is persisted per install (mortgageStore), and the
+# shared test account is reused across flows — the final Reset is mandatory, not
+# cosmetic, or every later mortgage flow runs against a mutilated strip.
+#
+# Reordering is drag-and-drop; Maestro can't drive an RN New-Arch drag on
+# iOS 26 (see budget-e2e-ios26-harness-patterns), so this flow asserts the drag
+# handle is present and leaves the reorder itself to the jest suite
+# (MortgageTabsScreen.test.tsx "persists a drag-reordered strip").
+---
+- runFlow: ../subflows/budget-ensure-mortgage.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-view'
+    timeout: 20000
+
+# Baseline: the Schedule segment is on the strip.
+- assertVisible:
+    id: 'filter-tab-schedule'
+
+# Gear → Mortgage settings → Customize tabs.
+- tapOn:
+    id: 'budget-settings-button'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000
+- tapOn:
+    id: 'mortgage-settings-customize-tabs'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-tabs-screen'
+    timeout: 15000
+
+# Every tab is listed and draggable; Overview is required (no hide button).
+- assertVisible:
+    id: 'mortgage-tab-row-overview'
+- assertVisible:
+    id: 'mortgage-tab-drag-overview'
+- assertVisible: 'Always shown'
+- assertNotVisible:
+    id: 'mortgage-tab-hide-overview'
+- assertVisible:
+    id: 'mortgage-tab-row-schedule'
+- assertVisible:
+    id: 'mortgage-tab-drag-schedule'
+
+# Hide Schedule → it moves to the HIDDEN list.
+- tapOn:
+    id: 'mortgage-tab-hide-schedule'
+- assertVisible:
+    id: 'mortgage-tabs-hidden'
+- assertVisible:
+    id: 'mortgage-tab-show-schedule'
+- assertNotVisible:
+    id: 'mortgage-tab-row-schedule'
+
+# Save pops back to the settings hub.
+- tapOn:
+    id: 'mortgage-tabs-save'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000
+
+# Back on the dashboard the strip has lost Schedule but kept Overview.
+- back
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-view'
+    timeout: 20000
+- assertVisible:
+    id: 'filter-tab-overview'
+- assertNotVisible:
+    id: 'filter-tab-schedule'
+
+# ---- Reset (mandatory cleanup) ----
+- tapOn:
+    id: 'budget-settings-button'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000
+- tapOn:
+    id: 'mortgage-settings-customize-tabs'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-tabs-screen'
+    timeout: 15000
+- tapOn:
+    id: 'mortgage-tabs-reset'
+- tapOn: 'Reset'
+- assertVisible:
+    id: 'mortgage-tab-row-schedule'
+- assertNotVisible:
+    id: 'mortgage-tabs-hidden'
+- back
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000
+- back
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-view'
+    timeout: 20000
+- assertVisible:
+    id: 'filter-tab-schedule'

@@ -1,0 +1,11 @@
+[hmm] live report: /Users/andreitekhtelev/Desktop/Symply Ecosystem/Simply Ecosystem-house/documents/engineering/testing/reports/house-multi-member/20260905-094950-cd/index.html (opens shortly, self-refreshes)
+[hmm] === phase 1: enrolment (ordered) ===
+    PASS [A] mm-01-signin
+    PASS [B] mm-01-signin
+    PASS [A] mm-13-owner-pre-invite-task
+    PASS [A] mm-02-owner-create-invite
+[hmm] invite read off House-C's own screen (not the shared Metro log)
+[hmm] invite code=38QHDZ household='My home'
+    FAIL [B] mm-03-member-join
+[hmm] FAIL FAST — stopping the run at 'mm-03-member-join'
+[hmm] stopping after first failure — skipping cleanup (fail fast)

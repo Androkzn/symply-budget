@@ -1,0 +1,106 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+- runFlow:
+    file: dismiss-stuck-sheet.yaml
+# Budget brand (customizable-tabs model): the Home tab (tab-index) now renders the
+# full Budget Dashboard (budget-screen); there is no separate `tab-budget`. Tapping
+# Home guarantees we're on the dashboard even if a prior step navigated away.
+- runFlow: budget-dismiss-welcome-if-needed.yaml
+- runFlow: budget-recover-dashboard.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'chat-room-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2000
+- runFlow:
+    when:
+      visible:
+        id: 'chat-rooms-screen'
+    commands:
+      - openLink: simplebudget:///
+      - runFlow: budget-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-screen'
+    commands:
+      - repeat:
+          times: 4
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 1500
+      - runFlow:
+          when:
+            visible:
+              id: 'tab-index'
+          commands:
+            - tapOn:
+                id: 'tab-index'
+                retryTapIfNoChange: true
+      - runFlow:
+          when:
+            notVisible:
+              id: 'budget-screen'
+          commands:
+            - openLink: simplebudget:///
+            - runFlow: budget-dismiss-expo-dev-chrome.yaml
+            - waitForAnimationToEnd:
+                timeout: 5000
+- runFlow:
+    when:
+      visible:
+        id: 'tab-index'
+    commands:
+      - tapOn:
+          id: 'tab-index'
+          retryTapIfNoChange: true
+- runFlow:
+    when:
+      visible:
+        id: 'auth-sign-in-email'
+    commands:
+      - openLink: ${E2E_LOGIN_URL}
+      - repeat:
+          times: 4
+          commands:
+            - runFlow:
+                when:
+                  visible: 'Open'
+                commands:
+                  - tapOn: 'Open'
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+      - runFlow: budget-dismiss-expo-dev-chrome.yaml
+      - runFlow: budget-login-email-if-needed.yaml
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-screen'
+    commands:
+      - openLink: ${E2E_LOGIN_URL}
+      - runFlow: budget-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - runFlow: budget-login-email-if-needed.yaml
+      - openLink: simplebudget:///
+      - runFlow: budget-dismiss-expo-dev-chrome.yaml
+      - tapOn:
+          id: 'tab-index'
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 90000

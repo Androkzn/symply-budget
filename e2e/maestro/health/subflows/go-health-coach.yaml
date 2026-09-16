@@ -1,0 +1,33 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Switch to the Coach tab (route health-coach, label Coach, header "Coach").
+#
+# Coach ships `defaultHidden` in brands/symply-health/brand.cjs — AI is opt-in
+# for this app and the bar is capped — so it lives in the More hub's "MORE TABS"
+# section. It is near the END of the pool (after Injuries), so the DOWN probe
+# does the work on a phone.
+- runFlow: go-more.yaml
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-health-coach'
+    direction: UP
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'more-tab-health-coach'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 10
+    optional: true
+- tapOn:
+    id: 'more-tab-health-coach'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-coach-screen'
+    timeout: 30000

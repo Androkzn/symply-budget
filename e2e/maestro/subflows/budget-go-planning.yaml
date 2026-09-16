@@ -1,0 +1,72 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Navigate to the Planning section (BudgetSpendingsView variant=planned).
+#
+# Prefer the tab when the app is already foregrounded. Deep-linking
+# `simplebudget:///planning` on iOS 26 has been observed to leave Maestro on
+# SpringBoard (mm-20, 2026-08-12) even though `openLink` reported COMPLETED.
+- runFlow: budget-relaunch-if-backgrounded.yaml
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'tab-planning'
+    commands:
+      - tapOn:
+          id: 'tab-planning'
+          retryTapIfNoChange: true
+      - waitForAnimationToEnd:
+          timeout: 3000
+- runFlow:
+    when:
+      notVisible:
+        id: 'tab-planning'
+    commands:
+      - openLink: simplebudget:///planning
+      - runFlow: budget-dismiss-expo-dev-chrome.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - runFlow: budget-relaunch-if-backgrounded.yaml
+      - runFlow:
+          when:
+            visible:
+              id: 'tab-planning'
+          commands:
+            - tapOn:
+                id: 'tab-planning'
+                retryTapIfNoChange: true
+            - waitForAnimationToEnd:
+                timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-planned-spendings-loading'
+    timeout: 10000
+    optional: true
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-planned-spendings-loading'
+    timeout: 90000
+    optional: true
+- runFlow: budget-relaunch-if-backgrounded.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-planned-spendings'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'budget-planned-spendings'
+    commands:
+      - tapOn:
+          id: 'tab-planning'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 3000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-planned-spendings'
+    timeout: 60000

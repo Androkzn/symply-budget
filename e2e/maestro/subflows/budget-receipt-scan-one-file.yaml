@@ -1,0 +1,43 @@
+appId: ${APP_ID}
+tags:
+  - util
+  - app:budget
+---
+# Pick a named receipt from Files > SymplyE2E, then run Scan.
+# Required env: DOC_NAME + DOC_NAME_REGEX (see pick-document-from-files.yaml).
+# Gallery/addMedia is unreliable — seed dumps several photos and PHPicker
+# often selects savings-statement.jpg instead of the intended receipt.
+# Do NOT set E2E_VERIFY_PATH=/budget/receipts/scan (Budget-A is local-first).
+- tapOn:
+    id: 'budget-receipt-remove'
+    optional: true
+- tapOn:
+    id: 'budget-receipt-file'
+- runFlow: pick-document-from-files.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'budget-receipt-remove'
+    timeout: 20000
+- tapOn:
+    id: 'budget-receipt-scan-button'
+# Wait on the CURRENCY CARD, then scroll to the review.
+#
+# `budget-receipt-save` sits at the BOTTOM of the screen, so on any receipt with
+# real items it is below the fold — the wait either times out on a scan that
+# succeeded, or (when optional) returns before the scan has returned anything
+# and every guard downstream skips. The card renders exactly when `scan` is set,
+# including a 0-item scan so the "Nothing found" bail still works, and sits at
+# the top of the review where it is actually in the viewport.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-receipt-currency-card'
+    timeout: 90000
+- scrollUntilVisible:
+    element:
+      id: 'budget-receipt-name'
+    direction: DOWN
+    timeout: 20000
+    optional: true
+- tapOn:
+    text: 'OK'
+    optional: true

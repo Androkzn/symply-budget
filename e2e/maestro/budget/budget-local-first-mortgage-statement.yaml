@@ -1,0 +1,63 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:mortgage
+  - readonly
+  - regression
+# Matrix: BUDGET-LF-009 — Mortgage statement AI scan sources + manual path (V2)
+# Path mirrors mortgage-settings.yaml: ensure mortgage → settings → Statements → Add.
+# Does NOT upload a photo or save a statement.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-LF-009
+- runFlow: ../subflows/budget-ensure-mortgage.yaml
+- tapOn:
+    id: 'budget-settings-button'
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-settings-screen'
+    timeout: 15000
+- assertVisible: 'Statements'
+- tapOn: 'Statements'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-statements-screen'
+    timeout: 15000
+- tapOn:
+    id: 'mortgage-statements-add'
+- extendedWaitUntil:
+    visible: 'Add statement'
+    timeout: 15000
+- assertVisible:
+    id: 'mortgage-statement-camera'
+- assertVisible:
+    id: 'mortgage-statement-gallery'
+- assertVisible:
+    id: 'mortgage-statement-file'
+- assertVisible:
+    id: 'mortgage-statement-manual-toggle'
+- tapOn:
+    id: 'mortgage-statement-manual-toggle'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-statement-manual-fields'
+    timeout: 10000
+- assertVisible:
+    id: 'mortgage-statement-manual-fields'
+- tapOn:
+    id: 'nav-back-button'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-statements-screen'
+    timeout: 15000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

@@ -1,0 +1,41 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:multi-member
+---
+# Park on the Tasks list with NO filter narrowing it.
+#
+# Two things this suite cannot leave to chance:
+#
+#  1. **The Tasks tab is hidden by default** in House's tab customization, so
+#     the tab button is often absent and `simplehouse://tasks` is the reliable
+#     path. That is ../subflows/go-tasks-tab.yaml's whole job, and it is reused
+#     here rather than re-implemented.
+#  2. **A filter left on by an earlier flow hides the peer's row.** `Mine`
+#     and `Personal` are sticky chips on TaskFilterControls, and a task created
+#     by the OTHER member is by definition not "mine". A peer row that is
+#     present in the ledger but filtered off screen reads exactly like a
+#     projection bug — the failure this suite exists to detect — so the filters
+#     are cleared before every assertion about what is or is not visible.
+#     `task-filter-clear` only renders when a filter is active, hence optional.
+- runFlow: mm-leave-task-form.yaml
+# The gate outranks every route: while it is up `simplehouse://tasks` resolves
+# to nothing and go-tasks-tab burns its whole retry budget before failing on
+# `tasks-screen`. Cheap no-op when it is down; see mm-dismiss-stale-alerts.yaml.
+- runFlow: ../subflows/house-clear-address-gate.yaml
+- runFlow: ../subflows/go-tasks-tab.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'task-filter-clear'
+    commands:
+      - tapOn:
+          id: 'task-filter-clear'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+- extendedWaitUntil:
+    visible:
+      id: 'tasks-screen'
+    timeout: 30000

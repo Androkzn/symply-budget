@@ -1,0 +1,78 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-002
+---
+# WHAT THIS PROVES
+# ----------------
+# Tapping `settings-row-device-sync` actually lands on the Device sync surface:
+# `house-local-first-sync-card` with its state line and a Sync now button.
+#
+# The row navigates by NAME — `navigation.navigate('HouseDeviceSync')`
+# (SettingsScreen.tsx:801) — against a Stack.Screen registered in
+# SettingsNavigator.tsx:258. A name-based navigate to a screen that is not
+# registered does not crash and does not throw anything a member would see: it
+# is a no-op that leaves them staring at Settings wondering why the row does
+# nothing. That is why LF-001 (the row exists) and this row (the row arrives)
+# are separate: they fail for different reasons and one cannot stand in for the
+# other.
+#
+# WHY THAT MATTERS
+# ----------------
+# `settings-row-device-sync` is a CONTRACT id, not a free choice — the
+# two-device runner defaults LF_SETTINGS_ROW to exactly this string
+# (run-house-multi-member-sync.sh). So does `house-local-first-sync-card` for
+# LF_SYNC_CARD. Renaming either silently breaks the multi-member suite in a way
+# that reports as "device never synced" rather than "id changed"; this flow
+# fails first, and says so.
+#
+# ISOLATION: the precondition is explicit — lf-leave-device-sync guarantees we
+# are NOT already parked on the surface, so arriving there is caused by the tap
+# under test and not inherited from a sibling flow. Deliberately does NOT use
+# lf-open-device-sync: that helper's job is to get onto the surface by any
+# means, which is the very thing being measured here.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-002
+- runFlow: lf-leave-device-sync.yaml
+
+- runFlow: ../subflows/open-profile.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'profile-screen'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'settings-row-device-sync'
+    direction: DOWN
+    centerElement: true
+    timeout: 20000
+- tapOn:
+    id: 'settings-row-device-sync'
+    retryTapIfNoChange: true
+
+# extendedWaitUntil, not assertVisible: this follows a navigation, and the
+# enrolment gate re-reads the ledger on mount.
+- extendedWaitUntil:
+    visible:
+      id: 'house-local-first-sync-card'
+    timeout: 30000
+- assertVisible:
+    id: 'lf-sync-screen'
+# The two controls the matrix names as the card's content. `house-sync-status`
+# is NOT asserted here — it renders only after a sync run has set `note`
+# (HouseDeviceSyncScreen.tsx:106), so on a fresh mount its absence is correct.
+- assertVisible:
+    id: 'house-settings-sync-now'
+
+- runFlow: lf-leave-device-sync.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

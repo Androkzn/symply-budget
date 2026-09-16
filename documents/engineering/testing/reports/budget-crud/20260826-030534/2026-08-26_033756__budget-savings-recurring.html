@@ -1,0 +1,1693 @@
+<!doctype html>
+<html><head><meta charset="utf-8" /><title>2026-08-26_033756__budget-savings-recurring — E2E report</title>
+<style>
+:root { color-scheme: light dark; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 0; background: #f6f8fa; color: #1f2328; }
+@media (prefers-color-scheme: dark) { body { background: #0d1117; color: #e6edf3; } .step { background: #161b22 !important; border-color: #30363d !important; } .step-head { border-color: #30363d !important; } .events { background: #0d1117 !important; } header { background: #161b22 !important; border-color: #30363d !important; } table.summary td, table.summary th { border-color: #30363d !important; } .warned-note.benign { background: #21262d !important; border-color: #30363d !important; color: #8b949e !important; } .warned-note.noteworthy { background: #3a3216 !important; border-color: #6b5c1e !important; color: #e6edf3 !important; } .warned-note code { background: rgba(255,255,255,0.12) !important; } .app-name { color: #8b949e !important; } .app-logo { box-shadow: 0 0 0 1px rgba(255,255,255,0.14) !important; } }
+header { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #d0d7de; padding: 16px 24px; z-index: 10; }
+h1 { font-size: 18px; margin: 0 0 4px; }
+.meta { font-size: 13px; color: #57606a; }
+main { max-width: 1040px; margin: 0 auto; padding: 20px 24px 80px; }
+.step { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+.step.failed { border-color: #ffb0a8; }
+.step.warned { border-color: #f0d878; }
+.step-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #eaeef2; font-size: 13px; }
+.seq { color: #8b949e; font-variant-numeric: tabular-nums; }
+.label { font-weight: 600; flex: 1; }
+.dur { font-size: 11px; }
+.badge { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px; }
+.step-body { display: flex; gap: 12px; padding: 10px 12px; align-items: flex-start; }
+.shot { width: 90px; border-radius: 6px; border: 1px solid #d0d7de; display: block; }
+.shot-link { flex-shrink: 0; }
+.step-detail { flex: 1; min-width: 0; }
+.warned-note { border-radius: 6px; padding: 6px 8px; font-size: 12px; margin-bottom: 8px; line-height: 1.5; }
+.warned-note.benign { background: #f6f8fa; border: 1px solid #d0d7de; color: #57606a; }
+.warned-note.noteworthy { background: #fff8c5; border: 1px solid #f0d878; }
+.warned-note code { background: rgba(0,0,0,0.06); border-radius: 3px; padding: 1px 4px; }
+.events { background: #f6f8fa; border-radius: 6px; padding: 6px 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.ev { padding: 2px 0; word-break: break-word; }
+.ev.ok { color: #1a7f37; }
+.ev.fail { color: #b60205; font-weight: 600; }
+.ev.tag { color: #6639ba; }
+.pill { background: #eaeef2; border-radius: 4px; padding: 0 4px; font-weight: 600; }
+.tag { background: #ede4ff; color: #6639ba; border-radius: 10px; padding: 0 6px; font-size: 11px; }
+.muted { color: #8b949e; }
+.small { font-size: 12px; }
+table.summary { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+table.summary td, table.summary th { border: 1px solid #d0d7de; padding: 6px 10px; text-align: left; font-size: 13px; }
+table.summary th { background: #f6f8fa; }
+a { color: #0969da; }
+.title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.app-logo { width: 34px; height: 34px; border-radius: 8px; object-fit: contain; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,0.08); }
+.title-text { display: flex; flex-direction: column; }
+.app-name { font-size: 13px; font-weight: 600; color: #57606a; line-height: 1.2; }
+.title-text h1 { margin: 0; }
+.run-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  padding: 4px 12px; border-radius: 999px; border: 1px solid transparent; }
+.run-status.running { color: #0550ae; background: #ddf4ff; border-color: #0550ae33; }
+.run-status.passed  { color: #1a7f37; background: #dafbe1; border-color: #1a7f3733; }
+.run-status.failed  { color: #b60205; background: #ffebe9; border-color: #b6020533; }
+.run-status.stopped { color: #9a6700; background: #fff8c5; border-color: #9a670033; }
+.run-status .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor;
+  animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1;
+  padding: 5px 10px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+.chip-ico { font-size: 13px; }
+.chip-key { text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px; opacity: 0.75; }
+.chip-val { font-weight: 600; }
+.header-progress { margin-top: 12px; }
+.verdicts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; }
+.verdict-count { color: #57606a; }
+.verdict-fail { color: #b60205; background: #ffebe9; border: 1px solid #b6020533;
+  border-radius: 999px; padding: 3px 10px; font-weight: 600; }
+.verdict-fail em { font-style: normal; opacity: 0.7; font-weight: 400; }
+@media (prefers-color-scheme: dark) { .verdict-fail { background: #67060c !important; color: #ffa198 !important; } }
+@media (prefers-color-scheme: dark) {
+  .run-status.running { background: #0c2d6b !important; color: #79c0ff !important; }
+  .run-status.passed  { background: #0f5323 !important; color: #7ee787 !important; }
+  .run-status.failed  { background: #67060c !important; color: #ffa198 !important; }
+  .run-status.stopped { background: #5c4813 !important; color: #f2cc60 !important; }
+  .chip { filter: brightness(0.85) saturate(1.2); }
+}
+.progress-wrap { margin-top: 10px; }
+.progress-label { font-size: 12px; color: #57606a; margin-bottom: 4px; }
+.progress-bar { height: 8px; border-radius: 4px; background: #eaeef2; overflow: hidden; }
+.progress-fill { height: 100%; background: #0969da; transition: width 0.3s ease; }
+.progress-fill.done { background: #1a7f37; }
+@media (prefers-color-scheme: dark) { .progress-bar { background: #21262d !important; } }
+.progress-footer { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #d0d7de; padding: 8px 24px; z-index: 20; box-shadow: 0 -2px 8px rgba(0,0,0,0.06); }
+.progress-footer .progress-wrap { margin-top: 0; }
+body.has-progress-footer main { padding-bottom: 64px; }
+@media (prefers-color-scheme: dark) { .progress-footer { background: #161b22 !important; border-color: #30363d !important; } }
+.controls { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.controls input { flex: 1; max-width: 320px; padding: 5px 10px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 13px; background: #fff; color: inherit; }
+.controls button { padding: 5px 10px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 12px; background: #f6f8fa; cursor: pointer; }
+@media (prefers-color-scheme: dark) { .controls input, .controls button { background: #161b22 !important; border-color: #30363d !important; color: #e6edf3; } summary { background: #161b22 !important; } details.flow-group { border-color: #30363d !important; } }
+details.flow-group { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; margin-bottom: 10px; overflow: hidden; scroll-margin-top: 90px; }
+details.flow-group.has-fail { border-color: #ffb0a8; }
+details.flow-group.has-warn:not(.has-fail) { border-color: #f0d878; }
+details.flow-group summary { list-style: none; cursor: pointer; padding: 10px 14px; display: flex; align-items: center; gap: 10px; background: #f6f8fa; user-select: none; }
+details.flow-group summary::-webkit-details-marker { display: none; }
+details.flow-group summary::before { content: '▸'; display: inline-block; transition: transform 0.15s; color: #8b949e; }
+details.flow-group[open] summary::before { transform: rotate(90deg); }
+.flow-name { font-weight: 600; flex: 1; }
+.flow-stats { font-size: 12px; color: #57606a; }
+.flow-body { padding: 12px 14px; }
+</style></head>
+<body>
+<header>
+  <h1>2026-08-26_033756__budget-savings-recurring</h1>
+  <div class="chips"><span class="chip" style="color:#24292f;background:#f6f8fa;border-color:#24292f33"><span class="chip-ico">📱</span><span class="chip-key">Platform</span><span class="chip-val">iOS</span></span><span class="chip" style="color:#9a6700;background:#fff8c5;border-color:#9a670033"><span class="chip-ico">🧪</span><span class="chip-key">Env</span><span class="chip-val">staging</span></span><span class="chip" style="color:#8250df;background:#fbefff;border-color:#8250df33"><span class="chip-ico">🏷</span><span class="chip-key">Build</span><span class="chip-val">63</span></span><span class="chip" style="color:#0550ae;background:#ddf4ff;border-color:#0550ae33"><span class="chip-ico">📲</span><span class="chip-key">Device</span><span class="chip-val">Budget-C</span></span></div>
+  <div class="meta">122 steps · 8m 47s · 0 failed · 0 warned · 0 backend calls (0 failed) · 0 local writes (0 rows) · 0 sync (0 failed, ↑0 ↓0, 0 conflicts) · 0 uploads · 0 ws events · 0 verify checks (0 failed)</div>
+</header>
+<main>
+
+  <div class="step completed" id="step-4">
+    <div class="step-head">
+      <span class="seq">#4</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Launch app</span>
+      <span class="dur muted">1681ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-6">
+    <div class="step-head">
+      <span class="seq">#6</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplebudget://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8082</span>
+      <span class="dur muted">809ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-222">
+    <div class="step-head">
+      <span class="seq">#222</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;budget-screen&quot;</span>
+      <span class="dur muted">248ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-223">
+    <div class="step-head">
+      <span class="seq">#223</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert NOT visible: id=&quot;auth-sign-in-email&quot;</span>
+      <span class="dur muted">968ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-228">
+    <div class="step-head">
+      <span class="seq">#228</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🔍 Verify NO call fired: GET /subscriptions/me</span>
+      <span class="dur muted">329ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-232">
+    <div class="step-head">
+      <span class="seq">#232</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;e2e-verify-badge&quot;</span>
+      <span class="dur muted">286ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-237">
+    <div class="step-head">
+      <span class="seq">#237</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🔍 Verify NO call fired: GET /households</span>
+      <span class="dur muted">313ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-241">
+    <div class="step-head">
+      <span class="seq">#241</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;e2e-verify-badge&quot;</span>
+      <span class="dur muted">270ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-246">
+    <div class="step-head">
+      <span class="seq">#246</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🔍 Verify NO call fired: GET /ai-access</span>
+      <span class="dur muted">301ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-250">
+    <div class="step-head">
+      <span class="seq">#250</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;e2e-verify-badge&quot;</span>
+      <span class="dur muted">275ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-256">
+    <div class="step-head">
+      <span class="seq">#256</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🔍 Verify NO call fired: GET /chat-rooms</span>
+      <span class="dur muted">288ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-259">
+    <div class="step-head">
+      <span class="seq">#259</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;e2e-verify-badge&quot;</span>
+      <span class="dur muted">276ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-262">
+    <div class="step-head">
+      <span class="seq">#262</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplebudget://e2e-budget-purge-test-payments</span>
+      <span class="dur muted">300ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-336">
+    <div class="step-head">
+      <span class="seq">#336</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;tab-index&quot;</span>
+      <span class="dur muted">1154ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-339">
+    <div class="step-head">
+      <span class="seq">#339</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;budget-screen&quot;</span>
+      <span class="dur muted">257ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-346">
+    <div class="step-head">
+      <span class="seq">#346</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🧹 Clear observability log</span>
+      <span class="dur muted">317ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-351">
+    <div class="step-head">
+      <span class="seq">#351</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">🏷 Tag matrix row: BUDGET-SAV-RECURRING</span>
+      <span class="dur muted">298ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-392">
+    <div class="step-head">
+      <span class="seq">#392</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplebudget:///</span>
+      <span class="dur muted">316ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-452">
+    <div class="step-head">
+      <span class="seq">#452</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplebudget:///budget?activeView=savings</span>
+      <span class="dur muted">307ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-504">
+    <div class="step-head">
+      <span class="seq">#504</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-view&quot;</span>
+      <span class="dur muted">205ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-505">
+    <div class="step-head">
+      <span class="seq">#505</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;filter-tab-monthly&quot;</span>
+      <span class="dur muted">1203ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-509">
+    <div class="step-head">
+      <span class="seq">#509</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Open link: simplebudget://e2e-savings-set-tab?tab=monthly</span>
+      <span class="dur muted">315ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-550">
+    <div class="step-head">
+      <span class="seq">#550</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-monthly-add&quot;</span>
+      <span class="dur muted">217ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-551">
+    <div class="step-head">
+      <span class="seq">#551</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-monthly&quot;</span>
+      <span class="dur muted">200ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-553">
+    <div class="step-head">
+      <span class="seq">#553</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-monthly-add&quot;</span>
+      <span class="dur muted">1598ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-554">
+    <div class="step-head">
+      <span class="seq">#554</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-payments&quot;</span>
+      <span class="dur muted">166ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-555">
+    <div class="step-head">
+      <span class="seq">#555</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-add&quot;</span>
+      <span class="dur muted">158ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-556">
+    <div class="step-head">
+      <span class="seq">#556</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-add&quot;</span>
+      <span class="dur muted">1181ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-557">
+    <div class="step-head">
+      <span class="seq">#557</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-add-manual&quot;</span>
+      <span class="dur muted">126ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-558">
+    <div class="step-head">
+      <span class="seq">#558</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-add-manual&quot;</span>
+      <span class="dur muted">1565ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-559">
+    <div class="step-head">
+      <span class="seq">#559</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-form-label&quot;</span>
+      <span class="dur muted">155ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-561">
+    <div class="step-head">
+      <span class="seq">#561</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-form-label&quot;</span>
+      <span class="dur muted">146ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-562">
+    <div class="step-head">
+      <span class="seq">#562</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-form-amount&quot;</span>
+      <span class="dur muted">157ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-563">
+    <div class="step-head">
+      <span class="seq">#563</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-form-cancel&quot;</span>
+      <span class="dur muted">1453ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-564">
+    <div class="step-head">
+      <span class="seq">#564</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-add&quot;</span>
+      <span class="dur muted">157ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-565">
+    <div class="step-head">
+      <span class="seq">#565</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;nav-back-button&quot;</span>
+      <span class="dur muted">1644ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-566">
+    <div class="step-head">
+      <span class="seq">#566</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-monthly&quot;</span>
+      <span class="dur muted">200ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-568">
+    <div class="step-head">
+      <span class="seq">#568</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-monthly-add&quot;</span>
+      <span class="dur muted">1579ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-569">
+    <div class="step-head">
+      <span class="seq">#569</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-payments&quot;</span>
+      <span class="dur muted">164ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-570">
+    <div class="step-head">
+      <span class="seq">#570</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-add&quot;</span>
+      <span class="dur muted">1167ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-610">
+    <div class="step-head">
+      <span class="seq">#610</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-add-manual&quot;</span>
+      <span class="dur muted">124ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-611">
+    <div class="step-head">
+      <span class="seq">#611</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-add-manual&quot;</span>
+      <span class="dur muted">1561ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-612">
+    <div class="step-head">
+      <span class="seq">#612</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-form-label&quot;</span>
+      <span class="dur muted">153ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-613">
+    <div class="step-head">
+      <span class="seq">#613</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-form-label&quot;</span>
+      <span class="dur muted">1419ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-614">
+    <div class="step-head">
+      <span class="seq">#614</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Type: &quot;Months Chart Test Item&quot;</span>
+      <span class="dur muted">1803ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-615">
+    <div class="step-head">
+      <span class="seq">#615</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-form-amount&quot;</span>
+      <span class="dur muted">1313ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-616">
+    <div class="step-head">
+      <span class="seq">#616</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Type: &quot;40&quot;</span>
+      <span class="dur muted">1131ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-619">
+    <div class="step-head">
+      <span class="seq">#619</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Hide keyboard</span>
+      <span class="dur muted">4307ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_033756__budget-savings-recurring-step-620-hideKeyboard.png" target="_blank"><img class="shot" src="assets/2026-08-26_033756__budget-savings-recurring-step-620-hideKeyboard.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-620">
+    <div class="step-head">
+      <span class="seq">#620</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Swipe</span>
+      <span class="dur muted">1290ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-623">
+    <div class="step-head">
+      <span class="seq">#623</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;loan-tracking-switch&quot;</span>
+      <span class="dur muted">2322ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-624">
+    <div class="step-head">
+      <span class="seq">#624</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert NOT visible: id=&quot;loan-principal&quot;</span>
+      <span class="dur muted">771ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-626">
+    <div class="step-head">
+      <span class="seq">#626</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-form-save&quot;</span>
+      <span class="dur muted">2160ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-627">
+    <div class="step-head">
+      <span class="seq">#627</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-payments&quot;</span>
+      <span class="dur muted">171ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-628">
+    <div class="step-head">
+      <span class="seq">#628</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;nav-back-button&quot;</span>
+      <span class="dur muted">1535ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-630">
+    <div class="step-head">
+      <span class="seq">#630</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: text=&quot;.*Months Chart Test Item.*&quot;</span>
+      <span class="dur muted">198ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-631">
+    <div class="step-head">
+      <span class="seq">#631</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap text=&quot;.*Months Chart Test Item.*&quot;</span>
+      <span class="dur muted">2897ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-632">
+    <div class="step-head">
+      <span class="seq">#632</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-payment-detail-sheet&quot;</span>
+      <span class="dur muted">189ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-633">
+    <div class="step-head">
+      <span class="seq">#633</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-months-chart&quot;</span>
+      <span class="dur muted">184ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-634">
+    <div class="step-head">
+      <span class="seq">#634</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert NOT visible: id=&quot;savings-loan-insights&quot;</span>
+      <span class="dur muted">744ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-635">
+    <div class="step-head">
+      <span class="seq">#635</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-payment-detail-left&quot;</span>
+      <span class="dur muted">1028ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-636">
+    <div class="step-head">
+      <span class="seq">#636</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-monthly&quot;</span>
+      <span class="dur muted">205ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-638">
+    <div class="step-head">
+      <span class="seq">#638</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-monthly-add&quot;</span>
+      <span class="dur muted">2213ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-639">
+    <div class="step-head">
+      <span class="seq">#639</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-payments&quot;</span>
+      <span class="dur muted">168ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-640">
+    <div class="step-head">
+      <span class="seq">#640</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-add&quot;</span>
+      <span class="dur muted">1186ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-641">
+    <div class="step-head">
+      <span class="seq">#641</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-add-manual&quot;</span>
+      <span class="dur muted">129ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-642">
+    <div class="step-head">
+      <span class="seq">#642</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-add-manual&quot;</span>
+      <span class="dur muted">1557ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-643">
+    <div class="step-head">
+      <span class="seq">#643</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-form-label&quot;</span>
+      <span class="dur muted">157ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-644">
+    <div class="step-head">
+      <span class="seq">#644</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-form-group&quot;</span>
+      <span class="dur muted">1097ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-645">
+    <div class="step-head">
+      <span class="seq">#645</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-group-none&quot;</span>
+      <span class="dur muted">166ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-647">
+    <div class="step-head">
+      <span class="seq">#647</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-group-Loans &amp; Debt&quot;</span>
+      <span class="dur muted">1417ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-648">
+    <div class="step-head">
+      <span class="seq">#648</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-form-label&quot;</span>
+      <span class="dur muted">1261ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-649">
+    <div class="step-head">
+      <span class="seq">#649</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Type: &quot;Loan Chart Test Item&quot;</span>
+      <span class="dur muted">1739ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-650">
+    <div class="step-head">
+      <span class="seq">#650</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-form-amount&quot;</span>
+      <span class="dur muted">1306ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-651">
+    <div class="step-head">
+      <span class="seq">#651</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Type: &quot;50&quot;</span>
+      <span class="dur muted">1127ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-654">
+    <div class="step-head">
+      <span class="seq">#654</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Hide keyboard</span>
+      <span class="dur muted">4304ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_033756__budget-savings-recurring-step-655-hideKeyboard.png" target="_blank"><img class="shot" src="assets/2026-08-26_033756__budget-savings-recurring-step-655-hideKeyboard.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-655">
+    <div class="step-head">
+      <span class="seq">#655</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Swipe</span>
+      <span class="dur muted">1427ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-657">
+    <div class="step-head">
+      <span class="seq">#657</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;loan-principal&quot;</span>
+      <span class="dur muted">163ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-659">
+    <div class="step-head">
+      <span class="seq">#659</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;loan-rate-pct&quot;</span>
+      <span class="dur muted">1572ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-660">
+    <div class="step-head">
+      <span class="seq">#660</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Type: &quot;5&quot;</span>
+      <span class="dur muted">901ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-661">
+    <div class="step-head">
+      <span class="seq">#661</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;loan-rate-pct&quot;</span>
+      <span class="dur muted">177ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-664">
+    <div class="step-head">
+      <span class="seq">#664</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Hide keyboard</span>
+      <span class="dur muted">4259ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_033756__budget-savings-recurring-step-665-hideKeyboard.png" target="_blank"><img class="shot" src="assets/2026-08-26_033756__budget-savings-recurring-step-665-hideKeyboard.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-665">
+    <div class="step-head">
+      <span class="seq">#665</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Swipe</span>
+      <span class="dur muted">1272ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-667">
+    <div class="step-head">
+      <span class="seq">#667</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;loan-principal&quot;</span>
+      <span class="dur muted">1566ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-668">
+    <div class="step-head">
+      <span class="seq">#668</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Type: &quot;600&quot;</span>
+      <span class="dur muted">1136ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-669">
+    <div class="step-head">
+      <span class="seq">#669</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;loan-principal&quot;</span>
+      <span class="dur muted">163ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-672">
+    <div class="step-head">
+      <span class="seq">#672</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Hide keyboard</span>
+      <span class="dur muted">4250ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_033756__budget-savings-recurring-step-673-hideKeyboard.png" target="_blank"><img class="shot" src="assets/2026-08-26_033756__budget-savings-recurring-step-673-hideKeyboard.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-673">
+    <div class="step-head">
+      <span class="seq">#673</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Swipe</span>
+      <span class="dur muted">1429ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-675">
+    <div class="step-head">
+      <span class="seq">#675</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;loan-term-months&quot;</span>
+      <span class="dur muted">1557ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-676">
+    <div class="step-head">
+      <span class="seq">#676</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Type: &quot;12&quot;</span>
+      <span class="dur muted">1177ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-677">
+    <div class="step-head">
+      <span class="seq">#677</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;loan-term-months&quot;</span>
+      <span class="dur muted">163ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-680">
+    <div class="step-head">
+      <span class="seq">#680</span>
+      <span class="badge" style="color:#57606a;background:#f6f8fa">○ OPTIONAL</span>
+      <span class="label">Hide keyboard</span>
+      <span class="dur muted">4277ms</span>
+    </div>
+    <div class="step-body">
+      <a class="shot-link" href="assets/2026-08-26_033756__budget-savings-recurring-step-681-hideKeyboard.png" target="_blank"><img class="shot" src="assets/2026-08-26_033756__budget-savings-recurring-step-681-hideKeyboard.png" loading="lazy" /></a>
+      <div class="step-detail"><div class="warned-note benign">○ Optional check — condition wasn't met within its timeout, but this step is marked <code>optional: true</code> in the flow, so it did NOT fail the run. This is normally a deliberate best-effort/conditional check (e.g. "dismiss this screen if it happens to be showing") — expected whenever that branch doesn't apply this run, not a bug. Excluded from the warned count above; not counted as noteworthy.</div><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-681">
+    <div class="step-head">
+      <span class="seq">#681</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Swipe</span>
+      <span class="dur muted">1424ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-683">
+    <div class="step-head">
+      <span class="seq">#683</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-form-save&quot;</span>
+      <span class="dur muted">2411ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-684">
+    <div class="step-head">
+      <span class="seq">#684</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-payments&quot;</span>
+      <span class="dur muted">171ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-685">
+    <div class="step-head">
+      <span class="seq">#685</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;nav-back-button&quot;</span>
+      <span class="dur muted">1652ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-687">
+    <div class="step-head">
+      <span class="seq">#687</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: text=&quot;.*Loan Chart Test Item.*&quot;</span>
+      <span class="dur muted">200ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-688">
+    <div class="step-head">
+      <span class="seq">#688</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap text=&quot;.*Loan Chart Test Item.*&quot;</span>
+      <span class="dur muted">2656ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-689">
+    <div class="step-head">
+      <span class="seq">#689</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-payment-detail-sheet&quot;</span>
+      <span class="dur muted">221ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-690">
+    <div class="step-head">
+      <span class="seq">#690</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-loan-insights&quot;</span>
+      <span class="dur muted">217ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-691">
+    <div class="step-head">
+      <span class="seq">#691</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-loan-stat-tiles&quot;</span>
+      <span class="dur muted">215ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-693">
+    <div class="step-head">
+      <span class="seq">#693</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-loan-chart-payments-go&quot;</span>
+      <span class="dur muted">216ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-695">
+    <div class="step-head">
+      <span class="seq">#695</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-loan-chart-cumulative&quot;</span>
+      <span class="dur muted">212ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-696">
+    <div class="step-head">
+      <span class="seq">#696</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-payment-detail-left&quot;</span>
+      <span class="dur muted">1577ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-697">
+    <div class="step-head">
+      <span class="seq">#697</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-monthly&quot;</span>
+      <span class="dur muted">207ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-699">
+    <div class="step-head">
+      <span class="seq">#699</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-monthly-add&quot;</span>
+      <span class="dur muted">2082ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-700">
+    <div class="step-head">
+      <span class="seq">#700</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-payments&quot;</span>
+      <span class="dur muted">171ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-702">
+    <div class="step-head">
+      <span class="seq">#702</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap text=&quot;.*Months Chart Test Item.*&quot;</span>
+      <span class="dur muted">2056ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-704">
+    <div class="step-head">
+      <span class="seq">#704</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-form-delete&quot;</span>
+      <span class="dur muted">139ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-705">
+    <div class="step-head">
+      <span class="seq">#705</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-form-delete&quot;</span>
+      <span class="dur muted">1889ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-706">
+    <div class="step-head">
+      <span class="seq">#706</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: text=&quot;Delete&quot;</span>
+      <span class="dur muted">175ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-707">
+    <div class="step-head">
+      <span class="seq">#707</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap text=&quot;Delete&quot;</span>
+      <span class="dur muted">1767ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-708">
+    <div class="step-head">
+      <span class="seq">#708</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-payments&quot;</span>
+      <span class="dur muted">167ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-709">
+    <div class="step-head">
+      <span class="seq">#709</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert NOT visible: text=&quot;.*Months Chart Test Item.*&quot;</span>
+      <span class="dur muted">801ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-711">
+    <div class="step-head">
+      <span class="seq">#711</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap text=&quot;.*Loan Chart Test Item.*&quot;</span>
+      <span class="dur muted">1602ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-713">
+    <div class="step-head">
+      <span class="seq">#713</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-form-delete&quot;</span>
+      <span class="dur muted">159ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-714">
+    <div class="step-head">
+      <span class="seq">#714</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;savings-recurring-form-delete&quot;</span>
+      <span class="dur muted">1946ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-715">
+    <div class="step-head">
+      <span class="seq">#715</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: text=&quot;Delete&quot;</span>
+      <span class="dur muted">170ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-716">
+    <div class="step-head">
+      <span class="seq">#716</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap text=&quot;Delete&quot;</span>
+      <span class="dur muted">1603ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-717">
+    <div class="step-head">
+      <span class="seq">#717</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert visible: id=&quot;savings-recurring-payments&quot;</span>
+      <span class="dur muted">164ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-718">
+    <div class="step-head">
+      <span class="seq">#718</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Assert NOT visible: text=&quot;.*Loan Chart Test Item.*&quot;</span>
+      <span class="dur muted">791ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-719">
+    <div class="step-head">
+      <span class="seq">#719</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">Tap id=&quot;nav-back-button&quot;</span>
+      <span class="dur muted">1535ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+
+  <div class="step completed" id="step-725">
+    <div class="step-head">
+      <span class="seq">#725</span>
+      <span class="badge" style="color:#1a7f37;background:#dafbe1">✓ COMPLETED</span>
+      <span class="label">📋 Dump observability snapshot</span>
+      <span class="dur muted">321ms</span>
+    </div>
+    <div class="step-body">
+      
+      <div class="step-detail"><div class="muted small">No network / local-db activity in this step's window.</div></div>
+    </div>
+  </div>
+</main>
+</body></html>

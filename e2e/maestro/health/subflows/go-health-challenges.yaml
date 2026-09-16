@@ -1,0 +1,46 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Open the Food Challenges manager (route health-challenges, header
+# "Food Challenges").
+#
+# Unlike every other Health screen reached by a subflow, this one has NO TAB AT
+# ALL — not a pinned one, and not a `defaultHidden` one in the More hub's "MORE
+# TABS" overflow either. `health-challenges` is absent from the feature catalog
+# (`src/config/healthFeatures.ts`), so it is not gated by the admin
+# feature-seed mechanism the Cycle/Vitality/Fridge/Injuries subflows have to
+# work around — and it is also not in the tab pool for anyone. The only two
+# call sites that push it are the Home FOOD CHALLENGES widget's pencil
+# (`HealthHomeScreen.tsx`) and the Nutrition tab's Today's-Challenges card
+# (`HealthNutritionScreen.tsx`).
+#
+# WHY THE PENCIL, NOT THE NUTRITION CARD. `HealthTodayChallengesCard` renders
+# NOTHING when the account has no applicable challenge today (its `total > 0`
+# gate) — so the Nutrition route is a chicken-and-egg: it only exists once a
+# challenge already exists, which is the thing the manager is for. The Home
+# widget's pencil is present in BOTH states: `HealthFoodChallengesWidget`
+# builds `pencilButton` before the `overview.length === 0` branch and renders it
+# in the empty header as well as the populated one. That makes it the only
+# entry point that does not depend on account state.
+#
+# POSITION ON HOME. `foodChallenges` is the THIRD default widget
+# (`DEFAULT_HOME_WIDGET_ORDER`: today · weeklyTrends · foodChallenges · glance ·
+# sleep · water · note), so it sits below the TODAY rings and above AT A
+# GLANCE. `focus-health-home.yaml`'s `top` anchor is the right one: it parks the
+# list at the top and then nudges DOWN up to seven times, stopping as soon as
+# FOCUS_ID is on screen — which is what a mid-list target needs. The `bottom`
+# anchor's longer stroke would overshoot past it to the WATER card.
+- runFlow:
+    file: focus-health-home.yaml
+    env:
+      FOCUS_ID: health-home-food-challenges-edit
+      HOME_ANCHOR: top
+- tapOn:
+    id: 'health-home-food-challenges-edit'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-challenges-screen'
+    timeout: 30000

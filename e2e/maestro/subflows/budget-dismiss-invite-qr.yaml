@@ -1,0 +1,28 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Puts the invite QR sheet away.
+#
+# "Generate QR code" mints the invite AND opens the QR sheet over the card in
+# one tap — that is the point of the button. Everything the card carries (the
+# code, the secret, "Invite created") is covered while the sheet is up, so any
+# flow that reads those values has to close it first.
+#
+# Optional throughout: a mint that FAILED opens no sheet, and this must not be
+# the step that turns a clear "Could not create invite" into "element not found".
+- extendedWaitUntil:
+    visible:
+      id: 'budget-invite-qr-sheet'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'budget-invite-qr-sheet'
+    commands:
+      - tapOn:
+          id: 'bottom-sheet-close'
+      - waitForAnimationToEnd:
+          timeout: 2000

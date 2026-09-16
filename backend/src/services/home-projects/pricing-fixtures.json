@@ -1,0 +1,242 @@
+{
+  "_comment": [
+    "Shared truth table for material option pricing, read by BOTH suites:",
+    "  backend/src/services/home-projects/__tests__/pricing.test.ts   (vitest)",
+    "  src/features/house/local/logic/__tests__/materialPricing.test.ts (jest)",
+    "",
+    "It lives in one file on purpose. A parity test where each side asserts its",
+    "own expected values proves only that each side is self-consistent — if the",
+    "local mirror rounds 10.9 boxes down while the Worker rounds up, two green",
+    "suites certify the divergence. One table, two readers, no such comfort."
+  ],
+  "cases": [
+    {
+      "name": "tile: 24 m2 floor, 2.2 m2 per box, 10% waste — rounds UP to a buyable box count",
+      "group": { "area_value": 24, "area_unit": "m2", "waste_factor_pct": 10 },
+      "option": {
+        "qty": 1,
+        "unit_price_cents": 4599,
+        "coverage_per_unit": 2.2,
+        "coverage_unit": "m2"
+      },
+      "expected": {
+        "unit_price_cents": 4599,
+        "price_per_area_cents": 2090,
+        "price_per_area_unit": "m2",
+        "units_needed": 12,
+        "area_total_cents": 55188,
+        "line_total_cents": 4599,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "name": "LVP: room measured in m2, box labelled in sqft — units cross the unit boundary",
+      "group": { "area_value": 24, "area_unit": "m2", "waste_factor_pct": 10 },
+      "option": {
+        "qty": 1,
+        "unit_price_cents": 6900,
+        "coverage_per_unit": 23.8,
+        "coverage_unit": "sqft"
+      },
+      "expected": {
+        "unit_price_cents": 6900,
+        "price_per_area_cents": 290,
+        "price_per_area_unit": "sqft",
+        "units_needed": 12,
+        "area_total_cents": 82800,
+        "line_total_cents": 6900,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "name": "exact fit with no waste buys exactly the boxes needed, no more",
+      "group": { "area_value": 20, "area_unit": "m2", "waste_factor_pct": 0 },
+      "option": {
+        "qty": 1,
+        "unit_price_cents": 1000,
+        "coverage_per_unit": 2,
+        "coverage_unit": "m2"
+      },
+      "expected": {
+        "unit_price_cents": 1000,
+        "price_per_area_cents": 500,
+        "price_per_area_unit": "m2",
+        "units_needed": 10,
+        "area_total_cents": 10000,
+        "line_total_cents": 1000,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "name": "a sliver over a whole box costs a whole box",
+      "group": { "area_value": 20.1, "area_unit": "m2", "waste_factor_pct": 0 },
+      "option": {
+        "qty": 1,
+        "unit_price_cents": 1000,
+        "coverage_per_unit": 2,
+        "coverage_unit": "m2"
+      },
+      "expected": {
+        "unit_price_cents": 1000,
+        "price_per_area_cents": 500,
+        "price_per_area_unit": "m2",
+        "units_needed": 11,
+        "area_total_cents": 11000,
+        "line_total_cents": 1000,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "name": "faucet: priced per piece, no coverage — area total is refused, not zeroed",
+      "group": { "area_value": null, "area_unit": null, "waste_factor_pct": 10 },
+      "option": {
+        "qty": 2,
+        "unit_price_cents": 18900,
+        "coverage_per_unit": null,
+        "coverage_unit": null
+      },
+      "expected": {
+        "unit_price_cents": 18900,
+        "price_per_area_cents": null,
+        "price_per_area_unit": null,
+        "units_needed": null,
+        "area_total_cents": null,
+        "line_total_cents": 37800,
+        "unavailable_reason": "no_coverage"
+      }
+    },
+    {
+      "name": "coverage known but the member has not measured the room yet",
+      "group": { "area_value": null, "area_unit": null, "waste_factor_pct": 10 },
+      "option": {
+        "qty": 1,
+        "unit_price_cents": 4599,
+        "coverage_per_unit": 2.2,
+        "coverage_unit": "m2"
+      },
+      "expected": {
+        "unit_price_cents": 4599,
+        "price_per_area_cents": 2090,
+        "price_per_area_unit": "m2",
+        "units_needed": null,
+        "area_total_cents": null,
+        "line_total_cents": 4599,
+        "unavailable_reason": "no_area"
+      }
+    },
+    {
+      "name": "extraction found the product but no price — nothing downstream is invented",
+      "group": { "area_value": 24, "area_unit": "m2", "waste_factor_pct": 10 },
+      "option": {
+        "qty": 1,
+        "unit_price_cents": null,
+        "coverage_per_unit": 2.2,
+        "coverage_unit": "m2"
+      },
+      "expected": {
+        "unit_price_cents": null,
+        "price_per_area_cents": null,
+        "price_per_area_unit": "m2",
+        "units_needed": 12,
+        "area_total_cents": null,
+        "line_total_cents": null,
+        "unavailable_reason": "no_price"
+      }
+    },
+    {
+      "name": "sqft room, sqft box — the common US case, no conversion in play",
+      "group": { "area_value": 260, "area_unit": "sqft", "waste_factor_pct": 10 },
+      "option": {
+        "qty": 1,
+        "unit_price_cents": 5200,
+        "coverage_per_unit": 20,
+        "coverage_unit": "sqft"
+      },
+      "expected": {
+        "unit_price_cents": 5200,
+        "price_per_area_cents": 260,
+        "price_per_area_unit": "sqft",
+        "units_needed": 15,
+        "area_total_cents": 78000,
+        "line_total_cents": 5200,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "name": "a free option is priced, not treated as missing",
+      "group": { "area_value": 10, "area_unit": "m2", "waste_factor_pct": 0 },
+      "option": {
+        "qty": 1,
+        "unit_price_cents": 0,
+        "coverage_per_unit": 5,
+        "coverage_unit": "m2"
+      },
+      "expected": {
+        "unit_price_cents": 0,
+        "price_per_area_cents": 0,
+        "price_per_area_unit": "m2",
+        "units_needed": 2,
+        "area_total_cents": 0,
+        "line_total_cents": 0,
+        "unavailable_reason": null
+      }
+    },
+    {
+      "name": "a zero-coverage row is garbage input, not a divide-by-zero",
+      "group": { "area_value": 10, "area_unit": "m2", "waste_factor_pct": 0 },
+      "option": {
+        "qty": 1,
+        "unit_price_cents": 1000,
+        "coverage_per_unit": 0,
+        "coverage_unit": "m2"
+      },
+      "expected": {
+        "unit_price_cents": 1000,
+        "price_per_area_cents": null,
+        "price_per_area_unit": null,
+        "units_needed": null,
+        "area_total_cents": null,
+        "line_total_cents": 1000,
+        "unavailable_reason": "no_coverage"
+      }
+    },
+    {
+      "name": "an unrecognised area unit is refused rather than assumed to be metric",
+      "group": { "area_value": 24, "area_unit": "square cubits", "waste_factor_pct": 10 },
+      "option": {
+        "qty": 1,
+        "unit_price_cents": 4599,
+        "coverage_per_unit": 2.2,
+        "coverage_unit": "m2"
+      },
+      "expected": {
+        "unit_price_cents": 4599,
+        "price_per_area_cents": 2090,
+        "price_per_area_unit": "m2",
+        "units_needed": null,
+        "area_total_cents": null,
+        "line_total_cents": 4599,
+        "unavailable_reason": "no_area"
+      }
+    },
+    {
+      "name": "25% waste on a diagonal lay buys two more boxes than 10% would",
+      "group": { "area_value": 24, "area_unit": "m2", "waste_factor_pct": 25 },
+      "option": {
+        "qty": 1,
+        "unit_price_cents": 4599,
+        "coverage_per_unit": 2.2,
+        "coverage_unit": "m2"
+      },
+      "expected": {
+        "unit_price_cents": 4599,
+        "price_per_area_cents": 2090,
+        "price_per_area_unit": "m2",
+        "units_needed": 14,
+        "area_total_cents": 64386,
+        "line_total_cents": 4599,
+        "unavailable_reason": null
+      }
+    }
+  ]
+}

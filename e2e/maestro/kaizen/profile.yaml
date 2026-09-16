@@ -1,0 +1,41 @@
+appId: com.symply.kaizen
+---
+# Profile — editing the display name reveals the Save/Cancel actions (the
+# dirty-state proxy for the update wiring). Cancel restores the original.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/profile
+- extendedWaitUntil:
+    visible: 'Personal information'
+    timeout: 20000
+- assertVisible:
+    id: 'profile-display-name'
+- assertVisible: 'Display name'
+- assertVisible: 'Member since'
+- assertVisible: 'Enabled systems'
+# Interaction: edit the name → dirty-state Save/Cancel appear.
+- tapOn:
+    id: 'profile-display-name'
+- inputText: ' Edit'
+- assertVisible: 'Save'
+- assertVisible: 'Cancel'
+# Restore the original name.
+- tapOn: 'Cancel'
+# Parity: Kaizen now renders the SHARED subscription-management section
+# (SubscriptionSection) like every other app. Scroll is unreliable on RN
+# New-Arch / iOS 26, so this is a soft, guarded check — the hard coverage is the
+# unit test (src/features/kaizen/screens/__tests__/ProfileScreen.test.tsx +
+# src/components/subscription/__tests__/SubscriptionSection.test.tsx).
+- runFlow:
+    when:
+      visible: 'Subscription'
+    commands:
+      - assertVisible: 'Subscription'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

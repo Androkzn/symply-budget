@@ -1,0 +1,243 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:budget-chat
+  - mutation
+  - regression
+# Matrix: BUDGET-BCHAT-022/023/035/043/044/046/048/049
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-BCHAT-010
+- runFlow: ../subflows/budget-open-chat-rooms.yaml
+- assertVisible:
+    id: 'chat-rooms-screen'
+- swipe:
+    direction: DOWN
+    element:
+      id: 'chat-rooms-screen'
+- waitForAnimationToEnd:
+    timeout: 4000
+- runFlow:
+    file: ../subflows/budget-create-chat-room.yaml
+    env:
+      ROOM_NAME: 'E2E Chat Extended'
+# The room-screen enter is a native-stack push; a bare assertVisible can fire
+# mid-transition (the composer is still animating in) on a loaded sim. Wait for
+# the composer to settle — still a hard assertion, just tolerant of the push.
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-screen'
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-input'
+    timeout: 30000
+# Surface the @-mention bar by typing '@' in the composer (the AI-enabled room's
+# onChangeInput sets the mention query, which renders the bar ABOVE the keyboard).
+# We deliberately do NOT use the simplebudget://e2e-prime-chat-mention deeplink:
+# expo-router's +not-found redirect (<Redirect href="/">) bounces an unknown
+# deeplink to Home, navigating AWAY from the room. The in-app type path is proven
+# reliable by budget-chat-message/assistant (which type text incl. '@assistant').
+- tapOn:
+    id: 'chat-room-input'
+- inputText: '@'
+- runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-mention-bar'
+    timeout: 15000
+    optional: true
+# Maestro can drop the first onChangeText on iOS New Arch — erase and retype a
+# longer token ending in '@' if the bar hasn't surfaced.
+- runFlow:
+    when:
+      notVisible:
+        id: 'chat-room-mention-bar'
+    commands:
+      - tapOn:
+          id: 'chat-room-input'
+      - eraseText
+      - inputText: 'ask @'
+      - runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-room-mention-bar'
+          timeout: 15000
+          optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'chat-room-mention-bar'
+    commands:
+      - tapOn:
+          id: 'chat-room-input'
+      - inputText: '@'
+      - runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+      - waitForAnimationToEnd:
+          timeout: 1500
+# Hard assertion — the @-mention bar and the @assistant row must be present.
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-mention-bar'
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: 'mention-assistant'
+    timeout: 15000
+- tapOn:
+    id: 'chat-room-input'
+    optional: true
+- eraseText
+- runFlow: ../subflows/budget-network-block-on.yaml
+# The e2e-block-network deeplink bounces to Home via expo-router's +not-found
+# redirect. Re-open the room to run the offline-send check — the rooms are cached
+# in the local store, so entering works even with the network blocked (the room
+# screen renders the composer regardless of the offline message fetch).
+- runFlow:
+    when:
+      notVisible:
+        id: 'chat-room-input'
+    commands:
+      - runFlow: ../subflows/budget-open-chat-rooms.yaml
+      - runFlow:
+          when:
+            visible:
+              text: '.*E2E Chat Extended.*'
+          commands:
+            - tapOn:
+                text: '.*E2E Chat Extended.*'
+            - extendedWaitUntil:
+                visible:
+                  id: 'chat-room-screen'
+                timeout: 30000
+                optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-input'
+    timeout: 20000
+- tapOn:
+    id: 'chat-room-input'
+- inputText: 'Offline message'
+- runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: 'chat-room-send'
+- extendedWaitUntil:
+    visible: 'Message not sent'
+    timeout: 15000
+- runFlow:
+    when:
+      notVisible: 'Message not sent'
+    commands:
+      - assertVisible: 'Could not'
+# Dismiss the modal "Message not sent" alert so it doesn't block later steps.
+- tapOn:
+    text: 'OK'
+    optional: true
+- runFlow: ../subflows/budget-network-block-off.yaml
+- waitForAnimationToEnd:
+    timeout: 1500
+- scrollUntilVisible:
+    element:
+      id: 'chat-room-settings'
+    direction: UP
+    timeout: 15000
+    optional: true
+- tapOn:
+    id: 'chat-room-settings'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-settings-screen'
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'chat-room-settings-screen'
+    commands:
+      - assertVisible:
+          id: 'chat-room-settings-everyone-toggle'
+      # Rename affordance present (BUDGET-BCHAT-048) — the ROOM NAME card's
+      # "Save name" button is mounted for the owner.
+      - assertVisible:
+          id: 'chat-room-settings-rename'
+      # Clear-history confirm (BUDGET-BCHAT-049) — open the destructive alert and
+      # Cancel it (non-destructive, keeps the thread), mirroring the delete probe.
+      - scrollUntilVisible:
+          element:
+            id: 'chat-room-settings-clear-history'
+          direction: DOWN
+          timeout: 20000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'chat-room-settings-clear-history'
+          commands:
+            - tapOn:
+                id: 'chat-room-settings-clear-history'
+            - tapOn:
+                text: 'Cancel'
+                optional: true
+      - scrollUntilVisible:
+          element:
+            id: 'chat-room-settings-delete'
+          direction: DOWN
+          timeout: 20000
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'chat-room-settings-delete'
+          commands:
+            - tapOn:
+                id: 'chat-room-settings-delete'
+            - tapOn:
+                text: 'Cancel'
+                optional: true
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'chat-room-screen'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-rooms-screen'
+          timeout: 20000
+          optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'chat-rooms-screen'
+    commands:
+      - swipe:
+          direction: DOWN
+          element:
+            id: 'chat-rooms-list'
+          optional: true
+      - swipe:
+          direction: DOWN
+          element:
+            id: 'chat-rooms-screen'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 5000
+- runFlow: ../subflows/budget-exit-chat.yaml
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget

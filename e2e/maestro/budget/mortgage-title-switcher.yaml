@@ -1,0 +1,58 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:mortgage
+  - regression
+# Matrix: MORT-311 — the Mortgage header TITLE is the property picker. The header
+# used to carry a "+" (Add statement) shortcut and no way to switch properties
+# without detouring through the gear; the "+" is gone (adding a statement lives on
+# the Statements tab) and the centered title now names the focused property and
+# opens the list. Runs on whatever the shared account has — a single property is
+# enough, since the sheet always offers "Add a property" too.
+---
+- runFlow: ../subflows/budget-ensure-mortgage.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-view'
+    timeout: 20000
+
+# The retired header shortcut is really gone.
+- assertNotVisible:
+    id: 'mortgage-add-statement-header'
+# …and the gear it used to sit beside stays.
+- assertVisible:
+    id: 'budget-settings-button'
+
+# The title is a control, not a label.
+- assertVisible:
+    id: 'mortgage-switcher-trigger'
+- tapOn:
+    id: 'mortgage-switcher-trigger'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-switcher-sheet'
+    timeout: 10000
+- assertVisible: 'Your properties'
+# NOTE: "Main home" is only the placeholder text for the nickname INPUT
+# (MortgageEditScreen/MortgageSetupScreen) — not a guaranteed seeded property
+# name. The shared test account's real properties are named whatever the user
+# entered (e.g. "House"/"Condo"), so asserting a literal "Main home" row here
+# was a bad assumption, not a real regression. Use the app's own
+# mortgage-switcher-selected-* testID (MortgageSwitcher.tsx) instead — works
+# regardless of what the property is actually named.
+- assertVisible:
+    id: 'mortgage-switcher-selected-.*'
+- assertVisible: 'Add a property'
+
+# Re-picking the property already shown is a no-op that just closes the sheet —
+# the dashboard stays on it.
+- tapOn:
+    id: 'mortgage-switcher-selected-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'mortgage-view'
+    timeout: 20000
+- assertVisible:
+    id: 'mortgage-switcher-trigger'
+- assertNotVisible:
+    id: 'mortgage-switcher-sheet'

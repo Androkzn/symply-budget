@@ -1,0 +1,29 @@
+appId: com.symply.kaizen
+---
+# Weekly reviews — fill the three reflection fields and save.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/reviews
+- extendedWaitUntil:
+    visible: 'Reviews'
+    timeout: 20000
+- assertVisible: 'Weekly reviews'
+- assertVisible: 'Save review'
+# Interaction: capture a reflection across all three inputs, then save.
+- tapOn: 'What went well?'
+- inputText: 'Shipped the E2E suite'
+- tapOn: 'What would you improve?'
+- inputText: 'Tighter selectors'
+- tapOn: 'Your 1% change next week'
+- inputText: 'One more test per day'
+- assertVisible: 'Shipped the E2E suite'
+- tapOn: 'Save review'
+- assertVisible: 'Reviews'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

@@ -1,0 +1,27 @@
+appId: com.symply.language
+tags:
+  - util
+  - app:language
+---
+# More scroll position can persist mid-list after customize-tabs — anchor at top first.
+- scrollUntilVisible:
+    element:
+      id: 'language-more-profile'
+    direction: UP
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 30
+- scrollUntilVisible:
+    element:
+      id: 'language-more-data-section'
+    direction: DOWN
+    timeout: 30000
+    speed: 40
+    visibilityPercentage: 30
+- scrollUntilVisible:
+    element:
+      id: 'language-more-reset-learning'
+    direction: DOWN
+    timeout: 30000
+    speed: 40
+    visibilityPercentage: 50

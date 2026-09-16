@@ -1,0 +1,37 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:mira
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-mira (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/go-mira-tab.yaml
+- assertVisible:
+    id: 'mira-chat-screen'
+- assertVisible:
+    id: 'mira-chat-input'
+- assertVisible:
+    id: 'mira-chat-attach'
+- assertVisible:
+    id: 'mira-chat-voice-toggle'
+- assertVisible:
+    id: 'mira-chat-send'
+- assertVisible:
+    id: 'mira-chat-overflow-menu'
+- tapOn:
+    id: 'mira-chat-input'
+- inputText: 'What tasks are due this week?'
+# `optional: true` only — NO neutral-point tap. The tap was added on a wrong
+# premise (assumed iPad keyboard chrome) and was UNSAFE: 50%,12% is (417,145)
+# on an 834x1210 iPad, which lands on real controls — the profile avatar
+# (opens a camera Alert), the contractor photo circle (ActionSheet), a bare
+# TextInput on property-assessment. On iPhone 12% is inside the 118pt header,
+# outside the ScrollView, so it dismisses nothing at all. An `optional`
+# hideKeyboard cannot abort the flow, which is all that was ever needed here.
+- hideKeyboard:
+    optional: true
+- assertVisible:
+    id: 'mira-chat-persona-settings'

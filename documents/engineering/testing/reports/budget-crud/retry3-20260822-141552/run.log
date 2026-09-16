@@ -1,0 +1,26 @@
+
+=== budget-item-form ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+[sim-guard] Budget-C is 5019 MB (cap 3000 MB) but a suite is IN FLIGHT — refusing to erase
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-item-form (4m 34s)
+
+1/1 Flow Passed in 4m 34s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+[sim-guard] Budget-C is 5059 MB (cap 3000 MB) but a suite is IN FLIGHT — refusing to erase
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (47s)
+
+1/1 Flow Passed in 47s
+

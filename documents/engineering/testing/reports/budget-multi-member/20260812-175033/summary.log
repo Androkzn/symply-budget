@@ -1,0 +1,14 @@
+[mm] live report: /Users/andreitekhtelev/Desktop/Symply Ecosystem/Simply Ecosystem/documents/engineering/testing/reports/budget-multi-member/20260812-175033/index.html (opens shortly, self-refreshes)
+[mm] === phase 1: enrolment (ordered) ===
+    PASS [A] mm-01-signin
+    PASS [B] mm-01-signin
+    PASS [A] mm-02-owner-create-invite
+[mm] invite code=CQ8DDC oob=umbra
+    PASS [B] mm-03-member-join
+    PASS [A] mm-04-owner-approve
+    PASS [B] mm-05-member-enrol-sync
+[mm] === phase 2: both members create, each sees the other (PARALLEL) ===
+    FAIL [A] mm-20-add-and-await-peer
+    FAIL [B] mm-20-add-and-await-peer
+[mm] FAIL FAST — stopping the run at 'mm-20-add-and-await-peer'
+[mm] stopping after first failure — skipping cleanup (fail fast)

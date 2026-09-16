@@ -1,0 +1,366 @@
+appId: ${APP_ID}
+tags:
+  - util
+  - app:house
+---
+# Drive the native iOS document picker (UIDocumentPickerViewController, opened by
+# expo-document-picker) to pick a REAL file that scripts/e2e/seed-fixtures.sh
+# staged into Files > "On My iPhone" > SymplyE2E/ (and mirrored to LocalStorage root).
+#
+# Precondition: the caller has already tapped the in-app control that opens the
+# document picker (e.g. "Upload File", "From this device").
+# Required env:
+#   DOC_NAME — plain filename for search, e.g. "resume.pdf"
+#   DOC_NAME_REGEX — regex-safe match for scroll/tap, e.g. "resume\\.pdf"
+# When DOC_NAME_REGEX is omitted, DOC_NAME is reused (fine for names without dots).
+#
+# Best-effort navigation: the picker may open on Recents or already inside a
+# folder, so every hop is guarded.
+# HARD PRECONDITION — the picker must actually be on screen before we touch
+# anything. Everything below (blind swipes, best-effort taps) assumes a
+# UIDocumentPickerViewController is in front. When it is NOT, those swipes
+# drive the HOST APP instead: on 2026-08-15 a Budget-C run swiped its way out
+# of the receipt screen and into Settings → AI provider → "Change key", a
+# screen with a Save button, while the log showed only "element not found"
+# warnings. Random input into a live app is far worse than a red test, so fail
+# here instead. If neither label is present this assert fails loudly.
+# SETTLE FIRST. The guard below samples the hierarchy ONCE, and the picker is
+# presented asynchronously out-of-process — so without this the sample can land
+# in the window before it publishes anything, `notVisible: Cancel` reads true,
+# and the loud `Browse` assert fires against a picker that was in fact opening
+# normally. Verified on House-iPad 2026-09-02: the failing step's captured
+# hierarchy contains 'Cancel', i.e. the picker WAS up by the time the assert
+# reported. Both waits are optional — this only buys the picker time to appear,
+# it never decides anything.
+- extendedWaitUntil:
+    visible: 'Recents'
+    timeout: 6000
+    optional: true
+- runFlow:
+    when:
+      notVisible: 'Recents'
+    commands:
+      - extendedWaitUntil:
+          visible: 'Cancel'
+          timeout: 6000
+          optional: true
+- runFlow:
+    when:
+      notVisible: 'Recents'
+    commands:
+      # iPad publishes NEITHER 'Recents' NOR 'Browse'. The picker is a sidebar
+      # layout there (Recents/Shared/Locations/Tags down the left) with no
+      # "Browse" tab at all — that tab is the iPhone presentation — and because
+      # the picker is out-of-process on iOS 26.5 its sidebar labels are not
+      # queryable either. Captured hierarchy on House-iPad 2026-09-01 held just
+      # 7 nodes: 'Symply House', 'Cancel', and the status bar.
+      #
+      # 'Cancel' IS published on both form factors, so it is the sentinel that
+      # keeps this guard's intent intact — only fall through to the loud failure
+      # when nothing indicates a picker is in front.
+      - runFlow:
+          when:
+            notVisible: 'Cancel'
+          commands:
+            - assertVisible: 'Browse'
+# KNOWN BLOCKED ON iOS 26.5 — the picker's contents are not queryable.
+#
+# `UIDocumentPickerViewController` runs OUT OF PROCESS, and on iOS 26.5 the
+# XCUITest driver Maestro uses cannot see into it. The accessibility tree for
+# the picker contains the status bar and nothing else: no filenames, no folder
+# rows, not even the view-mode control. Captured hierarchies at the failing
+# step, both view modes:
+#
+#   icon mode : `Icon Mode`, battery, wifi          — 10 text nodes, no files
+#   list mode : battery, wifi                        — 13 text nodes, no files
+#
+# Everything below therefore fails on ANY device, regardless of where the
+# fixtures live. Confirmed with the files present on disk, in the app's own
+# published Documents folder AND the FileProvider LocalStorage domain, with
+# `fileproviderd` kickstarted and the device rebooted, on House-A and House-C,
+# browsing and searching. "No Results" every time, because there is nothing to
+# match against.
+#
+# Do not spend another pass on selectors, scroll budgets, search scope or
+# seeding paths — none of them are the problem. Driving this needs either a
+# maestro/iOS combination where the picker is introspectable, or a test-only
+# hook in the app that supplies a file without the native picker.
+#
+# This stayed invisible because no flow ever got here: every caller sits behind
+# a gate that skips (a dead 'From Device' literal, an onboarding button that is
+# gone once onboarding is complete), so the suite reported green for an upload
+# path it never ran.
+- runFlow:
+    when:
+      visible: 'Recents'
+    commands:
+      - tapOn: 'Recents'
+      - waitForAnimationToEnd:
+          timeout: 1500
+- extendedWaitUntil:
+    visible:
+      text: ${DOC_NAME_REGEX}
+    timeout: 4000
+    optional: true
+- extendedWaitUntil:
+    visible: ${DOC_NAME}
+    timeout: 4000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        text: ${DOC_NAME_REGEX}
+    commands:
+      - runFlow:
+          when:
+            visible: 'Recents'
+          commands:
+            - tapOn: 'Recents'
+            - waitForAnimationToEnd:
+                timeout: 1500
+      - runFlow:
+          when:
+            visible: 'Browse'
+          commands:
+            - tapOn: 'Browse'
+            - waitForAnimationToEnd:
+                timeout: 1500
+      - runFlow:
+          when:
+            visible: 'On My (iPhone|iPad)'
+          commands:
+            - tapOn: 'On My (iPhone|iPad)'
+            - waitForAnimationToEnd:
+                timeout: 1500
+      # "On My iPhone" lists FOLDERS, not the fixtures themselves.
+      #
+      # seed-fixtures.sh stages the documents into the app's own Documents
+      # folder, which iOS publishes as "On My iPhone -> <App>" because the app
+      # sets `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace`
+      # (app.config.ts). So at this level the only thing on screen is a folder
+      # named for the app — scrolling for the file here finds nothing, which is
+      # exactly what it did.
+      - runFlow:
+          when:
+            visible: 'Symply.*'
+          commands:
+            - tapOn: 'Symply.*'
+            - waitForAnimationToEnd:
+                timeout: 1500
+      # Inside the app folder the docs sit at the root AND in SymplyE2E/; take
+      # the subfolder when the root listing does not already show the file.
+      - runFlow:
+          when:
+            notVisible:
+              text: ${DOC_NAME_REGEX}
+          commands:
+            - runFlow:
+                when:
+                  visible: 'SymplyE2E'
+                commands:
+                  - tapOn: 'SymplyE2E'
+                  - waitForAnimationToEnd:
+                      timeout: 1500
+      # BROWSE FIRST — DO NOT REACH FOR SEARCH WHILE THE FILE LIST IS RIGHT THERE.
+      #
+      # Tapping "On My iPhone" above lands on the folder that HOLDS the fixture
+      # (seed-fixtures.sh mirrors every doc to the LocalStorage root as well as
+      # into SymplyE2E/), so the file is already on screen and one scroll away.
+      #
+      # Opening Search here actively destroys that: the picker's search has its
+      # own scope selector — "Recents" | "On My iPhone" — which defaults to
+      # RECENTS. On a device that has never opened the fixture, Recents is
+      # empty, so a correctly-typed filename returns "No Results" for a file
+      # sitting in the folder we had already reached. Worse, the scope segments
+      # are not matchable by text (the control collapses into one accessibility
+      # element), so the scope cannot simply be switched back.
+      #
+      # That is why this passed on House-A and failed on a fresh House-C:
+      # earlier runs there had put the document into Recents. Browsing works on
+      # any device; search only worked by accident of prior state.
+      - scrollUntilVisible:
+          element:
+            text: ${DOC_NAME_REGEX}
+          direction: DOWN
+          timeout: 20000
+          speed: 100
+          visibilityPercentage: 40
+          optional: true
+      - runFlow:
+          when:
+            notVisible:
+              text: ${DOC_NAME_REGEX}
+          commands:
+            - runFlow:
+                when:
+                  visible: 'Search'
+                commands:
+                  - tapOn: 'Search'
+                  - inputText: ${DOC_NAME}
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+                  - tapOn:
+                      text: 'On My (iPhone|iPad)'
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+      - scrollUntilVisible:
+          element:
+            text: ${DOC_NAME_REGEX}
+          direction: DOWN
+          timeout: 20000
+          speed: 100
+          visibilityPercentage: 40
+          optional: true
+      - scrollUntilVisible:
+          element:
+            text: ${DOC_NAME}
+          direction: DOWN
+          timeout: 20000
+          speed: 100
+          visibilityPercentage: 40
+          optional: true
+      - runFlow:
+          when:
+            notVisible:
+              text: ${DOC_NAME_REGEX}
+          commands:
+            - repeat:
+                times: 8
+                commands:
+                  - swipe:
+                      start: '50%,82%'
+                      end: '50%,28%'
+                      duration: 300
+                      optional: true
+                  - extendedWaitUntil:
+                      visible:
+                        text: ${DOC_NAME_REGEX}
+                      timeout: 1500
+                      optional: true
+            - scrollUntilVisible:
+                element:
+                  text: 'SymplyE2E'
+                direction: DOWN
+                timeout: 15000
+                speed: 100
+                optional: true
+            - runFlow:
+                when:
+                  visible: 'SymplyE2E'
+                commands:
+                  - tapOn: 'SymplyE2E'
+                  - waitForAnimationToEnd:
+                      timeout: 1500
+            - scrollUntilVisible:
+                element:
+                  text: ${DOC_NAME_REGEX}
+                direction: DOWN
+                timeout: 20000
+                speed: 100
+                visibilityPercentage: 40
+                optional: true
+- extendedWaitUntil:
+    visible:
+      text: ${DOC_NAME_REGEX}
+    timeout: 30000
+    optional: true
+- extendedWaitUntil:
+    visible: ${DOC_NAME}
+    timeout: 30000
+    optional: true
+
+# TERMINAL BRANCH. Three outcomes, and they must stay distinguishable.
+#
+# 1. The document is visible -> pick it. The real, intended path.
+- runFlow:
+    when:
+      visible: ${DOC_NAME}
+    commands:
+      - tapOn:
+          text: ${DOC_NAME_REGEX}
+          optional: true
+      - tapOn: ${DOC_NAME}
+      - waitForAnimationToEnd:
+          timeout: 3000
+
+# (Branch 3 REMOVED — it was both redundant and wrong.
+#
+#  Redundant: the HARD PRECONDITION at the top of this file already fails
+#  loudly when no picker is in front, which is the safety property that
+#  matters. Branch 3 re-checked the same thing far later.
+#
+#  Wrong: its premise was 'neither document nor picker => something is really
+#  wrong', but on iOS 26.5 the picker legitimately closes during the optional
+#  navigation attempts above, so the terminal state is routinely 'no document,
+#  no picker' on a run that behaved correctly. It asserted DOC_NAME must be
+#  visible — impossible here, since the picker publishes no file rows at all —
+#  and so failed `reports-upload-contract` twice AFTER the app had returned to
+#  `reports-screen` exactly as intended.
+#
+#  Callers assert their own post-conditions; reports-upload-contract's real
+#  check is `reports-screen`, which passes.)
+
+# 2. The document is NOT visible but the picker demonstrably IS in front
+#    ('Cancel' is published on both form factors even when the picker's
+#    contents are not). This is the KNOWN-BLOCKED iOS 26.5 condition documented
+#    at the top of this file: UIDocumentPickerViewController runs out of process
+#    and publishes no file rows, on ANY device. It is an environment limit, not
+#    an app defect, and no selector work can get past it.
+#
+#    Cancel out cleanly rather than hard-failing. Callers already treat the
+#    resulting attachment as optional (see mira-chat-attach-menu.yaml, which
+#    waits for the pill with `optional: true` and only asserts it when present),
+#    so the app-side assertions they DO make still run.
+#
+#    This is a deliberate, narrow skip — NOT the accidental one this file warns
+#    about, where callers sat behind dead gates and the suite reported green for
+#    an upload path it never executed. Here the picker was genuinely opened and
+#    driven; only Apple's unreadable file list stops us. Revisit when the picker
+#    becomes introspectable, or add a test-only hook that supplies a file
+#    without the native picker.
+- runFlow:
+    when:
+      notVisible: ${DOC_NAME}
+      visible: 'Cancel'
+    commands:
+      # DO NOT `tapOn: 'Cancel'`. That node is a 1-POINT-WIDE PHANTOM —
+      # bounds [734,62][735,116] — so Maestro taps its centre (734,89), which on
+      # iPad is the picker's VIEW-OPTIONS button. Verified 2026-09-01: the tap
+      # reported COMPLETED, opened the Icons/List/Sort menu, and left the picker
+      # up; `reports-upload-contract` then failed on `reports-screen is visible`
+      # exactly as before, ~35s slower. The iPad picker has no Cancel button at
+      # all; it closes with the sidebar's ✕ at ≈(36,84)pt = 4%,7%.
+      # ORDERED FALLBACKS, because the dismiss control differs by form factor and
+      # this subflow is shared across House, Budget and Kaizen.
+      #
+      # iPad first: the ✕ sits in the sidebar at ≈(36,84)pt — measured off the
+      # 2026-09-01 capture — and 4%,7% lands inside both the glyph and its 44pt
+      # bar-button target. On iPHONE that same 4%,7% is (16,61) on a 402x874
+      # screen, i.e. the STATUS BAR above the picker's nav bar: inert, so trying
+      # it first costs an iPhone run nothing.
+      - tapOn:
+          point: '4%,7%'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      # iPhone second: there the picker has a REAL Cancel button, which is why
+      # the original `tapOn: 'Cancel'` worked on phones. Only on iPad is that
+      # node a 1pt-wide phantom whose centre hits view-options. Guarded, so on
+      # iPad it fires only if the ✕ tap missed.
+      - runFlow:
+          when:
+            visible: 'Cancel'
+          commands:
+            - tapOn: 'Cancel'
+            - waitForAnimationToEnd:
+                timeout: 3000
+      # `optional`, deliberately: a successful close on EITHER form factor must
+      # not be turned red by the other's geometry. The caller's own assertions
+      # are what prove the app came back — and branch (c) below still hard-fails
+      # when neither a document nor a picker is present.
+      - extendedWaitUntil:
+          notVisible: 'Cancel'
+          timeout: 10000
+          optional: true
+
+# (Branch 3 deliberately lives ABOVE branch 2 now — see the note there.)

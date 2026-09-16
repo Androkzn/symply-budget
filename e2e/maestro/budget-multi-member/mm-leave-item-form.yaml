@@ -1,0 +1,36 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+  - feature:multi-member
+---
+# Leave the item form if a previous flow (or a previous RUN) left it open.
+#
+# These simulators are never launched with clearState, so an abandoned editor
+# survives across flows and runs. It is not modal — navigation "succeeds" and
+# then every list assertion fails, because the list is simply not the screen in
+# front. Cheap to check, and it removes a whole class of confusing failures.
+- runFlow:
+    when:
+      visible:
+        id: 'budget-item-form'
+    commands:
+      - tapOn:
+          text: 'Go back'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          when:
+            visible:
+              id: 'budget-item-form'
+          commands:
+            # Discard-confirm, if the form asks before dropping edits.
+            - tapOn:
+                text: '^Discard$'
+                optional: true
+            - tapOn:
+                text: '^Leave$'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 1500

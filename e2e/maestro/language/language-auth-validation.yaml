@@ -1,0 +1,28 @@
+appId: com.symply.language
+tags:
+  - app:language
+  - feature:auth
+  - regression
+---
+# LANG-AUTH-011 — empty credentials must not POST /auth/login.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- runFlow: subflows/connect-language-metro.yaml
+- runFlow: subflows/language-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'auth-sign-in-email'
+    timeout: 120000
+- tapOn:
+    id: 'auth-sign-in-email'
+- extendedWaitUntil:
+    visible:
+      id: 'auth-sign-in-submit'
+    timeout: 10000
+- tapOn:
+    id: 'auth-sign-in-submit'
+- assertVisible:
+    id: 'auth-email-input'
+- assertVisible:
+    id: 'auth-sign-in-submit'

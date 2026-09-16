@@ -1,0 +1,64 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:home-projects
+  - feature:smart-project
+  - readonly
+  - regression
+# Matrix: HOUSE-home-projects (see documents/engineering/testing/matrices/)
+#
+# The TEMPLATE path, guarded against Smart Project regressing it.
+#
+# This flow used to assert that the describe-to-draft card was absent, because
+# `smartProject` defaulted off. It is now on in staging and production, so that
+# assertion asserted a state that no longer exists — it was rewritten rather
+# than deleted, because the half that always mattered is still true and still
+# worth pinning: adding a second way into project creation must not break the
+# first one.
+#
+# The banner check at the end is the sharper of the two. A template project is
+# not a drafted one, so the "only you can see this" frame must not appear on it
+# — that would tell a member their normal project was private when it is not.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-my-home.yaml
+- runFlow: ../subflows/dismiss-home-project-alert.yaml
+- tapOn:
+    id: 'my-home-home-projects'
+# The Home Projects stack restores its last route, so this tap can land on a
+# project hub an earlier flow left behind. No-op when the list opened normally.
+- runFlow: ../subflows/pop-restored-project-hub.yaml
+# Wait for the destination rather than asserting into the navigation — a bare
+# assert races the push and blames the list screen for a tap that had not
+# landed. Same fix as `home-projects-hub`.
+- extendedWaitUntil:
+    visible:
+      id: 'home-projects-list-screen'
+    timeout: 20000
+- tapOn:
+    id: 'home-projects-create'
+
+# The template grid is still the first thing on the step, and still complete.
+- assertVisible:
+    id: 'template-bathroom_reno'
+
+# The template path is untouched by Smart Project sitting beside it.
+- tapOn:
+    id: 'template-bathroom_reno'
+- tapOn: 'Continue'
+- assertVisible:
+    id: 'home-project-title'
+- tapOn: 'Continue'
+- assertVisible:
+    id: 'home-project-create-submit'
+- tapOn:
+    id: 'home-project-create-submit'
+- extendedWaitUntil:
+    visible:
+      id: 'home-project-hub-title'
+    timeout: 20000
+# A template project is NOT a Smart Project draft, so the review banner must not
+# appear on it. This is the assertion that would catch the banner rendering for
+# every project instead of only for drafted ones.
+- assertNotVisible:
+    id: 'smart-draft-banner'

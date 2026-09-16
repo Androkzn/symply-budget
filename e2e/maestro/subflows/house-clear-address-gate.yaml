@@ -1,0 +1,190 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Clear the full-screen "Add Your Address" gate, if it is up.
+#
+# `usePropertyAddressCaptureGate` (RootNavigator.tsx) raises CreateHouseholdScreen
+# over the WHOLE app, as the only route in its stack, whenever `currentHousehold`
+# has no `state_province` — so there is no back button. Local-first auto-mint
+# seeds a household named "My home" with no region
+# (src/features/house/local/engine.ts:1666), so any device that reinstalls House
+# lands here and every flow afterwards dies on `home-screen is visible`, ~845s
+# in, inside `launch-logged-in` — reading as an auth failure rather than a gate.
+#
+# GUARDED ON `address-capture-accept-invite`, which renders ONLY when
+# `openedByAddressGate` is true. That is the same branch that makes `handleCreate`
+# call `householdsApi.update` and return BEFORE `householdsApi.create`, so this
+# subflow structurally cannot mint a duplicate home — the bug that screen has
+# shipped twice. It is also why the guard is NOT `onboarding-create-home-name`:
+# that id is on the first-run wizard too, and guarding on it is what produced the
+# corrupted "My homeE2E House" names.
+#
+# THE GATE HAS NO "Not now" ANY MORE, and that is a product decision, not drift:
+# a member must hold at least one home before the app means anything, so
+# dismissing let them into an app whose property surfaces were all shut and the
+# prompt returned on the next cold start regardless. The screen's second answer
+# is now Accept Invite, which is a real join and not something a single-device
+# suite can drive. So the picker attempts below are the ONLY way out of this
+# gate — there is no longer a mask to fall through to, and a device that reaches
+# the end of this file with the gate still up will fail the flow it is standing
+# in. That is the intended behaviour: it was already documented as a harness
+# defect to fix rather than a pass.
+#
+# The name is deliberately NOT touched. It is prefilled from the home being
+# fixed and is always non-empty, and Save Address needs only
+# `name.trim() && stateProvince.trim()`. Not typing means no concatenation, no
+# renaming a member's real home on staging, and no keyboard to dismiss.
+- runFlow:
+    when:
+      visible:
+        id: 'address-capture-accept-invite'
+    commands:
+      # EVERY tap below is coordinate-based, because the picker wheel is not
+      # addressable by selector — so orientation is load-bearing. iPad allows
+      # portrait-upside-down (iPhone does not), and the device was observed
+      # drifting into it mid-suite on 2026-09-01: the screen rendered 180°
+      # rotated, which mirrors '50%,60%' to the wrong half of the sheet. Both
+      # picker attempts then missed, and back when this file ended in a "Not now"
+      # mask that passed the flow for the wrong reason. No flow in e2e/maestro/
+      # rotates the device, so this is drift, not a test action — pin it.
+      - setOrientation: PORTRAIT
+      # The gate drops the "Step 1 of 6" header and grows the subtitle, so
+      # State/Province can sit below the fold on a short phone.
+      - scrollUntilVisible:
+          element:
+            id: 'onboarding-create-home-state'
+          direction: DOWN
+          timeout: 15000
+          speed: 60
+          visibilityPercentage: 60
+          optional: true
+
+      # ATTEMPT 1 — point tap, for iPad. `useModalPresentation` returns
+      # `formSheet` on iPad (src/navigation/presentation.ts:29) — a centred
+      # panel — vs `modal` on iPhone, so no single coordinate is right on both.
+      # 50%,60% is inside the wheel on the iPad sheet (verified by hand on
+      # House-iPad: the gate cleared to home-screen) and is harmless on iPhone,
+      # where a tap above the selected row cannot go below index 0.
+      #
+      # `<Picker.Item>` carries no testID and iOS publishes the wheel as ONE
+      # node, so a province cannot be chosen by selector at all — see the risk
+      # note at the bottom.
+      - tapOn:
+          id: 'onboarding-create-home-state'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - tapOn:
+          point: '50%,60%'
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - tapOn:
+          id: 'onboarding-create-home-state-done'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - tapOn:
+          id: 'onboarding-create-home-submit'
+          optional: true
+      - extendedWaitUntil:
+          notVisible:
+            id: 'address-capture-accept-invite'
+          timeout: 25000
+          optional: true
+
+      # ATTEMPT 2 — swipe, for the iPhone geometry. Success is checked against
+      # the GATE closing, not the picker label: RN merges the button's Typography
+      # and chevron into one node, so "did a province stick" is only reliably
+      # answerable as "did the gate close". Tapping a disabled GradientButton in
+      # attempt 1 is a no-op, so a failed attempt costs nothing.
+      #
+      # 58% -> 46%, not the 72% -> 64% the first-run wizard uses: 72% is off the
+      # bottom of the iPad formSheet, on the backdrop.
+      - runFlow:
+          when:
+            visible:
+              id: 'address-capture-accept-invite'
+          commands:
+            - tapOn:
+                id: 'onboarding-create-home-state'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 4000
+            - swipe:
+                start: '50%, 58%'
+                end: '50%, 46%'
+            - waitForAnimationToEnd:
+                timeout: 2000
+            - tapOn:
+                id: 'onboarding-create-home-state-done'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 4000
+            - tapOn:
+                id: 'onboarding-create-home-submit'
+                optional: true
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'address-capture-accept-invite'
+                timeout: 25000
+                optional: true
+
+      # ATTEMPT 3 — the FIRST-RUN WIZARD'S OWN GEOMETRY, 72% -> 64%. It is the
+      # one pair of coordinates in this repo with a long green record on iPhone
+      # (`house-adopt-or-start-home.yaml` drives the identical picker with it),
+      # and it exists here because this file no longer has a "Not now" to fall
+      # through to: the last resort has to be another attempt at the wheel, not
+      # a way around it. Off the bottom of the iPad formSheet, hence third and
+      # not first — by the time it runs, the iPad geometry has already had two
+      # goes.
+      - runFlow:
+          when:
+            visible:
+              id: 'address-capture-accept-invite'
+          commands:
+            - tapOn:
+                id: 'onboarding-create-home-state'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 4000
+            - swipe:
+                start: '50%, 72%'
+                end: '50%, 64%'
+            - waitForAnimationToEnd:
+                timeout: 3000
+            - tapOn:
+                id: 'onboarding-create-home-state-done'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 4000
+            - tapOn:
+                id: 'onboarding-create-home-submit'
+                optional: true
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'address-capture-accept-invite'
+                timeout: 25000
+                optional: true
+
+      # EVERY TAP ABOVE IS OPTIONAL, and the assertion below is the verdict.
+      #
+      # Attempts 2 and 3 exist because attempt 1's geometry is wrong on one of
+      # the two form factors — but a non-optional tap in attempt 1 aborted the
+      # whole flow before either fallback ran, which is the opposite of what
+      # three attempts are for. Seen on House-B 2026-09-05 (run 20260905-095008):
+      # the picker did not open, `onboarding-create-home-state-done` was absent,
+      # and mm-01-signin failed inside `mm-dismiss-stale-alerts` — three layers
+      # from anything to do with the gate, on a device that was in fact fine.
+      #
+      # A missed tap must cost the attempt, not the run.
+      #
+      # FAIL HERE, not three minutes later inside `launch-logged-in`.
+      #
+      # If all three attempts missed the wheel, the coordinates need re-tuning
+      # and the whole suite is about to die on `home-screen is visible` with a
+      # message that names authentication rather than this gate. Asserting it
+      # here costs one step and puts the failure on the line that caused it.
+      - assertNotVisible:
+          id: 'address-capture-accept-invite'

@@ -1,0 +1,73 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-009
+---
+# WHAT THIS PROVES
+# ----------------
+# Nothing is written until a destination is chosen, and every destination on
+# offer says — in the sheet, before the tap — that the file is sealed with a
+# 12-word phrase and where that copy will and will not survive.
+#
+# WHY THAT MATTERS
+# ----------------
+# This flow used to guard a phrase GATE: the old screen sealed the archive
+# in-place, showed the 12 words, and hid the Save button behind "I have written
+# this down". That gate is gone, and deliberately so — the seal now runs in a
+# background task (Argon2id is minutes on a phone, and holding a member on one
+# screen for it is what the task store exists to end), and the phrase arrives in
+# `RecoveryPhraseSheet` the moment the run lands, wherever they are.
+#
+# What survives the change is the promise underneath it: a member must never
+# choose where a backup goes without being told what the file is worth if they
+# lose the words, or which destinations outlive the phone. That lives in the
+# destination sheet's notes now, so that is what this asserts — and it asserts
+# it WITHOUT starting a seal, which is why this flow is readonly where the old
+# one was a mutation.
+#
+# The paired mutation path (seal → phrase sheet → archive in the list) needs a
+# multi-minute Argon2 run on device and is tracked in the matrix as its own row.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-LF-009
+- runFlow: lf-backup-open-backup-screen.yaml
+# Maestro has no `finally`, so a previous flow that failed mid-way can leave the
+# schedule armed and the screen longer than this one expects. Cleanup is a
+# precondition here, not a postcondition — see lf-backup-reset-state.yaml.
+- runFlow: lf-backup-reset-state.yaml
+- tapOn:
+    id: 'house-backup-property-.*'
+- tapOn:
+    id: 'house-backup-now'
+- extendedWaitUntil:
+    visible:
+      id: 'house-backup-destination-sheet'
+    timeout: 20000
+- assertVisible:
+    id: 'house-backup-to-device'
+- assertVisible:
+    id: 'house-backup-to-files'
+- assertVisible:
+    id: 'house-backup-to-drive'
+- assertVisible:
+    id: 'house-backup-to-share'
+# The notes block is where "sealed with a 12-word phrase" and "lost with the
+# phone" are said. Without it the sheet is five equally-weighted places to put
+# something irreplaceable.
+- assertVisible:
+    id: 'house-backup-destination-sheet-notes'
+# Backing out writes nothing.
+- tapOn:
+    id: 'house-backup-destination-sheet-cancel'
+- assertNotVisible:
+    id: 'house-backup-destination-sheet'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

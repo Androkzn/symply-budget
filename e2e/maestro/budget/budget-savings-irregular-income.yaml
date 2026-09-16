@@ -1,0 +1,331 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - mutation
+  - regression
+# Matrix: BUDGET-SAVE-087 — irregular / one-off income (SavingsEntryForm, mode=income).
+# MUTATING but self-cleaning: creates a `marketplace_sale` income entry, proves the
+# one-off source round-trips (row label is derived "<member> <source label>", never
+# the raw enum), proves the Overview Regular / One-off split appears (it only renders
+# while one-off income > 0), then deletes the entry so the flow is re-runnable.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-SAVE-087
+- runFlow: ../subflows/go-budget-savings.yaml
+- assertVisible:
+    id: 'savings-view'
+- tapOn:
+    id: 'filter-tab-income'
+- runFlow:
+    file: ../subflows/budget-savings-force-subtab.yaml
+    env:
+      E2E_SUBTAB: income
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 15000
+# Rewind to the Add button before tapping it. "Add / Copy / Import (AI)" sits
+# at the TOP of the Income tab, above the entries list, so once the list has
+# been scrolled it is off screen and the tap silently misses — the form never
+# opens and it surfaces later as "savings-entry-form is visible" being false
+# (2026-08-26: screenshot shows the Income tab correctly selected with the
+# entries list scrolled past the button row entirely).
+- scrollUntilVisible:
+    element:
+      id: 'savings-add-income'
+    direction: UP
+    timeout: 15000
+    centerElement: true
+    optional: true
+- tapOn:
+    id: 'savings-add-income'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-form'
+    timeout: 15000
+# Income has no free-text name field — amount + member + source only.
+- tapOn:
+    id: 'savings-entry-amount'
+- inputText: '180'
+# `hideKeyboard` alone leaves the numeric keypad up, and the member picker sits
+# behind it — the tap below then hits the keypad and the sheet never opens
+# (observed 2026-08-23, Budget-C). The forms dismiss on drag; this does that.
+- runFlow: ../subflows/budget-dismiss-keypad.yaml
+# Member picker sheet. Household member ids are UUIDs, so match the real rows and
+# skip the picker button / "No member" option; the sheet closes on selection.
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-member-picker'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+    centerElement: true
+- tapOn:
+    id: 'savings-entry-member-picker'
+- extendedWaitUntil:
+    visible: 'Select member'
+    timeout: 15000
+# The real member rows are seeded from the household store / a fallback fetch, which
+# can still be in flight when the sheet opens (only "No member" exists until then).
+# Wait for an actual member row to render before tapping, so the pick isn't a race.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-member-(?!picker|none).*'
+    timeout: 15000
+- tapOn:
+    id: 'savings-entry-member-(?!picker|none).*'
+# One-off source chips sit below member + date on the long income form.
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-source-marketplace_sale'
+    direction: DOWN
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: 'savings-entry-source-marketplace_sale'
+    timeout: 10000
+- tapOn:
+    id: 'savings-entry-source-marketplace_sale'
+- scrollUntilVisible:
+    element:
+      id: 'savings-entry-form-save-header'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+- tapOn:
+    id: 'savings-entry-form-save-header'
+# Back on the Income sub-view with the new entry rendered under its derived label.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income-item'
+    timeout: 20000
+- assertVisible:
+    id: 'savings-income-item'
+# Row exists after save but sits below the fold in a long, data-polluted list.
+# Scroll to reveal it (coordinate-swipe fallback per the iOS-26 Maestro RN-scroll
+# limitation), then assert.
+- scrollUntilVisible:
+    element:
+      id: 'savings-income-source-marketplace_sale'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 5
+    optional: true
+- repeat:
+    while:
+      notVisible:
+        id: 'savings-income-source-marketplace_sale'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+          duration: 800
+- assertVisible:
+    id: 'savings-income-source-marketplace_sale'
+# The canonical Budget money formatter (formatBudgetCurrency) renders whole-dollar
+# amounts without cents, so 18000 cents shows as "$180", never "$180.00". The amount
+# is a Text node inside the row's accessible TouchableOpacity, so iOS collapses it
+# into the row's accessibilityLabel rather than exposing it as its own element — the
+# only queryable copy of "$180" lives inside that longer label string. Maestro text
+# selectors are full-match, so the pattern must be wrapped with `.*…​.*` (and the
+# literal "$" escaped) to substring-match it, exactly like the other selectors here.
+- assertVisible: '.*\$180.*'
+- assertNotVisible: '.*marketplace_sale.*'
+# Overview now shows the Regular / One-off split (hidden when one-off income is 0).
+# The list was scrolled down to reveal the row — scroll back up so the sub-tab
+# strip (filter-tab-overview) is reachable.
+- scrollUntilVisible:
+    element:
+      id: 'filter-tab-overview'
+    direction: UP
+    timeout: 8000
+    optional: true
+- repeat:
+    while:
+      notVisible:
+        id: 'filter-tab-overview'
+    commands:
+      - swipe:
+          start: 50%, 28%
+          end: 50%, 78%
+          duration: 800
+- tapOn:
+    id: 'filter-tab-overview'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-overview'
+    timeout: 20000
+# The Regular / One-off split sits in the Income card below the net-savings hero.
+# filter-tab-overview may have been only barely on screen when tapped, so reveal
+# the split with a coordinate-swipe fallback before asserting (iOS-26 RN scroll).
+- scrollUntilVisible:
+    element:
+      id: 'savings-overview-income-split'
+    direction: DOWN
+    timeout: 10000
+    visibilityPercentage: 5
+    optional: true
+- repeat:
+    while:
+      notVisible:
+        id: 'savings-overview-income-split'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+          duration: 800
+- extendedWaitUntil:
+    visible:
+      id: 'savings-overview-income-split'
+    timeout: 20000
+- assertVisible:
+    id: 'savings-overview-income-regular'
+- assertVisible:
+    id: 'savings-overview-income-irregular'
+# Cleanup — delete EVERY marketplace_sale income row, not just the one this run
+# created: an earlier interrupted run can orphan a "Marketplace sale" entry, and a
+# single delete would leave those behind and fail the final notVisible check. The
+# loop makes the flow self-healing and idempotent — it deletes until none remain.
+# The Income sub-tab strip is off-screen after scrolling the Overview split into
+# view — reveal it before tapping (iOS-26 RN scroll fallback).
+- scrollUntilVisible:
+    element:
+      id: 'filter-tab-income'
+    direction: UP
+    timeout: 8000
+    optional: true
+- repeat:
+    while:
+      notVisible:
+        id: 'filter-tab-income'
+    commands:
+      - swipe:
+          start: 50%, 28%
+          end: 50%, 78%
+          duration: 800
+- tapOn:
+    id: 'filter-tab-income'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-income'
+    timeout: 15000
+# Reveal the marketplace_sale cluster (rows sit below the fold in the long,
+# data-polluted list) so the delete loop's `while visible` guard can enter.
+- scrollUntilVisible:
+    element:
+      id: 'savings-income-source-marketplace_sale'
+    direction: DOWN
+    timeout: 20000
+    visibilityPercentage: 5
+    optional: true
+- repeat:
+    while:
+      notVisible:
+        id: 'savings-income-source-marketplace_sale'
+    commands:
+      - swipe:
+          start: 50%, 78%
+          end: 50%, 28%
+          duration: 800
+- repeat:
+    times: 25
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'savings-income-source-marketplace_sale'
+          commands:
+            # Reopen the first remaining marketplace_sale entry (Alert-confirm delete).
+            - tapOn:
+                id: 'savings-income-source-marketplace_sale'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-entry-form'
+                timeout: 15000
+            # The Delete affordance sits at the very bottom of the long edit form, below
+            # the fold — the create path never had to scroll (it saved via the always-
+            # visible header "Save"), so this is the first real scroll. scrollUntilVisible
+            # is unreliable on RN gesture-handler ScrollViews under iOS 26 + Maestro, so
+            # fall back to explicit coordinate swipes when it doesn't move.
+            - scrollUntilVisible:
+                element:
+                  id: 'savings-entry-form-delete'
+                direction: DOWN
+                timeout: 10000
+                visibilityPercentage: 5
+                optional: true
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'savings-entry-form-delete'
+                commands:
+                  - swipe:
+                      start: 50%, 78%
+                      end: 50%, 28%
+                      duration: 800
+                  - swipe:
+                      start: 50%, 78%
+                      end: 50%, 28%
+                      duration: 800
+                  - swipe:
+                      start: 50%, 78%
+                      end: 50%, 28%
+                      duration: 800
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-entry-form-delete'
+                timeout: 15000
+            - tapOn:
+                id: 'savings-entry-form-delete'
+            - extendedWaitUntil:
+                visible: 'Delete entry'
+                timeout: 10000
+            # The form's delete button now has a distinct accessibility name ("Delete
+            # income"), so this text-match resolves only to the Alert's confirm button.
+            - tapOn: 'Delete'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-income'
+                timeout: 20000
+            # After delete + return the list re-renders at the preserved scroll offset;
+            # nudge the next remaining marketplace_sale row on screen so the loop's
+            # `while visible` re-check sees it (rows can fall below the fold).
+            - scrollUntilVisible:
+                element:
+                  id: 'savings-income-source-marketplace_sale'
+                direction: DOWN
+                timeout: 8000
+                visibilityPercentage: 5
+                optional: true
+            - runFlow:
+                when:
+                  notVisible:
+                    id: 'savings-income-source-marketplace_sale'
+                commands:
+                  - swipe:
+                      start: 50%, 78%
+                      end: 50%, 28%
+                      duration: 800
+                  - swipe:
+                      start: 50%, 78%
+                      end: 50%, 28%
+                      duration: 800
+- extendedWaitUntil:
+    notVisible: '.*Marketplace sale.*'
+    timeout: 20000
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

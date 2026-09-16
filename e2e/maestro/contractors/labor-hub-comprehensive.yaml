@@ -1,0 +1,121 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:contractors
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-LABOR-002,003,014,037 (load / nav / calendar entry / offline shell)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-contractors.yaml
+- assertVisible:
+    id: 'contractors-screen'
+# Cycle labor-hub tabs (Schedule / Quotes / Contractors / Projects).
+- tapOn:
+    id: 'contractors-tab-upcoming'
+- assertVisible:
+    id: 'contractors-tab-upcoming'
+- tapOn:
+    id: 'contractors-tab-quotes'
+- assertVisible:
+    id: 'contractors-tab-quotes'
+- tapOn:
+    id: 'contractors-tab-contractors'
+- assertVisible:
+    id: 'contractors-tab-contractors'
+- tapOn:
+    id: 'contractors-tab-projects'
+- assertVisible:
+    id: 'contractors-tab-projects'
+# Projects list screen via FAB → ProjectsScreen (HOUSE-LABOR-014).
+- tapOn:
+    id: 'contractors-fab-project'
+- extendedWaitUntil:
+    visible: 'Projects'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+# Appointments list + calendar (HOUSE-LABOR-002,003) via deep link.
+- openLink: simplehouse://contractors?screen=Appointments
+- extendedWaitUntil:
+    visible:
+      id: 'appointments-screen'
+    timeout: 20000
+- tapOn:
+    id: 'appointments-view-calendar'
+- assertVisible:
+    id: 'appointments-view-calendar'
+- tapOn:
+    id: 'appointments-view-list'
+- assertVisible:
+    id: 'appointments-view-list'
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+# FAB smoke on each tab — open create surfaces then dismiss.
+- tapOn:
+    id: 'contractors-tab-upcoming'
+- tapOn:
+    id: 'contractors-fab-schedule'
+- extendedWaitUntil:
+    visible:
+      id: 'appointment-form-screen'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+- tapOn:
+    id: 'contractors-tab-quotes'
+- tapOn:
+    id: 'contractors-fab-quote'
+- extendedWaitUntil:
+    visible: 'Request Quote'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+- tapOn:
+    id: 'contractors-tab-contractors'
+- assertVisible:
+    id: 'contractors-add-button'
+- assertVisible:
+    id: 'contractors-search-button'
+- tapOn:
+    id: 'contractors-add-button'
+- extendedWaitUntil:
+    visible:
+      id: 'contractor-form-screen'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'nav-back-button'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+- assertVisible:
+    id: 'contractors-screen'
+# Scroll contract on dashboard.
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: contractors-screen-scroll-end

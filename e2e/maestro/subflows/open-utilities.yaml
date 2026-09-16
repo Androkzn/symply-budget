@@ -1,0 +1,39 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Opens the Utilities tab on House.
+#
+# `utilities-region-gate` used to be waited on here twice. That testID does not
+# exist anywhere in src/ or app/ — the Greater-Vancouver gate is now a
+# `disabled={!isGva}` prop on the Property Tax quick action, not a screen. Both
+# waits were `optional: true`, so they burned no time, but they made the flow
+# read as though a gate screen were still possible. Removed 2026-08-26.
+#
+# Utilities is House-only and no longer routed through the Budget product, so
+# `utilities-screen` is now the single expected outcome on this brand. Callers
+# may assert it directly rather than branching on a redirect.
+- waitForAnimationToEnd:
+    timeout: 1500
+- openLink: simplehouse://utilities
+- extendedWaitUntil:
+    visible:
+      id: 'utilities-screen'
+    timeout: 15000
+    optional: true
+# openLink right after app boot/login can be dropped if the navigation
+# container isn't fully ready yet (deep link fired before onReady) — retry
+# once if the screen didn't show up (see open-gardening.yaml,
+# root-caused 2026-07-31).
+- runFlow:
+    when:
+      notVisible:
+        id: 'utilities-screen'
+    commands:
+      - openLink: simplehouse://utilities
+      - extendedWaitUntil:
+          visible:
+            id: 'utilities-screen'
+          timeout: 20000
+          optional: true

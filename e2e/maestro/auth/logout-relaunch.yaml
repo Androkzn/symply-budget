@@ -1,0 +1,35 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:auth
+  - smoke
+  - regression
+  - mutation
+# Matrix: HOUSE-SMOKE-016
+---
+# Sign out, kill, relaunch — Login is first screen; no household bootstrap before auth.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      E2E_MATRIX_ROW: HOUSE-SMOKE-016
+- runFlow: ../subflows/open-profile.yaml
+- scrollUntilVisible:
+    element:
+      id: 'profile-sign-out'
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: 'profile-sign-out'
+- runFlow: ../subflows/confirm-sign-out-alert.yaml
+- runFlow: ../subflows/assert-logged-out-login.yaml
+- stopApp
+- launchApp:
+    clearState: false
+- runFlow: ../subflows/assert-logged-out-login.yaml
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse

@@ -1,0 +1,26 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Opens Monthly Budget (BudgetMonthlyCapsScreen) via deep link.
+#
+# The 12-month cap grid and its editor moved off Budget Settings, which now
+# carries one row (`budget-settings-monthly-caps-link`) leading here.
+# navNonce makes every open a distinct request: the navigator de-dupes by
+# `screen:itemId:navNonce`, so re-opening the same link without it is a no-op
+# and a flow that wandered off this screen would never come back.
+- openLink: simplebudget:///?screen=BudgetMonthlyCaps&navNonce=${Date.now()}
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-monthly-caps-screen'
+    timeout: 30000
+# The screen mounts with a spinner while all 12 months load — wait for the
+# editor, not the shell.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-settings-planned-budget'
+    timeout: 30000

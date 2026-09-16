@@ -1,0 +1,14 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Switch to the Activity tab (route health-activity, label Activity).
+- runFlow: dismiss-weight-keyboard.yaml
+- tapOn:
+    id: 'tab-health-activity'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'health-activity-screen'
+    timeout: 30000

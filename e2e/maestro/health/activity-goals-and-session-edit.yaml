@@ -1,0 +1,731 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:activity
+  - mutation
+  - regression
+# Matrix: HEALTH-ACT-120 … HEALTH-ACT-133
+---
+# Activity tab — the seven controls `activity-log-workout.yaml` never touches:
+# the range picker, the two goal editors, the intensity picker, the note field,
+# and the EDIT path (`health-workout-row-*` → the detail sheet's
+# `health-workout-detail-edit` → `health-workout-cancel-edit`).
+#
+# WHY THIS FLOW EXISTS. `activity-log-workout.yaml` owns the ADD form, the step
+# field and the charts — 7 of the screen's 14 controls. The other seven are the
+# ones that carry STATE: two Alerts that can be cancelled, a segmented picker
+# with three options, and an edit mode that can be entered and abandoned. The
+# edit path is also the one that changed shape in migration 0124 (`PUT
+# /health/entries/workouts/:id` replaced a re-record), so it is worth a device.
+#
+# Split rather than extended for the same reason the two nutrition and two
+# weight flows are split: a mid-run driver drop should cost half a screen.
+#
+# ## The session this flow owns
+#
+# Type `yoga`, deliberately NOT the `strength` `activity-log-workout.yaml` uses,
+# so a run that dies between the two leaves a row a human can attribute. The row
+# it edits and deletes is always the one it just logged: `groupWorkoutsByDay`
+# sorts days newest-first and entries within a day by `loggedAt` descending, so
+# the first `health-workout-row-*` on screen is this flow's — edit and delete
+# both live on the detail sheet that row opens, not on the row itself.
+#
+# ## Disabled states are proven BEHAVIOURALLY
+#
+# React Native maps `disabled` to an accessibility TRAIT and Maestro's `enabled:`
+# filter does not match it on this build. So the inert add button is proven by
+# pressing it and showing the side effect did NOT happen — a successful log
+# calls `resetForm()`, which would put the type picker back on `walk`.
+#
+# ## Keyboard
+#
+# `health-workout-minutes-input` is `number-pad`. `hideKeyboard` HARD-FAILS on
+# this build's numeric keyboards, so the keypad goes through
+# `subflows/dismiss-health-keypad.yaml`.
+#
+# ## RE-RUNNABILITY
+#
+# Both goals end on `DEFAULT_ACTIVITY_GOALS` (30 min / 8000 steps), the range
+# ends on 7 days (`RANGES[0]`, the screen's initial state), and the session is
+# deleted. Nothing this flow writes outlives it.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-ACT-120
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- The tab opens (HEALTH-ACT-120) ---------------------------------
+      - runFlow: subflows/go-health-activity.yaml
+      - assertVisible: 'LOG A WORKOUT'
+
+      # =================================================================
+      # The daily movement goal — an Alert with four options and a Cancel
+      # =================================================================
+      # --- Picking a goal writes it, and the bar follows (HEALTH-ACT-121) -
+      # `HealthGoalBar` builds its accessibility label from the TARGET it was
+      # handed, so `Active minutes: n of 45 min` proves the chosen figure
+      # reached the bar and not only the button that opened the Alert.
+      - assertVisible:
+          id: 'health-activity-goal-button'
+      # saveActivityGoals({minutes}) (healthActivityStorage.ts) →
+      # healthApi.saveGoal() → PUT /health/goals, 200 on success.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-activity-goal-button'
+      - extendedWaitUntil:
+          visible: 'Daily movement goal'
+          timeout: 10000
+      - assertVisible: 'How many active minutes are you aiming for?'
+      - assertVisible: '20 min'
+      - assertVisible: '60 min'
+      - tapOn: '45 min'
+      # `handleMinutesGoal` chains a GET (`loadActivityGoals`) then a PUT
+      # before `setGoals` fires and this text renders — two sequential
+      # network round-trips, not one. 15s was tight even before this suite's
+      # shared account saw today's concurrent load; reproduced 2026-08-01
+      # timing out with the write otherwise correct and race-proof (the
+      # written value never depends on the response body). The 15s→25s bump
+      # was itself not enough under a full 52-flow concurrent run (observed
+      # failing at ~25.5s with the write already 200 and the goal already
+      # rendered on screen a beat later) — bumped to 35s.
+      #
+      # 2026-08-02: failed AGAIN at 35s. The live report for THIS run
+      # (activity-goals-and-session-edit.html, step 166/167) rules out the
+      # write path entirely and points at something outside the app:
+      #   - `PUT /health/goals` was 200 within ~1s of the tap, same as every
+      #     prior run — the value that reached the server was correct.
+      #   - The failure screenshot shows "Goal 45 min" ALREADY correct on
+      #     screen — sitting under a blue "Refreshing…" banner across the
+      #     status bar. That banner is React Native's native DevLoadingView
+      #     (Libraries/Utilities/HMRClient.js `update-start` handler →
+      #     `DevLoadingView.showMessage('Refreshing...', 'refresh')`, the
+      #     '#2584e8' blue is the 'refresh' color). It only renders when
+      #     Metro pushes a Fast Refresh to THIS connected Debug simulator
+      #     because a file it watches changed on disk — nothing in this
+      #     screen's own code can draw it.
+      #   - `src/brand/tokens.generated.ts`, `src/theme/tokens.generated.ts`
+      #     and `src/brand/icons.generated.ts` all carry mtimes at
+      #     13:35–13:36:35 on the run machine — the same minute as the
+      #     screenshot's own status-bar clock ("1:36"). Something (an
+      #     icon/token rebuild running concurrently against this checkout —
+      #     see "concurrent brand-build clobber" in project notes) rewrote
+      #     them mid-flow. Metro Fast-Refreshed the app in response, and the
+      #     resulting remount re-fetched effectively every Health endpoint
+      #     from scratch (visible in this step's own network log — 25+ GETs
+      #     across entries/weight/water/nutrition/challenges/goals/etc. that
+      #     this screen never calls) before it settled back to the
+      #     already-correct 45.
+      # A Fast Refresh remount isn't bounded by any fixed duration, so a
+      # fourth timeout bump would only be a bigger guess at the same wrong
+      # target. What IS a real, observable signal is the banner itself —
+      # wait for Metro to finish before asking whether the goal rendered.
+      - extendedWaitUntil:
+          notVisible: 'Refreshing...'
+          timeout: 20000
+      - extendedWaitUntil:
+          visible: 'Goal 45 min'
+          timeout: 35000
+      - assertVisible:
+          id: 'health-activity-minutes-bar'
+          text: 'Active minutes: \d+ of 45 min'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Cancel leaves the goal exactly where it was (HEALTH-ACT-122) ---
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-activity-goal-button'
+      - extendedWaitUntil:
+          visible: 'Daily movement goal'
+          timeout: 10000
+      - tapOn: 'Cancel'
+      - extendedWaitUntil:
+          notVisible: 'Daily movement goal'
+          timeout: 10000
+      - assertVisible: 'Goal 45 min'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- A second option proves it is not one-way (HEALTH-ACT-123) ------
+      # 30 is `DEFAULT_ACTIVITY_GOALS.minutes`, so this is also the teardown.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-activity-goal-button'
+      - extendedWaitUntil:
+          visible: 'Daily movement goal'
+          timeout: 10000
+      - tapOn: '30 min'
+      - extendedWaitUntil:
+          visible: 'Goal 30 min'
+          timeout: 15000
+      - assertNotVisible: 'Goal 45 min'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # =================================================================
+      # The daily step goal — the same shape, a different control
+      # =================================================================
+      # --- Set, cancelled, and restored (HEALTH-ACT-124) ------------------
+      - assertVisible:
+          id: 'health-activity-steps-goal-button'
+      # saveActivityGoals({steps}) (healthActivityStorage.ts) →
+      # healthApi.saveGoal() → PUT /health/goals, 200 on success.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-activity-steps-goal-button'
+      - extendedWaitUntil:
+          visible: 'Daily step goal'
+          timeout: 10000
+      - assertVisible: 'How many steps are you aiming for?'
+      - tapOn: '12000 steps'
+      - extendedWaitUntil:
+          visible: 'Step goal: 12000'
+          timeout: 15000
+      - assertVisible:
+          id: 'health-activity-steps-bar'
+          text: 'Steps: \d+ of 12000'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-activity-steps-goal-button'
+      - extendedWaitUntil:
+          visible: 'Daily step goal'
+          timeout: 10000
+      - tapOn: 'Cancel'
+      - extendedWaitUntil:
+          notVisible: 'Daily step goal'
+          timeout: 10000
+      - assertVisible: 'Step goal: 12000'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # 8000 is `DEFAULT_ACTIVITY_GOALS.steps` — teardown.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-activity-steps-goal-button'
+      - extendedWaitUntil:
+          visible: 'Daily step goal'
+          timeout: 10000
+      - tapOn: '8000 steps'
+      - extendedWaitUntil:
+          visible: 'Step goal: 8000'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/goals
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # =================================================================
+      # The range picker — everything below it follows the choice
+      # =================================================================
+      # Local-only: like the window navigator in
+      # activity-distance-picker-and-window-nav.yaml, `range` is
+      # HealthActivityScreen.tsx's own useState and every card below it is a
+      # useMemo re-filter of the `workouts`/`stepDays` arrays already in
+      # memory — no network call.
+      # --- All three options, and the heading follows (HEALTH-ACT-125) ----
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-activity-range-30'
+            SCROLL_DIR: down
+      - tapOn:
+          id: 'health-activity-range-30'
+      - extendedWaitUntil:
+          visible: 'LAST 30 DAYS'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-activity-range-30'
+          selected: true
+      - tapOn:
+          id: 'health-activity-range-90'
+      - extendedWaitUntil:
+          visible: 'LAST 90 DAYS'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-activity-range-30'
+          selected: false
+      # Back to `RANGES[0]`, the state the screen mounts in — teardown.
+      - tapOn:
+          id: 'health-activity-range-7'
+      - extendedWaitUntil:
+          visible: 'LAST 7 DAYS'
+          timeout: 10000
+      - assertVisible:
+          id: 'health-activity-range-7'
+          selected: true
+
+      # =================================================================
+      # The log form: intensity, note, and the inert button
+      # =================================================================
+      # --- The add button does nothing without minutes (HEALTH-ACT-126) ---
+      # `canLog` is `parseMinutesInput(form.minutes) !== null`, so an empty
+      # minutes field must block the write. Proven behaviourally: a successful
+      # log calls `resetForm()`, which would move the type picker back to `walk`.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-workout-type-yoga'
+            SCROLL_DIR: up
+      - tapOn:
+          id: 'health-workout-type-yoga'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-type-yoga'
+            selected: true
+          timeout: 10000
+      # handleLog() (HealthActivityScreen.tsx) returns early on
+      # `parseMinutesInput(form.minutes) === null` — BEFORE ever calling
+      # addWorkoutEntry/updateWorkoutEntry — so an empty minutes field must
+      # fire no request at all.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-workout-add-button'
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - assertVisible:
+          id: 'health-workout-type-yoga'
+          selected: true
+      - assertVisible: 'LOG A WORKOUT'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /entries/workouts
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- The intensity picker is single-select (HEALTH-ACT-127) ---------
+      # Four options, three of them chosen here and the fourth (`steady`) is the
+      # default the form starts on — so every segment of the row is covered
+      # across this flow. Local-only: `form.intensity` is form draft state
+      # (setField) until the session is logged/saved below.
+      - assertVisible:
+          id: 'health-workout-intensity-steady'
+          selected: true
+      - tapOn:
+          id: 'health-workout-intensity-max'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-intensity-max'
+            selected: true
+          timeout: 10000
+      - assertVisible:
+          id: 'health-workout-intensity-steady'
+          selected: false
+      - tapOn:
+          id: 'health-workout-intensity-hard'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-intensity-hard'
+            selected: true
+          timeout: 10000
+      - assertVisible:
+          id: 'health-workout-intensity-max'
+          selected: false
+
+      # --- Minutes + a note, then log (HEALTH-ACT-128) --------------------
+      - tapOn:
+          id: 'health-workout-minutes-input'
+      - inputText: '25'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'LOG A WORKOUT'
+      - tapOn:
+          id: 'health-workout-note-input'
+      - inputText: 'Maestro session note'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'LOG A WORKOUT'
+      # `editing` is null here (nothing opened via Edit yet), so handleLog()
+      # takes the create branch: addWorkoutEntry() → healthApi.logWorkout() →
+      # POST /health/entries/workouts, 201 on success.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-workout-add-button'
+      # The SESSIONS card is the last one on the screen, so the row has to be
+      # scrolled to before it can be asserted. `health-workout-row-*` only
+      # renders on a row, so reaching it is itself proof one exists. Edit and
+      # delete live on the detail sheet the row opens, not on the row itself.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-workout-row-.*'
+            SCROLL_DIR: down
+      # Type + duration are the row's own accessibility label, built to read as
+      # one phrase for assistive tech — matching it proves the ROW carries
+      # both, not just that "Yoga" and "25m" each appear somewhere on screen.
+      - assertVisible:
+          id: 'health-workout-row-.*'
+          text: 'Yoga workout, 25m'
+      # The intensity reaches the ROW's meta line, not just the payload. The
+      # ` · ` prefix is what distinguishes it from the picker chip labelled
+      # `Hard` — which is a screen above and therefore not on the hierarchy here.
+      - assertVisible: '.*· Hard.*'
+      - assertVisible: 'Maestro session note'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /entries/workouts
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # `resetForm()` empties the form — including the note, which is the field
+      # most likely to be left holding the last session's text.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-workout-note-input'
+            SCROLL_DIR: up
+      - assertNotVisible:
+          id: 'health-workout-note-input'
+          text: 'Maestro session note'
+      - assertVisible:
+          id: 'health-workout-intensity-steady'
+          selected: true
+
+      # =================================================================
+      # The EDIT path
+      # =================================================================
+      # --- Edit loads the session into the form (HEALTH-ACT-129) ----------
+      # Row → detail sheet → "Edit Workout", which closes the sheet and hands
+      # the session to the SAME inline form the tab has always used.
+      # Local-only: onEdit (HealthActivityScreen.tsx) calls
+      # `setSelectedWorkoutId(null)` + `handleEdit(entry)`, which only calls
+      # `setEditing`/`setForm` — no network call happens until the form is
+      # saved or cancelled below.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-workout-row-.*'
+            SCROLL_DIR: down
+      - tapOn:
+          id: 'health-workout-row-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-detail-edit'
+          timeout: 10000
+      - tapOn:
+          id: 'health-workout-detail-edit'
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-workout-cancel-edit'
+            SCROLL_DIR: up
+      - assertVisible: 'EDIT SESSION'
+      # 0124 gave the entry a real update route, so the copy promises an in-place
+      # edit. If that ever regresses to a re-record this sentence has to change.
+      - assertVisible:
+          id: 'health-workout-edit-note'
+          text: 'Saving updates this session on .* in place — the same entry, at the same logged time.'
+      - assertVisible:
+          id: 'health-workout-type-yoga'
+          selected: true
+      - assertVisible:
+          id: 'health-workout-intensity-hard'
+          selected: true
+      - assertVisible:
+          id: 'health-workout-minutes-input'
+          text: '25'
+      - assertVisible:
+          id: 'health-workout-note-input'
+          text: 'Maestro session note'
+
+      # --- Cancel abandons the draft (HEALTH-ACT-130) ---------------------
+      # The edit is dirtied FIRST, so this proves the draft is discarded rather
+      # than merely that the header flipped back. `health-workout-cancel-edit`
+      # only calls `resetForm()` — no PUT is ever built for it.
+      - tapOn:
+          id: 'health-workout-minutes-input'
+      - eraseText
+      - inputText: '99'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'EDIT SESSION'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-workout-cancel-edit'
+      - extendedWaitUntil:
+          visible: 'LOG A WORKOUT'
+          timeout: 10000
+      - assertNotVisible:
+          id: 'health-workout-cancel-edit'
+      - assertNotVisible:
+          id: 'health-workout-edit-note'
+      # The form is empty again and back on the default type…
+      - assertVisible:
+          id: 'health-workout-type-walk'
+          selected: true
+      # …and the session is untouched: not 99 minutes, still 25.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-workout-row-.*'
+            SCROLL_DIR: down
+      - assertVisible:
+          id: 'health-workout-row-.*'
+          text: 'Yoga workout, 25m'
+      - assertNotVisible:
+          id: 'health-workout-row-.*'
+          text: 'Yoga workout, 1h 39m'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /entries/workouts
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Saving an edit changes the row in place (HEALTH-ACT-131) -------
+      # One row, not two: a re-record would leave the 25-minute session behind.
+      # `health-workout-detail-edit` itself is local (see HEALTH-ACT-129); the
+      # write is updateWorkoutEntry() → healthApi.updateWorkout() → PUT
+      # /health/entries/workouts/:id, 200 on success.
+      - tapOn:
+          id: 'health-workout-row-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-detail-edit'
+          timeout: 10000
+      - tapOn:
+          id: 'health-workout-detail-edit'
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-workout-minutes-input'
+            SCROLL_DIR: up
+      - tapOn:
+          id: 'health-workout-minutes-input'
+      - eraseText
+      - inputText: '40'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'EDIT SESSION'
+      - tapOn:
+          id: 'health-workout-intensity-easy'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-intensity-easy'
+            selected: true
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-workout-add-button'
+      - extendedWaitUntil:
+          visible: 'LOG A WORKOUT'
+          timeout: 15000
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-workout-row-.*'
+            SCROLL_DIR: down
+      - assertVisible:
+          id: 'health-workout-row-.*'
+          text: 'Yoga workout, 40m'
+      # ONE row, not two — a re-record would have left the 25-minute session
+      # behind beside the new one.
+      - assertNotVisible:
+          id: 'health-workout-row-.*'
+          text: 'Yoga workout, 25m'
+      # The intensity moved with it. Both matched against the row's meta-line
+      # ` · ` separator so the picker chips (a screen above) cannot satisfy
+      # either assertion.
+      - assertVisible: '.*· Easy.*'
+      - assertNotVisible: '.*· Hard.*'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /entries/workouts
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Teardown: delete the session (HEALTH-ACT-132) ------------------
+      # Cleared BEFORE the row is tapped, not right before "Delete": the row's
+      # detail sheet (HealthWorkoutSessionDetail.tsx) is a native
+      # `<Modal transparent={false}>`, and firing an openLink deep link while
+      # it is presented risks the same non-deterministic dismiss House's
+      # task-detail-mutations.yaml documents. Nothing between here and the
+      # confirm below fires a request, so clearing here is still a clean slate.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-workout-row-.*'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-detail-delete'
+          timeout: 10000
+      - tapOn:
+          id: 'health-workout-detail-delete'
+      - extendedWaitUntil:
+          visible: 'Delete Yoga?'
+          timeout: 10000
+      # Confirming fires `onDelete(id)`: `setSelectedWorkoutId(null)` (closes
+      # the modal) runs synchronously before `handleDelete(id)` →
+      # deleteWorkoutEntry() → healthApi.deleteEntry() → DELETE
+      # /health/entries/:id, 200 on success.
+      - tapOn: 'Delete'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-workout-row-.*'
+            text: 'Yoga workout, 40m'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Back to the Health tab (HEALTH-ACT-133) ------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

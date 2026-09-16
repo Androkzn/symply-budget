@@ -1,0 +1,36 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Foreground the Dev Client if Maestro is looking at SpringBoard.
+#
+# Observed 2026-08-12 mm-20: both Budget-MM sims were on the iOS home screen
+# (Fitness / Watch / "Symply Budget" icon) while the flow still thought it was
+# inside the item form / Planning tab. openLink and hideKeyboard can background
+# the Expo client on iOS 26; a later assert then fails on a selector that is
+# not in the hierarchy because the app is not running.
+#
+# Fingerprint SpringBoard via the Fitness icon — "Symply Budget" alone can
+# appear in-app. Soft launch, no clearState. Metro URL is E2E_METRO_DEVCLIENT_URL.
+- runFlow:
+    when:
+      visible: 'Fitness'
+    commands:
+      - runFlow:
+          when:
+            visible: '^Symply Budget$'
+          commands:
+            - launchApp:
+                permissions:
+                  all: allow
+                  faceid: allow
+            - openLink: ${E2E_METRO_DEVCLIENT_URL}
+            - waitForAnimationToEnd:
+                timeout: 8000
+            - runFlow: budget-dismiss-expo-dev-chrome.yaml
+            - extendedWaitUntil:
+                visible:
+                  id: 'budget-screen'
+                timeout: 45000
+                optional: true

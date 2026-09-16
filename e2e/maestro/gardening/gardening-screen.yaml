@@ -1,0 +1,20 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:garden
+  - readonly
+  - regression
+# Matrix: HOUSE-garden (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-gardening.yaml
+- assertVisible:
+    id: 'garden-plans-screen'
+- assertVisible:
+    id: 'garden-plans-add-button'
+# Scroll contract
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: garden-plans-screen-scroll-end
+

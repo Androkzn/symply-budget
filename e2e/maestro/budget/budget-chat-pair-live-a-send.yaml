@@ -1,0 +1,131 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:budget-chat
+  - pair
+  - pair:a
+  - mutation
+  - regression
+# Matrix: BUDGET-BCHAT-PAIR-008
+#
+# ── LIVE sync, sender side (device A / member A) ─────────────────────────────
+# Runs CONCURRENTLY with budget-chat-pair-live-b-watch.yaml on the other
+# simulator: both members are in the SAME room at the SAME time, which is the
+# only way to test real-time delivery rather than fetch-on-open.
+#
+# Rendezvous is by timing, because Maestro has no cross-device signal. Both
+# flows do the same launch + navigate work and therefore reach the room at
+# roughly the same moment; this side then deliberately WAITS before sending, so
+# the watcher is definitely parked in the room first. The wait is not a fudge —
+# the watcher hard-asserts the message is absent when it arrives, so sending too
+# early fails that run loudly instead of passing on a stale message.
+#
+# Env: PAIR_ROOM_NAME, PAIR_LIVE_MSG, PAIR_LIVE_SEND_DELAY_MS.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow: ../subflows/budget-open-chat-rooms.yaml
+- assertVisible:
+    id: 'chat-rooms-screen'
+- extendedWaitUntil:
+    visible: '.*${PAIR_ROOM_NAME}.*'
+    timeout: 60000
+    optional: true
+- runFlow:
+    when:
+      notVisible: '.*${PAIR_ROOM_NAME}.*'
+    commands:
+      - swipe:
+          direction: DOWN
+          element:
+            id: 'chat-rooms-list'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - extendedWaitUntil:
+          visible: '.*${PAIR_ROOM_NAME}.*'
+          timeout: 60000
+- tapOn:
+    text: '.*${PAIR_ROOM_NAME}.*'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-screen'
+    timeout: 60000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: 'chat-room-screen'
+    commands:
+      - tapOn:
+          text: '.*${PAIR_ROOM_NAME}.*'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'chat-room-screen'
+          timeout: 60000
+- assertVisible:
+    id: 'chat-room-screen'
+- extendedWaitUntil:
+    visible:
+      id: 'chat-room-input'
+    timeout: 45000
+# Give the watcher time to reach the room and take its "not yet here" reading.
+- waitForAnimationToEnd:
+    timeout: ${PAIR_LIVE_SEND_DELAY_MS}
+- tapOn:
+    id: 'chat-room-input'
+- inputText: ${PAIR_LIVE_MSG}
+- runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: 'chat-room-send'
+- extendedWaitUntil:
+    visible: '.*${PAIR_LIVE_MSG}.*'
+    timeout: 20000
+    optional: true
+# Same dropped-first-keystroke recovery as the other Budget chat flows. If the
+# body never landed the send was a silent no-op and the watcher would time out
+# blaming the socket, so retry here rather than let that misattribute.
+- runFlow:
+    when:
+      notVisible: '.*${PAIR_LIVE_MSG}.*'
+    commands:
+      - tapOn:
+          id: 'chat-room-input'
+      - eraseText
+      - inputText: ${PAIR_LIVE_MSG}
+      - runFlow: ../subflows/budget-dismiss-stylus-tip.yaml
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - tapOn:
+          id: 'chat-room-send'
+      - extendedWaitUntil:
+          visible: '.*${PAIR_LIVE_MSG}.*'
+          timeout: 20000
+- assertVisible: '.*${PAIR_LIVE_MSG}.*'
+- assertVisible:
+    id: 'chat-msg-mine-.*'
+- runFlow:
+    file: ../subflows/e2e-verify-network.yaml
+    env:
+      APP_ID: com.symply.budget
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /messages
+      E2E_VERIFY_STATUS: '201'
+- runFlow:
+    when:
+      true: ${E2E_PLATFORM != 'android'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 10000
+# Stay in the room until the watcher has had its full window — leaving would
+# tear down this side's socket mid-test.
+- waitForAnimationToEnd:
+    timeout: 20000

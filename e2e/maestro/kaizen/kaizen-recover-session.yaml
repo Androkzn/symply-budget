@@ -1,0 +1,7 @@
+appId: com.symply.kaizen
+tags:
+  - app:kaizen
+  - bootstrap
+---
+# Between-flow recovery — reuse launch-kaizen (no clearState) for reliable Today shell.
+- runFlow: subflows/launch-kaizen.yaml

@@ -1,0 +1,57 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:task-planning
+  - readonly
+  - regression
+# Matrix: HOUSE-TPLAN-014…017, 019…020 (schedule + copy-from-existing entry)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- openLink: simplehouse://tasks?screen=CopyFromExistingTasks
+- extendedWaitUntil:
+    visible: 'Copy from existing'
+    timeout: 30000
+    optional: true
+- extendedWaitUntil:
+    visible: 'Copy From Existing'
+    timeout: 5000
+    optional: true
+- tapOn:
+    id: 'nav-back-button'
+    optional: true
+- runFlow: ../subflows/open-add-task-from-tasks.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'add-task-copy-existing'
+    commands:
+      - tapOn:
+          id: 'add-task-copy-existing'
+      # WAIT for the Copy Task screen instead of a fixed 3s. If the push is slow
+      # the old timing fired `nav-back-button` on the PREVIOUS screen, the
+      # optional taps then no-opped, and the flow carried on with Copy Task
+      # still in front — failing later on `tasks-screen is visible` while parked
+      # on it. Observed 2026-09-02 on House-iPad.
+      #
+      # `Select a task to create a copy` is the screen's own subtitle and is
+      # published on both the populated and empty states. `.*`-wrapped because
+      # Maestro matches the node's WHOLE accessibility string.
+      - extendedWaitUntil:
+          visible: '.*Select a task to create a copy.*'
+          timeout: 15000
+          optional: true
+      # An EMPTY household legitimately shows "No tasks available to copy" —
+      # this device was re-onboarded on 2026-09-02 after its enrolment was
+      # destroyed, so it has no tasks at all. That empty state is a valid thing
+      # for this row to observe; it must not strand the flow.
+      - assertVisible: '.*Select a task to create a copy.*'
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - tapOn:
+          id: 'bottom-sheet-close'
+          optional: true
+      # Prove we actually left, rather than assuming the optional taps landed.
+      - extendedWaitUntil:
+          notVisible: '.*Select a task to create a copy.*'
+          timeout: 10000

@@ -1,0 +1,148 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: BUDGET-MM-023 — both members edit the SAME row at the same time.
+# Runs on BOTH devices AT THE SAME TIME.
+#
+# Each device blocks its own network first, so neither has seen the other's
+# write when it makes its own — a real concurrent edit, not a sequential one.
+# Then both unblock and sync until they stop changing.
+#
+# This flow deliberately does NOT assert which value wins. With both edits
+# landing in the same instant the winner is whichever HLC is higher, and
+# hard-coding that would be asserting the machine's timing rather than the
+# merge rule. The runner reads the final amount off BOTH devices afterwards and
+# requires them to agree — that is the property TRD §8.4 actually promises.
+#
+# env: MM_SECTION, MM_TITLE (the shared row), MM_AMOUNT (typed value),
+#      MM_AMOUNT_SHOWN (how it renders in the list, digits only e.g. 88)
+onFlowComplete:
+  - runFlow: ../subflows/budget-network-block-off.yaml
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+# An abandoned item form from a previous flow/run hides the list entirely.
+- runFlow: mm-leave-item-form.yaml
+- runFlow:
+    when:
+      true: ${MM_SECTION == 'planning'}
+    commands:
+      - runFlow: ../subflows/budget-go-planning.yaml
+- runFlow:
+    when:
+      true: ${MM_SECTION == 'spending'}
+    commands:
+      - runFlow: ../subflows/go-budget-tab.yaml
+      - tapOn:
+          id: 'tab-spending'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-spendings'
+          timeout: 20000
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 30000
+
+# Go dark BEFORE editing so this device cannot learn of the peer's edit.
+- runFlow: ../subflows/budget-network-block-on.yaml
+- runFlow:
+    when:
+      true: ${MM_SECTION == 'planning'}
+    commands:
+      - runFlow: ../subflows/budget-go-planning.yaml
+- runFlow:
+    when:
+      true: ${MM_SECTION == 'spending'}
+    commands:
+      - runFlow: ../subflows/go-budget-tab.yaml
+      - tapOn:
+          id: 'tab-spending'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-spendings'
+          timeout: 20000
+# Tap the ROW to edit it, rather than fishing for the swipe action.
+#
+# The swipe tray reveals its actions from the right, so a short swipe exposes
+# only the trailing ones — Edit is first in the group and stayed off-screen,
+# which is why the tap could not find `budget-edit-spent`. The row itself is
+# wired to the same handler (onPress -> handleEditExpense/handleEditPlanned),
+# so this is both sturdier and closer to how a member actually opens an entry.
+- tapOn:
+    text: '.*${MM_TITLE}.*'
+- waitForAnimationToEnd:
+    timeout: 1500
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 25000
+# The form opens with Name autofocused and the keyboard up, and the Cost field
+# sits BEHIND that keyboard — a tap aimed at Cost lands on a key, focus stays in
+# Name, and every step after it edits the wrong field. Close the keyboard, then
+# bring Cost into view, before touching it.
+- pressKey: Enter
+- waitForAnimationToEnd:
+    timeout: 1500
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-cost-exact'
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    id: 'budget-item-cost-exact'
+    retryTapIfNoChange: true
+- eraseText: 12
+- inputText: ${MM_AMOUNT}
+# Blur the COST field against the visible "Cost" LABEL.
+#
+# Save is gated on isDirty, and isDirty only flips when the typed value reaches
+# RN state — which happens in the field's onEndEditing, i.e. on blur. Two
+# earlier attempts failed here: `pressKey: Enter` does nothing because a
+# decimal-pad keyboard has no return key, and tapping the title field misses
+# because the form is scrolled to centre Cost, leaving Title off-screen. The
+# section label sits right beside the field, is always visible, and is a plain
+# <Text>, so the tap blurs instead of moving focus to another input.
+# (Confirmed via idb: Save enabled=False while the field already read 77.45.)
+- tapOn:
+    text: '^Cost$'
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1500
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-form-save-header'
+    direction: DOWN
+    timeout: 8000
+    optional: true
+- tapOn:
+    id: 'budget-item-form-save-header'
+- waitForAnimationToEnd:
+    timeout: 2500
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-item-form'
+    timeout: 25000
+# The list renders ROUNDED dollars ("$88"), not the cents typed into the form
+# ("88.12") — and "$" is a regex anchor, so MM_AMOUNT_SHOWN carries digits only.
+- assertVisible: '.*${MM_AMOUNT_SHOWN}.*'
+
+# Back online — exchange until both sides have each other's op.
+- runFlow: ../subflows/budget-network-block-off.yaml
+- repeat:
+    times: 12
+    commands:
+      - runFlow: ../subflows/budget-sync-pulse.yaml
+      - waitForAnimationToEnd:
+          timeout: 5000
+      - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- assertVisible: '.*${MM_TITLE}.*'

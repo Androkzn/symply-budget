@@ -1,0 +1,53 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:pension
+  - regression
+# Matrix: BUDGET-PEN-028 — offline pension contribution save
+# Safety net: guarantees airplane mode is off when this flow ends even if a
+# non-optional assertion fails before reaching the offline-off call in the
+# body (see budget-offline-sweep.yaml for the observed cross-flow cascade).
+onFlowComplete:
+  - runFlow: ../subflows/budget-offline-off.yaml
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- openLink: simplebudget:///pension
+- extendedWaitUntil:
+    visible:
+      id: 'pension-view'
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'pension-room-add'
+    timeout: 20000
+- tapOn:
+    id: 'pension-room-add'
+- extendedWaitUntil:
+    visible:
+      id: 'pension-entry-form'
+    timeout: 15000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'pension-entry-form'
+    commands:
+      - runFlow: ../subflows/budget-offline-on.yaml
+      - tapOn:
+          id: 'pension-entry-amount'
+          optional: true
+      - inputText: '50'
+      - hideKeyboard
+      - tapOn:
+          id: 'pension-entry-form-save'
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            text: 'Error'
+          timeout: 15000
+          optional: true
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - runFlow: ../subflows/budget-offline-off.yaml

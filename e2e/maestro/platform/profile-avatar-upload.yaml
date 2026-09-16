@@ -1,0 +1,41 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:settings
+  - mutation
+  - regression
+# Matrix: PLAT-SETT-041
+---
+- runFlow: subflows/launch-platform.yaml
+- runFlow: ../subflows/open-profile.yaml
+- assertVisible:
+    id: 'profile-screen'
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_MATRIX_ROW: PLAT-SETT-041
+- tapOn:
+    id: 'profile-avatar-edit'
+- extendedWaitUntil:
+    visible: 'Choose from Library'
+    timeout: 10000
+- tapOn: 'Choose from Library'
+- runFlow:
+    when:
+      visible: 'Photo Library'
+    commands:
+      - tapOn: 'Photo Library'
+- runFlow:
+    when:
+      visible: 'Cancel'
+    commands:
+      - tapOn:
+          point: '15%,35%'
+      - waitForAnimationToEnd:
+          timeout: 5000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_VERIFY_METHOD: PATCH
+      E2E_VERIFY_PATH: /users/me
+      E2E_VERIFY_STATUS: '200'

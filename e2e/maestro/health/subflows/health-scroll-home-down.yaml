@@ -1,0 +1,16 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Swipe the Health home ScrollView toward the bottom (iOS 26 Maestro scroll helper).
+- repeat:
+    times: 6
+    commands:
+      - swipe:
+          start: '50%,75%'
+          end: '50%,25%'
+          duration: 320
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 250

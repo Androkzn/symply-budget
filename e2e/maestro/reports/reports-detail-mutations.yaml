@@ -1,0 +1,105 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:reports
+  - mutation
+  - regression
+# Matrix: HOUSE-RPT-010–012,015,021–023 (detail scroll, delete cancel, tabs)
+---
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-RPT-010
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-reports.yaml
+- assertVisible:
+    id: 'reports-screen'
+# Empty state visibility when no rows (HOUSE-RPT-015) — optional if account has reports.
+- runFlow:
+    when:
+      visible:
+        id: 'reports-empty-state'
+    commands:
+      - assertVisible:
+          id: 'reports-empty-state'
+# Open first report detail when present.
+# DEAD GATE FIXED: 'View Report' is not a string ReportsScreen.tsx ever renders, and
+# Maestro matches a regex against an element's WHOLE text — so this gate never opened
+# and the whole detail block (tabs, scroll contract) was silently skipped. The card's
+# status pill carries `STATUS_CONFIG.completed.label === 'Ready'`
+# (ReportsScreen.tsx:44); it is a Typography inside plain Views, so the tap bubbles to
+# the card's GHTouchableOpacity → handleReportPress → navigate('ReportDetail').
+- runFlow:
+    when:
+      visible: 'Ready'
+    commands:
+      - tapOn: 'Ready'
+      - extendedWaitUntil:
+          visible:
+            id: 'report-detail-screen'
+          timeout: 25000
+      - tapOn:
+          id: 'report-detail-tab-findings'
+      - tapOn:
+          id: 'report-detail-tab-actions'
+      - tapOn:
+          id: 'report-detail-tab-summary'
+      - runFlow:
+          file: ../subflows/assert-screen-scrolls.yaml
+          env:
+            SCROLL_END_ID: report-detail-screen-scroll-end
+          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: 'nav-back-button'
+          commands:
+            - tapOn:
+                id: 'nav-back-button'
+# Swipe-delete cancel on list row (HOUSE-RPT-012) — verify Cancel is truly a
+# no-op (no DELETE call), not just that the row is still on screen.
+- runFlow:
+    when:
+      visible: 'Delete'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - swipe:
+          direction: LEFT
+          optional: true
+      - runFlow:
+          when:
+            visible: 'Delete'
+          commands:
+            - tapOn: 'Delete'
+            - extendedWaitUntil:
+                visible: 'Cancel'
+                timeout: 10000
+            - tapOn: 'Cancel'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehouse
+            APP_ID: com.symply.house
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /reports/
+      - runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+- assertVisible:
+    id: 'reports-screen'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

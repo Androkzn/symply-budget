@@ -1,0 +1,206 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Give a freshly-wiped device a home to work with.
+#
+# House is local-first, and a device that holds no ledger no longer mints one
+# silently — that behaviour was a real bug (every reinstall created an empty
+# home and hid the member's actual one). It now shows "Your homes are not on
+# this phone yet" and asks the member to choose: approve this phone from
+# another one, restore from a backup, or deliberately start fresh.
+#
+# That is correct for a person and fatal for a suite: a wiped CI device has no
+# second phone and no recovery phrase, so it would sit on that screen forever
+# and every flow would fail at `home-screen`. "Start a new home" is the one
+# route a lone automated device can actually take.
+#
+# Guarded on the screen being present, so this is a no-op on the normal path —
+# a device that already holds a home never sees it. If a future change makes
+# this fire on a device that DOES have a home, that is a bug in the gate, not
+# here, and it will show up as flows suddenly running against an empty home.
+# SETTLE FIRST. The guards below sample once, and on a freshly-wiped device the
+# recovery screen appears LATER in the boot sequence than this subflow runs —
+# the ledger has to be read and found empty before the app knows to show it. The
+# guard then saw a still-loading screen, skipped, and every later step ran
+# against a household that was never opened. It surfaced as "no home screen", or
+# "no projects list", or whatever the caller happened to assert first, which is
+# why it looked like a different bug each time.
+#
+# `optional: true` so a device that already holds a home does not pay 15s for a
+# screen it will never show.
+#
+# GUARDED ON `house-recover-device-sync`, NOT ON THE SCREEN ROOT.
+#
+# `house-recover-home-screen` is a testID on a plain
+# `<View style={StyleSheet.absoluteFill}>` (HouseRecoverHomeScreen.tsx:357). RN
+# only maps testID to `accessibilityIdentifier`, and iOS does not publish a
+# non-accessible container to the XCUITest snapshot — so that id is NOT in the
+# hierarchy on a device. Both guards below were therefore never true and this
+# whole subflow was dead code, which is how device A reached mm-13 on
+# 2026-09-05 with "Your homes are not on this phone yet" filling the screen:
+# the flow found `tasks-add-fab` in the tree behind it, tapped, and no sheet
+# opened. Verified with `idb ui describe-all`, which lists the three buttons and
+# every StaticText on this screen and NOT the root id.
+#
+# `HouseRecoverHomeScreen.test.tsx` asserts `hasTestId(tree,
+# 'house-recover-home-screen')` and passes — it proves the id is in the REACT
+# tree, which is not the same claim as iOS publishing it.
+#
+# The fix is a guard, not an `accessible` prop on that View: making an
+# absoluteFill container accessible collapses its children into one VoiceOver
+# element and would be a real accessibility regression to satisfy a test.
+# `house-recover-device-sync` is a real Button, unique to this screen, and sits
+# at y=650 of an 874pt viewport — on screen without scrolling, unlike
+# `house-recover-start-new` at y=1041, which is why THAT one is not the guard.
+- extendedWaitUntil:
+    visible:
+      id: 'house-recover-device-sync'
+    timeout: 15000
+    optional: true
+
+- runFlow:
+    when:
+      visible:
+        id: 'house-recover-device-sync'
+    commands:
+      # The scroll budget is sized for a LONG list, not a short one.
+      #
+      # `HouseRecoverHomeScreen` renders one row per household the account owns
+      # and puts "Start a new home" in the last card, below all of them. The
+      # shared E2E account has accumulated 33 homes, so the button sits far off
+      # the bottom and a 10s scroll at speed 40 never arrived — every flow then
+      # died in `launch-logged-in` before its own first step.
+      #
+      # `visibilityPercentage: 50` matters as much as the timeout: the default
+      # of 100 refuses to stop on a button that is only partly on screen.
+      #
+      # The pile-up itself is a LEAK, not a fact of life — see
+      # `scripts/e2e/purge-house-test-data.mjs`. This makes the subflow survive
+      # it; it does not excuse it.
+      - scrollUntilVisible:
+          element:
+            id: 'house-recover-start-new'
+          direction: DOWN
+          timeout: 60000
+          speed: 100
+          visibilityPercentage: 50
+          optional: true
+      # WAIT for the button, do not assume the scroll produced it.
+      #
+      # The scroll above is optional, so when it fails — the screen still
+      # settling, the list not yet laid out — the tap below ran against a
+      # hierarchy that did not have the button in it yet and killed the flow
+      # with "Element not found: house-recover-start-new". Seen on
+      # `logout-profile`, which reaches this screen straight after a sign-out
+      # while the ledger is still being torn down.
+      - extendedWaitUntil:
+          visible:
+            id: 'house-recover-start-new'
+          timeout: 20000
+      - tapOn:
+          id: 'house-recover-start-new'
+      # The confirm is a system alert; it lives outside the app's hierarchy on
+      # iOS, so `when: visible:` cannot see it — tap unconditionally and let the
+      # optional flag absorb the case where there is no alert.
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn:
+          text: '^(Start|Start a new home|Continue|OK)$'
+          optional: true
+      - extendedWaitUntil:
+          notVisible:
+            id: 'house-recover-device-sync'
+          timeout: 30000
+          optional: true
+
+# Clear the address gate BEFORE the wizard block below samples its `when:`.
+# "Start a new home" mints a region-less household, which raises the gate over
+# everything; if that is still up when the block below runs, its guard matches
+# the gate instead of the wizard and appends to the prefilled name.
+- runFlow: house-clear-address-gate.yaml
+
+# "Start a new home" does not land on Home — it lands in the setup wizard, and
+# the wizard has to be COMPLETED or the device never gets there.
+#
+# This block used to be missing, and the failure was invisible in the right way
+# to waste a suite: the tap above succeeded, `house-recover-home-screen` did
+# disappear, and every flow then died on `home-screen is visible` three minutes
+# later inside `launch-logged-in`.
+#
+# The region is not optional here. `usePropertyAddressCaptureGate` routes any
+# household with no `state_province` straight back to this form, so a home
+# created with only a name re-opens the wizard on every render — the device
+# loops forever and mints another household each pass. See the same note in
+# `CreateHouseholdScreen`, which now disables Create Home until the region the
+# gate is asking for is set.
+- runFlow:
+    when:
+      visible:
+        id: 'onboarding-create-home-name'
+      # `onboarding-create-home-name` is on the address GATE as well as the
+      # first-run wizard. Without this the block fired on the gate, where the
+      # field is prefilled "My home", and `inputText` APPENDED — producing the
+      # corrupted "My homeE2E House" (294 occurrences on disk) and, because that
+      # path goes through `householdsApi.update`, renaming real homes on staging.
+      # `address-capture-accept-invite` renders only on the gate, so it is the
+      # one id that tells the two screens apart. (It was `address-capture-skip`
+      # until "Not now" was removed — the gate is not dismissable, because a
+      # member must end up holding a home.)
+      notVisible:
+        id: 'address-capture-accept-invite'
+    commands:
+      - tapOn:
+          id: 'onboarding-create-home-name'
+      - inputText: 'E2E House'
+      # NOT `hideKeyboard`. It fails outright on this field — Maestro reports
+      # "Couldn't hide the keyboard … the app uses a custom input or doesn't
+      # expose a standard dismiss action" — and a failed `hideKeyboard` aborts
+      # the whole subflow rather than warning. That took every House flow with
+      # it on any wiped device, because this is the only route such a device has
+      # back to a home, and the failure surfaced later as "no home screen"
+      # rather than as a keyboard problem.
+      #
+      # Tapping a neutral point above the form is Maestro's own suggested
+      # workaround. 12% down the screen is the title area on this step: high
+      # enough to clear the first field, centred so it cannot hit the back
+      # chevron in the corner.
+      - tapOn:
+          point: '50%,12%'
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - tapOn:
+          id: 'onboarding-create-home-state'
+      - waitForAnimationToEnd:
+          timeout: 4000
+      # SWIPE, not tap. A `UIPickerView` publishes one node for the whole wheel —
+      # the individual rows are not in the hierarchy and are not tappable
+      # targets, so a point-tap lands on the wheel and changes nothing. The wheel
+      # opens on "Select Province" (the empty value); one flick advances it to
+      # the first real entry, which is all this needs.
+      - swipe:
+          start: '50%, 72%'
+          end: '50%, 64%'
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn:
+          id: 'onboarding-create-home-state-done'
+      - waitForAnimationToEnd:
+          timeout: 4000
+      - tapOn:
+          id: 'onboarding-create-home-submit'
+      - waitForAnimationToEnd:
+          timeout: 20000
+
+# The remaining wizard steps are all skippable and none of them gate Home.
+# Matched by text because they carry no testIDs; each is optional so a build
+# that drops a step does not fail the whole suite here.
+- repeat:
+    times: 5
+    commands:
+      - tapOn:
+          text: '^(Single Family|Skip for Now|Skip & Finish Setup|Continue)$'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 8000

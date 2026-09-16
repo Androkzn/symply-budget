@@ -1,0 +1,43 @@
+{
+  "municipality": { "name": "City of Surrey" },
+  "property": {
+    "address": "8135 138 ST",
+    "folioNumber": "6282-89962-X",
+    "accessCode": "156886",
+    "legalDescription": "LT 311 SEC 28 TWP 2 PL NWP62527 NWD",
+    "ownerName": "TEKHTELEV ANDREI",
+    "propertyClass": "1-Res"
+  },
+  "taxYear": 2026,
+  "assessedValue": 1181000,
+  "financial": {
+    "totalTaxAmount": 5053.34,
+    "amountWithBasicGrant": 4483.34,
+    "amountWithSeniorGrant": 4208.34
+  },
+  "payment": {
+    "mainDueDate": "2026-07-02",
+    "mainAmount": 5053.34,
+    "advanceDueDate": null,
+    "advanceAmount": null
+  },
+  "homeownerGrant": {
+    "eligible": true,
+    "basicAmount": 570,
+    "seniorAmount": 845,
+    "claimUrl": "https://www.gov.bc.ca/homeownergrant"
+  },
+  "penalty": {
+    "description": "5% penalty if not paid or grant not claimed by Jul 2, 2026",
+    "percentage": 5,
+    "afterDate": "2026-07-02"
+  },
+  "confidence": {
+    "overall": 0.95,
+    "municipality": 0.98,
+    "taxYear": 0.99,
+    "financial": 0.95,
+    "payment": 0.94
+  },
+  "rawText": "2026 PROPERTY TAX NOTICE — City of Surrey — AMOUNT DUE JULY 2, 2026 5,053.34"
+}

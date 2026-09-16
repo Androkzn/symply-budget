@@ -1,0 +1,49 @@
+
+=== budget-item-form ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+[sim-guard] Budget-C is 4849 MB (cap 3000 MB) but a suite is IN FLIGHT — refusing to erase
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Failed] budget-item-form (4m 19s) (Assertion is false: id: budget-item-when-sheet-asap is visible)
+
+1/1 Flow Failed
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+[sim-guard] Budget-C is 4889 MB (cap 3000 MB) but a suite is IN FLIGHT — refusing to erase
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+IOSDriverTimeoutException: no output for 420s — maestro-flow-run watchdog killed the run
+
+=== budget-receipt-scan-save ===
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+[sim-guard] Budget-C is 4946 MB (cap 3000 MB) but a suite is IN FLIGHT — refusing to erase
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-receipt-scan-save (4m 27s)
+
+1/1 Flow Passed in 4m 27s
+
+Monitoring boot status for Budget-C (824DB541-D117-459D-A327-1AE08A74541A).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-C (824DB541-D117-459D-A327-1AE08A74541A) Metro :8082 (parallel — other fleet sims untouched)
+[sim-guard] Budget-C is 4991 MB (cap 3000 MB) but a suite is IN FLIGHT — refusing to erase
+Running Symply Budget Maestro E2E on Budget-C (824DB541-D117-459D-A327-1AE08A74541A)
+
+Waiting for flows to complete...
+[Passed] budget-recover-session (49s)
+
+1/1 Flow Passed in 49s
+

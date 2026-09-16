@@ -1,0 +1,370 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:water
+  - mutation
+  - regression
+# Matrix: HEALTH-WATER-101 … HEALTH-WATER-107
+---
+# The Water tab's PRIMARY path: the three preset quick-adds and today's per-entry
+# log, including the per-row delete that no other water surface has.
+#
+# WHY THIS FLOW EXISTS. Home and Nutrition can only say "one cup" (240 ml), so
+# until this tab shipped there was no way to record a 500 ml bottle at all. Every
+# assertion below is about a figure the ±1 control cannot express: an exact
+# volume, a named container, and the removal of ONE specific drink while a newer
+# one survives.
+#
+# STATE ASSUMPTIONS
+#   * A session already exists (subflows/launch-health.yaml re-establishes it).
+#     The body is gated on `health-water-screen` so a session-less device SKIPS
+#     rather than hard-failing the suite — the same contract every Home flow uses.
+#   * The day's water total is SHARED with home-*.yaml and nutrition-log-meal.yaml
+#     on the fleet test account, so this flow opens by draining whatever it finds
+#     and closes by draining what it wrote. It never assumes it starts at zero.
+#   * The goal is assumed to be the 2,000 ml default only for the "to go" caption,
+#     which is asserted loosely (`to go`) rather than as an exact remainder — the
+#     goal is a shared row that water-tab-goal-units-custom.yaml also touches.
+#   * The display UNIT (`health_goals.water_unit`) is a third shared, server-
+#     persisted row — same family as the goal above — that only
+#     water-tab-goal-units-custom.yaml's HEALTH-WATER-110/111 pair ever
+#     switches. Every confirm-copy assertion below is hardcoded to 'ml'
+#     (`'Remove 500 ml from today?'`), so this flow forces it back to ml itself
+#     rather than trusting that flow's own teardown: an interrupted prior run
+#     that died between 110 and 111 leaves the shared account on oz
+#     indefinitely (nothing else ever resets it), which reads as "the delete
+#     confirm's copy changed" when it is really a stale display preference —
+#     reproduced 2026-08-02, confirm copy read 'Remove 17 oz from today?'.
+#
+# TEARDOWN: every entry this flow creates is deleted through the per-row ✕ (which
+# is itself the feature under test), and the empty-state marker is asserted, so
+# the next flow starts from a genuinely empty day.
+- runFlow: subflows/launch-health.yaml
+- runFlow: subflows/go-health-water.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-water-screen'
+    commands:
+      # --- Clean slate ------------------------------------------------------
+      # Force the display unit back to ml FIRST — see the STATE ASSUMPTIONS
+      # note above. `handleUnit` (`HealthWaterScreen.tsx`) always calls
+      # `saveWaterUnit` even when the chip is already selected, so this is a
+      # harmless no-op PUT when a prior run already left it on ml, and its
+      # network call falls outside every matrix window below (those all start
+      # from their own `e2e-matrix-before.yaml`, which clears the log first).
+      - tapOn:
+          id: 'health-water-unit-ml'
+      # Delete anything a previous flow (or a previous run) left on today. The
+      # ✕ opens a confirm Alert, so each pass is tap-row-then-confirm. 12 passes
+      # is well past anything the suite writes in one day.
+      # Each real tap IS `deleteWaterEntry` → `DELETE /health/water/entries/:id`
+      # (not local-only), but the loop's fire count is 0–12 and every tap is
+      # `optional: true`, so there is no fixed call count to clear-log/verify
+      # against — left unwrapped, unlike the single, deliberate deletes tagged
+      # with a matrix row below.
+      - repeat:
+          times: 12
+          commands:
+            - tapOn:
+                id: 'health-water-delete-.*'
+                index: 0
+                optional: true
+            - tapOn:
+                text: 'Remove'
+                optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-log-empty'
+          timeout: 20000
+
+      # --- The hero on an empty day (HEALTH-WATER-101) ----------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-101
+      - assertVisible: 'QUICK ADD'
+      - assertVisible: 'CUSTOM AMOUNT'
+      - assertVisible: "TODAY'S LOG"
+      - assertVisible:
+          id: 'health-water-ring'
+      # "N ml to go" rather than "Goal reached" — an empty day is not a met goal.
+      - assertVisible:
+          id: 'health-water-remaining'
+          text: '.*to go.*'
+      - assertVisible:
+          id: 'health-water-log-empty'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Preset quick-adds (HEALTH-WATER-102, 103) ------------------------
+      # The amounts are the donor's exact figures (Glass 250 / Mug 350 /
+      # Bottle 500 ml).
+      #
+      # ASSERTION CONSTRAINT, read this before adding a `assertVisible: 'N ml'`
+      # here: the QUICK ADD tiles render '250 ml', '350 ml' and '500 ml'
+      # PERMANENTLY, and their captions render 'Glass', 'Mug' and 'Bottle'. A
+      # bare volume or container match is therefore satisfied by the tile whether
+      # or not anything was logged — vacuously true, and `assertNotVisible` on
+      # one can never pass at all. The two unambiguous handles are the entry
+      # COUNT ('N entries') and the delete confirm's copy ('Remove 500 ml from
+      # today?'), so every row assertion below uses one of those.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-102
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-preset-bottle'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-water-log-empty'
+          timeout: 20000
+      - assertVisible: '1 entry'
+      # The preset tap is `addWaterAmount` → `POST /health/water/entries`
+      # (`HealthWaterScreen.tsx` `handleAdd`).
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # The logged VOLUME, read back through the confirm copy — this is the
+      # figure the ±1 cup counter is structurally unable to record.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-delete-.*'
+          index: 0
+      - extendedWaitUntil:
+          visible: 'Remove 500 ml from today?'
+          timeout: 10000
+      - tapOn: 'Cancel'
+      # `handleDelete` only calls `deleteWaterEntry` (`DELETE
+      # /health/water/entries/:id`) from the Alert's 'Remove' branch — 'Cancel'
+      # must fire nothing.
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/water/entries/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-103
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-preset-glass'
+      - extendedWaitUntil:
+          visible: '2 entries'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # 750 ml total against the 2,000 ml default is still short of the goal.
+      - assertVisible:
+          id: 'health-water-remaining'
+          text: '.*to go.*'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- The log is newest-first (HEALTH-WATER-104) -----------------------
+      # The Glass was added second, so it must be row 0. Maestro cannot read
+      # sibling order directly, so this is asserted the only way it can be: the
+      # per-row delete at index 0 must name the GLASS in its confirm copy.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-104
+      # Opening the confirm is local UI state only — `handleDelete`
+      # (`HealthWaterScreen.tsx`) just calls `Alert.alert(...)`; no network call
+      # happens until a button inside it is pressed. Cleared here so the
+      # no-op check in HEALTH-WATER-105 below (which presses 'Cancel' on THIS
+      # alert) has a clean buffer to verify against.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-delete-.*'
+          index: 0
+      - extendedWaitUntil:
+          visible: 'Remove 250 ml from today?'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Cancel leaves the drink alone (HEALTH-WATER-105) -----------------
+      # The CANCEL family: a destructive confirm that is dismissed must change
+      # nothing at all — both drinks still counted.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-105
+      - tapOn: 'Cancel'
+      - assertNotVisible: 'Remove 250 ml from today?'
+      - assertVisible: '2 entries'
+      # The Alert's 'Remove' branch is the only caller of `deleteWaterEntry`
+      # (`DELETE /health/water/entries/:id`) — 'Cancel' must fire nothing.
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/water/entries/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Delete removes THAT drink only (HEALTH-WATER-106) ----------------
+      # The whole point of the per-entry ✕ versus Home's "undo the last sip":
+      # the member points at the 250 ml Glass, and the 500 ml Bottle survives.
+      # The survivor's identity is read back through its own confirm copy —
+      # a bare '500 ml' match would hit the Bottle TILE and prove nothing.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-106
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-delete-.*'
+          index: 0
+      - tapOn: 'Remove'
+      - extendedWaitUntil:
+          visible: '1 entry'
+          timeout: 20000
+      # A confirmed 'Remove' IS `deleteWaterEntry` → `DELETE
+      # /health/water/entries/:id`.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/water/entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-delete-.*'
+          index: 0
+      - extendedWaitUntil:
+          visible: 'Remove 500 ml from today?'
+          timeout: 10000
+      - tapOn: 'Cancel'
+      # Second delete on this same drink is dismissed — must fire no DELETE.
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/water/entries/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Teardown + the empty state (HEALTH-WATER-107) --------------------
+      # Removing the last drink must restore the empty-state copy rather than an
+      # empty card, and it leaves the shared account as this flow found it.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-WATER-107
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-delete-.*'
+          index: 0
+      - tapOn: 'Remove'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-log-empty'
+          timeout: 20000
+      - assertVisible: 'Nothing logged yet today. Use a quick add above.'
+      - assertVisible: '0 entries'
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /health/water/entries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml

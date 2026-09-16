@@ -1,0 +1,607 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:injuries
+  - mutation
+  - regression
+# Matrix: HEALTH-INJUI-101 … HEALTH-INJUI-115
+---
+# Injury log — the WRITE half of the workout safety gate.
+#
+# WHY THIS FLOW EXISTS. `HealthInjuriesScreen` shipped with ~50 Jest rows and
+# ZERO device coverage; the matrix's "Injury log has no Maestro flow" harness gap
+# is this file. It is also the only screen in the app whose writes change what a
+# DIFFERENT screen renders (`/health/injuries` feeds `injury_flag` on
+# `/health/exercises`), so the cross-screen leg below is the highest-value
+# assertion in the Health suite.
+#
+# The tab ships `defaultHidden`, so this flow enters through the More hub
+# (subflows/go-health-injuries.yaml).
+#
+# ROW ADDRESSING. Rows carry server ids, so they are matched by pattern. The
+# Worker's own ordering is newest-date-first then newest-created
+# (`sortInjuries`), and this flow's entry is dated TODAY, so `index: 0` inside
+# the ACTIVE card is deterministically the row this flow just wrote — it is not
+# "whichever row happened to be first".
+#
+# TEARDOWN. The entry is deleted in the last leg. Nothing else on the account is
+# touched: the flow never edits, resolves or deletes a row it did not create.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-INJUI-101
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Opens from the More hub, not the tab bar (HEALTH-INJUI-101) -----
+      - runFlow: subflows/go-health-injuries.yaml
+      - assertVisible: 'Injuries'
+      - assertVisible: 'YOUR LOG'
+      - assertVisible:
+          id: 'health-injuries-counts'
+      - assertVisible:
+          id: 'health-injuries-gate-note'
+      - assertNotVisible:
+          id: 'tab-health-injuries'
+
+      # --- The form opens and closes (HEALTH-INJUI-102) --------------------
+      # Cancel first: the form is INLINE rather than a sheet, so "it opened" and
+      # "it closed again without writing" are both assertable, and the Cancel
+      # path is the one a submit-only test never walks. `openForm`/`closeForm`
+      # (HealthInjuriesScreen.tsx) only touch local `useState` — verify Cancel
+      # truly fires no `createInjury` POST.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-injuries-add'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injuries-form'
+          timeout: 15000
+      - assertVisible: 'LOG AN INJURY'
+      - tapOn:
+          id: 'health-injury-cancel'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-injuries-form'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /injuries
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # The add affordance comes back only when the form is closed.
+      - assertVisible:
+          id: 'health-injuries-add'
+
+      # --- Saving with no area chosen is refused (HEALTH-INJUI-103) --------
+      # `validateInjuryDraft` requires a body part and says so in plain words.
+      # This is the empty/invalid case for the one REQUIRED control on the form.
+      # `handleSave` returns before calling `addInjury` when validation fails,
+      # so this Save tap must not reach the network either.
+      - tapOn:
+          id: 'health-injuries-add'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injuries-form'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-injury-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injuries-message'
+          timeout: 15000
+      - assertVisible: 'Choose the area first.'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /injuries
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # A refused draft keeps the form open with the input intact.
+      - assertVisible:
+          id: 'health-injuries-form'
+
+      # --- Area chips are single-select (HEALTH-INJUI-104) -----------------
+      # Two different options are chosen, not one: a picker driven with a single
+      # value cannot distinguish "selects" from "always renders selected".
+      # LOCAL ONLY (this section and the two that follow, HEALTH-INJUI-105/106):
+      # every chip here only calls `setDraftField(...)` (HealthInjuriesScreen.tsx)
+      # — the draft is unsaved form state until HEALTH-INJUI-108's Save tap.
+      - scrollUntilVisible:
+          element:
+            id: 'health-injury-part-rightKnee'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-injury-part-rightKnee'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injury-part-rightKnee'
+            selected: true
+          timeout: 10000
+      - tapOn:
+          id: 'health-injury-part-leftKnee'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injury-part-leftKnee'
+            selected: true
+          timeout: 10000
+      - assertVisible:
+          id: 'health-injury-part-rightKnee'
+          selected: false
+
+      # --- Pain / type chips select (HEALTH-INJUI-105) ---------------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-injury-pain-3'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-injury-pain-3'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injury-pain-3'
+            selected: true
+          timeout: 10000
+      - scrollUntilVisible:
+          element:
+            id: 'health-injury-type-strain'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-injury-type-strain'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injury-type-strain'
+            selected: true
+          timeout: 10000
+
+      # --- The cause chip DESELECTS on a second tap (HEALTH-INJUI-106) -----
+      # Cause is the one optional picker, and its handler is
+      # `draft.cause === cause.id ? null : cause.id`. The draft seeds `workout`
+      # selected, so tapping it clears the field — the un-tick direction that
+      # every other chip row on this form does not have.
+      - scrollUntilVisible:
+          element:
+            id: 'health-injury-cause-workout'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-injury-cause-workout'
+          selected: true
+      - tapOn:
+          id: 'health-injury-cause-workout'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injury-cause-workout'
+            selected: false
+          timeout: 10000
+      - tapOn:
+          id: 'health-injury-cause-sportActivity'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injury-cause-sportActivity'
+            selected: true
+          timeout: 10000
+
+      # --- A bad date is refused in plain words (HEALTH-INJUI-107) ---------
+      # `2026-13-45` survives the field sanitiser (digits and hyphens only) AND
+      # the shape regex, and is caught by the round-trip check that exists
+      # because V8 ROLLS an out-of-range day over instead of failing.
+      - scrollUntilVisible:
+          element:
+            id: 'health-injury-date-input'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-injury-date-input'
+      - eraseText
+      - inputText: '2026-13-45'
+      - hideKeyboard
+      # `parseInjuryDateInput` refuses the round-trip check, so `validateInjuryDraft`
+      # fails and `handleSave` returns before calling `addInjury` — this Save tap
+      # must not reach the network either.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-injury-save'
+      - extendedWaitUntil:
+          visible: 'Enter the date as YYYY-MM-DD.'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /injuries
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-injuries-form'
+
+      # --- Notes + a valid date save the entry (HEALTH-INJUI-108) ----------
+      - tapOn:
+          id: 'health-injury-notes-input'
+      - inputText: 'E2E left knee note'
+      - hideKeyboard
+      # The bad date is still in the field, so it is replaced explicitly. LOCAL
+      # midnight, not `toISOString()` — the screen stamps `todayDateKey()` in the
+      # device's own zone, and a UTC date would refuse itself as "in the future"
+      # for every run west of Greenwich after 4pm.
+      - tapOn:
+          id: 'health-injury-date-input'
+      - eraseText
+      - inputText: ${new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)}
+      - hideKeyboard
+      # A valid draft this time: `handleSave` → `addInjury` (healthInjuryStorage.ts)
+      # → `healthInjuriesApi.createInjury` → POST /health/injuries, 201.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-injury-save'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-injuries-form'
+          timeout: 30000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /injuries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - extendedWaitUntil:
+          visible: 'Left Knee'
+          timeout: 20000
+      - assertVisible: 'E2E left knee note'
+
+      # --- The gate note names the part (HEALTH-INJUI-109) -----------------
+      # This is the screen stating, mechanically, that the entry is now steering
+      # the exercise list — the only claim it makes.
+      - scrollUntilVisible:
+          element:
+            id: 'health-injuries-gate-note'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible:
+          id: 'health-injuries-gate-note'
+          text: '.*left knee.*'
+
+      # --- Edit re-opens the row, and Cancel discards (HEALTH-INJUI-110) ---
+      # `openForm`/`closeForm` are local `useState` only (see HEALTH-INJUI-102)
+      # — this whole open→Cancel round trip must not call `updateInjury`.
+      - scrollUntilVisible:
+          element:
+            id: 'health-injury-edit-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-injury-edit-.*'
+          index: 0
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injuries-form'
+          timeout: 15000
+      - assertVisible: 'EDIT ENTRY'
+      # The form is populated from the row, not blank.
+      - assertVisible:
+          id: 'health-injury-part-leftKnee'
+          selected: true
+      - tapOn:
+          id: 'health-injury-cancel'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-injuries-form'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /injuries/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Cancelling an edit changed nothing: the row still reads Severe.
+      - assertVisible:
+          id: 'health-injury-meta-.*'
+          text: '.*Severe.*'
+
+      # --- An edit that IS saved rewrites the row (HEALTH-INJUI-111) -------
+      - tapOn:
+          id: 'health-injury-edit-.*'
+          index: 0
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injuries-form'
+          timeout: 15000
+      - scrollUntilVisible:
+          element:
+            id: 'health-injury-pain-1'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-injury-pain-1'
+      # `handleSave` → `editInjury` (healthInjuryStorage.ts) →
+      # `healthInjuriesApi.updateInjury` → PUT /health/injuries/:id, 200.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-injury-save'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-injuries-form'
+          timeout: 30000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /injuries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injury-meta-.*'
+            text: '.*Mild.*'
+          timeout: 20000
+
+      # --- Resolve moves it, and Reopen moves it back (HEALTH-INJUI-112) ---
+      # Both directions of the same verb. The donor could only ever resolve;
+      # reopening is a deliberate difference and would regress silently.
+      # `resolveInjury` (healthInjuryStorage.ts) → `healthInjuriesApi.resolveInjury`
+      # → POST /health/injuries/:id/resolve, 200.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-injury-resolve-.*'
+          index: 0
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /resolve
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injuries-resolved-card'
+          timeout: 20000
+      - assertVisible: 'RESOLVED'
+      # A resolved row no longer gates, so the note retracts the claim.
+      - scrollUntilVisible:
+          element:
+            id: 'health-injuries-gate-note'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible:
+          id: 'health-injuries-gate-note'
+          text: 'Nothing here is changing your exercise suggestions right now.'
+      - scrollUntilVisible:
+          element:
+            id: 'health-injury-reopen-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # `reactivateInjury` (healthInjuryStorage.ts) → `healthInjuriesApi.updateInjury`
+      # with `{ is_active: true }` → PUT /health/injuries/:id, 200.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-injury-reopen-.*'
+          index: 0
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /injuries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - extendedWaitUntil:
+          visible:
+            id: 'health-injury-resolve-.*'
+          timeout: 20000
+
+      # --- Delete confirms inline, and backs out (HEALTH-INJUI-113) --------
+      # One tap ARMS the row ("Tap again to delete"); opening the form clears
+      # `confirmingDeleteId`, which is the un-arm path. Proving the first tap is
+      # not itself destructive is the whole point of the two-tap design — verify
+      # it directly rather than trusting the "Left Knee" row is still on screen.
+      - scrollUntilVisible:
+          element:
+            id: 'health-injury-delete-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-injury-delete-.*'
+          index: 0
+      - extendedWaitUntil:
+          visible: 'Tap again to delete'
+          timeout: 15000
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /injuries/
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible: 'Left Knee'
+      # LOCAL ONLY: `openForm` sets `confirmingDeleteId` back to null
+      # (HealthInjuriesScreen.tsx) — the un-arm path, no network either.
+      - scrollUntilVisible:
+          element:
+            id: 'health-injuries-add'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - tapOn:
+          id: 'health-injuries-add'
+      - extendedWaitUntil:
+          notVisible: 'Tap again to delete'
+          timeout: 15000
+      - tapOn:
+          id: 'health-injury-cancel'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-injuries-form'
+          timeout: 15000
+      - assertVisible: 'Left Knee'
+
+      # --- Two taps delete it + teardown (HEALTH-INJUI-114) ----------------
+      - scrollUntilVisible:
+          element:
+            id: 'health-injury-delete-.*'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      # LOCAL ONLY: the first tap only arms `confirmingDeleteId`, same as
+      # HEALTH-INJUI-113 above — the real `deleteInjury` call is the SECOND tap.
+      - tapOn:
+          id: 'health-injury-delete-.*'
+          index: 0
+      - extendedWaitUntil:
+          visible: 'Tap again to delete'
+          timeout: 15000
+      # `deleteInjury` (healthInjuryStorage.ts) → `healthInjuriesApi.deleteInjury`
+      # → DELETE /health/injuries/:id, 200.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-injury-delete-.*'
+          index: 0
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /injuries/
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - extendedWaitUntil:
+          notVisible: 'E2E left knee note'
+          timeout: 30000
+      - assertNotVisible: 'Left Knee'
+
+      # --- Back to the Health tab (HEALTH-INJUI-115) -----------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

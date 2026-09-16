@@ -1,0 +1,34 @@
+appId: com.symply.kaizen
+---
+# System config (Career) — add a custom action and confirm the chip appears.
+- runFlow: subflows/launch-kaizen.yaml
+- runFlow:
+    file: subflows/open-kaizen-route.yaml
+    env:
+      KAIZEN_ROUTE: kaizen:///kaizen/system-config?system=career
+- extendedWaitUntil:
+    visible: 'Configure Career'
+    timeout: 20000
+- runFlow:
+    file: subflows/scroll-kaizen-until-visible.yaml
+    env:
+      TARGET_ID: kaizen-section-custom-actions
+      TARGET_TEXT: 'CUSTOM ACTIONS'
+- assertVisible:
+    id: 'kaizen-section-custom-actions'
+    optional: true
+- assertVisible: 'CUSTOM ACTIONS'
+- assertVisible: 'Save system'
+# Interaction: type a custom action title + output, add it → chip renders.
+- tapOn: 'Action title'
+- inputText: 'E2E custom ritual'
+- tapOn: 'Expected output'
+- inputText: 'A verifiable outcome'
+- tapOn: 'Add custom action'
+- assertVisible: 'E2E custom ritual'
+# Scroll contract
+- runFlow:
+    file: subflows/assert-kaizen-scroll-optional.yaml
+    env:
+      SCROLL_END_ID: kaizen-screen-scroll-end
+- runFlow: subflows/return-to-today.yaml

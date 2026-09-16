@@ -1,0 +1,46 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:spend
+  - regression
+# The Record-spending date field opens a bottom sheet, not an inline spinner.
+#
+# Waiting on `budget-item-spent-date-sheet-done` is the real assertion: that id
+# only exists inside DatePickerSheet, so it can't pass against the old inline
+# picker. Done must then dismiss it — the sheet holds a draft date, and a sheet
+# that won't close is a form the member can't finish.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 20000
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 20000
+- assertVisible:
+    id: 'budget-item-spent-date-picker'
+- takeScreenshot: budget-date-sheet-01-form
+- tapOn:
+    id: 'budget-item-spent-date-picker'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-spent-date-sheet-done'
+    timeout: 15000
+- takeScreenshot: budget-date-sheet-02-open
+- tapOn:
+    id: 'budget-item-spent-date-sheet-done'
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-item-spent-date-sheet-done'
+    timeout: 10000
+- takeScreenshot: budget-date-sheet-03-closed
+- tapOn:
+    id: 'nav-back-button'

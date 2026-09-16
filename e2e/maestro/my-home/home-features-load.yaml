@@ -1,0 +1,26 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:my-home
+  - readonly
+  - regression
+# Matrix: HOUSE-MYHOME-004
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- openLink: simplehouse://tasks?screen=HomeFeatures
+- extendedWaitUntil:
+    visible:
+      text: '.*Home Features.*|No Home Features Yet'
+    timeout: 30000
+- runFlow:
+    when:
+      visible: 'No Home Features Yet'
+    commands:
+      - assertVisible: 'No Home Features Yet'
+      - assertVisible: 'Add Feature'
+- runFlow:
+    when:
+      notVisible: 'No Home Features Yet'
+    commands:
+      - assertVisible:
+          id: 'nav-back-button'

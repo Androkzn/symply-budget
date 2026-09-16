@@ -1,0 +1,246 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:home
+  - mutation
+  - regression
+  - smoke
+# Matrix: HEALTH-home (see documents/engineering/testing/matrices/)
+---
+# HealthHomeScreen — the on-device logging surface (water / note). RENAMED
+# from home-weight-water-note.yaml (2026-08-01): the WEIGHT card was removed
+# from Home entirely — weight logging now lives only on the Weight tab
+# (`health-weight-entry-value` / `health-weight-entry-save`, see
+# weight-tab-log-and-edit.yaml). This flow covers what is left on Home: the
+# WATER counter and the daily NOTE.
+#
+# Only the NOTE is MMKV-only: `saveNoteForDate` (healthLocalStorage.ts) never
+# calls `healthApi`. Water is a real `writeThrough` to `symply-health-api` —
+# POST /health/water/entries|undo (src/api/health.ts) — MMKV there is only the
+# offline read-through cache. This flow verifies the representative water and
+# note mutations against the actual backend call, not just the post-action UI
+# update.
+#
+# GATED / SKIPS-GRACEFULLY: the body is wrapped in
+# `runFlow: when: visible: health-home-screen` so it runs only when the installed
+# app already holds a session. The Health test user IS seeded now
+# (`npm run test:e2e:seed:fleet`), and login-email-submit-seeded re-establishes
+# the session, but this flow deliberately does not own auth — with no session it
+# skips instead of hard-failing the suite.
+#
+# Every control on this screen now carries a testID (health-water-{plus,minus},
+# health-note-input). Prefer them over visible text.
+- runFlow: subflows/launch-health.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-HOME-001
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - assertVisible:
+          id: 'health-home-screen'
+
+      # --- Water counter ± -------------------------------------------------
+      # The WATER card sits well down the list (below TODAY, WEEKLY TRENDS,
+      # FOOD CHALLENGES and AT A GLANCE) and is therefore off the bottom of
+      # the screen at the resting position — anchor it before asserting.
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-water-plus
+            HOME_ANCHOR: bottom
+      - assertVisible: 'WATER'
+      - assertVisible:
+          text: '/ 8 cups'
+      # Drain first: the count is a persisted daily total, so "tap + once and
+      # expect 1" is only true on an empty day. 12 taps clears any state a
+      # previous flow (or a previous run) left behind.
+      - repeat:
+          times: 12
+          commands:
+            - tapOn:
+                id: 'health-water-minus'
+                optional: true
+      # Scoped to the count node with its merged label: the target suffix
+      # "/ 8 cups" is on screen at every count, so a bare '1' text match would
+      # be ambiguous with the recent-weight rows.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '0 cups'
+          timeout: 10000
+      # `adjustWater(1)` → `healthApi.addWater` → POST /health/water/entries
+      # (201).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-plus'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '1 cups'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-plus'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '2 cups'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # `adjustWater(-1)` at cups=2>0 → `healthApi.undoWater` → POST
+      # /health/water/undo (200) — the real (non-floor) branch, unlike the
+      # clamped-at-zero case `home-note-and-water-edges.yaml` verifies as a
+      # no-op.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-minus'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '1 cups'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/undo
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- Daily note (writes on blur) ------------------------------------
+      # Local-only, both the real blur path and the deep-link fallback below:
+      # `onNoteBlur`/`onNoteEndEditing`/`onNoteSubmit` all call
+      # `handleSaveNote` → `saveNoteForDate` (healthLocalStorage.ts), which
+      # only does `storageHelpers.setObject(HEALTH_NOTES_KEY, ...)` — no
+      # `healthApi` call. `e2e-health-set-note` (e2e-test-deeplinks.ts) calls
+      # the exact same function.
+      # Matrix: HEALTH-HOME-016's sibling note row — the one mutation in this
+      # flow with no network to verify, now checked via e2e-verify-persist
+      # (store=health.notes.v1) instead of being left unverified.
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-note-input
+            HOME_ANCHOR: bottom
+      - assertVisible:
+          text: '.*NOTE.*'
+      - tapOn:
+          id: 'health-note-input'
+      - inputText: 'Slept well, energetic'
+      - runFlow: subflows/save-health-note.yaml
+      # Maestro inputText does not always sync RN note state — persist via dev deep link.
+      - openLink: simplehealth://e2e-health-set-note?text=Slept%20well,%20energetic
+      - waitForAnimationToEnd:
+          timeout: 2000
+      # E2E_VERIFY_DETAIL_INCLUDES is genuinely optional per
+      # `../subflows/e2e-verify-persist.yaml`'s own header, but Maestro's `${...}`
+      # templating stringifies a never-set env var as the literal text
+      # "undefined" rather than an empty string — confirmed 2026-08-01 by
+      # reading the rendered `openLink` URL in this exact flow's own run log
+      # (`detailIncludes=undefined`). The deep-link handler
+      # (`e2e-test-deeplinks.ts`) then does `detailIncludes || undefined`,
+      # and the non-empty string "undefined" is truthy, so it gets used as a
+      # REAL substring filter against the persisted entry's detail — which
+      # never contains the word "undefined", so the match always fails and
+      # `e2e-verify-badge` never turns PASS. Passing an explicit empty string
+      # renders `detailIncludes=` instead, which the same `|| undefined`
+      # correctly collapses to "no filter". (Same latent bug hits
+      # `kaizen/weekly-rotation.yaml`'s identical call — out of scope here.)
+      - runFlow:
+          file: ../subflows/e2e-verify-persist.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_STORE: health.notes.v1
+            E2E_VERIFY_OPERATION: upsert
+            E2E_VERIFY_DETAIL_INCLUDES: ''
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow: subflows/go-more.yaml
+      - runFlow: subflows/go-health-home.yaml
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-note-input
+            HOME_ANCHOR: bottom
+      - extendedWaitUntil:
+          visible: 'Slept well, energetic'
+          timeout: 20000
+
+      # --- Teardown --------------------------------------------------------
+      # Every mutating flow leaves the account as it found it (suite
+      # convention): this one wrote a water count and a note, and both are
+      # read by later flows — the note by `home-note-and-water-edges`, the
+      # water count by `home-rapid-water`.
+      - openLink: simplehealth://e2e-health-set-note?text=
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow: subflows/go-more.yaml
+      - runFlow: subflows/go-health-home.yaml
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-water-plus
+            HOME_ANCHOR: bottom
+      - repeat:
+          times: 12
+          commands:
+            - tapOn:
+                id: 'health-water-minus'
+                optional: true
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth

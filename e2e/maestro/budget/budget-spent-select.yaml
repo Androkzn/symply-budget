@@ -1,0 +1,201 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:spend
+  - mutation
+  - regression
+# Matrix: BUDGET-SPEND-091..096 — spent multi-select UI, batch copy-to-month,
+# batch delete, plus the copy-sheet and delete-alert CANCEL paths. Mirrors the
+# planned flow (budget-planned-select.yaml) over recorded expenses; the Select
+# entry lives in the "Spent this month" section header, left of "See all".
+#
+# Seeds one spending dated TODAY (this month), exercises the selection toolbar +
+# copy sheet UI, cancels once (no mutation), then really copies it forward and
+# batch-deletes both the copy (destination month) and the original (source
+# month) to self-clean.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_MATRIX_ROW: BUDGET-SPEND-093
+- tapOn:
+    id: 'tab-spending'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 15000
+
+# --- Seed a spending in the current month ---
+- runFlow: ../subflows/budget-open-add-sheet.yaml
+- tapOn:
+    id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 15000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: 'E2E Sel Spend'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: '18'
+# The numeric keypad has no Done key and won't dismiss, leaving it over the sticky
+# Save footer (a tap there hits the keypad, corrupting the amount). Refocus the
+# text Name field so the keyboard becomes a dismissable text keyboard, then hide it.
+- tapOn:
+    id: 'budget-item-title'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'budget-item-form-save-header'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 45000
+- extendedWaitUntil:
+    visible: '.*E2E Sel Spend.*'
+    timeout: 20000
+
+# --- Enter selection mode (BUDGET-SPEND-091) and verify the toolbar UI ---
+- assertVisible:
+    id: 'budget-spent-select'
+- tapOn:
+    id: 'budget-spent-select'
+- assertVisible:
+    id: 'budget-selection-toolbar'
+- assertVisible:
+    id: 'budget-selection-cancel'
+- assertVisible:
+    id: 'budget-selection-selectall'
+# Zero-state counter + the add row and Select entry are hidden while selecting.
+- assertVisible: 'Select spendings'
+- assertNotVisible:
+    id: 'budget-spendings-add-row'
+- assertNotVisible:
+    id: 'budget-spent-select'
+
+# --- Toggle the seeded row → counter "1 selected" (BUDGET-SPEND-092) ---
+- tapOn:
+    text: '.*E2E Sel Spend.*'
+- assertVisible: '1 selected'
+- assertVisible:
+    id: 'budget-batch-copy'
+- assertVisible:
+    id: 'budget-batch-delete'
+
+# --- Copy sheet UI + CANCEL path (BUDGET-SPEND-095, no mutation) ---
+- tapOn:
+    id: 'budget-batch-copy'
+- assertVisible:
+    id: 'budget-copy-month-sheet'
+- assertVisible:
+    id: 'budget-copy-confirm'
+- tapOn:
+    id: 'budget-copy-cancel'
+- assertNotVisible:
+    id: 'budget-copy-month-sheet'
+# Still selected after cancelling the sheet.
+- assertVisible: '1 selected'
+
+# --- Really copy to the default (next) month (BUDGET-SPEND-093) ---
+- tapOn:
+    id: 'budget-batch-copy'
+- assertVisible:
+    id: 'budget-copy-month-sheet'
+- tapOn:
+    id: 'budget-copy-confirm'
+# View jumps to the destination month; the copy is visible + editable there.
+- extendedWaitUntil:
+    visible:
+      id: 'budget-spendings'
+    timeout: 30000
+- extendedWaitUntil:
+    visible: '.*E2E Sel Spend.*'
+    timeout: 20000
+
+# --- Batch-delete CANCEL then confirm in the destination month (SPEND-094/096) ---
+- tapOn:
+    id: 'budget-spent-select'
+- tapOn:
+    text: '.*E2E Sel Spend.*'
+- assertVisible: '1 selected'
+- tapOn:
+    id: 'budget-batch-delete'
+# Cancel the confirm alert → the copy survives (BUDGET-SPEND-096).
+- tapOn: 'Cancel'
+- assertVisible: '.*E2E Sel Spend.*'
+# Now confirm the delete (removes one copy for the SPEND-096 exercise).
+- tapOn:
+    id: 'budget-batch-delete'
+- tapOn: 'Delete'
+- waitForAnimationToEnd:
+    timeout: 3000
+# DATA_POLLUTION: the shared account carries stale "E2E Sel Spend" copies from
+# prior runs in this destination month; a single delete leaves the rest and the
+# final notVisible fails. Drain them idempotently, one row per pass (NEVER
+# Select-all — that would delete real spendings on the shared account).
+- repeat:
+    times: 25
+    commands:
+      - runFlow:
+          when:
+            visible: '.*E2E Sel Spend.*'
+          commands:
+            - tapOn:
+                id: 'budget-spent-select'
+            - waitForAnimationToEnd:
+                timeout: 2000
+            - tapOn:
+                text: '.*E2E Sel Spend.*'
+            - tapOn:
+                id: 'budget-batch-delete'
+            - tapOn: 'Delete'
+            - waitForAnimationToEnd:
+                timeout: 3000
+- extendedWaitUntil:
+    notVisible: '.*E2E Sel Spend.*'
+    timeout: 20000
+
+# --- Return to the source month and batch-delete the original (cleanup) ---
+- tapOn:
+    id: 'budget-spendings-month-prev'
+- extendedWaitUntil:
+    visible: '.*E2E Sel Spend.*'
+    timeout: 20000
+# DATA_POLLUTION cleanup: drain every stale "E2E Sel Spend" original left in the
+# source month by prior aborted runs — delete one row per pass until none remain,
+# then assert gone. Never Select-all (it would delete real spendings too).
+- repeat:
+    times: 25
+    commands:
+      - runFlow:
+          when:
+            visible: '.*E2E Sel Spend.*'
+          commands:
+            - tapOn:
+                id: 'budget-spent-select'
+            - waitForAnimationToEnd:
+                timeout: 2000
+            - tapOn:
+                text: '.*E2E Sel Spend.*'
+            - tapOn:
+                id: 'budget-batch-delete'
+            - tapOn: 'Delete'
+            - waitForAnimationToEnd:
+                timeout: 3000
+- extendedWaitUntil:
+    notVisible: '.*E2E Sel Spend.*'
+    timeout: 20000
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      E2E_VERIFY_METHOD: POST
+      E2E_VERIFY_PATH: /budget/spent
+      E2E_VERIFY_STATUS: 201

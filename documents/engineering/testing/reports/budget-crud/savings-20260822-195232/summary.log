@@ -1,0 +1,6 @@
+PASS [Budget-B] budget-prime-session
+FAIL [Budget-B] budget-savings-overview
+FAIL [Budget-B] budget-savings-goal
+FAIL [Budget-B] budget-savings-goal-crud
+PASS [Budget-B] budget-savings-income-entry
+FAIL [Budget-B] budget-savings-income-crud

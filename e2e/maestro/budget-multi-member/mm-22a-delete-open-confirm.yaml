@@ -1,0 +1,59 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+# Matrix: BUDGET-MM-022 (part a) — park on the section holding the row this
+# device is about to delete. Runs on BOTH devices AT THE SAME TIME.
+#
+# The delete gesture itself is driven by the runner through idb, not from here,
+# for two reasons found the hard way:
+#
+#  1. Maestro's element-swipe is too short to uncover a spending row's tray
+#     (Edit / Copy / Delete), and a fixed '92%,50%' -> '8%,50%' swipe only lands
+#     on the row when `centerElement` actually centred it — which it cannot do
+#     when the list is barely taller than the screen. The row then sits at ~54%
+#     and the gesture passes above it. idb reads the row's real frame instead of
+#     assuming one.
+#  2. The confirm is a native UIAlertController, which iOS renders in its own
+#     window; XCUITest snapshots of the app window miss it entirely. Maestro is
+#     blind to it, so `tapOn: '^Delete$'` silently re-taps the tray's own Delete
+#     behind the alert (proven side by side with `idb ui describe-all`, which
+#     lists the alert and nothing else while it is up).
+#
+# env: MM_SECTION, MM_TITLE
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- runFlow: mm-dismiss-stale-alerts.yaml
+# An abandoned item form from a previous flow/run hides the list entirely.
+- runFlow: mm-leave-item-form.yaml
+- runFlow:
+    when:
+      true: ${MM_SECTION == 'planning'}
+    commands:
+      - runFlow: ../subflows/budget-go-planning.yaml
+- runFlow:
+    when:
+      true: ${MM_SECTION == 'spending'}
+    commands:
+      - runFlow: ../subflows/go-budget-tab.yaml
+      - tapOn:
+          id: 'tab-spending'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-spendings'
+          timeout: 20000
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 25000
+# Bring the row fully on screen so idb reads a frame it can actually hit.
+- scrollUntilVisible:
+    element:
+      text: '.*${MM_TITLE}.*'
+    direction: DOWN
+    centerElement: true
+    timeout: 10000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible: '.*${MM_TITLE}.*'

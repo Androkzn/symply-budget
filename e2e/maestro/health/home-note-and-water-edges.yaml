@@ -1,0 +1,261 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:home
+  # Two of this flow's three sections are the water counter's edges, so it is
+  # part of the `run-feature.sh health water` slice as well as the home one.
+  - feature:water
+  - mutation
+  - regression
+# Matrix: HEALTH-HOME-104, HEALTH-HOME-093, HEALTH-HOME-094
+---
+# The two "undo" edges of the local logging surface:
+#   * clearing today's note removes the day from `health.notes.v1` rather than
+#     storing an empty string (so tomorrow's empty state is honest), and
+#   * the water counter floors at zero — "Remove a cup" at 0 is a no-op, never a
+#     negative count.
+#
+# The note edge is genuinely MMKV-local (`saveNoteForDate` never calls
+# `healthApi`, see the citation below). Water is NOT local-only — `adjustWater`
+# is a real `writeThrough` (POST /health/water/entries when adding, POST
+# /health/water/undo when removing) — it only SKIPS the call at the exact
+# floor/ceiling clamp, which is the one case this flow verifies as a true
+# no-op; every other water tap here is verified as a real backend mutation.
+- runFlow: subflows/launch-health.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # --- Clearing the note removes it (HOME-104) -------------------------
+      # inputText does not reliably sync RN TextInput state on iOS 26, so the
+      # note is written and cleared through the dev deep link (same mechanism as
+      # home-water-note.yaml). `health-note-saved-text` is the marker the
+      # screen only renders while a non-empty note exists.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-HOME-104
+      # Local-only: the deep link resolves straight to `saveNoteForDate`
+      # (`src/features/health/healthLocalStorage.ts`), which only calls
+      # `storageHelpers.setObject(HEALTH_NOTES_KEY, ...)` — no `healthApi` call
+      # anywhere in that function. Confirmed in
+      # `src/services/e2e-test-deeplinks.ts`'s `e2e-health-set-note` handler too
+      # (same function, same call). No network verification to add.
+      - openLink: simplehealth://e2e-health-set-note?text=Note%20to%20be%20cleared
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow: subflows/go-more.yaml
+      - runFlow: subflows/go-health-home.yaml
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-note-input
+            HOME_ANCHOR: bottom
+      # Timeout widened 20000 → 30000 (2026-08-01 failure: timed out at
+      # 20439ms). Re-read the reload path — `useFocusEffect` in
+      # HealthHomeScreen.tsx re-runs `loadNoteForDate().then(setNoteDraft)` on
+      # every focus, which is exactly what `go-more.yaml` → `go-health-home.yaml`
+      # above triggers — the code looks correct, so this reads as "too slow for
+      # the old timeout" rather than "never happens". Note also that
+      # `go-more.yaml` runs `dismiss-weight-keyboard.yaml` first, which spends
+      # ~7s probing for the long-removed Home WEIGHT card's Done/keyboard
+      # controls before giving up — real dead time stacked in front of this
+      # wait on a loaded simulator. If this still times out on a clean run,
+      # treat that as a genuine reload-on-focus bug, not a flow issue.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-note-saved-text'
+          timeout: 30000
+      - assertVisible: 'Note to be cleared'
+
+      # Clear it — an empty text param deletes the day's note. Same
+      # `saveNoteForDate` local-only path as above (empty text takes the
+      # `trimmed.length === 0` branch, which drops the row from MMKV rather
+      # than calling any API).
+      - openLink: simplehealth://e2e-health-set-note?text=
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow: subflows/go-more.yaml
+      - runFlow: subflows/go-health-home.yaml
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-note-input
+            HOME_ANCHOR: bottom
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-note-saved-text'
+          timeout: 20000
+      - assertNotVisible: 'Note to be cleared'
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Water floors at zero (HOME-093) ---------------------------------
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-HOME-093
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-water-plus
+            HOME_ANCHOR: bottom
+      # Drain whatever earlier flows left (cap is 30 cups; 30 taps always empties).
+      - repeat:
+          times: 30
+          commands:
+            - tapOn:
+                id: 'health-water-minus'
+                optional: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '0 cups'
+          timeout: 10000
+      # Removing a cup at zero must stay at zero, not go negative. At the floor
+      # `adjustWater` returns BEFORE calling `healthApi.undoWater` — the
+      # clamped count equalling the current count short-circuits the
+      # `writeThrough` in `healthLocalStorage.ts` — so these three taps must
+      # fire NO POST /health/water/undo; verify the no-op, not just the frozen
+      # label.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - repeat:
+          times: 3
+          commands:
+            - tapOn:
+                id: 'health-water-minus'
+      - assertVisible:
+          id: 'health-water-cups-count'
+          text: '0 cups'
+      - assertNotVisible:
+          id: 'health-water-cups-count'
+          text: '-1 cups'
+      - runFlow:
+          file: ../subflows/e2e-verify-no-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/undo
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # And the counter still adds from the floor — this IS a real mutation:
+      # `adjustWater(1)` → `healthApi.addWater` → POST /health/water/entries
+      # (201), per `src/api/health.ts` and `backend/src/routes/health.ts`.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-plus'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '1 cups'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # --- Water reaches the daily goal (HOME-094) -------------------------
+      # 7 more cups takes the count from 1 to the default target of 8, where the
+      # progress bar is exactly full. The ceiling holds too: an extra tap past
+      # the goal keeps counting (the clamp is at 30 cups, not at the target),
+      # so 8/8 must not be a hard stop.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_MATRIX_ROW: HEALTH-HOME-094
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - repeat:
+          times: 7
+          commands:
+            - tapOn:
+                id: 'health-water-plus'
+      # Scoped to the count node: the target suffix "/ 8 cups" is on screen at
+      # every count, so a bare '8 cups' text match would pass vacuously.
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '8 cups'
+          timeout: 10000
+      - assertVisible:
+          text: '/ 8 cups'
+      # The batch is 7 identical POST /health/water/entries calls; the ring
+      # buffer is searched newest-first, so this confirms the LAST of the 7
+      # (the one that landed the count on exactly 8) actually succeeded.
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # The ceiling holds: one more tap past the goal must still POST and still
+      # count (the clamp is at 30 cups, not at the 8-cup target).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-water-plus'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-water-cups-count'
+            text: '9 cups'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /health/water/entries
+            E2E_VERIFY_STATUS: '201'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+
+      # Drain back to zero so the next flow starts from a known count.
+      - repeat:
+          times: 12
+          commands:
+            - tapOn:
+                id: 'health-water-minus'
+                optional: true

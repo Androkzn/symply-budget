@@ -1,0 +1,278 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:activity
+  - mutation
+  - regression
+# Matrix: HEALTH-ACT-180 … HEALTH-ACT-195
+---
+# Activity — the BACK-DATING controls and the steps/distance metric switch.
+#
+# WHY THIS FLOW EXISTS. `activity-log-workout.yaml` and
+# `activity-goals-and-session-edit.yaml` between them drive 17 of the Activity
+# screen's 22 controls. The five they never touch are the whole date/time half
+# of the log form — the two typed fields, the Today/Yesterday chips and the Now
+# chip — plus the STEPS & DISTANCE segmented control. This flow closes all five,
+# and `health-workout-detail-close` (the session sheet's own dismiss, which
+# `activity-log-workout.yaml` never uses because it goes straight to Delete).
+#
+# WHAT MAKES THE DATE HALF WORTH A FLOW. `HealthActivityScreen.tsx:713` gates
+# the date on `/^\d{4}-\d{2}-\d{2}$/.test(form.date) && form.date <= today`.
+# The second half of that condition is the interesting one: a workout cannot be
+# logged in the FUTURE, and the field refuses it in words rather than silently
+# correcting it. That rule exists because the fields were added for the
+# after-midnight case — a session finished at 00:30 and logged then would
+# otherwise land on the wrong DAY — and a back-dating control that happily
+# accepts 2099 is a control that will also accept a typo'd year on a real entry.
+# `canLog` (line 720) folds both validities in, so an invalid draft cannot be
+# saved at all; ACT-183/185 prove that BEHAVIOURALLY (the form survives the
+# press) rather than through Maestro's `enabled:` selector, which does not match
+# a disabled RN `Pressable` on this build (matrix, 2026-07-26).
+#
+# MOUNT / END. The flow opens on a normalised screen (any `Cycling` session
+# left by an aborted earlier run is deleted first) and ends by deleting the
+# session it wrote and restoring the metric switch to `steps`. Both the create
+# and the delete are proven as REAL network calls, not just as UI state.
+#
+# TYPE CHOICE. `cycle` ("Cycling"), deliberately NOT the `strength`
+# ("Strength Training") that `activity-log-workout.yaml` writes — the teardown
+# here matches on the row's own label, so the two flows can never delete each
+# other's session if they are ever run concurrently or out of order.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-ACT-180
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # ================= MOUNT =========================================
+      # The screen is up and the log form is on it (HEALTH-ACT-180).
+      - runFlow: subflows/go-health-activity.yaml
+      - assertVisible: 'LOG A WORKOUT'
+      - assertVisible:
+          id: 'health-activity-screen'
+
+      # Data-pollution guard. ~n prior runs of THIS flow can leave a stale
+      # `Cycling` session on the shared account; the assertions below count
+      # sessions, so start from a known state. Optional at every step — the
+      # common case is that there is nothing to clean.
+      - runFlow:
+          when:
+            visible: 'Cycling'
+          commands:
+            - repeat:
+                times: 3
+                commands:
+                  - runFlow:
+                      when:
+                        visible: 'Cycling'
+                      commands:
+                        - tapOn:
+                            id: 'health-workout-row-.*'
+                            text: 'Cycling'
+                            retryTapIfNoChange: true
+                        - extendedWaitUntil:
+                            visible:
+                              id: 'health-workout-detail-delete'
+                            timeout: 10000
+                        - tapOn:
+                            id: 'health-workout-detail-delete'
+                        - extendedWaitUntil:
+                            visible: 'Delete Cycling?'
+                            timeout: 10000
+                        - tapOn: 'Delete'
+                        - waitForAnimationToEnd:
+                            timeout: 1500
+
+      # ================= A. STEPS & DISTANCE switch ====================
+      # (HEALTH-ACT-181/182) A segmented control whose two halves render
+      # DIFFERENT series — the headline figure changes unit, and the chart
+      # below it swaps. Asserting only the chip's own selected state would pass
+      # against a control that repainted and showed nothing new.
+      - scrollUntilVisible:
+          element:
+            id: 'health-activity-steps-metric-distance'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 100
+      - tapOn:
+          id: 'health-activity-steps-metric-distance'
+      - assertVisible:
+          id: 'health-activity-steps-metric-distance'
+          enabled: true
+      # The steps chart / empty pair belongs to the `steps` half only, so it
+      # must be gone while Distance is selected.
+      - assertNotVisible:
+          id: 'health-activity-steps-empty'
+      - tapOn:
+          id: 'health-activity-steps-metric-steps'
+      - waitForAnimationToEnd:
+          timeout: 1000
+
+      # ================= B. The date refuses the future ================
+      # (HEALTH-ACT-183/184)
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-183
+      - scrollUntilVisible:
+          element:
+            id: 'health-workout-date-input'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 100
+      - tapOn:
+          id: 'health-workout-date-input'
+      - eraseText
+      - inputText: '2099-01-01'
+      # `numbers-and-punctuation` is a full keyboard WITH a return key, so
+      # `hideKeyboard` is safe here — unlike the decimal/number pads, which is
+      # why the minutes field below uses the anchor-tap subflow instead.
+      - hideKeyboard
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-datetime-error'
+          timeout: 10000
+      - assertVisible: 'a workout cannot be in the future'
+      # 184 — and the draft cannot be saved while it is invalid. BEHAVIOURAL:
+      # pressing a disabled Pressable is a no-op, so the error surviving the
+      # press is the proof.
+      - tapOn:
+          id: 'health-workout-add-button'
+      - assertVisible:
+          id: 'health-workout-datetime-error'
+
+      # ================= C. The time refuses a non-clock ===============
+      # (HEALTH-ACT-185)
+      - tapOn:
+          id: 'health-workout-time-input'
+      - eraseText
+      - inputText: '99:99'
+      - hideKeyboard
+      - extendedWaitUntil:
+          visible: 'Use a 24-hour time like 07:30.'
+          timeout: 10000
+
+      # ================= D. The quick chips repair both =================
+      # (HEALTH-ACT-186…188) Each chip WRITES a valid value into the field it
+      # owns, so the error clearing is the read-back — the chips are the reason
+      # a member never has to type either field correctly by hand.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-186
+      - tapOn:
+          id: 'health-workout-time-now'
+      - tapOn:
+          id: 'health-workout-date-today'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-workout-datetime-error'
+          timeout: 10000
+      # 188 — Yesterday is the chip the after-midnight case actually needs.
+      - tapOn:
+          id: 'health-workout-date-yesterday'
+      - assertNotVisible:
+          id: 'health-workout-datetime-error'
+
+      # ================= E. A back-dated session is really filed =======
+      # (HEALTH-ACT-189…191)
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-189
+      - tapOn:
+          id: 'health-workout-type-cycle'
+      - tapOn:
+          id: 'health-workout-minutes-input'
+      - inputText: '30'
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'LOG A WORKOUT'
+      - tapOn:
+          id: 'health-workout-add-button'
+      - extendedWaitUntil:
+          visible: 'Cycling'
+          timeout: 30000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: POST
+            E2E_VERIFY_PATH: /entries/workouts
+            E2E_VERIFY_STATUS: '201'
+
+      # ================= F. The detail sheet CLOSES, not only deletes ===
+      # (HEALTH-ACT-192) `health-workout-detail-close` has never been driven:
+      # the only flow that opens this sheet goes straight to Delete, so the
+      # dismiss path — the one a member takes every time they just look at a
+      # session — was unproven.
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-ACT-192
+      - tapOn:
+          id: 'health-workout-row-.*'
+          text: 'Cycling'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-detail-close'
+          timeout: 10000
+      - tapOn:
+          id: 'health-workout-detail-close'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-workout-detail-close'
+          timeout: 10000
+      # Dismissing must not have deleted anything.
+      - assertVisible: 'Cycling'
+
+      # ================= END / teardown ================================
+      # (HEALTH-ACT-193…195) Delete the session this flow wrote, prove it left
+      # the server, and put the metric switch back where it was found.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-workout-row-.*'
+          text: 'Cycling'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-workout-detail-delete'
+          timeout: 10000
+      - tapOn:
+          id: 'health-workout-detail-delete'
+      - extendedWaitUntil:
+          visible: 'Delete Cycling?'
+          timeout: 10000
+      - tapOn: 'Delete'
+      - extendedWaitUntil:
+          notVisible: 'Cycling'
+          timeout: 30000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: DELETE
+            E2E_VERIFY_PATH: /entries/
+            E2E_VERIFY_STATUS: '200'
+      - runFlow:
+          file: ../subflows/e2e-dump-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health

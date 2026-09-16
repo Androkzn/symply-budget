@@ -1,0 +1,890 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:widget
+  - mutation
+  - regression
+# Matrix: HEALTH-WIDGETSET-101 … 116 (101-111 original; 112-116 added with the
+# donor-parity widget port / migration 0144 — small_widget_style +
+# medium_widget_layout/medium_primary_metric/medium_secondary_metric/
+# medium_show_all_metrics. HealthWidgetSettingsScreen had ZERO E2E before this
+# flow; see backend coverage at HEALTH-ASSET-007/009/021/024/028/029)
+---
+# Widget settings — all ELEVEN `widget_preferences` columns, on a device.
+#
+# WHY THIS FLOW EXISTS
+# ---------------------
+# `GET`/`PUT /health/widget/preferences` have been deployed since parity P2
+# with no caller at all — `HealthWidgetSettingsScreen` is the screen that
+# finally owns them, and until this flow it had never been driven on a
+# simulator. Every field here is a real PUT to the shared fleet account, so
+# what this flow proves that a Jest render test cannot: the value SURVIVES a
+# navigate-away-and-back (i.e. it was actually written, not just painted), and
+# the summary card + the More hub row subtitle both re-derive from what is
+# actually stored rather than from local component state.
+#
+# GOTCHA — NATIVE SWITCH HIT-TESTING
+# -----------------------------------
+# The three `show_*` rows are a real RN `Switch` (native `UISwitch`), not a
+# `Pressable`. A plain `tapOn` on a freshly-mounted UISwitch under `idb ui tap`
+# was observed to silently drop the first touch during manual verification of
+# this screen; Maestro's XCUITest-backed `tapOn` does not share that failure
+# mode; `retryTapIfNoChange: true` is kept anyway as a defence.
+#
+# STATE / TEARDOWN
+# -----------------
+# `widget_preferences` is ACCOUNT-level (one row per user, upserted — see
+# HEALTH-ASSET-009), shared with every other flow and device signed into the
+# shared fleet account. This flow always ends on `DEFAULT_HEALTH_WIDGET_PREFERENCES`
+# (steps / bar / weight / all three show_* on / standard small style / standard
+# medium layout / steps+calories medium metrics / show-all on) — the exact
+# shape HEALTH-ASSET-021 asserts an unsaved account reads — so a run that dies
+# mid-flow is the only way to leave this dirty, and every leg restores its own
+# control before moving to the next.
+#
+# NETWORK VERIFICATION
+# ---------------------
+# Every control on this screen is real: `onValueChange`/`onSelect` ->
+# `patch()` -> `saveWidgetPreferences()` (healthWidgetStorage.ts) ->
+# `healthAssetsApi.saveWidgetPreferences` (src/api/healthAssets.ts, BASE
+# '/health') -> `PUT /health/widget/preferences` (200) at
+# backend/src/routes/health-assets.ts. There is no local-only control on this
+# screen to flag. `patch()` also updates `prefs` OPTIMISTICALLY before
+# awaiting the PUT (setPrefs runs before `await saveWidgetPreferences`), so a
+# `tapOn` immediately followed only by `assertVisible` (no pre-existing
+# `extendedWaitUntil`) does not itself prove the write landed — those legs get
+# a short `waitForAnimationToEnd` before the network check below instead of
+# reusing a UI wait.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-WIDGETSET-101
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      # GUARD — CONCURRENT-SESSION FAST REFRESH (2026-08-02): this flow was
+      # failing at `tapOn: id: tab-settings` inside `go-more.yaml` (reached
+      # via `go-health-widget.yaml` below) with "Element not found: Id
+      # matching regex: tab-settings" — NOT a stale/wrong testID (`tab-
+      # settings` is the correct, current id; it's used successfully by many
+      # other flows in this same run, e.g. more-brand-isolation.yaml) and NOT
+      # the same issue as the shipped-defaults `show_weight` assertion below
+      # (that one was already investigated separately and left unchanged).
+      # The live report's failure screenshot (widget-preferences-controls
+      # step 190) shows a blue "Refreshing..." banner (React Native's
+      # DevLoadingView, painted only when Metro Fast-Refreshes this connected
+      # simulator because a watched file changed on disk) stacked over a red
+      # "No internet connection" banner — a concurrent session in this repo
+      # is bumping `brands/symply-health/brand.cjs`'s build number and
+      # regenerating token/icon files mid-suite, which Metro treats as a
+      # source change; the resulting remount tears down and rebuilds the tab
+      # bar (and drops in-flight requests, hence the ERR-tagged network calls
+      # one step earlier at the "Done" keyboard-dismiss tap). `tab-settings`
+      # briefly doesn't exist mid-remount, so the ~9.5s tap-retry window
+      # timed out. Same signature already root-caused in
+      # `activity-goals-and-session-edit.yaml` / `water-tab-goal-units-
+      # custom.yaml` / `weight-tab-goal-start-field.yaml` — gate on the
+      # banner clearing rather than guessing at a bigger timeout. This waits
+      # here, in THIS flow, rather than inside `go-more.yaml` /
+      # `go-health-widget.yaml`, because those subflows are shared by every
+      # flow in the fleet (Health + Kaizen + Language + Budget all have their
+      # own `go-more.yaml`/equivalent) and are out of scope for this fix.
+      - extendedWaitUntil:
+          notVisible: 'Refreshing...'
+          timeout: 20000
+      - runFlow: subflows/go-health-widget.yaml
+
+      # --- HEALTH-WIDGETSET-101: shipped defaults on first read -------------
+      - assertVisible: 'Your widget shows'
+      - assertVisible:
+          id: 'health-widget-summary-line'
+          text: 'Steps, plus weight, nutrition, workouts'
+      - assertVisible: 'SMALL WIDGET'
+      - assertVisible:
+          id: 'health-widget-metric-steps'
+      - assertVisible:
+          id: 'health-widget-show-weight'
+      # The CHART card now sits below the MEDIUM WIDGET card (migration 0144:
+      # layout/primary/secondary/show-all) and the show-weight/nutrition/
+      # workouts card, both added after this assertion was first written —
+      # reproduced 2026-08-01, chart-type-bar is off-screen on load without a
+      # scroll.
+      - scrollUntilVisible:
+          element:
+            id: 'health-widget-chart-type-bar'
+          direction: DOWN
+          timeout: 15000
+          visibilityPercentage: 10
+      - assertVisible:
+          id: 'health-widget-chart-type-bar'
+      - assertVisible:
+          id: 'health-widget-chart-metric-weight'
+      - assertVisible: 'On a locked screen'
+
+      # --- HEALTH-WIDGETSET-102: small-widget metric, both directions -------
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-metric-calories'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-widget-summary-line'
+            text: 'Calories, plus weight, nutrition, workouts'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-metric-water'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-widget-summary-line'
+            text: 'Water, plus weight, nutrition, workouts'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-metric-steps'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-widget-summary-line'
+            text: 'Steps, plus weight, nutrition, workouts'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- HEALTH-WIDGETSET-103: "Weight and trends" OFF then ON ------------
+      # Turning it off also flips the CHART section's own note (it states the
+      # condition rather than hiding the controls — see the screen's header).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-show-weight'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible: 'it appears once "Weight and trends" is on'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-widget-summary-line'
+          text: 'Steps, plus nutrition, workouts'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-show-weight'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          notVisible: 'it appears once "Weight and trends" is on'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-widget-summary-line'
+          text: 'Steps, plus weight, nutrition, workouts'
+
+      # --- HEALTH-WIDGETSET-104: Nutrition OFF then ON -----------------------
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-show-nutrition'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-widget-summary-line'
+            text: 'Steps, plus weight, workouts'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-show-nutrition'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-widget-summary-line'
+            text: 'Steps, plus weight, nutrition, workouts'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- HEALTH-WIDGETSET-105: Workouts OFF then ON ------------------------
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-show-workouts'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-widget-summary-line'
+            text: 'Steps, plus weight, nutrition'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-show-workouts'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-widget-summary-line'
+            text: 'Steps, plus weight, nutrition, workouts'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- HEALTH-WIDGETSET-106: chart Style, both directions ----------------
+      # No pre-existing UI wait here (optimistic update — see the file header's
+      # NETWORK VERIFICATION note), so a short `waitForAnimationToEnd` settles
+      # the request before the network check.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-chart-type-line'
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: 'health-widget-chart-type-line'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-chart-type-bar'
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: 'health-widget-chart-type-bar'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- HEALTH-WIDGETSET-107: chart Measure, all three positions ---------
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-chart-metric-nutrition'
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: 'health-widget-chart-metric-nutrition'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-chart-metric-both'
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: 'health-widget-chart-metric-both'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-chart-metric-weight'
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: 'health-widget-chart-metric-weight'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- HEALTH-WIDGETSET-112: small-widget Style, all three positions ----
+      # small_widget_style / medium_widget_layout / medium_primary_metric /
+      # medium_secondary_metric / medium_show_all_metrics — added by migration
+      # 0144 alongside the donor-parity widget port (Small: standard/compact/
+      # minimal; Medium: standard/dual/grid). Same PUT-and-persist contract as
+      # every other field on this screen, just two new cards.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-small-style-compact'
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: 'health-widget-small-style-compact'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-small-style-minimal'
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: 'health-widget-small-style-minimal'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-small-style-standard'
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: 'health-widget-small-style-standard'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- HEALTH-WIDGETSET-113: medium Layout — "standard" shows the ---------
+      # show-all-metrics toggle; "dual" swaps it for two metric pickers.
+      - assertVisible:
+          id: 'health-widget-medium-show-all'
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-medium-layout-dual'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-widget-medium-primary-water'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-widget-medium-secondary-water'
+
+      # --- HEALTH-WIDGETSET-114: dual layout's two metric pickers -------------
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-medium-primary-water'
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: 'health-widget-medium-primary-water'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-medium-secondary-workout'
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: 'health-widget-medium-secondary-workout'
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Restore both to their shipped defaults NOW, while "dual" still shows
+      # their controls — teardown can't reach them once the layout changes.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-medium-primary-steps'
+          retryTapIfNoChange: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-medium-secondary-calories'
+          retryTapIfNoChange: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-widget-medium-primary-steps'
+      - assertVisible:
+          id: 'health-widget-medium-secondary-calories'
+
+      # --- HEALTH-WIDGETSET-115: grid layout has neither control set ---------
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-medium-layout-grid'
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: 'health-widget-medium-layout-grid'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-widget-medium-show-all'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertNotVisible:
+          id: 'health-widget-medium-primary-water'
+
+      # --- HEALTH-WIDGETSET-116: restore Medium defaults before the rest ------
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-medium-layout-standard'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-widget-medium-show-all'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+
+      # --- HEALTH-WIDGETSET-108: the privacy card names the limit -----------
+      - assertVisible:
+          id: 'health-widget-privacy'
+      - assertVisible: 'Photos, cycle records and vitality records are never sent to it.'
+
+      # --- HEALTH-WIDGETSET-109: a choice SURVIVES leaving the screen -------
+      # Set a non-default value, leave via the back button, come back, and
+      # confirm it was actually written rather than only painted.
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-metric-calories'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-widget-summary-line'
+            text: 'Calories, plus weight, nutrition, workouts'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - tapOn:
+          id: 'health-widget-screen-back'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-more-screen'
+          timeout: 30000
+      # --- HEALTH-WIDGETSET-110: the More hub row re-derives from storage ---
+      - scrollUntilVisible:
+          element:
+            id: 'health-setting-widget'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+          optional: true
+      - assertVisible: 'Calories, plus weight, nutrition, workouts'
+      - runFlow: subflows/go-health-widget.yaml
+      - assertVisible:
+          id: 'health-widget-summary-line'
+          text: 'Calories, plus weight, nutrition, workouts'
+
+      # --- HEALTH-WIDGETSET-111 + TEARDOWN: restore the shipped defaults ----
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-widget-metric-steps'
+          retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: 'health-widget-summary-line'
+            text: 'Steps, plus weight, nutrition, workouts'
+          timeout: 20000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /health/widget/preferences
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - assertVisible:
+          id: 'health-widget-chart-type-bar'
+      - assertVisible:
+          id: 'health-widget-chart-metric-weight'
+      # Small style + Medium layout were already restored to their defaults in
+      # HEALTH-WIDGETSET-112/113/116 above (no further control changes since).
+      - assertVisible:
+          id: 'health-widget-small-style-standard'
+      - assertVisible:
+          id: 'health-widget-medium-layout-standard'
+      - assertVisible:
+          id: 'health-widget-medium-show-all'
+
+      # --- Back to the Health tab --------------------------------------------
+      - tapOn:
+          id: 'health-widget-screen-back'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-more-screen'
+          timeout: 30000
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

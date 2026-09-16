@@ -1,0 +1,11 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Force the Expo Dev Client to load JS from House Metro (8083).
+# Caller must launchApp first (see launch-logged-in / launch-logged-out).
+- openLink: ${E2E_METRO_DEVCLIENT_URL}
+- waitForAnimationToEnd:
+    timeout: 15000
+- runFlow: dismiss-expo-dev-chrome.yaml

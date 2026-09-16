@@ -1,0 +1,17 @@
+appId: com.symply.kaizen
+---
+# If e2e-setup raced and left us on "Build your system", finish via UI
+# (Career is selected by default) then re-open Today.
+- runFlow:
+    when:
+      visible: 'Build your system'
+    commands:
+      - tapOn: 'Continue'
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - openLink: ${E2E_SETUP_URL}
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - openLink: kaizen://today
+      - waitForAnimationToEnd:
+          timeout: 5000

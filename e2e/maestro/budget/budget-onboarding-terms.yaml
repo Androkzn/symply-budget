@@ -1,0 +1,28 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:onboarding
+  - regression
+# Matrix: BUDGET-ONB-TERMS (see documents/engineering/testing/matrices/)
+# Regression guard for the ChildWelcome terms-acceptance fix.
+#
+# Bug: on a stale persisted session (isAuthenticated true, tokens expired),
+# tapping "Get Started" on the Budget welcome fired accept-terms with a dead
+# token → 401 → the screen popped "Failed to save terms acceptance: Request
+# failed with status code 401". The fix swallows that 401 (the API client has
+# already logged the user out and the app routes back to login) and only alerts
+# on genuine, retryable failures.
+#
+# Contract asserted here: accepting terms NEVER surfaces that error dialog, and
+# the session lands cleanly on the dashboard. On a fresh (not-yet-onboarded) sim
+# this drives welcome → agree → Get Started → dashboard; on the already-onboarded
+# shared account budget-launch-logged-in lands on the dashboard directly. Both
+# paths must reach budget-screen with no terms error.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+# budget-launch-logged-in runs budget-dismiss-welcome-if-needed, which agrees to
+# the terms and taps Get Started when the welcome is shown — and now asserts the
+# error dialog is absent at the moment of the tap.
+- assertNotVisible: 'Failed to save terms acceptance'
+- assertVisible:
+    id: 'budget-screen'

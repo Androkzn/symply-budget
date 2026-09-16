@@ -1,0 +1,156 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:habits
+  - readonly
+  - regression
+# Matrix: HEALTH-HABIT-113 … HEALTH-HABIT-119
+---
+# Habits tab — the preset library and the time-of-day filter.
+#
+# WHY THIS FLOW EXISTS. Both surfaces landed with the donor-parity port on
+# 2026-07-26 and both exist because the DONOR GOT THEM WRONG:
+#
+#   * Its time-of-day chips bind a `@State` its grid never reads, so tapping one
+#     changes the chip and nothing else. Here the filter is the single source
+#     the list derives from — so the only honest device assertion is that the
+#     LIST changes, not that the chip highlights.
+#   * Its category facet offers all nine categories, and `nutrition` has no
+#     preset at all — a filter that can only ever answer "nothing". Here only
+#     categories that HAVE a preset are offered, which is asserted as an
+#     ABSENCE below.
+#
+# Both are silent failures: nothing crashes, the screen just quietly stops
+# filtering. A unit test proves the functions; this proves the wiring.
+#
+# STATE + TEARDOWN. **Nothing is written.** The flow opens the library, searches
+# it and filters it, but never taps a preset row (that would add a habit). The
+# time filter and the search box are view state that dies with the screen, so
+# this flow needs no teardown and can run anywhere in the suite.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-HABIT-113
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-habits.yaml
+
+      # --- The library is closed until asked for (HEALTH-HABIT-113) --------
+      # It is 19 rows tall; mounting it unasked would bury the member's own
+      # habits under a catalogue every single time they open the tab.
+      - assertNotVisible:
+          id: 'health-habits-library'
+      - scrollUntilVisible:
+          element:
+            id: 'health-habits-browse-library'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-habits-browse-library'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habits-library'
+          timeout: 15000
+
+      # --- The donor's 19 presets are really there (HEALTH-HABIT-114) ------
+      # Two from different categories, so a catalogue truncated to its first
+      # section cannot satisfy this.
+      - assertVisible:
+          id: 'health-habit-template-floss'
+      - assertVisible:
+          id: 'health-habit-template-meditate'
+
+      # --- Search narrows the catalogue (HEALTH-HABIT-115) -----------------
+      - tapOn:
+          id: 'health-habits-library-search'
+      - inputText: 'floss'
+      - hideKeyboard
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-habit-template-meditate'
+          timeout: 15000
+      - assertVisible:
+          id: 'health-habit-template-floss'
+
+      # --- A dead-end search says so (HEALTH-HABIT-116) --------------------
+      # An empty card with no words in it reads as a loading failure.
+      - eraseText
+      - inputText: 'zzzz'
+      - hideKeyboard
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habits-library-empty'
+          timeout: 15000
+      - assertVisible: 'Nothing matches that. Try a different word, or create a custom habit.'
+      - eraseText
+      - hideKeyboard
+
+      # --- The category facet filters, and offers no empty chip (117) ------
+      - tapOn:
+          id: 'health-habits-library-category-dental'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-habit-template-meditate'
+          timeout: 15000
+      - assertVisible:
+          id: 'health-habit-template-floss'
+      # The donor's dead `nutrition` chip must NOT be offered — no preset uses
+      # that category, so the chip could only ever empty the list.
+      - assertNotVisible:
+          id: 'health-habits-library-category-nutrition'
+      - tapOn:
+          id: 'health-habits-library-category-all'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-habit-template-meditate'
+          timeout: 15000
+
+      # --- The same control closes the library (HEALTH-HABIT-118) ----------
+      - tapOn:
+          id: 'health-habits-browse-library'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-habits-library'
+          timeout: 15000
+
+      # --- The time-of-day filter actually filters (HEALTH-HABIT-119) ------
+      # The starter set is all `anytime`, and an `anytime` habit belongs to
+      # EVERY part of the day — so the honest assertion for a shared account is
+      # that a starter habit SURVIVES the filter while the chip takes the
+      # selection. (A filter that hid everything would fail this just as loudly
+      # as one that hid nothing, because the empty-state card would appear.)
+      - scrollUntilVisible:
+          element:
+            id: 'health-habits-filter-evening'
+          direction: UP
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-habits-filter-evening'
+      - assertVisible:
+          id: 'health-habits-filter-evening'
+          selected: true
+      - assertVisible: 'Sleep 7+ hours'
+      - assertNotVisible:
+          id: 'health-habits-empty'
+      - tapOn:
+          id: 'health-habits-filter-all'
+      - assertVisible:
+          id: 'health-habits-filter-all'
+          selected: true
+
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

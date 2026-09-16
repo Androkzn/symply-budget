@@ -1,0 +1,71 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:budget
+  - readonly
+  - regression
+  - corner
+# Matrix: HOUSE-BUDGET-012 — zero budget writes from House brand.
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-BUDGET-012
+# e2e-matrix-before's openLink calls can trigger iOS's "Open in …?"
+# interstitial over the Dev Client — dismiss before the next tap.
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- runFlow: ../subflows/go-home-tab.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'home-stat-budget'
+    commands:
+      - tapOn:
+          id: 'home-stat-budget'
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+- openLink: simplehouse://budget
+- extendedWaitUntil:
+    visible:
+      id: 'budget-screen'
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: 'budget-month-prev'
+    commands:
+      - tapOn:
+          id: 'budget-month-prev'
+      - tapOn:
+          id: 'budget-month-next'
+- runFlow:
+    file: ../subflows/e2e-dump-log.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+# This is the mandatory CORNER contract (see documents/.../matrices/house.md
+# row 18): a failure here is a release blocker. It previously only dumped the
+# network log to Metro's console for manual inspection — Maestro can't read
+# that, so a real backend regression (e.g. the 2026-07-31 token-refresh hang,
+# which fired 54 silent 401s during exactly this flow) could pass unnoticed.
+# Setting E2E_VERIFY_PATH makes e2e-matrix-after actually gate on it.
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_VERIFY_METHOD: GET
+      E2E_VERIFY_PATH: /home-budget/monthly-overview
+      E2E_VERIFY_STATUS: '200'
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 5000

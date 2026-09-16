@@ -1,0 +1,70 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+  - feature:multi-member
+---
+# Leave the add/edit task surfaces if a previous flow (or a previous RUN) left
+# one open.
+#
+# These simulators are never launched with clearState, so an abandoned editor
+# survives across flows and runs. Neither of House's task editors is modal in
+# the blocking sense — navigation "succeeds" and then every list assertion
+# fails, because the list is simply not the screen in front. Cheap to check,
+# and it removes a whole class of confusing failures.
+#
+# Three surfaces, in the order they stack:
+#   * AddTaskSheet          (`add-task-sheet`, a BottomSheet)
+#   * ScheduleTaskScreen    (the edit form — `task-form-title` is its marker;
+#                            the screen itself carries no root testID)
+#   * TaskDetailScreen      (`task-detail-screen`, a native modal closed by
+#                            `task-detail-close`, NOT nav-back-button)
+- runFlow:
+    when:
+      visible:
+        id: 'add-task-sheet'
+    commands:
+      - tapOn:
+          id: 'bottom-sheet-close'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          when:
+            visible:
+              id: 'add-task-sheet'
+          commands:
+            - tapOn:
+                id: 'bottom-sheet-overlay'
+                optional: true
+            - waitForAnimationToEnd:
+                timeout: 1500
+- runFlow:
+    when:
+      visible:
+        id: 'task-form-title'
+    commands:
+      - tapOn:
+          id: 'nav-back-button'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+      # Discard-confirm, if the form asks before dropping edits.
+      - tapOn:
+          text: '^Discard$'
+          optional: true
+      - tapOn:
+          text: '^Leave$'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1500
+- runFlow:
+    when:
+      visible:
+        id: 'task-detail-screen'
+    commands:
+      - tapOn:
+          id: 'task-detail-close'
+          optional: true
+      - waitForAnimationToEnd:
+          timeout: 1500

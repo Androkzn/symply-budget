@@ -1,0 +1,56 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+# Matrix: HEALTH-TD-004 — device A approves device B by its out-of-band phrase.
+#
+# The digits are a real check, not a rubber stamp. Device B derived them from
+# ITS OWN enrolment keys; this device derives its own from what the control plane
+# reports B's keys to be. Asserting B's number on this screen is therefore the
+# statement that nothing substituted a key in between — the one thing neither
+# device can establish by asking the control plane, since that is the party a
+# substitution would come from. The runner scrapes B's number off the Metro log
+# after B claims and passes it as `TD_SAS`.
+#
+# COPY CONTRACT (HEALTH_ENROLMENT_COPY, controlPlaneClient.ts:79-87):
+#   approveTitle 'Approve your other device'
+#   approveBody  'Check that the number matches the one shown on your other
+#                 device, then approve it.'
+#
+# env: TD_SAS
+---
+- runFlow: td-launch.yaml
+- runFlow: ../health/subflows/go-more.yaml
+- scrollUntilVisible:
+    element:
+      id: 'health-setting-other-device'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 10
+- tapOn:
+    id: 'health-setting-other-device'
+- extendedWaitUntil:
+    visible:
+      id: 'health-other-device-screen'
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'health-other-device-approvals'
+    timeout: 60000
+- assertVisible: 'Approve your other device'
+- assertVisible: 'Check that the number matches the one shown on your other device, then approve it\.'
+- assertTrue: ${TD_SAS != null && TD_SAS != ''}
+# Not optional: digits that do not match mean the two devices disagree about the
+# key being enrolled. Shown grouped ("123 456"), hence the wildcards.
+- assertVisible: '.*${TD_SAS}.*'
+- tapOn:
+    id: 'health-other-device-approve-request'
+- extendedWaitUntil:
+    notVisible:
+      id: 'health-other-device-approvals'
+    timeout: 60000
+# A second Symply ACCOUNT can never be added — only this account's own devices
+# (HEALTH_ENROLMENT_COPY.refused / `HealthSecondUserRefusedError`). The refusal
+# copy must not be showing after a legitimate own-device approval.
+- assertNotVisible: 'Symply Health keeps your data to a single account\.'

@@ -1,0 +1,4 @@
+appId: com.symply.kaizen
+---
+# A failed offline-upload flow can leave airplane mode on and poison the rest of the suite.
+- setAirplaneMode: disabled

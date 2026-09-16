@@ -1,0 +1,31 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Force the Savings sub-tab, for flows where landing on the tab is just
+# NAVIGATION rather than the thing under test.
+#
+# `PensionView` already documents the underlying problem for its own sub-tabs:
+# "the in-screen segmented sub-tab tap can be dropped on iOS-26 New-Arch, and
+# its `filter-tab-goals` testID collides with the Savings view's Goals tab
+# WHILE BOTH SECTION TABS STAY MOUNTED ACROSS A WARM SESSION."
+#
+# That warm-session clause is why this only bites in a SUITE. On 2026-08-26 a
+# 16-flow sweep failed five flows — income-entry, entry-controls,
+# irregular-income, recurring-toggle, recurring — every one of them reporting
+# "savings-entry-form / savings-income / savings-recurring-payments is not
+# visible", i.e. the sub-tab never switched. All five PASS when run
+# individually, because a colder session taps cleanly. Chasing them as
+# individual selector bugs would have found nothing.
+#
+# Use AFTER the normal `tapOn: filter-tab-<id>`: if the tap landed, this is a
+# no-op that re-selects the same tab; if it was dropped, this repairs it. Flows
+# whose SUBJECT is the tab strip itself (budget-savings-overview) should keep
+# tapping and NOT use this — the tap is what they are testing.
+#
+# Pass the tab via E2E_SUBTAB (overview|income|monthly|projection|goals).
+- openLink: simplebudget://e2e-savings-set-tab?tab=${E2E_SUBTAB}
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 3000

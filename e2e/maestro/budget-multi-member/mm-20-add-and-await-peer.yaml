@@ -1,0 +1,173 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:local-first
+  - feature:multi-member
+  - mutation
+# Matrix: BUDGET-MM-020 — record something, then wait for the OTHER member's
+# change to arrive. Runs on BOTH devices AT THE SAME TIME.
+#
+# This flow is its own rendezvous. Each device does its half and then polls
+# sync until the peer's row shows up, so the two Maestro processes need no
+# coordination channel: whichever finishes first simply waits inside its own
+# poll loop. That is what makes concurrent driving safe here.
+#
+# env:
+#   MM_SECTION      spending | planning  — which tab this member works in
+#   MM_TITLE        the row THIS member creates
+#   MM_AMOUNT       its amount
+#   MM_PEER_SECTION the tab the peer's row lives in (navigated to before waiting)
+#   MM_PEER_TITLE   the row the OTHER member creates, awaited here
+---
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# A stale app alert survives across flows AND runs (no clearState) and
+# swallows every tap while staying invisible to assertions.
+- runFlow: mm-dismiss-stale-alerts.yaml
+# An abandoned item form from a previous flow/run hides the list entirely.
+- runFlow: mm-leave-item-form.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    when:
+      true: ${MM_SECTION == 'planning'}
+    commands:
+      - runFlow: ../subflows/budget-go-planning.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-planned-spendings'
+          timeout: 20000
+      - runFlow: ../subflows/budget-open-add-sheet.yaml
+      - tapOn:
+          id: 'budget-add-planned'
+- runFlow:
+    when:
+      true: ${MM_SECTION == 'spending'}
+    commands:
+      - tapOn:
+          id: 'tab-spending'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-spendings'
+          timeout: 20000
+      - runFlow: ../subflows/budget-open-add-sheet.yaml
+      - tapOn:
+          id: 'budget-add-spent'
+- extendedWaitUntil:
+    visible:
+      id: 'budget-item-form'
+    timeout: 25000
+- tapOn:
+    id: 'budget-item-title'
+- inputText: ${MM_TITLE}
+# Do not hideKeyboard — on iOS 26 that has backgrounded the Expo client onto
+# SpringBoard (mm-20, both devices, 2026-08-12). Tap Exact (planning) or the
+# cost field itself; either dismisses the decimal pad without leaving the app.
+- tapOn:
+    id: 'budget-item-cost-mode-exact'
+    optional: true
+- runFlow: ../subflows/budget-relaunch-if-backgrounded.yaml
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-cost-exact'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'budget-item-cost-exact'
+- inputText: ${MM_AMOUNT}
+# Blur so onEndEditing flushes the native value into RN state before save.
+- tapOn:
+    id: 'budget-item-title'
+- waitForAnimationToEnd:
+    timeout: 1000
+- scrollUntilVisible:
+    element:
+      id: 'budget-item-form-save-header'
+    direction: DOWN
+    timeout: 8000
+    optional: true
+- tapOn:
+    id: 'budget-item-form-save-header'
+- waitForAnimationToEnd:
+    timeout: 2500
+- runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+# Wait generously, and re-tap Save if the form is still up.
+#
+# Save runs on the JS thread, which is frequently mid-sync here (AEAD +
+# signatures + a whole-ledger persist), so the close can lag well past a first
+# check — observed with the form fully valid and Save ENABLED, simply not yet
+# actioned. Re-tapping is safe: the form is gone once it saves, so a second tap
+# only ever lands if the first did nothing.
+- repeat:
+    times: 3
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'budget-item-form'
+          commands:
+            - extendedWaitUntil:
+                notVisible:
+                  id: 'budget-item-form'
+                timeout: 20000
+                optional: true
+            - runFlow:
+                when:
+                  visible:
+                    id: 'budget-item-form'
+                commands:
+                  - tapOn:
+                      id: 'budget-item-form-save-header'
+                      optional: true
+                  - waitForAnimationToEnd:
+                      timeout: 2000
+- extendedWaitUntil:
+    notVisible:
+      id: 'budget-item-form'
+    timeout: 25000
+- extendedWaitUntil:
+    visible: '.*${MM_TITLE}.*'
+    timeout: 20000
+- assertVisible: '.*${MM_TITLE}.*'
+# Push this member's op out before moving on.
+- runFlow: ../subflows/budget-sync-pulse.yaml
+- waitForAnimationToEnd:
+    timeout: 6000
+- runFlow: mm-dismiss-stale-alerts.yaml
+- runFlow: ../subflows/budget-relaunch-if-backgrounded.yaml
+
+# Go to whichever tab the peer's row belongs to, then wait for it. The peer is
+# working concurrently, so the first rounds legitimately come back empty.
+- runFlow:
+    when:
+      true: ${MM_PEER_SECTION == 'planning'}
+    commands:
+      - runFlow: ../subflows/budget-go-planning.yaml
+- runFlow:
+    when:
+      true: ${MM_PEER_SECTION == 'spending'}
+    commands:
+      - runFlow: ../subflows/go-budget-tab.yaml
+      - tapOn:
+          id: 'tab-spending'
+      - extendedWaitUntil:
+          visible:
+            id: 'budget-spendings'
+          timeout: 20000
+- repeat:
+    times: 20
+    commands:
+      - runFlow:
+          when:
+            notVisible: '.*${MM_PEER_TITLE}.*'
+          commands:
+            - runFlow: ../subflows/budget-sync-pulse.yaml
+            - waitForAnimationToEnd:
+                timeout: 6000
+            - runFlow: mm-dismiss-stale-alerts.yaml
+            - runFlow: ../subflows/budget-relaunch-if-backgrounded.yaml
+            - runFlow: ../subflows/budget-dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible: '.*${MM_PEER_TITLE}.*'
+    timeout: 30000
+# The peer's row — created on a device this one never touched — is here.
+- assertVisible: '.*${MM_PEER_TITLE}.*'

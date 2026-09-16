@@ -1,0 +1,310 @@
+appId: com.symply.budget
+tags:
+  - app:budget
+  - feature:savings
+  - mutation
+  - regression
+# Matrix: BUDGET-SAVE-010 / BUDGET-SAVE-011 / BUDGET-SAVE-012 / BUDGET-SAVE-053
+#
+# Savings → Goals, the full lifecycle on a real device: create → read back →
+# EDIT → read the edit back → DELETE → prove it is gone.
+#
+# Why this exists. `budget-savings-goal.yaml` only ever proved CREATE, and it
+# left its goal in the shared E2E household forever (every run added another
+# "E2E Savings Goal"). Edit and delete were UNIT-only — `SavingsGoalForm.test.tsx`
+# mocks `savingsApi`, so nothing proved that `updateGoal`/`deleteGoal` actually
+# reach the Worker from the device, nor that the Goals list re-reads after them.
+#
+# ADDRESSING NOTE. Goal cards carry `savings-goal-card-<uuid>` — a server id no
+# flow can know in advance — so every goal here is addressed by its NAME, and
+# the names are prefixed "ZZ E2E" so they can never be confused with the
+# household's real goals.
+#
+# GOAL TYPE is deliberately set on the CREATE pass only: the type chips are
+# `disabled={isEditing}` (a goal cannot change type once it exists), so the
+# edit pass exercises the fields that ARE editable — name, target, allocation.
+#
+# MUTATING but self-cleaning, and re-entrant: a leftover from an aborted run is
+# drained first (under BOTH the pre-edit and post-edit name), and the flow ends
+# with zero copies of either.
+---
+- runFlow: ../subflows/budget-launch-logged-in.yaml
+- runFlow: ../subflows/go-budget-tab.yaml
+- runFlow:
+    file: ../subflows/budget-e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget
+      E2E_MATRIX_ROW: BUDGET-SAVE-011
+- runFlow: ../subflows/go-budget-savings.yaml
+- tapOn:
+    id: 'filter-tab-goals'
+- extendedWaitUntil:
+    notVisible:
+      id: 'savings-goals-loading'
+    timeout: 45000
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goals'
+    timeout: 45000
+
+# --- Pre-clean. An aborted run can leave the goal behind under EITHER name; a
+# survivor would make the tap-by-name steps below ambiguous and the closing
+# assertNotVisible unsatisfiable. Repeated, because more than one aborted run
+# can each have left a copy. Scroll before each check — a `when: visible` guard
+# only sees the current screen, so without the sweep a copy below the fold
+# silently survives.
+- repeat:
+    times: 3
+    commands:
+      - scrollUntilVisible:
+          element: '.*ZZ E2E Goal CRUD.*'
+          direction: DOWN
+          timeout: 8000
+          centerElement: true
+          optional: true
+      - runFlow:
+          when:
+            visible: '.*ZZ E2E Goal CRUD.*'
+          commands:
+            - tapOn: '.*ZZ E2E Goal CRUD.*'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-goal-form-delete'
+                timeout: 20000
+            - tapOn:
+                id: 'savings-goal-form-delete'
+            # '^Delete$', not 'Delete': the alert is TITLED "Delete goal", which
+            # an unanchored regex matches first — the tap would land on the
+            # title and the goal would survive the cleanup meant to remove it.
+            - extendedWaitUntil:
+                visible: '^Delete$'
+                timeout: 10000
+            - tapOn: '^Delete$'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-goals'
+                timeout: 20000
+      - scrollUntilVisible:
+          element: '.*ZZ E2E Goal Renamed.*'
+          direction: DOWN
+          timeout: 8000
+          centerElement: true
+          optional: true
+      - runFlow:
+          when:
+            visible: '.*ZZ E2E Goal Renamed.*'
+          commands:
+            - tapOn: '.*ZZ E2E Goal Renamed.*'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-goal-form-delete'
+                timeout: 20000
+            - tapOn:
+                id: 'savings-goal-form-delete'
+            - extendedWaitUntil:
+                visible: '^Delete$'
+                timeout: 10000
+            - tapOn: '^Delete$'
+            - extendedWaitUntil:
+                visible:
+                  id: 'savings-goals'
+                timeout: 20000
+
+# ============================ CREATE ============================
+# Exactly one add affordance is on screen — the empty-state card's button when
+# the household has no goals, the list footer's when it has — so ONE id regex
+# addresses both without a guard that could silently skip.
+- scrollUntilVisible:
+    element:
+      id: 'savings-goals-add-(empty|list)'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- tapOn:
+    id: 'savings-goals-add-(empty|list)'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goal-form'
+    timeout: 20000
+
+# Default type is emergency_fund (whose name field is `savings-goal-name-optional`
+# and whose target auto-fills from the household's spending). Switch to custom
+# so the target is ours, not a suggestion, and the goal carries a unique name.
+- assertVisible:
+    id: 'savings-goal-type-emergency_fund'
+- tapOn:
+    id: 'savings-goal-type-custom'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goal-name'
+    timeout: 10000
+- tapOn:
+    id: 'savings-goal-name'
+- inputText: 'ZZ E2E Goal CRUD'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'savings-goal-target'
+- inputText: '4200'
+# Assert the figure while the field is still on screen — the scroll to the
+# Create button below moves it out of the viewport.
+- assertVisible:
+    id: 'savings-goal-target'
+    text: '4200'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'savings-goal-current'
+- inputText: '1200'
+# Drag the keypad away BEFORE reaching for the next field. The
+# `scrollUntilVisible` below cannot be relied on to do it: the allocation input
+# is already in the hierarchy behind the keypad, so the scroll short-circuits,
+# no drag happens, and the tap lands on the keypad — leaving focus in THIS
+# field so the 300 below appended here and the form held 1200300.
+- runFlow: ../subflows/budget-dismiss-keypad.yaml
+# Monthly allocation is custom-goal-only — it drives the "Allocating $X/mo"
+# pace line on the card, which is asserted after the save.
+- scrollUntilVisible:
+    element:
+      id: 'savings-goal-allocation'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+    centerElement: true
+- tapOn:
+    id: 'savings-goal-allocation'
+- inputText: '300'
+- runFlow: ../subflows/budget-dismiss-keypad.yaml
+# Target-date row: opening the picker is the only part Maestro can drive — the
+# iOS spinner's value cannot be set from the accessibility tree, so the
+# date-set/date-clear pair stays unit-covered (BUDGET-SAVE-055). Asserting the
+# control is here at least catches it disappearing.
+- scrollUntilVisible:
+    element:
+      id: 'savings-goal-date-picker'
+    direction: DOWN
+    timeout: 10000
+    optional: true
+    centerElement: true
+- assertVisible:
+    id: 'savings-goal-date-picker'
+# The in-form Create button (the header Save is exercised by the EDIT pass
+# below, so one run covers both save affordances).
+#
+# The scroll is load-bearing, not cosmetic: this button is the LAST control of
+# the form and the money fields raise a numeric keypad that `hideKeyboard` does
+# not reliably dismiss on iOS. Tapping blind lands on the keypad — observed
+# 2026-08-22 on Budget-B in budget-savings-goal.yaml, where the tap hit "0" and
+# turned a 5000 target into 50000 without saving. The ScrollView dismisses the
+# keyboard on drag, so scrolling clears it and reveals the button.
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'savings-goal-form-save-header'
+
+# --- Read the create back. formatBudgetCurrency renders whole dollars, grouped
+# and without cents: 420000c => "$4,200". The card is one accessible element,
+# so the figures live inside its merged label — hence the `.*…​.*` wrapping.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goals'
+    timeout: 25000
+- scrollUntilVisible:
+    element: '.*ZZ E2E Goal CRUD.*'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- assertVisible: '.*ZZ E2E Goal CRUD.*'
+- assertVisible: '.*\$4,200.*'
+- assertVisible: '.*\$1,200.*'
+
+# ============================= EDIT =============================
+- tapOn: '.*ZZ E2E Goal CRUD.*'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goal-form'
+    timeout: 20000
+# The form loaded the SERVER's copy, not the values this flow typed — proving
+# the create actually persisted, and that the edit starts from stored state.
+- assertVisible:
+    id: 'savings-goal-name'
+- assertVisible: 'Edit goal'
+- tapOn:
+    id: 'savings-goal-name'
+- eraseText: 40
+- inputText: 'ZZ E2E Goal Renamed'
+- hideKeyboard:
+    optional: true
+- tapOn:
+    id: 'savings-goal-target'
+- eraseText: 16
+- inputText: '9800'
+- hideKeyboard:
+    optional: true
+# Guard the same keypad hazard as the create pass — a stray digit here would be
+# SAVED (the header button is above the keyboard and always tappable), so the
+# check has to happen before the tap, not after.
+- assertVisible:
+    id: 'savings-goal-target'
+    text: '9800'
+# Header Save — enabled only once the form is dirty AND valid, so a tap that
+# lands while the edit has not registered is a no-op the assertions catch.
+- tapOn:
+    id: 'savings-goal-form-save-header'
+
+# --- Read the edit back from the list.
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goals'
+    timeout: 25000
+- scrollUntilVisible:
+    element: '.*ZZ E2E Goal Renamed.*'
+    direction: DOWN
+    timeout: 20000
+    centerElement: true
+- assertVisible: '.*ZZ E2E Goal Renamed.*'
+- assertVisible: '.*\$9,800.*'
+- assertNotVisible: '.*ZZ E2E Goal CRUD.*'
+
+# ============================ DELETE ============================
+- tapOn: '.*ZZ E2E Goal Renamed.*'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goal-form'
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: 'savings-goal-form-delete'
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: 'savings-goal-form-delete'
+- extendedWaitUntil:
+    visible: 'Delete goal'
+    timeout: 10000
+- tapOn: '^Delete$'
+- extendedWaitUntil:
+    visible:
+      id: 'savings-goals'
+    timeout: 25000
+
+# --- Proof the household is clean. Sweep the whole list first: `assertNotVisible`
+# only sees the current screen, so without the scroll a survivor below the fold
+# would pass it.
+- scrollUntilVisible:
+    element: '.*ZZ E2E Goal Renamed.*'
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+    optional: true
+- assertNotVisible: '.*ZZ E2E Goal Renamed.*'
+- assertNotVisible: '.*ZZ E2E Goal CRUD.*'
+
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplebudget
+      APP_ID: com.symply.budget

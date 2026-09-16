@@ -1,0 +1,56 @@
+
+=== budget-savings-goal-crud ===
+Monitoring boot status for Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B)
+
+Waiting for flows to complete...
+[Failed] budget-savings-goal-crud (7m 26s) (Assertion is false: id: savings-goals is visible)
+
+1/1 Flow Failed
+
+Monitoring boot status for Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B)
+
+Waiting for flows to complete...
+IOSDriverTimeoutException: no completion after 900s — maestro-flow-run watchdog killed the run
+
+=== budget-savings-irregular-income ===
+Monitoring boot status for Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B)
+
+Waiting for flows to complete...
+[Failed] budget-savings-irregular-income (20s)
+
+1/1 Flow Failed
+
+Monitoring boot status for Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B)
+
+Waiting for flows to complete...
+[Failed] budget-savings-irregular-income (2s)
+
+1/1 Flow Failed
+
+Monitoring boot status for Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B).
+Device already booted, nothing to do.
+
+maestro-dedicated-sim: budget → Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B) Metro :8082 (parallel — other fleet sims untouched)
+Running Symply Budget Maestro E2E on Budget-A (2E61CBDE-2B52-424A-BEDE-DABCE6AC529B)
+
+Waiting for flows to complete...
+[Failed] budget-recover-session (1m 44s)
+
+1/1 Flow Failed
+

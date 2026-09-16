@@ -1,0 +1,26 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:local-first
+  - feature:two-device
+# Matrix: HEALTH-TD-001 — sign THE SAME user in on this device.
+#
+# Runs on BOTH simulators with IDENTICAL credentials. That is the whole point of
+# this suite and the one line that differs from the Budget MM suite it was ported
+# from: a Health household is one user with N devices (plan §1.2), not an owner
+# plus an invitee. The runner passes the same `E2E_EMAIL` / `E2E_PASSWORD` /
+# `E2E_LOGIN_URL` to A and to B, and refuses to start if a secondary account is
+# set, because a second `user_id` is exactly what He5 makes the Worker reject.
+#
+# NOTE — NO SIGN-OUT FIRST, unlike `mm-01-signin.yaml`. Budget signs out because
+# a device still holding the OTHER member's session would reuse it. Here there is
+# no other member; a sign-out would only tear down this device's local session
+# (and, per `privacy-cross-user-leak.yaml`, the cached copy) for nothing.
+---
+- runFlow: td-launch.yaml
+- assertVisible:
+    id: 'health-home-screen'
+# The tab bar is the proof the app is signed in and past onboarding rather than
+# merely rendering something — every gated screen in this suite hangs off it.
+- assertVisible:
+    id: 'tab-index'

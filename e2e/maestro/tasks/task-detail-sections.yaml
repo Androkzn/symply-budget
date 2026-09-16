@@ -1,0 +1,47 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:tasks
+  - readonly
+  - regression
+  - smoke
+# Matrix: HOUSE-tasks (see documents/engineering/testing/matrices/)
+---
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow: ../subflows/open-task-detail.yaml
+- assertVisible:
+    id: 'task-detail-edit'
+- assertVisible:
+    id: 'task-detail-assignee'
+- assertVisible:
+    id: 'task-detail-subtasks'
+# Add-subtask sits ABOVE the blocker section, so it has to be reached
+# first — scrolling DOWN to the blocker puts it off the top and the
+# next DOWN scroll can never come back to it.
+- scrollUntilVisible:
+    element:
+      id: 'task-detail-add-subtask'
+    direction: DOWN
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'task-detail-blocker-section'
+    direction: DOWN
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'task-detail-find-contractors'
+    commands:
+      - assertVisible:
+          id: 'task-detail-find-contractors'
+- tapOn:
+    id: 'task-detail-close'
+- assertVisible:
+    id: 'home-up-next-section'
+# Scroll contract
+- runFlow:
+    file: ../subflows/assert-screen-scrolls.yaml
+    env:
+      SCROLL_END_ID: task-detail-screen-scroll-end
+

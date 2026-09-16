@@ -1,0 +1,170 @@
+appId: com.symply.health
+tags:
+  - app:health
+  - feature:privacy
+  - mutation
+  - regression
+# Matrix: HEALTH-PRIV-012 — documents the cross-user MMKV leak defect.
+#
+# The Health MMKV keys (health.weightLog.v1 / water.v1 / notes.v1 / prefs.v1) are
+# GLOBAL, not per-user, so a second account on the same device would inherit the
+# first account's entries. This flow proves the sign-out + reinstall path returns
+# the app to the signed-out surface; it runs LAST of the session-dependent flows
+# (see config.yaml flowsOrder) because it destroys the shared session.
+#
+# RETARGETED 2026-08-01: the weigh-in below used to be logged on Home
+# (`health-weight-input` / `health-log-weight-button`); that whole card was
+# removed from Home the same day, so it now goes through the Weight tab
+# instead (`health-weight-entry-value` / `health-weight-entry-save`), which
+# also drops this flow's old dependency on the Home wheel-picker's flaky
+# manual-entry mode.
+---
+- runFlow: subflows/launch-health.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow:
+          file: ../subflows/e2e-matrix-before.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            E2E_MATRIX_ROW: HEALTH-PRIV-012
+      # `LOG A WEIGHT` only renders while today has no reading yet; normalise
+      # to the gapped state first, same guard `weight-tab-log-and-edit.yaml`
+      # uses at its own entry.
+      #
+      # WIDENED TO A BOUNDED LOOP 2026-08-01 (was a single delete + one 15s
+      # wait, which timed out): `HealthWeightScreen.tsx`'s gate is
+      # `weightHasGapThisWeek` (healthWeightAnalytics.ts) — a gap exists only
+      # if EVERY day from this week's Monday through today already has an
+      # entry. On the shared E2E account, the failure screenshot showed
+      # "See all 7" in HISTORY with at least five same-dated rows (95 kg /
+      # 80 kg / 99 kg / 66 kg / 3 lb, all one date) — many past runs across the
+      # suite have logged a weight for that day without a matching teardown
+      # delete, so a SINGLE `index: 0` delete (the flow's original assumption:
+      # "it sorts first — newest by date") just removes one of several
+      # entries covering the same day and the gate stays closed. Repeat the
+      # delete, re-checking after each one, until the gate genuinely reopens
+      # or the bound is exhausted — self-terminates immediately once one
+      # delete WAS enough, so this is a no-op cost-wise on a clean account.
+      # (`weight-tab-log-and-edit.yaml` has the identical single-delete
+      # pattern at its own entry and is likely exposed to the same account
+      # pollution — out of scope to fix here.)
+      - runFlow: subflows/go-health-weight.yaml
+      - repeat:
+          times: 8
+          commands:
+            - runFlow:
+                when:
+                  notVisible: 'LOG A WEIGHT'
+                commands:
+                  - scrollUntilVisible:
+                      element:
+                        id: 'health-weight-delete-.*'
+                      direction: DOWN
+                      timeout: 20000
+                      visibilityPercentage: 10
+                  - runFlow:
+                      file: ../subflows/e2e-clear-log.yaml
+                      env:
+                        E2E_APP_SCHEME: simplehealth
+                        APP_ID: com.symply.health
+                  - tapOn:
+                      id: 'health-weight-delete-.*'
+                      index: 0
+                  - waitForAnimationToEnd:
+                      timeout: 1500
+      - extendedWaitUntil:
+          visible: 'LOG A WEIGHT'
+          timeout: 15000
+      - scrollUntilVisible:
+          element:
+            id: 'health-weight-entry-save'
+          direction: DOWN
+          timeout: 20000
+          visibilityPercentage: 10
+      - tapOn:
+          id: 'health-weight-entry-value'
+      - inputText: '68'
+      # NOT `hideKeyboard` — the field above is numeric and that command
+      # HARD-FAILS on this build's decimal/number pad.
+      - runFlow:
+          file: subflows/dismiss-health-keypad.yaml
+          env:
+            KEYPAD_ANCHOR: 'LOG A WEIGHT'
+      - tapOn:
+          id: 'health-weight-entry-save'
+      - extendedWaitUntil:
+          visible: 'HISTORY'
+          timeout: 20000
+      # The water counter and note field are below the fold on Home — see
+      # subflows/focus-health-home.yaml.
+      - runFlow: subflows/go-health-home.yaml
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-water-plus
+            HOME_ANCHOR: bottom
+      - tapOn:
+          id: 'health-water-plus'
+      - tapOn:
+          id: 'health-water-plus'
+      - tapOn:
+          id: 'health-water-plus'
+      - runFlow:
+          file: subflows/focus-health-home.yaml
+          env:
+            FOCUS_ID: health-note-input
+            HOME_ANCHOR: bottom
+      - tapOn:
+          id: 'health-note-input'
+      - inputText: 'user-a-private-note'
+      - runFlow:
+          file: subflows/save-health-note.yaml
+      - runFlow:
+          file: subflows/go-more.yaml
+      - runFlow:
+          file: ../subflows/assert-screen-scrolls-optional.yaml
+          env:
+            APP_ID: com.symply.health
+            SCROLL_END_ID: health-more-screen-scroll-end
+      - scrollUntilVisible:
+          element:
+            id: 'health-sign-out'
+          direction: DOWN
+          timeout: 60000
+          visibilityPercentage: 50
+      - tapOn:
+          id: 'health-sign-out'
+      - extendedWaitUntil:
+          visible: 'Are you sure you want to sign out?'
+          timeout: 10000
+      - tapOn: 'Sign out'
+      - waitForAnimationToEnd:
+          timeout: 8000
+      - runFlow:
+          when:
+            visible:
+              id: 'health-more-screen'
+          commands:
+            - launchApp:
+                clearState: true
+                clearKeychain: true
+                permissions:
+                  all: allow
+                  faceid: allow
+            - runFlow:
+                file: subflows/connect-health-metro.yaml
+            - runFlow:
+                file: subflows/health-dismiss-expo-dev-chrome.yaml
+      - runFlow:
+          file: subflows/health-dismiss-expo-dev-chrome.yaml
+      - extendedWaitUntil:
+          visible:
+            id: 'auth-sign-in-email'
+          timeout: 120000
+      - runFlow:
+          file: ../subflows/e2e-matrix-after.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth

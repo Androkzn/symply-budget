@@ -1,0 +1,129 @@
+appId: com.symply.house
+tags:
+  - app:house
+  - feature:labor-hub
+  - feature:local-first
+  - readonly
+  - regression
+# Matrix: HOUSE-LF-LABOR-001
+---
+# WHAT THIS PROVES
+# ----------------
+# The Labor Hub is one screen over THREE separate local facades, and each one
+# was cut over independently:
+#
+#   Quotes tab       → quotesApi        → localQuotesApi.ts        (src/api/quotes.ts:309)
+#   Schedule tab     → appointmentsApi  → localAppointmentsApi.ts  (src/api/appointments.ts:262)
+#   Projects tab     → projectsApi      → localProjectsApi.ts      (src/api/projects.ts:312)
+#
+# All three proxies declare NO `remoteMethods` and leave `strict` at `true`, so
+# under local-first not one of `/quotes`, `/appointments` or `/projects` may be
+# requested. This flow walks all three tabs and asserts each path stayed silent.
+#
+# WHY THREE ASSERTIONS AND NOT ONE
+# --------------------------------
+# A single combined check would let a fallthrough on ONE facade hide behind two
+# healthy ones — the tab still renders, the list is empty, and the badge would
+# have to be read as "something somewhere was quiet". Checking each path by name
+# means the failure message names the facade that regressed, which is the
+# difference between a five-minute fix and a bisect.
+#
+# `/projects` does NOT substring-match `/home-projects` (the latter has a hyphen
+# where the former needs a slash), so the projects assertion is genuinely about
+# `projectsApi` and cannot be satisfied or broken by the Home Projects hub.
+#
+# WHY THAT MATTERS
+# ----------------
+# Same silent-server-read failure mode as the rest of the Wave B/C cutover: the
+# Worker holds only ciphertext, so a gap returns 200-with-an-empty-list and each
+# of these tabs renders an empty state that looks exactly like "you have no
+# quotes yet". The absence of the call is the only signal.
+#
+# PRECONDITION (self-contained)
+# -----------------------------
+# A signed-in House session on a local-first build. No seeded quote,
+# appointment or project is required — an empty tab served from the ledger
+# proves the same thing as a populated one, because the assertion is about the
+# request that must not exist. Runs ALONE, in ANY order.
+- runFlow: ../subflows/launch-logged-in.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_MATRIX_ROW: HOUSE-LF-LABOR-001
+- runFlow: ../subflows/open-contractors.yaml
+- assertVisible:
+    id: 'contractors-screen'
+
+# --- Quotes tab → quotesApi.getAll / getPending -------------------------
+- tapOn:
+    id: 'contractors-tab-quotes'
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_VERIFY_METHOD: GET
+      E2E_VERIFY_PATH: /quotes
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 5000
+
+# --- Schedule tab → appointmentsApi.getAll / getUpcoming / getCalendar ---
+- tapOn:
+    id: 'contractors-tab-upcoming'
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_VERIFY_METHOD: GET
+      E2E_VERIFY_PATH: /appointments
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 5000
+
+# --- Projects tab → projectsApi.getAll / getActive -----------------------
+- tapOn:
+    id: 'contractors-tab-projects'
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow:
+    file: ../subflows/e2e-verify-no-network.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house
+      E2E_VERIFY_METHOD: GET
+      E2E_VERIFY_PATH: /projects
+- runFlow: ../subflows/dismiss-expo-dev-chrome.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-verify-badge'
+      text: '^PASS'
+    timeout: 5000
+
+# DoD H7 — none of the three facades' identifiers reached the member.
+- assertNotVisible: 'quotesApi\.'
+- assertNotVisible: 'appointmentsApi\.'
+- assertNotVisible: 'projectsApi\.'
+- assertNotVisible: 'is not available offline yet'
+
+- runFlow: ../subflows/go-home-tab.yaml
+- assertVisible:
+    id: 'home-screen'
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml
+    env:
+      E2E_APP_SCHEME: simplehouse
+      APP_ID: com.symply.house

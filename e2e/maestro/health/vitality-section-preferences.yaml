@@ -1,0 +1,427 @@
+appId: com.symply.health
+tags:
+  - needs-admin-feature-seed
+  - app:health
+  - feature:vitality
+  - mutation
+  - regression
+# Matrix: HEALTH-VITALITY-150 … HEALTH-VITALITY-157
+---
+# Vitality tab — the "WHAT TO SHOW" card (the donor's `MensHealthSettingsSheet`).
+#
+# ## Why this flow exists
+#
+# Eight switches and three presets decide which of the tab's six logging cards
+# exist at all, against `/health/mens-health/settings` — a route that had no
+# client until this card landed. Nothing touches any of it on a device. It is
+# also the only surface on the tab that can make ANOTHER flow fail: a preference
+# left off hides a card, and `vitality-log-and-score.yaml` /
+# `vitality-scales-and-toggles.yaml` open by tapping controls inside those cards.
+#
+# That risk is the reason this is a separate flow rather than a section of an
+# existing one. Everything it changes it changes back, and the LAST thing it does
+# is tap "Show everything" — a single control that restores all eight switches
+# regardless of what state the account was left in by a previous half-finished
+# run. That is a stronger teardown than undoing each toggle individually, which
+# is why the preset is used for it rather than eight taps.
+#
+# ## STATE ASSUMPTIONS
+#
+# * The preferences are a per-user singleton on the shared fleet account. This
+#   flow does NOT assume it starts with everything on — it asserts the count
+#   first and, if a previous run left residue, the opening "Show everything" tap
+#   normalises it. The assertions after that point are therefore true regardless
+#   of the starting state.
+# * Hiding a section must never touch the LOG. That is the product promise
+#   printed on the card, and it is asserted directly: the score card's sub-score
+#   tiles are read with the ENERGY & MIND card switched off, and they must still
+#   report the logged figures.
+#
+# ## TEARDOWN
+#
+# "Show everything" + an explicit `8 of 8` assertion + all six cards proven back
+# on screen. The disclosure is collapsed again so the tab is left in the shape
+# the sibling flows scroll through.
+- runFlow: subflows/health-ensure-session.yaml
+- runFlow:
+    file: ../subflows/e2e-matrix-before.yaml
+    env:
+      E2E_APP_SCHEME: simplehealth
+      E2E_MATRIX_ROW: HEALTH-VITALITY-150
+- runFlow:
+    when:
+      visible:
+        id: 'health-home-screen'
+    commands:
+      - runFlow: subflows/go-health-vitality.yaml
+      - assertVisible: "Men's Health"
+
+      # --- The card is at the foot of the tab (HEALTH-VITALITY-150) ---------
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-tracking-toggle'
+            SCROLL_DIR: down
+      - assertVisible: 'WHAT TO SHOW'
+      - assertVisible:
+          id: 'health-vitality-tracking-count'
+          text: '\d of 8'
+
+      # --- It starts COLLAPSED (HEALTH-VITALITY-151) ------------------------
+      # Eight more toggles permanently on screen would bury the disclaimer card
+      # below them, which is a product requirement. The count is legible while
+      # collapsed so the state is readable without opening.
+      # LOCAL ONLY: `health-vitality-tracking-toggle` only calls
+      # `setShowTrackingOptions(...)` (HealthVitalityScreen.tsx) — the
+      # disclosure is component state, not a fetch.
+      - assertNotVisible:
+          id: 'health-vitality-track-trackIssues'
+      - assertNotVisible:
+          id: 'health-vitality-preset-minimal'
+      - tapOn:
+          id: 'health-vitality-tracking-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-track-trackIssues'
+          timeout: 10000
+      - assertVisible: 'Anything you already logged stays exactly as it was.'
+
+      # --- Normalise, then prove the full layout (HEALTH-VITALITY-152) ------
+      # "Show everything" is used as the OPENING move as well as the closing one,
+      # so a previous half-finished run cannot make the assertions below flaky.
+      # `handleTracking` → `saveMensTrackSettings` (healthVitalityStorage.ts) →
+      # `healthApi.saveMensHealthSettings` → PUT /health/mens-health/settings,
+      # 200 — every preset tap and track-toggle in this flow shares this path
+      # (distinct from the vitality ENTRY write at HEALTH-VITALITY-154 below).
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-preset-all'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-tracking-count'
+            text: '8 of 8'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/settings
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-card-drive'
+            SCROLL_DIR: up
+      - assertVisible:
+          id: 'health-vitality-card-drive'
+      - assertVisible:
+          id: 'health-vitality-card-activity'
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-card-kegels'
+            SCROLL_DIR: down
+      - assertVisible:
+          id: 'health-vitality-card-erection'
+      - assertVisible:
+          id: 'health-vitality-card-issues'
+      - assertVisible:
+          id: 'health-vitality-card-energy'
+      - assertVisible:
+          id: 'health-vitality-card-kegels'
+
+      # --- One switch hides exactly ONE card (HEALTH-VITALITY-153) ----------
+      # The ISSUES card is chosen deliberately: it is the one whose seven
+      # toggles the sibling flows drive, so a gate that hid the wrong card would
+      # be caught here rather than as a mystery failure in `vitality-log-and-
+      # score.yaml`.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-track-trackIssues'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-track-trackIssues'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-tracking-count'
+            text: '7 of 8'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/settings
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-card-energy'
+            SCROLL_DIR: up
+      - assertNotVisible:
+          id: 'health-vitality-card-issues'
+      # Its NEIGHBOURS are proven still present, so the negative above means the
+      # card is gone rather than merely off the viewport.
+      - assertVisible:
+          id: 'health-vitality-card-energy'
+
+      # --- Hiding takes the CONTROLS, never the DATA (HEALTH-VITALITY-154) --
+      # The promise printed on the card. With ENERGY & MIND switched off, the
+      # Energy sub-score tile must STILL report the logged level — the score is
+      # computed from the entry, not from what happens to be on screen.
+      # `energyScore = energyLevel * 10`, and the sibling flows leave energy on
+      # 7, so the tile must read exactly `Energy: 70`. The tile carries a merged
+      # accessibility label and is matched as one whole string.
+      # `health-vitality-energy-7` is the vitality ENTRY scale, not a tracking
+      # preference: `HealthScaleRow.onChange` → `persist` → `saveVitalityEntry`
+      # (healthVitalityStorage.ts) → `healthApi.saveMensHealth` → PUT
+      # /health/mens-health/entries, 200 (the `vitality-log-and-score.yaml` /
+      # `vitality-scales-and-toggles.yaml` write path, NOT the settings one).
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-energy-7'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-energy-7'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-energy-value'
+            text: '7/10'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/entries
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Back to the tracking-SETTINGS write path (same as HEALTH-VITALITY-152/153).
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-track-trackEnergy'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-track-trackEnergy'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-tracking-count'
+            text: '6 of 8'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/settings
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-sub-energy'
+            SCROLL_DIR: up
+      - assertNotVisible:
+          id: 'health-vitality-card-energy'
+      - assertVisible:
+          id: 'health-vitality-sub-energy'
+          text: 'Energy: 70'
+
+      # --- The score / week / disclaimer cards can NEVER be hidden (155) ----
+      # The ring is the tab's headline, the week card carries the "averaged over
+      # N days you logged" basis line, and the disclaimer is a product
+      # requirement. None of the three is behind a preference.
+      - assertVisible:
+          id: 'health-vitality-ring'
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-week-basis'
+            SCROLL_DIR: down
+      - assertVisible:
+          id: 'health-vitality-week-basis'
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-disclaimer'
+            SCROLL_DIR: down
+      - assertVisible:
+          id: 'health-vitality-disclaimer'
+
+      # --- A preset re-lays out the whole tab in ONE tap (VITALITY-156) -----
+      # "Minimal" keeps libido, morning erection and energy and drops the other
+      # five. Asserted by the resulting CARDS, because that is what was chosen —
+      # and by the count, which is the only readout that proves all eight
+      # switches moved rather than the two this flow had already touched.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-preset-minimal'
+            SCROLL_DIR: up
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-preset-minimal'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-tracking-count'
+            text: '3 of 8'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/settings
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-card-drive'
+            SCROLL_DIR: up
+      - assertVisible:
+          id: 'health-vitality-card-drive'
+      # DRIVE survives on `trackLibido` alone, so its SECOND row must be gone
+      # while the card itself stays — the `||` gate, proven on a device.
+      - assertVisible:
+          id: 'health-vitality-libido'
+      - assertNotVisible:
+          id: 'health-vitality-desire'
+      - assertNotVisible:
+          id: 'health-vitality-card-activity'
+
+      # --- Teardown: one tap restores everything (HEALTH-VITALITY-157) ------
+      # Deliberately the preset and not eight individual taps: this is the
+      # control that guarantees the account is left usable for the sibling flows
+      # no matter where this one stopped.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-preset-all'
+            SCROLL_DIR: down
+      - runFlow:
+          file: ../subflows/e2e-clear-log.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+      - tapOn:
+          id: 'health-vitality-preset-all'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-vitality-tracking-count'
+            text: '8 of 8'
+          timeout: 10000
+      - runFlow:
+          file: ../subflows/e2e-verify-network.yaml
+          env:
+            E2E_APP_SCHEME: simplehealth
+            APP_ID: com.symply.health
+            E2E_VERIFY_METHOD: PUT
+            E2E_VERIFY_PATH: /mens-health/settings
+            E2E_VERIFY_STATUS: '200'
+      - extendedWaitUntil:
+          visible:
+            id: 'e2e-verify-badge'
+            text: '^PASS'
+          timeout: 5000
+      # Every card the sibling flows need is proven BACK before this flow exits.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-card-drive'
+            SCROLL_DIR: up
+      - assertVisible:
+          id: 'health-vitality-card-drive'
+      - assertVisible:
+          id: 'health-vitality-card-activity'
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-card-kegels'
+            SCROLL_DIR: down
+      - assertVisible:
+          id: 'health-vitality-card-erection'
+      - assertVisible:
+          id: 'health-vitality-card-issues'
+      - assertVisible:
+          id: 'health-vitality-card-energy'
+      - assertVisible:
+          id: 'health-vitality-card-kegels'
+      # …and the disclosure is collapsed again, so the tab is the shape the
+      # sibling flows scroll through.
+      # LOCAL ONLY: `setShowTrackingOptions(...)`, same as the opening tap above.
+      - runFlow:
+          file: subflows/health-swipe-section-to.yaml
+          env:
+            TARGET_ID: 'health-vitality-tracking-toggle'
+            SCROLL_DIR: down
+      - tapOn:
+          id: 'health-vitality-tracking-toggle'
+      - extendedWaitUntil:
+          notVisible:
+            id: 'health-vitality-track-trackIssues'
+          timeout: 10000
+
+      # --- Back to the Health tab ------------------------------------------
+      - tapOn:
+          id: 'tab-index'
+      - extendedWaitUntil:
+          visible:
+            id: 'health-home-screen'
+          timeout: 30000
+- runFlow:
+    file: ../subflows/e2e-matrix-after.yaml

@@ -1,0 +1,23 @@
+appId: com.symply.budget
+tags:
+  - util
+  - app:budget
+---
+# Opens Device Sync (BudgetSyncScreen) via deep link.
+#
+# Sync now, the trusted-device list and the danger zone moved off Budget
+# Settings onto their own screen; the deep link avoids scrolling the long
+# settings screen to reach the row that leads here.
+# navNonce makes every open a distinct request: the navigator de-dupes by
+# `screen:itemId:navNonce`, so re-opening the same link without it is a no-op
+# and a flow that wandered off this screen would never come back.
+- openLink: simplebudget:///?screen=BudgetSync&navNonce=${Date.now()}
+- runFlow: budget-dismiss-expo-dev-chrome.yaml
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: 'budget-sync-screen'
+    timeout: 30000
+- assertVisible:
+    id: 'budget-settings-sync-now'

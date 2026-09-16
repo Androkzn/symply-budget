@@ -1,0 +1,132 @@
+appId: com.symply.house
+tags:
+  - util
+  - app:house
+---
+# Guarantee the E2E home exists before a flow reads it.
+#
+# nbr-005 creates "E2E Wilsons", nbr-006 reads it, and nbr-008 edits it and then
+# DELETES it. nbr-006 used to carry a header saying it "depends on nbr-005
+# having run. Ordered by filename, which is how this suite sequences everywhere
+# else." That is not true: Maestro's folder mode does not order flows by
+# filename — the observed order on this suite was 007, 004, 006, 008, 005, 003,
+# 001, 002, 009. So a reader flow that assumes the creator went first passes or
+# fails on which order the runner happened to pick, and once nbr-008 has run the
+# row is gone for everyone after it.
+#
+# Callers run this straight after `open-neighbours`. It leaves the app on the
+# LIST view with the search narrowed to the row, which is where every caller
+# wants to be next.
+#
+# Known limitation: nbr-005 creates its row unconditionally, because creating is
+# its actual subject. Neighbour labels have no unique constraint (only
+# neighbourhood names do), so if this subflow has already made one there can be
+# two for a while. nbr-008 removes one per run, so it stays bounded rather than
+# growing — but a `neighbour-card-.*` tap would then take whichever comes first.
+# Making nbr-005 pre-clean like nbr-007 does is the tidier answer if this ever
+# starts to matter.
+# Toggling is conditional in both places below. The toggle SWAPS modes, it does
+# not select one, and `viewMode` survives a trip into the form and back — so an
+# unconditional tap lands on whichever mode we are not in and flips us away from
+# the list we just asked for.
+- runFlow:
+    when:
+      notVisible:
+        id: 'neighbours-list'
+    commands:
+      - tapOn:
+          id: 'neighbours-view-toggle'
+- extendedWaitUntil:
+    visible:
+      id: 'neighbours-list'
+    timeout: 15000
+
+# The existence check deliberately does NOT search first. Typing raises the
+# keyboard, and the add FAB sits at `bottom: insets.bottom + Spacing.xl` —
+# exactly where the keyboard then is — so the tap that opens the add sheet lands
+# on the keyboard instead and `neighbours-add-map` is never found.
+#
+# The unfiltered list shows every row, so it answers the question on its own.
+# (If the list ever grows past one screen this could miss a row that is scrolled
+# out of view and make a second one; the fixture account has a handful.)
+- runFlow:
+    when:
+      notVisible: '.*E2E Wilsons.*'
+    commands:
+      # The FAB is not gated by view mode, so this works from the list.
+      - tapOn:
+          id: 'neighbours-add-fab'
+      - tapOn:
+          id: 'neighbours-add-map'
+      - extendedWaitUntil:
+          visible:
+            id: 'neighbour-pick-confirm'
+          timeout: 20000
+      - tapOn:
+          id: 'neighbour-pick-confirm'
+      - extendedWaitUntil:
+          visible:
+            id: 'neighbour-form-screen'
+          timeout: 20000
+      - tapOn:
+          id: 'neighbour-form-label'
+      - inputText: 'E2E Wilsons'
+      - tapOn:
+          id: 'neighbour-form-relation-next_door'
+
+      # nbr-006 asserts the occupant row, so the person has to come with the
+      # home rather than being nbr-005's private business.
+      - tapOn:
+          id: 'neighbour-form-add-person'
+      - extendedWaitUntil:
+          visible:
+            id: 'neighbour-person-sheet'
+          timeout: 15000
+      - tapOn:
+          id: 'neighbour-person-name'
+      - inputText: 'Sarah Wilson'
+      - scrollUntilVisible:
+          element:
+            id: 'neighbour-person-save'
+          direction: DOWN
+          timeout: 15000
+      - tapOn:
+          id: 'neighbour-person-save'
+
+      - scrollUntilVisible:
+          element:
+            id: 'neighbour-form-save'
+          direction: DOWN
+          timeout: 15000
+      - tapOn:
+          id: 'neighbour-form-save'
+      - extendedWaitUntil:
+          visible:
+            id: 'neighbours-screen'
+          timeout: 20000
+
+      # Saving returns to the screen with `viewMode` untouched — it was already
+      # the list — so toggle only if we are somehow not there.
+      - runFlow:
+          when:
+            notVisible:
+              id: 'neighbours-list'
+          commands:
+            - tapOn:
+                id: 'neighbours-view-toggle'
+      - extendedWaitUntil:
+          visible:
+            id: 'neighbours-list'
+          timeout: 15000
+
+# Narrow the list, AFTER the branch above rather than inside it, so callers land
+# in the same place whether the row had to be made or was already there.
+- tapOn:
+    id: 'neighbours-search'
+- inputText: 'E2E Wilsons'
+- waitForAnimationToEnd:
+    timeout: 4000
+- extendedWaitUntil:
+    visible:
+      id: 'neighbour-card-.*'
+    timeout: 20000

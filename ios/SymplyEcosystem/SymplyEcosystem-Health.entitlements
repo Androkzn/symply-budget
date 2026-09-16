@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Symply Health — DEBUG entitlements (build configuration `Debug-health` only).
+
+  Identical to SymplyEcosystem.entitlements plus HealthKit. It is a separate file
+  rather than a new key in the shared one because House, Budget, Kaizen and Language
+  build from the same native tree: giving them `com.apple.developer.healthkit` would
+  break their code signing (their App IDs carry no HealthKit capability) AND make
+  four apps that have nothing to do with health ask for it.
+
+  CODE_SIGN_ENTITLEMENTS points here on the `Debug-health` configuration of the
+  SymplyEcosystem target only, and the Health schemes are the only ones that build
+  that configuration — so the entitlement follows the scheme exactly.
+  scripts/ios/ensure-brand-configurations.rb re-applies the mapping, so a
+  regenerated brand configuration cannot silently lose it.
+
+  `com.apple.developer.healthkit.access` is present and EMPTY: no clinical health
+  records. `com.apple.developer.healthkit.background-delivery` IS present:
+  `SymplyHealthKitModule` runs `HKObserverQuery` + `enableBackgroundDelivery` so
+  the app can react to a change in Apple Health without the user tapping Sync —
+  see that file's header comment for what "background delivery" does and does
+  not do (it still reads only the scoped set and writes nothing).
+-->
+<plist version="1.0">
+  <dict>
+    <key>aps-environment</key>
+    <string>development</string>
+    <key>keychain-access-groups</key>
+    <array>
+      <string>$(AppIdentifierPrefix)$(CFBundleIdentifier)</string>
+    </array>
+    <key>com.apple.developer.applesignin</key>
+    <array>
+      <string>Default</string>
+    </array>
+    <key>com.apple.developer.healthkit</key>
+    <true/>
+    <key>com.apple.developer.healthkit.access</key>
+    <array/>
+    <key>com.apple.developer.healthkit.background-delivery</key>
+    <true/>
+    <key>com.apple.security.application-groups</key>
+    <array>
+      <string>$(SYMPLY_APP_GROUP)</string>
+    </array>
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+      <string>applinks:simple-house-api.a-tekhtelev.workers.dev</string>
+      <string>applinks:simple-house-api-staging.a-tekhtelev.workers.dev</string>
+    </array>
+  </dict>
+</plist>

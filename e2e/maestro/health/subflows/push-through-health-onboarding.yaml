@@ -1,0 +1,83 @@
+appId: com.symply.health
+tags:
+  - util
+  - app:health
+---
+# Push a signed-in-but-never-onboarded-on-THIS-install account all the way
+# through Health's required onboarding chain (Welcome → 5 Goals steps →
+# EssentialPermissions → HealthKitPermission → Home) using only each step's
+# footer Continue/Finish button — no typed values, since every field on every
+# step is skippable by design (see onboarding.yaml's header comment, which
+# exercises the same screens for real with typed data).
+#
+# `${testID}-continue` (OnboardingStepScreen.tsx's footer button) is used
+# uniformly rather than `${testID}-forward` (the header chevron): the chevron
+# only renders when `showForwardChevron` is true, which HealthKitPermission —
+# the last step — explicitly sets false (it reads "Finish", not "Continue",
+# and there is nothing left to skip ahead OF). The footer button has no such
+# condition, so it is the one id guaranteed to exist on every step.
+#
+# Exists because launch-health.yaml's recovery used to stop at tapping
+# "onboarding-get-started" on the assumption that alone reached Home — true
+# before Health's onboarding grew the 5-step Goals mini-flow, false since (see
+# OnboardingNavigator.tsx). A reinstalled build or a genuinely fresh account
+# lands on Home only after all 7 steps clear, not 2.
+- repeat:
+    times: 8
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              id: 'health-home-screen'
+          commands:
+            - runFlow:
+                when:
+                  visible:
+                    id: 'onboarding-health-goals-biometrics-screen'
+                commands:
+                  - tapOn:
+                      id: 'onboarding-health-goals-biometrics-screen-continue'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'onboarding-health-goals-weight-screen'
+                commands:
+                  - tapOn:
+                      id: 'onboarding-health-goals-weight-screen-continue'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'onboarding-health-goals-nutrition-screen'
+                commands:
+                  - tapOn:
+                      id: 'onboarding-health-goals-nutrition-screen-continue'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'onboarding-health-goals-activity-screen'
+                commands:
+                  - tapOn:
+                      id: 'onboarding-health-goals-activity-screen-continue'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'onboarding-health-goals-water-screen'
+                commands:
+                  - tapOn:
+                      id: 'onboarding-health-goals-water-screen-continue'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'onboarding-essential-permissions-screen'
+                commands:
+                  - tapOn:
+                      id: 'onboarding-essential-permissions-screen-continue'
+            - runFlow:
+                when:
+                  visible:
+                    id: 'onboarding-healthkit-permission-screen'
+                commands:
+                  - tapOn:
+                      id: 'onboarding-healthkit-permission-screen-continue'
+            - waitForAnimationToEnd:
+                timeout: 3000

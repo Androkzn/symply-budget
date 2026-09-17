@@ -385,6 +385,7 @@ export function BudgetScreen({ forcedSection, sectionTitle }: BudgetScreenProps 
             onDismiss={notificationBanner.dismiss}
             busy={pushBusy}
             layout="compact"
+            compactActionPlacement="header"
             testID="budget-home-notification-permission-card"
           />
         ) : null}

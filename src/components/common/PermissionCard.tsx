@@ -69,6 +69,12 @@ export interface PermissionCardProps {
    * same `layout` prop, the two having always shared this treatment.
    */
   layout?: 'full' | 'compact';
+  /**
+   * Compact banners normally place their action below the heading. The
+   * Budget home banner follows House's tighter notification treatment, with
+   * Allow/Open Settings in the heading row.
+   */
+  compactActionPlacement?: 'below' | 'header';
   testID?: string;
 }
 
@@ -85,6 +91,7 @@ export function PermissionCard({
   onDismiss,
   busy = false,
   layout = 'full',
+  compactActionPlacement = 'below',
   testID = 'permission-card',
 }: PermissionCardProps) {
   const colors = useAppColors();
@@ -112,6 +119,7 @@ export function PermissionCard({
         onOpenSettings={onOpenSettings}
         onDismiss={onDismiss}
         busy={busy}
+        actionPlacement={compactActionPlacement}
         testID={testID}
       />
     );
@@ -178,6 +186,7 @@ interface CompactPermissionBannerProps {
   onOpenSettings?: () => void;
   onDismiss?: () => void;
   busy: boolean;
+  actionPlacement: 'below' | 'header';
   testID: string;
 }
 
@@ -197,6 +206,7 @@ function CompactPermissionBanner({
   onOpenSettings,
   onDismiss,
   busy,
+  actionPlacement,
   testID,
 }: CompactPermissionBannerProps) {
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -209,6 +219,18 @@ function CompactPermissionBanner({
       : state === 'not-requested' && onRequest
         ? { label: busy ? 'Requesting…' : 'Allow', onPress: onRequest }
         : null;
+
+  const actionControl = action ? (
+    <Button
+      title={action.label}
+      variant="primary"
+      size="sm"
+      onPress={action.onPress}
+      disabled={busy}
+      style={styles.bannerAction}
+      testID={`${testID}-action`}
+    />
+  ) : null;
 
   return (
     <Card
@@ -236,6 +258,7 @@ function CompactPermissionBanner({
         >
           <Icon name="information-circle" size={18} color={state === 'granted' ? colors.primary : colors.error} />
         </Pressable>
+        {actionPlacement === 'header' ? actionControl : null}
         {onDismiss ? (
           <Pressable
             onPress={onDismiss}
@@ -249,17 +272,7 @@ function CompactPermissionBanner({
         ) : null}
       </View>
 
-      {action ? (
-        <Button
-          title={action.label}
-          variant="primary"
-          size="sm"
-          onPress={action.onPress}
-          disabled={busy}
-          style={styles.bannerAction}
-          testID={`${testID}-action`}
-        />
-      ) : null}
+      {actionPlacement === 'below' ? actionControl : null}
 
       <BottomSheet visible={sheetVisible} onClose={() => setSheetVisible(false)} height="content" title={title} showCloseButton>
         <Typography variant="body" color={colors.textSecondary} testID={`${testID}-body`}>

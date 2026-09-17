@@ -8,8 +8,11 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Budget-specific alias — NOT the generic `.symply-ecosystem` name, which the
+# original monorepo checkout on this Mac already owns for itself. See the
+# matching comment in archive-brand.sh for why reusing that name is unsafe.
 if [[ "$ROOT" == *" "* ]]; then
-  for candidate in "$HOME/.symply-ecosystem" "$HOME/Desktop/symply-ecosystem" "/Users/andreitekhtelev/Desktop/symply-ecosystem"; do
+  for candidate in "$HOME/.symply-budget-standalone"; do
     if [[ -L "$candidate" && -d "$candidate/ios" ]]; then
       ROOT="$candidate"
       break
@@ -20,7 +23,7 @@ fi
 # disposable alias for this checkout that keeps getting swept away, and a
 # five-brand barrel run should not stop for something one `ln` fixes.
 if [[ "$ROOT" == *" "* ]]; then
-  LINK="$HOME/.symply-ecosystem"
+  LINK="$HOME/.symply-budget-standalone"
   if [[ -e "$LINK" && ! -L "$LINK" ]]; then
     echo "ERROR: $LINK exists and is a real directory, not a symlink. Move it aside."
     exit 1
@@ -30,7 +33,7 @@ if [[ "$ROOT" == *" "* ]]; then
   [[ -d "$LINK/ios" ]] && ROOT="$LINK"
 fi
 if [[ "$ROOT" == *" "* ]]; then
-  echo "ERROR: use symlink \$HOME/.symply-ecosystem (no spaces)."
+  echo "ERROR: use symlink \$HOME/.symply-budget-standalone (no spaces)."
   exit 1
 fi
 cd "$ROOT"

@@ -8,7 +8,7 @@
 #   UPLOAD_TF=1     — after export, upload IPA via xcrun altool (needs Apple ID auth)
 #
 # IMPORTANT: Expo/RN archive scripts break on spaces in the path. Prefer running via
-#   /Users/…/Desktop/symply-ecosystem  (symlink without spaces) if available.
+#   ~/.symply-budget-standalone  (symlink without spaces) if available.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Prefer no-space symlink when the real path contains whitespace.
@@ -21,10 +21,18 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # path, so losing it turns into
 #   "external macro implementation type 'ExpoModulesMacros...' could not be
 #    found", a failure that looks nothing like its cause.
-# ~/.symply-ecosystem is hidden and outside the Desktop, so tidying sweeps and
-# cleanup tools do not find it. The Desktop path is still accepted so existing
-# muscle memory and older docs keep working.
-SYMLINK_HOME="$HOME/.symply-ecosystem"
+#
+# Name is Budget-specific (`.symply-budget-standalone`), NOT the generic
+# `.symply-ecosystem` this script used before the standalone split. This repo
+# now lives alongside the original ecosystem monorepo checkout on the same
+# machine, and that monorepo has its own `~/.symply-ecosystem` alias pointing
+# at ITSELF — a different git remote and history entirely. Reusing the same
+# link name here meant this script silently archived (and, with UPLOAD_TF=1,
+# nearly uploaded) the WRONG repo's source under the Budget scheme, discovered
+# only because that stale checkout's DerivedData ran the disk out of space
+# first. A name unique to this checkout can never collide with a sibling
+# app's own alias, however many of them share this Mac.
+SYMLINK_HOME="$HOME/.symply-budget-standalone"
 if [[ "$ROOT" == *" "* ]]; then
   # Use the hidden link if it is already good. Do NOT fall back to a Desktop
   # link merely because one exists — that is the fragile path this moved away

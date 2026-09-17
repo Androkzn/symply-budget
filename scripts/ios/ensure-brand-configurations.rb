@@ -16,13 +16,20 @@ require 'xcodeproj'
 ROOT = File.expand_path('../..', __dir__)
 PROJ_PATH = File.join(ROOT, 'ios', 'SymplyEcosystem.xcodeproj')
 
-BRAND_IDS = %w[
-  symply-house
-  symply-budget
-  symply-kaizen
-  symply-language
-  symply-health
-].freeze
+# Discovered from brands/*/brand.cjs rather than hardcoded. This script's
+# native ios/ project still carries build configurations for every brand from
+# before this checkout was split out of the ecosystem monorepo into the
+# standalone, single-brand (symply-budget) repo AGENTS.md describes — but
+# brands/symply-house, -kaizen, -language and -health no longer exist here.
+# A fixed five-brand list aborted on the first missing brand.cjs (symply-house)
+# before ever reaching symply-budget, so every archive failed outright.
+# Discovering from what is actually present scopes this to symply-budget in
+# this repo without touching the untouched brand configs already baked into
+# the Xcode project.
+BRAND_IDS = Dir.glob(File.join(ROOT, 'brands', '*', 'brand.cjs'))
+  .map { |path| File.basename(File.dirname(path)) }
+  .sort
+  .freeze
 
 LEAF_KEYS = %w[
   SYMPLY_BRAND_ID

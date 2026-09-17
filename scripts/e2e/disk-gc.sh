@@ -14,9 +14,9 @@
 #   Logs         ~/Library/Logs/CoreSimulator, one dir per device
 #   Temp         maestro_xctestrunner_* under $TMPDIR (see prune-maestro-disk.sh)
 #   Archives     every release build (deploy-*, EAS-triggered xcodebuild archive)
-#                leaves a ~700MB .xcarchive under ~/.symply-ecosystem/ios/build/
-#                archives/ forever — nothing pruned this before 2026-09-10, when
-#                28 of them (19GB) had piled up across 8 days.
+#                leaves a ~700MB .xcarchive under ~/.symply-budget-standalone/ios/
+#                build/archives/ forever — nothing pruned this before 2026-09-10,
+#                when 28 of them (19GB) had piled up across 8 days.
 #   Runtime      each downloaded simulator runtime keeps its installer "Bundle"
 #   bundles      cryptex image alongside the mounted runtime it unpacked into —
 #                simctl doesn't count or clean these, so they're pure leak.
@@ -27,7 +27,7 @@ set -uo pipefail
 DEVICES="${HOME}/Library/Developer/CoreSimulator/Devices"
 DERIVED="${HOME}/Library/Developer/Xcode/DerivedData"
 SIMLOGS="${HOME}/Library/Logs/CoreSimulator"
-ARCHIVES="${HOME}/.symply-ecosystem/ios/build/archives"
+ARCHIVES="${HOME}/.symply-budget-standalone/ios/build/archives"
 RUNTIME_BUNDLES="/Library/Developer/CoreSimulator/Cryptex/Images/bundle"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

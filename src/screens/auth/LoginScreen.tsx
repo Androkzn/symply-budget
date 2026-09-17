@@ -4,8 +4,6 @@ import * as WebBrowser from 'expo-web-browser';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Alert,
-  Animated,
-  Easing,
   Platform,
   ScrollView,
   StyleSheet,
@@ -86,10 +84,8 @@ export function LoginScreen({ navigation, route }: AuthStackScreenProps<'Login'>
   const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
-  const [showPortfolioHint, setShowPortfolioHint] = useState(false);
   const emailInvalid = email.trim().length > 0 && !isValidEmail(email);
   const passwordInputRef = useRef<RNTextInput>(null);
-  const portfolioHintMotion = useRef(new Animated.Value(0)).current;
 
   // Skip the biometric auto-prompt when an E2E autologin is driving the screen
   // (declared before the hook so it can consume the ref). Set in applyE2ELogin.
@@ -221,7 +217,6 @@ export function LoginScreen({ navigation, route }: AuthStackScreenProps<'Login'>
       setEmail(credentials.email);
       setPassword(credentials.password);
       setError(null);
-      setShowPortfolioHint(true);
     };
     const locationCredentials = portfolioDemoCredentialsFromLocation(
       brandId,
@@ -238,33 +233,7 @@ export function LoginScreen({ navigation, route }: AuthStackScreenProps<'Login'>
     return () => window.removeEventListener('message', receivePortfolioDemo);
   }, []);
 
-  useEffect(() => {
-    if (!showPortfolioHint) {
-      portfolioHintMotion.setValue(0);
-      return;
-    }
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(portfolioHintMotion, {
-          toValue: 1,
-          duration: 700,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-        Animated.timing(portfolioHintMotion, {
-          toValue: 0,
-          duration: 700,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-      ])
-    );
-    pulse.start();
-    return () => pulse.stop();
-  }, [portfolioHintMotion, showPortfolioHint]);
-
   const handleLogin = async () => {
-    setShowPortfolioHint(false);
     await submitLogin(email, password);
   };
 
@@ -573,36 +542,6 @@ export function LoginScreen({ navigation, route }: AuthStackScreenProps<'Login'>
             )}
 
             <View style={styles.loginButton}>
-              {showPortfolioHint && (
-                <Animated.View
-                  pointerEvents="none"
-                  testID="portfolio-sign-in-hint"
-                  accessibilityLiveRegion="polite"
-                  style={[
-                    styles.portfolioSignInHint,
-                    {
-                      backgroundColor: colors.textPrimary,
-                      opacity: portfolioHintMotion.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.88, 1],
-                      }),
-                      transform: [
-                        {
-                          translateY: portfolioHintMotion.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0, 4],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  <Typography variant="caption1" color={colors.backgroundMain}>
-                    Start exploring — tap Sign In
-                  </Typography>
-                  <Icon name="arrow-down-outline" size={17} color={colors.backgroundMain} />
-                </Animated.View>
-              )}
               <Button
                 title="Sign In"
                 onPress={handleLogin}
@@ -712,16 +651,6 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     marginTop: 16,
-  },
-  portfolioSignInHint: {
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    marginBottom: 9,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 999,
   },
   forgotButton: {
     marginTop: 8,

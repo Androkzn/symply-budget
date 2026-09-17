@@ -12,7 +12,7 @@ module.exports = {
   // via ios/Brand.xcconfig). Each brand owns its OWN build-number line — bump
   // iosBuildNumber before every TestFlight/App Store archive. See scripts/ios/write-brand-xcconfig.cjs.
   iosVersion: '1.0.1',
-  iosBuildNumber: 85,
+  iosBuildNumber: 87,
   androidPackage: 'com.symply.budget',
   easProjectId: '7e6f549f-c8ed-4018-8f20-fc578b812c20',
   permissionProductName: 'Symply Budget',

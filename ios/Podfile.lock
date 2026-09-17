@@ -4417,7 +4417,7 @@ SPEC CHECKSUMS:
   FBLazyVector: d153c0a7ab3a2c865dd311cb3a5418cd66b658e6
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
   glog: 9c7bd858f1402a8e680d1637276210773c093b76
-  hermes-engine: bf04ecd364a19bafbdc74fe6c9bb2e7585dbb569
+  hermes-engine: f9771b37c353d77f5e6e438312dd76595bff6b82
   JitsiWebRTC: b47805ab5668be38e7ee60e2258f49badfe8e1d0
   libavif: 5f8e715bea24debec477006f21ef9e95432e254d
   libdav1d: 23581a4d8ec811ff171ed5e2e05cd27bad64c39f

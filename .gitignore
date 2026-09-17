@@ -141,6 +141,12 @@ backend/.env.*-secrets
 # Local scratch / E2E logs (never commit)
 .tmp/
 
+# Production Expo Web export (includes copied dependency fonts).
+/dist-web/
+
+# Portfolio Expo Web export (separate from the production artifact).
+/dist-web-portfolio/
+
 # E2E Maestro run reports: HTML is tracked (history of what ran/passed/failed
 # over time); screenshots are local-only (60-600MB per full-suite run — not
 # worth the permanent git bloat, see the *-suite-live-report.sh scripts).

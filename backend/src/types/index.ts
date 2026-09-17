@@ -102,6 +102,8 @@ export interface Env {
   ACCESS_TOKEN_EXPIRY: string;
   REFRESH_TOKEN_EXPIRY: string;
   APP_URL: string;
+  /** Explicit browser origins allowed to access this product API. */
+  WEB_APP_ORIGINS?: string;
   API_URL: string;
 
   // Shared secret gating the admin PUT /features route (feature flags). Optional:

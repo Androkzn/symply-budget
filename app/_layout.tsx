@@ -13,7 +13,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { queryClient } from '@/lib/queryClient';
 import { installE2EGlobalProbe } from '@api/e2eTestObservability';
-import { isHouseBrand } from '@brand';
+import { brandId, isHouseBrand } from '@brand';
 import { isFullBudget } from '@brand/capabilities';
 import { AIConnectionWatcher } from '@components/ai/AIConnectionWatcher';
 import { AiLeaseKeeper } from '@components/ai/AiLeaseKeeper';
@@ -67,6 +67,7 @@ import {
   HouseRecoverHomeScreen,
   useHouseRecoveryGate,
 } from '@screens/house-v2/enrolment/HouseRecoverHomeScreen';
+import { PublicBudgetPreviewScreen } from '@screens/public/PublicBudgetPreviewScreen';
 import { initAnalytics, identifyUser, resetAnalytics, trackScreen } from '@services/analytics';
 import { trySetE2ELoginFromUrl } from '@services/e2e-autologin';
 import { tryQueueE2EDocumentPickFromUrl } from '@services/e2e-document-pick';
@@ -83,6 +84,7 @@ import {
   captureException,
 } from '@services/monitoring';
 import { navigateToHouseJoin, navigationRef } from '@services/navigation';
+import { notifyPortfolioNavigation } from '@services/portfolio-demo';
 import { configurePurchases, logInPurchases } from '@services/purchases';
 import {
   isStorageReady,
@@ -137,13 +139,19 @@ if (__DEV__) {
 // Crash / error monitoring (Sentry). Brand-aware + gated + a no-op when
 // unconfigured — see src/services/monitoring.ts. Fired at module load, before
 // wrapRoot() and the first render, so early-startup crashes are captured.
-initMonitoring();
+const isPublicWebPreviewEnabled =
+  Platform.OS === 'web' && process.env.EXPO_PUBLIC_PUBLIC_PREVIEW === '1';
+
+if (!isPublicWebPreviewEnabled) initMonitoring();
 
 // Keep the splash screen visible while we fetch resources
-SplashScreen.preventAutoHideAsync();
+if (Platform.OS !== 'web') {
+  void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+}
 
-function useE2ELoginDeepLinks() {
+function useE2ELoginDeepLinks(enabled = true) {
   useEffect(() => {
+    if (!enabled) return undefined;
     Linking.getInitialURL()
       .then(async (url) => {
         if (tryHandleE2ETestDeepLink(url)) return;
@@ -173,7 +181,7 @@ function useE2ELoginDeepLinks() {
       tryQueueE2EDocumentPickFromUrl(url);
     });
     return () => sub.remove();
-  }, []);
+  }, [enabled]);
 }
 
 function AppContent() {
@@ -189,6 +197,11 @@ function AppContent() {
   const pendingBudgetInvite = useBudgetInviteLinkStore((state) => state.pendingInvite);
   const pendingHouseInvite = useHouseInviteLinkStore((state) => state.pendingInvite);
   const notificationsInitialized = useRef(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    notifyPortfolioNavigation(brandId, isAuthenticated ? pathname : '/login');
+  }, [isAuthenticated, pathname]);
 
   /**
    * The two House states in which this device holds no key for the account's
@@ -703,20 +716,35 @@ function AppContent() {
 }
 
 function RootLayout() {
-  useE2ELoginDeepLinks();
+  useE2ELoginDeepLinks(!isPublicWebPreviewEnabled);
 
   // Product analytics (PostHog). Idempotent + a no-op when unconfigured, so it's
   // safe to fire once at the root before anything else mounts.
   useEffect(() => {
-    initAnalytics();
+    if (!isPublicWebPreviewEnabled) initAnalytics();
   }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      SplashScreen.hideAsync();
+      if (Platform.OS !== 'web') void SplashScreen.hideAsync().catch(() => undefined);
     }, 100);
     return () => clearTimeout(timer);
   }, []);
+
+  // Public Web preview is deliberately outside AppContent and all authenticated
+  // providers. It renders deterministic local data only; native and authenticated
+  // Web builds continue through the normal auth/local-first shell below.
+  if (isPublicWebPreviewEnabled) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <PublicBudgetPreviewScreen />
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

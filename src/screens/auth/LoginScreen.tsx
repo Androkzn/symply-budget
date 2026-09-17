@@ -4,6 +4,8 @@ import * as WebBrowser from 'expo-web-browser';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Alert,
+  Animated,
+  Easing,
   Platform,
   ScrollView,
   StyleSheet,
@@ -32,12 +34,30 @@ import {
   subscribeE2ELogin,
   type E2ELoginCredentials,
 } from '@services/e2e-autologin';
+import {
+  portfolioDemoCredentialsFromLocation,
+  readPortfolioDemoCredentials,
+  requestPortfolioDemo,
+} from '@services/portfolio-demo';
 import { useAppStore } from '@stores/appStore';
 import { useAuthStore } from '@stores/authStore';
 import { useAppColors } from '@theme';
 import { getApiErrorMessage } from '@utils/apiError';
 import { isValidEmail } from '@utils/email';
 import { keyboardDismissScrollProps } from '@utils/keyboard';
+
+type PortfolioMessageEvent = {
+  data: unknown;
+  origin: string;
+  source: unknown;
+};
+type PortfolioWindow = {
+  parent: unknown;
+  location?: { search?: string };
+  addEventListener(type: 'message', listener: (event: PortfolioMessageEvent) => void): void;
+  removeEventListener(type: 'message', listener: (event: PortfolioMessageEvent) => void): void;
+};
+declare const window: PortfolioWindow;
 
 // Ensures the OAuth popup/redirect completes the auth session on return.
 WebBrowser.maybeCompleteAuthSession();
@@ -66,8 +86,10 @@ export function LoginScreen({ navigation, route }: AuthStackScreenProps<'Login'>
   const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
+  const [showPortfolioHint, setShowPortfolioHint] = useState(false);
   const emailInvalid = email.trim().length > 0 && !isValidEmail(email);
   const passwordInputRef = useRef<RNTextInput>(null);
+  const portfolioHintMotion = useRef(new Animated.Value(0)).current;
 
   // Skip the biometric auto-prompt when an E2E autologin is driving the screen
   // (declared before the hook so it can consume the ref). Set in applyE2ELogin.
@@ -192,7 +214,57 @@ export function LoginScreen({ navigation, route }: AuthStackScreenProps<'Login'>
     return subscribeE2ELogin(applyE2ELogin);
   }, [applyE2ELogin]);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const applyPortfolioDemo = (credentials: { email: string; password: string }) => {
+      setShowEmailForm(true);
+      setEmail(credentials.email);
+      setPassword(credentials.password);
+      setError(null);
+      setShowPortfolioHint(true);
+    };
+    const locationCredentials = portfolioDemoCredentialsFromLocation(
+      brandId,
+      window.location?.search ?? ''
+    );
+    if (locationCredentials) applyPortfolioDemo(locationCredentials);
+    const receivePortfolioDemo = (event: PortfolioMessageEvent) => {
+      const credentials = readPortfolioDemoCredentials(event, brandId, window.parent);
+      if (!credentials) return;
+      applyPortfolioDemo(credentials);
+    };
+    window.addEventListener('message', receivePortfolioDemo);
+    requestPortfolioDemo(brandId);
+    return () => window.removeEventListener('message', receivePortfolioDemo);
+  }, []);
+
+  useEffect(() => {
+    if (!showPortfolioHint) {
+      portfolioHintMotion.setValue(0);
+      return;
+    }
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(portfolioHintMotion, {
+          toValue: 1,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+        Animated.timing(portfolioHintMotion, {
+          toValue: 0,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [portfolioHintMotion, showPortfolioHint]);
+
   const handleLogin = async () => {
+    setShowPortfolioHint(false);
     await submitLogin(email, password);
   };
 
@@ -452,8 +524,7 @@ export function LoginScreen({ navigation, route }: AuthStackScreenProps<'Login'>
               testID="auth-email-input"
             />
 
-            <View style={styles.passwordContainer}>
-              <TextInput
+            <TextInput
                 ref={passwordInputRef}
                 label="Password"
                 placeholder="Enter your password"
@@ -478,22 +549,22 @@ export function LoginScreen({ navigation, route }: AuthStackScreenProps<'Login'>
                 onChangeText={setPassword}
                 labelColor={colors.textPrimary}
                 testID="auth-password-input"
-              />
-              <TouchableOpacity
-                style={styles.passwordToggle}
-                onPress={() => setShowPassword(!showPassword)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                testID="auth-password-toggle"
-                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-                accessibilityRole="button"
-              >
-                <Icon
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={24}
-                  color={colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
+              rightIcon={
+                <TouchableOpacity
+                  style={styles.passwordToggle}
+                  onPress={() => setShowPassword((visible) => !visible)}
+                  testID="auth-password-toggle"
+                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                  accessibilityRole="button"
+                >
+                  <Icon
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={24}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              }
+            />
 
             {error && (
               <Typography variant="caption1" color={colors.error} style={styles.errorText}>
@@ -502,6 +573,36 @@ export function LoginScreen({ navigation, route }: AuthStackScreenProps<'Login'>
             )}
 
             <View style={styles.loginButton}>
+              {showPortfolioHint && (
+                <Animated.View
+                  pointerEvents="none"
+                  testID="portfolio-sign-in-hint"
+                  accessibilityLiveRegion="polite"
+                  style={[
+                    styles.portfolioSignInHint,
+                    {
+                      backgroundColor: colors.textPrimary,
+                      opacity: portfolioHintMotion.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.88, 1],
+                      }),
+                      transform: [
+                        {
+                          translateY: portfolioHintMotion.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, 4],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <Typography variant="caption1" color={colors.backgroundMain}>
+                    Start exploring — tap Sign In
+                  </Typography>
+                  <Icon name="arrow-down-outline" size={17} color={colors.backgroundMain} />
+                </Animated.View>
+              )}
               <Button
                 title="Sign In"
                 onPress={handleLogin}
@@ -603,19 +704,24 @@ const styles = StyleSheet.create({
   form: {
     marginBottom: 20,
   },
-  passwordContainer: {
-    position: 'relative',
-  },
   passwordToggle: {
-    position: 'absolute',
-    right: 12,
-    top: 40,
-    zIndex: 10,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
   loginButton: {
     marginTop: 16,
+  },
+  portfolioSignInHint: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 9,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
   },
   forgotButton: {
     marginTop: 8,

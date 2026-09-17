@@ -1,5 +1,17 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import Svg, { Defs, LinearGradient, Stop, Text as SvgText, TSpan } from 'react-native-svg';
+
+/**
+ * react-native-svg inherits the platform font when native, but browser SVG
+ * defaults to a serif face when no family is specified. Pin both paths to the
+ * same system sans family so the Web wordmark matches the iOS application.
+ */
+export function brandWordmarkFontFamily(platform = Platform.OS): string {
+  return platform === 'web'
+    ? 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+    : 'System';
+}
 
 /**
  * Two-tone app wordmark, rendered as one `react-native-svg` text run (no
@@ -82,6 +94,7 @@ export function BrandWordmark({
       <SvgText
         x={x}
         y={fontSize}
+        fontFamily={brandWordmarkFontFamily()}
         fontSize={fontSize}
         fontWeight={fontWeight}
         textAnchor="start"

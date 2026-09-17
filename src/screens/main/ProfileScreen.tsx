@@ -1,5 +1,4 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -29,7 +28,7 @@ import { showToast } from '@services/toastManager';
 import { useAuthStore } from '@stores/authStore';
 import { CornerRadius, Header, Spacing, useAppColors } from '@theme';
 import { keyboardDismissScrollProps } from '@utils/keyboard';
-
+import { avatarUriToDataUrl } from '@utils/avatarDataUrl';
 
 type ProfileScreenProps = NativeStackScreenProps<{ Profile: undefined }, 'Profile'>;
 
@@ -82,14 +81,10 @@ export function ProfileScreen({ navigation }: ProfileScreenProps) {  const color
   const processAndUploadImage = async (uri: string, mime: string) => {
     setIsUploadingAvatar(true);
     try {
-      // Image is already cropped and resized by the picker. `fetch(uri).blob()` +
-      // FileReader.readAsDataURL is unreliable for local file:// URIs under the
-      // New Architecture — expo-file-system's base64 reader is the pattern used
-      // everywhere else in the app for this exact conversion.
-      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
-
-      // Upload avatar
-      await updateProfile({ avatar_url: `data:${mime};base64,${base64}` });
+      // Native returns file://; Expo Web returns blob:. The converter chooses
+      // the reader that can actually access each URI scheme.
+      const avatarUrl = await avatarUriToDataUrl(uri, mime);
+      await updateProfile({ avatar_url: avatarUrl });
     } catch (error) {
       console.error('Error uploading avatar:', error);
       Alert.alert(t('common.error'), 'Failed to upload avatar');

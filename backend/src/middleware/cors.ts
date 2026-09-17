@@ -16,8 +16,14 @@ export function corsMiddleware() {
       }
 
       // In production, check against allowed origins
+      const configuredWebOrigins = (env.WEB_APP_ORIGINS ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+
       const allowedOrigins = [
         env.APP_URL,
+        ...configuredWebOrigins,
         'https://simplehouse.app',
         'https://www.simplehouse.app',
       ].filter(Boolean);
@@ -34,7 +40,8 @@ export function corsMiddleware() {
       return null;
     },
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+    // The Web client includes both cache headers on login and authenticated reads.
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Cache-Control', 'Pragma'],
     exposeHeaders: ['X-Request-Id', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
     maxAge: 86400, // 24 hours
     credentials: true,

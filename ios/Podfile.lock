@@ -237,10 +237,6 @@ PODS:
     - ExpoModulesCore
   - ExpoCamera (57.0.3):
     - ExpoModulesCore
-  - ExpoCameraBarcodeScanning (57.0.3):
-    - ExpoCamera
-    - ZXingObjC/OneD
-    - ZXingObjC/PDF417
   - ExpoClipboard (57.0.1):
     - ExpoModulesCore
   - ExpoContacts (57.0.4):
@@ -323,11 +319,6 @@ PODS:
   - ExpoModulesWorklets (57.0.11):
     - ExpoModulesCore
     - ExpoModulesJSI
-  - ExpoModulesWorkletsAdapter (57.0.11):
-    - ExpoModulesCore
-    - ExpoModulesJSI
-    - ExpoModulesWorklets
-    - RNWorklets
   - ExpoNotifications (57.0.12):
     - ExpoModulesCore
   - ExpoRoomPlan (1.0.0):
@@ -3824,11 +3815,6 @@ PODS:
   - WidgetSync (1.0.0):
     - ExpoModulesCore
   - Yoga (0.0.0)
-  - ZXingObjC/Core (3.6.9)
-  - ZXingObjC/OneD (3.6.9):
-    - ZXingObjC/Core
-  - ZXingObjC/PDF417 (3.6.9):
-    - ZXingObjC/Core
 
 DEPENDENCIES:
   - boost (from `../node_modules/react-native/third-party-podspecs/boost.podspec`)
@@ -3851,7 +3837,6 @@ DEPENDENCIES:
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
   - ExpoCalendar (from `../node_modules/expo-calendar/ios`)
   - ExpoCamera (from `../node_modules/expo-camera/ios`)
-  - ExpoCameraBarcodeScanning (from `../node_modules/expo-camera/ios`)
   - ExpoClipboard (from `../node_modules/expo-clipboard/ios`)
   - ExpoContacts (from `../node_modules/expo-contacts/ios`)
   - ExpoCrypto (from `../node_modules/expo-crypto/ios`)
@@ -3875,7 +3860,6 @@ DEPENDENCIES:
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
   - ExpoModulesJSI (from `../node_modules/expo-modules-jsi/apple`)
   - ExpoModulesWorklets (from `../node_modules/expo-modules-core`)
-  - ExpoModulesWorkletsAdapter (from `../node_modules/expo-modules-core`)
   - ExpoNotifications (from `../node_modules/expo-notifications/ios`)
   - ExpoRoomPlan (from `../modules/roomplan/ios`)
   - ExpoRouter (from `../node_modules/expo-router/ios`)
@@ -4017,7 +4001,6 @@ SPEC REPOS:
     - Sentry
     - SocketRocket
     - TSBackgroundFetch
-    - ZXingObjC
 
 EXTERNAL SOURCES:
   boost:
@@ -4059,8 +4042,6 @@ EXTERNAL SOURCES:
   ExpoCalendar:
     :path: "../node_modules/expo-calendar/ios"
   ExpoCamera:
-    :path: "../node_modules/expo-camera/ios"
-  ExpoCameraBarcodeScanning:
     :path: "../node_modules/expo-camera/ios"
   ExpoClipboard:
     :path: "../node_modules/expo-clipboard/ios"
@@ -4107,8 +4088,6 @@ EXTERNAL SOURCES:
   ExpoModulesJSI:
     :path: "../node_modules/expo-modules-jsi/apple"
   ExpoModulesWorklets:
-    :path: "../node_modules/expo-modules-core"
-  ExpoModulesWorkletsAdapter:
     :path: "../node_modules/expo-modules-core"
   ExpoNotifications:
     :path: "../node_modules/expo-notifications/ios"
@@ -4358,7 +4337,7 @@ SPEC CHECKSUMS:
   DoubleConversion: cb417026b2400c8f53ae97020b2be961b59470cb
   EASClient: 5da65c241641b62e538ed77f5c36f3a6ffc8e8b2
   EXApplication: f62b1a7f8a6efe1d43f38bfbe98cf4acea9b9421
-  EXConstants: 5633deb9d049de0e7312b682f73d0a929fb0c793
+  EXConstants: 39022ff68975a6fcdf43c0ba48877ef5dcb10642
   EXJSONUtils: 7a1683cfa2cbe6d11fca97097d51a496755b0287
   EXManifests: b9129302cc7af43d45c2f473fadb88e77f837273
   Expo: 3978ebe8d7f6cfdbcb9634e56a7c5de32c89e630
@@ -4373,7 +4352,6 @@ SPEC CHECKSUMS:
   ExpoBlur: 0f2c616d5422a2b1a31e622d2add98784eed1ceb
   ExpoCalendar: 028f2b2a76ad952fcba0dd056d92aca998d62dc1
   ExpoCamera: 3f54076a116c65281ef279db56fb6c43066f24a3
-  ExpoCameraBarcodeScanning: 5b75034db2c6cdc5deec1fb79890fd68918489f8
   ExpoClipboard: 42aa5588bc38bb74923cf0033bd01002c10f58e9
   ExpoContacts: 21405ca39163e03e7835124d640cbfaeada5b91f
   ExpoCrypto: 4272c8712a133905a00059ef6e109759fbda2cee
@@ -4397,7 +4375,6 @@ SPEC CHECKSUMS:
   ExpoModulesCore: 181d562a37f268d71282a09722aed673764e7abc
   ExpoModulesJSI: 6cb6d299ace493e7dd20ba94c99e8c4799b07afd
   ExpoModulesWorklets: 0b413c44a848159e224a148dd648b091352d8d9e
-  ExpoModulesWorkletsAdapter: a92ba2ed986ed9311dd592be0fb2e164fd111e35
   ExpoNotifications: c7988b48d9ea9f5ef3110eebba8db88f11d4aba7
   ExpoRoomPlan: 585a706519c9c2cac8e32407f8ce61e758f48727
   ExpoRouter: e57966b98b1eb9b87b26796042f12f4e5e22eba8
@@ -4532,9 +4509,8 @@ SPEC CHECKSUMS:
   TSBackgroundFetch: 0afbeaae4e1132866e1d4b6e55265af26b5958ae
   UMAppLoader: 0e242f0ae19297f8f1a4ae730c91d545ffd3e2cc
   WidgetSync: b6538791aa7919714b022259fe542ad206b77d05
-  Yoga: 0b38f02674a32b9a15de1f41f8680ffa06eaf8ef
-  ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5
+  Yoga: 2c8633675e4325215dc632ebb3ca8157a227e167
 
 PODFILE CHECKSUM: ab36a2bcc541607b143dd8bac693e0eaaeba2734
 
-COCOAPODS: 1.17.0
+COCOAPODS: 1.16.2
